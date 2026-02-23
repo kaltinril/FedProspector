@@ -1,0 +1,355 @@
+{
+	"info": {
+		"_postman_id": "5cbb45b7-941d-41e4-8c4e-ec51cdebfb29",
+		"name": "SAM.gov",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "SAM.gov Entity/Exclusions Extracts Download API",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/data-services/v1/extracts?api_key={{api_key}}&fileName=SAM_PUBLIC_MONTHLY_20220305.ZIP&frequency=DAILY&date=03/29/2022&sensitivity=PUBLIC",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"data-services",
+						"v1",
+						"extracts"
+					],
+					"query": [
+						{
+							"key": "api_key",
+							"value": "{{api_key}}"
+						},
+						{
+							"key": "fileName",
+							"value": "SAM_PUBLIC_MONTHLY_20220305.ZIP"
+						},
+						{
+							"key": "frequency",
+							"value": "DAILY"
+						},
+						{
+							"key": "date",
+							"value": "03/29/2022"
+						},
+						{
+							"key": "sensitivity",
+							"value": "PUBLIC"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "SAM.gov Federal Hierarchy Public API",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/{{env_path}}/federalorganizations/v1/orgs?api_key={{api_key}}&status=Active&limit=100&offset=1",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"{{env_path}}",
+						"federalorganizations",
+						"v1",
+						"orgs"
+					],
+					"query": [
+						{
+							"key": "api_key",
+							"value": "{{api_key}}"
+						},
+						{
+							"key": "status",
+							"value": "Active"
+						},
+						{
+							"key": "limit",
+							"value": "100"
+						},
+						{
+							"key": "offset",
+							"value": "1"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "SAM.gov Federal Hierarchy Public API Copy",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/{{env_path}}/federalorganizations/v1/orgs?api_key={{api_key}}&status=Active&limit=100&offset=1",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"{{env_path}}",
+						"federalorganizations",
+						"v1",
+						"orgs"
+					],
+					"query": [
+						{
+							"key": "api_key",
+							"value": "{{api_key}}"
+						},
+						{
+							"key": "status",
+							"value": "Active"
+						},
+						{
+							"key": "limit",
+							"value": "100"
+						},
+						{
+							"key": "offset",
+							"value": "1"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "SAM.gov Federal Hierarchy Public API  - specific",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/{{env_path}}/federalorganizations/v1/orgs?api_key={{api_key}}&status=Active&limit=100&offset=1",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"{{env_path}}",
+						"federalorganizations",
+						"v1",
+						"orgs"
+					],
+					"query": [
+						{
+							"key": "api_key",
+							"value": "{{api_key}}"
+						},
+						{
+							"key": "status",
+							"value": "Active"
+						},
+						{
+							"key": "limit",
+							"value": "100"
+						},
+						{
+							"key": "offset",
+							"value": "1"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "SAM.gov Entity Management API",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/entity-information/v3/entities?api_key={{api_key}}&format=json",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"entity-information",
+						"v3",
+						"entities"
+					],
+					"query": [
+						{
+							"key": "api_key",
+							"value": "{{api_key}}"
+						},
+						{
+							"key": "format",
+							"value": "json"
+						}
+					]
+				}
+			},
+			"response": [
+				{
+					"name": "SAM.gov Entity Management API",
+					"originalRequest": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/entity-information/v3/entities?api_key={{api_key}}&format=json",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"entity-information",
+								"v3",
+								"entities"
+							],
+							"query": [
+								{
+									"key": "api_key",
+									"value": "{{api_key}}"
+								},
+								{
+									"key": "format",
+									"value": "json"
+								}
+							]
+						}
+					},
+					"_postman_previewlanguage": null,
+					"header": null,
+					"cookie": [],
+					"body": null
+				}
+			]
+		},
+		{
+			"name": "SAM.gov Entity Management API Copy",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/entity-information/v3/entities?api_key={{api_key}}&format=json",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"entity-information",
+						"v3",
+						"entities"
+					],
+					"query": [
+						{
+							"key": "api_key",
+							"value": "{{api_key}}"
+						},
+						{
+							"key": "format",
+							"value": "json"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Opportunities",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/opportunities/v2/search?api_key={{api_key}}&limit=1000&postedFrom=08/01/2022&postedTo=08/08/2022&ptype=a&deptname=general",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"opportunities",
+						"v2",
+						"search"
+					],
+					"query": [
+						{
+							"key": "api_key",
+							"value": "{{api_key}}"
+						},
+						{
+							"key": "format",
+							"value": "json",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "1000"
+						},
+						{
+							"key": "postedFrom",
+							"value": "08/01/2022"
+						},
+						{
+							"key": "postedTo",
+							"value": "08/08/2022"
+						},
+						{
+							"key": "ptype",
+							"value": "a"
+						},
+						{
+							"key": "deptname",
+							"value": "general"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Opportunities Copy",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{base_url}}/opportunities/v2/search?api_key={{api_key}}&limit=1000&postedFrom=08/01/2022&postedTo=08/08/2022&ptype=a&deptname=general",
+					"host": [
+						"{{base_url}}"
+					],
+					"path": [
+						"opportunities",
+						"v2",
+						"search"
+					],
+					"query": [
+						{
+							"key": "api_key",
+							"value": "{{api_key}}"
+						},
+						{
+							"key": "format",
+							"value": "json",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "1000"
+						},
+						{
+							"key": "postedFrom",
+							"value": "08/01/2022"
+						},
+						{
+							"key": "postedTo",
+							"value": "08/08/2022"
+						},
+						{
+							"key": "ptype",
+							"value": "a"
+						},
+						{
+							"key": "deptname",
+							"value": "general"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}

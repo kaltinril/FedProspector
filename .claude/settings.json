@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls *)",
+      "Bash(dir *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(copy *)",
+      "Bash(mv *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "Bash(echo *)",
+      "Bash(pwd)",
+      "Bash(which *)",
+      "Bash(where *)",
+      "Bash(test *)",
+      "Bash(git *)",
+      "Bash(dotnet *)",
+      "Bash(\"C:/Program Files/7-Zip/7z.exe\" *)",
+      "Bash(\"/c/Program Files/7-Zip/7z.exe\" *)",
+      "Bash(ffmpeg *)",
+      "Bash(for *)",
+      "Bash(cd *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(mgcb *)"
+    ]
+  }
+}

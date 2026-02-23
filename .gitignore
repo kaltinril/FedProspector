@@ -1,0 +1,50 @@
+# Credentials (never commit - defensive patterns)
+**/.env
+**/.env.*
+!**/.env.example
+*.key
+*.pem
+**/secrets.*
+**/credentials.*
+
+# Local IDE/tool config
+.claude/settings.local.json
+
+# Environment
+fed_prospector/.venv/
+fed_prospector/venv/
+
+# Python
+fed_prospector/__pycache__/
+fed_prospector/*.pyc
+fed_prospector/*.pyo
+fed_prospector/*.egg-info/
+fed_prospector/dist/
+fed_prospector/build/
+
+# Data files (large downloads)
+fed_prospector/data/downloads/*
+fed_prospector/data/logs/*
+!fed_prospector/data/downloads/.gitkeep
+!fed_prospector/data/logs/.gitkeep
+
+# IDE
+fed_prospector/.vscode/
+fed_prospector/.idea/
+fed_prospector/*.swp
+fed_prospector/*.swo
+
+# OS
+fed_prospector/.DS_Store
+fed_prospector/Thumbs.db
+
+# ignore old
+OLD_ATTEMPTS/
+OLD_RESOURCES/
+
+# conversion
+workdir/
+
+# sensitive config (e.g. API keys, DB credentials)
+thesolution/credentials.yml
+thesolution/samgov.yml
