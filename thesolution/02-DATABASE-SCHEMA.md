@@ -409,7 +409,7 @@ CREATE TABLE opportunity (
     set_aside_description VARCHAR(200),
     classification_code  VARCHAR(10),            -- PSC code
     naics_code           VARCHAR(6),
-    pop_state            VARCHAR(2),
+    pop_state            VARCHAR(6),              -- ISO 3166-2 subdivision codes (e.g., IN-MH)
     pop_zip              VARCHAR(10),
     pop_country          VARCHAR(3),
     pop_city             VARCHAR(100),
@@ -486,7 +486,7 @@ CREATE TABLE federal_organization (
 ```
 
 ### fpds_contract
-Historical contract awards from FPDS.
+Historical contract awards from FPDS and SAM.gov Contract Awards API.
 
 ```sql
 CREATE TABLE fpds_contract (
@@ -514,11 +514,19 @@ CREATE TABLE fpds_contract (
     set_aside_type       VARCHAR(20),
     type_of_contract     VARCHAR(10),
     description          TEXT,
-    pop_state            VARCHAR(2),
+    pop_state            VARCHAR(6),              -- ISO 3166-2 subdivision codes (e.g., IN-MH)
     pop_country          VARCHAR(3),
     pop_zip              VARCHAR(10),
     extent_competed      VARCHAR(10),
     number_of_offers     INT,
+    far1102_exception_code   VARCHAR(2),          -- FAR 1.102 exception (Phase 5A)
+    far1102_exception_name   VARCHAR(100),
+    reason_for_modification  VARCHAR(100),
+    solicitation_date        DATE,
+    ultimate_completion_date DATE,
+    type_of_contract_pricing VARCHAR(10),
+    co_bus_size_determination VARCHAR(50),
+    record_hash              CHAR(64),            -- SHA-256 change detection
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_load_id         INT,
@@ -527,7 +535,10 @@ CREATE TABLE fpds_contract (
     INDEX idx_fpds_naics (naics_code),
     INDEX idx_fpds_agency (agency_id),
     INDEX idx_fpds_date (date_signed),
-    INDEX idx_fpds_setaside (set_aside_type)
+    INDEX idx_fpds_setaside (set_aside_type),
+    INDEX idx_fpds_completion (completion_date),
+    INDEX idx_fpds_hash (record_hash),
+    INDEX idx_fpds_far1102 (far1102_exception_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
@@ -566,42 +577,67 @@ USASpending.gov award data for incumbent and spending analysis.
 
 ```sql
 CREATE TABLE usaspending_award (
-    generated_unique_award_id VARCHAR(100) NOT NULL,
+    generated_unique_award_id VARCHAR(100) PRIMARY KEY,
     piid                     VARCHAR(50),
-    fain                     VARCHAR(50),
+    fain                     VARCHAR(30),
+    uri                      VARCHAR(70),
     award_type               VARCHAR(50),
-    total_obligation         DECIMAL(15,2),
-    total_outlay             DECIMAL(15,2),
     award_description        TEXT,
-    period_of_performance_start DATE,
-    period_of_performance_end   DATE,
-    awarding_agency_name     VARCHAR(200),
-    awarding_sub_agency_name VARCHAR(200),
-    funding_agency_name      VARCHAR(200),
     recipient_name           VARCHAR(200),
     recipient_uei            VARCHAR(12),
     recipient_parent_name    VARCHAR(200),
     recipient_parent_uei     VARCHAR(12),
+    total_obligation         DECIMAL(15,2),
+    base_and_all_options_value DECIMAL(15,2),
+    start_date               DATE,
+    end_date                 DATE,
+    last_modified_date       DATE,
+    awarding_agency_name     VARCHAR(200),
+    awarding_sub_agency_name VARCHAR(200),
+    funding_agency_name      VARCHAR(200),
     naics_code               VARCHAR(6),
     naics_description        VARCHAR(500),
     psc_code                 VARCHAR(10),
-    set_aside_type           VARCHAR(100),
-    solicitation_identifier  VARCHAR(100),
-    pop_state                VARCHAR(2),
+    type_of_set_aside        VARCHAR(50),
+    type_of_set_aside_description VARCHAR(200),
+    pop_state                VARCHAR(6),  -- ISO 3166-2 subdivision codes (e.g., IN-MH)
     pop_country              VARCHAR(3),
     pop_zip                  VARCHAR(10),
-    record_hash              CHAR(64),
+    pop_city                 VARCHAR(100),
+    solicitation_identifier  VARCHAR(50),
+    record_hash              VARCHAR(64),
+    last_load_id             INT,
     first_loaded_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    last_load_id             INT,
-    PRIMARY KEY (generated_unique_award_id),
     INDEX idx_usa_naics (naics_code),
     INDEX idx_usa_recipient (recipient_uei),
-    INDEX idx_usa_agency (awarding_agency_name),
-    INDEX idx_usa_setaside (set_aside_type),
-    INDEX idx_usa_dates (period_of_performance_start, period_of_performance_end),
+    INDEX idx_usa_agency (awarding_agency_name(50)),
+    INDEX idx_usa_setaside (type_of_set_aside),
+    INDEX idx_usa_dates (start_date, end_date),
     INDEX idx_usa_solicitation (solicitation_identifier),
     INDEX idx_usa_piid (piid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### usaspending_transaction
+Transaction-level spending detail for burn rate analysis. FK to usaspending_award.
+
+```sql
+CREATE TABLE usaspending_transaction (
+    id                          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    award_id                    VARCHAR(100) NOT NULL,
+    action_date                 DATE NOT NULL,
+    modification_number         VARCHAR(20),
+    action_type                 VARCHAR(5),
+    action_type_description     VARCHAR(100),
+    federal_action_obligation   DECIMAL(15,2),
+    description                 TEXT,
+    first_loaded_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_load_id                INT,
+    INDEX idx_ut_award (award_id),
+    INDEX idx_ut_date (action_date),
+    CONSTRAINT fk_ut_award FOREIGN KEY (award_id)
+        REFERENCES usaspending_award(generated_unique_award_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
@@ -878,8 +914,8 @@ GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics;
 | Reference (`ref_*`) | 10 | Lookup/classification data (includes ref_entity_structure) |
 | Entity | 10 | SAM.gov contractor data |
 | Opportunity | 2 | Contract opportunities |
-| Federal | 4 | Hierarchy, awards, rates (includes usaspending_award) |
+| Federal | 5 | Hierarchy, awards, rates, spending (includes usaspending_award + usaspending_transaction) |
 | ETL | 4 | Load tracking and quality |
 | Prospecting | 5 | Sales pipeline (includes saved_search) |
-| **Total** | **35** | |
+| **Total** | **36** | |
 | **Views** | **2** | |

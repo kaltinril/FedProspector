@@ -459,6 +459,140 @@ class USASpendingLoader:
                 conn.close()
 
     # =================================================================
+    # Transaction loading (for burn rate)
+    # =================================================================
+
+    def load_transactions(self, award_id, transactions, load_id):
+        """Load transaction records for a specific award into usaspending_transaction.
+
+        Inserts new transactions (skips duplicates by award_id + modification_number + action_date).
+
+        Args:
+            award_id: The generated_unique_award_id.
+            transactions: Iterable of transaction dicts from the API.
+            load_id: etl_load_log ID.
+
+        Returns:
+            dict with keys: records_read, records_inserted, records_skipped, records_errored.
+        """
+        stats = {
+            "records_read": 0,
+            "records_inserted": 0,
+            "records_skipped": 0,
+            "records_errored": 0,
+        }
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            for txn in transactions:
+                stats["records_read"] += 1
+                try:
+                    sql = (
+                        "INSERT IGNORE INTO usaspending_transaction "
+                        "(award_id, action_date, modification_number, action_type, "
+                        "action_type_description, federal_action_obligation, description, last_load_id) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+                    )
+                    values = (
+                        award_id,
+                        self._parse_date(txn.get("action_date")),
+                        txn.get("modification_number"),
+                        txn.get("action_type"),
+                        txn.get("action_type_description"),
+                        self._parse_decimal(txn.get("federal_action_obligation")),
+                        txn.get("description"),
+                        load_id,
+                    )
+                    cursor.execute(sql, values)
+                    if cursor.rowcount > 0:
+                        stats["records_inserted"] += 1
+                    else:
+                        stats["records_skipped"] += 1
+
+                except Exception as e:
+                    stats["records_errored"] += 1
+                    self.logger.warning("Error loading transaction: %s", e)
+
+                if stats["records_read"] % 500 == 0:
+                    conn.commit()
+
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
+        self.logger.info(
+            "Transaction load for %s: read=%d ins=%d skip=%d err=%d",
+            award_id, stats["records_read"], stats["records_inserted"],
+            stats["records_skipped"], stats["records_errored"],
+        )
+        return stats
+
+    def calculate_burn_rate(self, award_id, conn=None):
+        """Calculate burn rate for an award from transaction history.
+
+        Returns monthly obligation amounts and overall burn rate.
+
+        Args:
+            award_id: The generated_unique_award_id.
+            conn: Optional DB connection.
+
+        Returns:
+            dict with keys:
+                total_obligated: Total from all transactions
+                months_elapsed: Months from first to last action
+                monthly_rate: total / months (simple burn rate)
+                monthly_breakdown: list of (year_month, amount) tuples
+                transaction_count: Number of transactions
+            Returns None if no transactions found.
+        """
+        own_conn = conn is None
+        if own_conn:
+            conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        try:
+            # Get monthly breakdown
+            cursor.execute(
+                "SELECT DATE_FORMAT(action_date, '%%Y-%%m') AS year_month, "
+                "SUM(federal_action_obligation) AS monthly_total, "
+                "COUNT(*) AS txn_count "
+                "FROM usaspending_transaction "
+                "WHERE award_id = %s AND federal_action_obligation IS NOT NULL "
+                "GROUP BY year_month "
+                "ORDER BY year_month",
+                (award_id,),
+            )
+            rows = cursor.fetchall()
+
+            if not rows:
+                return None
+
+            monthly = [(r["year_month"], float(r["monthly_total"])) for r in rows]
+            total = sum(amt for _, amt in monthly)
+            txn_count = sum(r["txn_count"] for r in rows)
+
+            # Calculate months elapsed
+            first_month = rows[0]["year_month"]
+            last_month = rows[-1]["year_month"]
+            fy, fm = int(first_month[:4]), int(first_month[5:7])
+            ly, lm = int(last_month[:4]), int(last_month[5:7])
+            months = (ly - fy) * 12 + (lm - fm) + 1  # inclusive
+
+            return {
+                "total_obligated": total,
+                "months_elapsed": months,
+                "monthly_rate": total / months if months > 0 else 0,
+                "monthly_breakdown": monthly,
+                "transaction_count": txn_count,
+            }
+        finally:
+            cursor.close()
+            if own_conn:
+                conn.close()
+
+    # =================================================================
     # Parsing helpers
     # =================================================================
 

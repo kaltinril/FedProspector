@@ -44,6 +44,7 @@ class USASpendingClient(BaseAPIClient):
     AWARD_DETAIL_ENDPOINT = "/api/v2/awards/"
     SPENDING_BY_CATEGORY_ENDPOINT = "/api/v2/search/spending_by_category/"
     BULK_DOWNLOAD_ENDPOINT = "/api/v2/bulk_download/awards/"
+    TRANSACTION_ENDPOINT = "/api/v2/transactions/"
 
     # Fields to request from the award search endpoint.
     # Note: The API returns "Award ID" as the contract PIID, and
@@ -356,6 +357,79 @@ class USASpendingClient(BaseAPIClient):
 
         self.logger.info("Found %d top recipients", len(results))
         return results
+
+    # -----------------------------------------------------------------
+    # Transaction history (for burn rate analysis)
+    # -----------------------------------------------------------------
+
+    def get_award_transactions(self, award_id, page=1, limit=5000,
+                               sort="action_date", order="asc"):
+        """Get transaction history for a specific award.
+
+        POST to /api/v2/transactions/. Returns the per-modification
+        funding timeline needed for burn rate analysis.
+
+        Args:
+            award_id: The generated_unique_award_id (e.g. "CONT_AWD_...").
+            page: 1-based page number (default 1).
+            limit: Records per page, 1-5000 (default 5000).
+            sort: Sort field (default "action_date").
+            order: "asc" or "desc" (default "asc" for chronological).
+
+        Returns:
+            dict with keys: results (list of transaction dicts),
+            page_metadata (dict with page, hasNext, total, limit).
+        """
+        body = {
+            "award_id": award_id,
+            "page": page,
+            "limit": limit,
+            "sort": sort,
+            "order": order,
+        }
+        self.logger.debug("Transactions for %s page=%d", award_id, page)
+        response = self.post(self.TRANSACTION_ENDPOINT, json_body=body, timeout=60)
+        return response.json()
+
+    def get_all_transactions(self, award_id, **kwargs):
+        """Generator yielding all transactions for an award.
+
+        Paginates automatically through all pages. Used to build
+        complete funding timeline for burn rate calculation.
+
+        Args:
+            award_id: The generated_unique_award_id.
+            **kwargs: Passed to get_award_transactions (sort, order, limit).
+
+        Yields:
+            dict: Individual transaction records.
+        """
+        kwargs.pop("page", None)
+        page = 1
+        total_yielded = 0
+
+        while True:
+            data = self.get_award_transactions(award_id, page=page, **kwargs)
+            results = data.get("results", [])
+
+            for txn in results:
+                total_yielded += 1
+                yield txn
+
+            metadata = data.get("page_metadata", {})
+            has_next = metadata.get("hasNext", False)
+
+            self.logger.info(
+                "Award %s transactions page %d: %d records (total: %d, hasNext: %s)",
+                award_id, page, len(results), total_yielded, has_next,
+            )
+
+            if not has_next or not results:
+                break
+
+            page += 1
+
+        self.logger.info("Award %s: %d total transactions", award_id, total_yielded)
 
     # -----------------------------------------------------------------
     # Bulk download

@@ -15,8 +15,10 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
 # SAM.gov API
 SAM_API_KEY = os.getenv("SAM_API_KEY", "")
+SAM_API_KEY_2 = os.getenv("SAM_API_KEY_2", "")
 SAM_API_BASE_URL = "https://api.sam.gov"
 SAM_DAILY_LIMIT = int(os.getenv("SAM_DAILY_LIMIT", "10"))
+SAM_DAILY_LIMIT_2 = int(os.getenv("SAM_DAILY_LIMIT_2", "1000"))
 
 # GSA CALC API (no auth needed)
 CALC_API_BASE_URL = "https://api.gsa.gov/acquisition/calc/v3/api"

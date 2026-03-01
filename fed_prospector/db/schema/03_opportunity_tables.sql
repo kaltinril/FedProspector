@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     set_aside_description VARCHAR(200),
     classification_code  VARCHAR(10),
     naics_code           VARCHAR(6),
-    pop_state            VARCHAR(2),
+    pop_state            VARCHAR(6),       -- ISO 3166-2 subdivision: US='VA', foreign='IN-MH'
     pop_zip              VARCHAR(10),
     pop_country          VARCHAR(3),
     pop_city             VARCHAR(100),

@@ -49,11 +49,19 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     set_aside_type       VARCHAR(20),
     type_of_contract     VARCHAR(10),
     description          TEXT,
-    pop_state            VARCHAR(2),
+    pop_state            VARCHAR(6),       -- ISO 3166-2 subdivision codes (e.g., IN-MH)
     pop_country          VARCHAR(3),
     pop_zip              VARCHAR(10),
     extent_competed      VARCHAR(10),
     number_of_offers     INT,
+    far1102_exception_code   VARCHAR(2),
+    far1102_exception_name   VARCHAR(100),
+    reason_for_modification  VARCHAR(100),
+    solicitation_date        DATE,
+    ultimate_completion_date DATE,
+    type_of_contract_pricing VARCHAR(10),
+    co_bus_size_determination VARCHAR(50),
+    record_hash              CHAR(64),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_load_id         INT,
@@ -62,7 +70,10 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     INDEX idx_fpds_naics (naics_code),
     INDEX idx_fpds_agency (agency_id),
     INDEX idx_fpds_date (date_signed),
-    INDEX idx_fpds_setaside (set_aside_type)
+    INDEX idx_fpds_setaside (set_aside_type),
+    INDEX idx_fpds_completion (completion_date),
+    INDEX idx_fpds_hash (record_hash),
+    INDEX idx_fpds_far1102 (far1102_exception_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gsa_labor_rate (

@@ -36,6 +36,7 @@ This replaces a previous Salesforce-based approach. All data gathering uses Pyth
 - **Config**: `.env` file with `python-dotenv`, never commit `.env` to git
 - **Logging**: Python `logging` module, structured output
 - **API Clients**: One class per data source, all inherit from `BaseAPIClient`
+- **API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
 
@@ -57,12 +58,16 @@ These were discovered during the first import attempt and must be handled in the
 12. Duplicate NAICS entries for some entities (same code, different flags) - 7 occurrences in monthly extract
 13. SAM.gov Opportunities API returns `fullParentPathName` (dot-separated) instead of separate department/subTier/office fields
 14. Opportunity `description` field is a URL, not text content (requires separate authenticated fetch)
+15. SAM.gov Opportunities API rejects date ranges of exactly 365 days (error: "Date range must be null year(s) apart") — use 364-day max chunks
+16. SAM.gov Opportunities API rejects Feb 29 as start date — historical load skips leap day
+17. Opportunity `pop_state` field can contain ISO 3166-2 subdivision codes > 2 chars (e.g., IN-MH for India-Maharashtra) — column widened to VARCHAR(6)
+18. SAM.gov Contract Awards API dates are in MM/DD/YYYY format (not ISO 8601) — awards_loader converts during load
 
 ### Project File References
 
 | What | Location |
 |------|----------|
-| Python application | `fed_prospector/` (CLI: `python main.py --help`) |
+| Python application | `fed_prospector/` (CLI: `python main.py --help`, 26 commands in 7 `cli/` modules) |
 | Plan documents | `thesolution/` |
 | Credentials (DB, API keys) | `thesolution/credentials.yml` |
 | Quick start / environment setup | `thesolution/QUICKSTART.md` |
@@ -89,5 +94,8 @@ These were discovered during the first import attempt and must be handled in the
 | GSA CALC+ API client | `fed_prospector/api_clients/calc_client.py` |
 | USASpending loader | `fed_prospector/etl/usaspending_loader.py` |
 | GSA CALC+ loader | `fed_prospector/etl/calc_loader.py` |
-| USASpending table DDL | `fed_prospector/db/schema/08_usaspending_tables.sql` |
+| USASpending table DDL (2 tables) | `fed_prospector/db/schema/08_usaspending_tables.sql` |
+| SAM Contract Awards API client | `fed_prospector/api_clients/sam_awards_client.py` |
+| Awards loader (-> fpds_contract) | `fed_prospector/etl/awards_loader.py` |
+| CLI modules (refactored from main.py) | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, spending) |
 | Prior import progress notes (archived) | `OLD_ATTEMPTS/local database/progress story.txt` |

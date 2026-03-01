@@ -47,11 +47,11 @@ pbdc/
 **Status**: [x] COMPLETE (2026-02-22)
 **File**: [04-PHASE1-FOUNDATION.md](04-PHASE1-FOUNDATION.md)
 
-- ~~Set up MySQL database~~ 35 tables + 2 views
+- ~~Set up MySQL database~~ 36 tables + 2 views
 - ~~Load reference data from CSVs~~ 12,988 rows across 9 tables
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
-- ~~CLI entry point~~ `python main.py {build-database, load-lookups, status, check-api}`
+- ~~CLI entry point~~ `python main.py` (26 commands across 7 `cli/` modules)
 - **Deliverable**: DONE
 
 ### Phase 2: Entity Data Pipeline (Proof of Concept - 1 Source)
@@ -68,16 +68,16 @@ pbdc/
 - **Deliverable**: DONE
 
 ### Phase 3: Opportunities Pipeline (Proof of Concept - Load First Data)
-**Status**: [~] IN PROGRESS (2026-02-22) - Core pipeline complete, 57 opportunities loaded
+**Status**: [~] IN PROGRESS (2026-02-28) - 12,209 opportunities loaded (2-year historical), polling pending
 **File**: [06-PHASE3-OPPORTUNITIES-PIPELINE.md](06-PHASE3-OPPORTUNITIES-PIPELINE.md)
 
 - ~~Build SAM.gov Opportunities API client~~ `sam_opportunity_client.py` (v2 search, 5-call budget, priority set-aside ordering)
 - ~~Implement opportunity loader with change tracking~~ `opportunity_loader.py` (SHA-256 hashing, opportunity_history)
 - ~~Create CLI commands~~ `load-opportunities` (--max-calls, --historical) + `search` (local DB query)
-- ~~Initial data load~~ 57 opportunities (WOSB=19, 8A=26, 8AN=10, EDWOSB=2) in 4 API calls
-- [ ] Load historical opportunities (2+ years) - pending rate limit upgrade
+- ~~Initial + historical load~~ 12,209 opportunities across 12 SB set-aside types (2-year range, Mar 2024 - Feb 2026)
 - [ ] Set up scheduled polling (Phase 6)
-- **Deliverable**: IN PROGRESS - Active opportunities loaded, search working, historical load pending
+- **Note**: SAM.gov API key 2 confirmed at 1000/day tier (enables full historical loads)
+- **Deliverable**: IN PROGRESS - Historical opportunities loaded, search working, scheduled polling pending (Phase 6)
 
 ### Phase 4: Sales/Prospecting Pipeline
 **Status**: [x] COMPLETE (2026-02-22)
@@ -91,18 +91,21 @@ pbdc/
 - **Deliverable**: DONE
 
 ### Phase 5: Extended Data Sources (Remaining Phases Build-Out)
-**Status**: [~] IN PROGRESS (2026-02-22) - USASpending + GSA CALC+ complete
+**Status**: [~] IN PROGRESS (2026-02-28) - 5A, 5B, 5B-Enhance, 5C complete
 **File**: [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md)
 
-- [ ] SAM.gov Contract Awards API (historical award intelligence)
+- ~~SAM.gov Contract Awards API~~ `sam_awards_client.py` + `awards_loader.py` (v1 API, search by NAICS/awardee/solicitation, loads to `fpds_contract`)
 - ~~USASpending.gov API~~ `usaspending_client.py` + `usaspending_loader.py` (POST-based search, SHA-256 change detection, incumbent search working)
+- ~~USASpending Transaction History (5B-Enhance)~~ `usaspending_transaction` table, `load_transactions()`, `calculate_burn_rate()` for spend analysis
 - [ ] FPDS ATOM Feed (deep historical procurement data)
 - ~~GSA CALC+ API~~ `calc_client.py` + `calc_loader.py` (full_refresh, ~52K labor rates loaded)
 - [ ] SAM.gov Federal Hierarchy API (agency org structure)
 - [ ] SAM.gov Exclusions API (due diligence)
 - [ ] SAM.gov Subaward Reporting API (subcontracting intelligence)
 - **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
-- **Deliverable**: IN PROGRESS - 5B (USASpending) and 5C (GSA CALC+) complete, 5A/5D/5E/5F/5G pending
+- **CLI refactored**: `main.py` (1752 -> 126 lines) with 26 commands split into `cli/` modules (database, entities, opportunities, prospecting, calc, awards, spending)
+- **New CLI commands**: `load-awards`, `load-transactions`, `burn-rate`
+- **Deliverable**: IN PROGRESS - 5A (Contract Awards), 5B (USASpending), 5B-Enhance (Transactions), 5C (GSA CALC+) complete; 5D/5E/5F/5G pending
 
 ### Phase 6: Automation and Monitoring
 **Status**: [ ] Not Started

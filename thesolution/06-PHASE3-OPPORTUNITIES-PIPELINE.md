@@ -1,6 +1,6 @@
 # Phase 3: Opportunities Pipeline (Proof of Concept - Load First Data)
 
-**Status**: In Progress - Core pipeline complete, initial data loaded
+**Status**: ~90% Complete - Historical load done, scheduled polling pending (Phase 6)
 **Dependencies**: Phase 2 (Entity Pipeline) complete
 **Deliverable**: Active opportunities loaded and filterable by WOSB/8(a) set-aside and NAICS code
 
@@ -31,11 +31,17 @@
 - [x] Implement `opportunity_history` logging for changed fields (batch commits)
 
 ### 3.3 Historical Load
-- [~] Load opportunities going back 2 years (PARTIALLY DONE):
-  - [x] Break into 1-year chunks (API limitation) - date range splitting implemented
-  - [x] Load ALL set-aside types relevant to small business - priority ordering implemented
+- [x] Load opportunities going back 2 years (COMPLETE):
+  - [x] Break into 1-year chunks (API limitation) - date range splitting implemented (364-day max chunks)
+  - [x] Load ALL set-aside types relevant to small business - all 12 types queried
   - [x] Initial load: 1 week of data (Feb 15-22, 2026): 57 opportunities across WOSB/EDWOSB/8A/8AN
-  - [ ] Full 2-year historical load pending rate limit upgrade to 1,000/day
+  - [x] Full 2-year historical load completed 2026-02-28 using API key 2 (1,000/day tier)
+    - 13,051 opportunities fetched across all 12 small business set-aside types
+    - 12,209 unique opportunities loaded (deduplication across overlapping set-aside types)
+    - 24 API calls used, ~22 seconds total
+    - Date range: 03/01/2024 to 02/28/2026
+    - Set-aside distribution (API totals): SBA=10,096, SDVOSBC=1,574, HZC=384, WOSB=211, 8A=152, 8AN=61, SBP=47, SDVOSBS=29, EDWOSB=29, WOSBSS=14, HZS=5, EDWOSBSS=3
+    - 6 records errored due to `pop_state` > VARCHAR(2) -- column widened to VARCHAR(6) for ISO 3166-2 subdivision codes (e.g., IN-MH)
   - [ ] Also load non-set-aside opportunities for competitive analysis
 - [ ] Verify data quality:
   - [ ] Check `naics_code` values resolve to `ref_naics_code`
@@ -140,12 +146,32 @@ Each call returns up to 1,000 opportunities.
 
 ---
 
-## Data Loaded (2026-02-22)
+## Data Loaded
 
+### Initial Load (2026-02-22)
 - 57 opportunities loaded (WOSB=19, 8A=26, 8AN=10, EDWOSB=2)
 - 4 API calls used of 5 budgeted (1 spare)
 - Date range: last 7 days (Feb 15-22, 2026)
-- Full historical load (2 years) pending rate limit upgrade to 1,000/day
+
+### Full Historical Load (2026-02-28)
+- 12,209 unique opportunities loaded into database
+- 13,051 total fetched across all 12 small business set-aside types (some overlap)
+- 24 API calls used, ~22 seconds total
+- Date range: 03/01/2024 to 02/28/2026 (2 full years)
+- API key 2 (1,000/day tier)
+- Set-aside distribution (API totals):
+  - SBA (Total Small Business): 10,096
+  - SDVOSBC (Service-Disabled Veteran-Owned Small Business): 1,574
+  - HZC (HUBZone): 384
+  - WOSB (Women-Owned Small Business): 211
+  - 8A (8(a) Competed): 152
+  - 8AN (8(a) Sole Source): 61
+  - SBP (Small Business): 47
+  - SDVOSBS (SDVOSB Sole Source): 29
+  - EDWOSB (Economically Disadvantaged WOSB): 29
+  - WOSBSS (WOSB Sole Source): 14
+  - HZS (HUBZone Sole Source): 5
+  - EDWOSBSS (EDWOSB Sole Source): 3
 
 ---
 
@@ -155,12 +181,18 @@ Each call returns up to 1,000 opportunities.
 2. `description` field is a URL, not the actual text (requires separate API call with key to fetch the description content)
 3. `placeOfPerformance` is often NULL in API responses
 4. Some `responseDeadLine` values are date-only (no time component), handled gracefully
+5. SAM.gov API rejects date ranges of exactly 365 days -- fixed by using 364-day max chunks
+6. Leap year start dates (Feb 29) also rejected by API -- historical load avoids Feb 29 start
+7. `pop_state` widened from VARCHAR(2) to VARCHAR(6) -- some opportunities use ISO 3166-2 subdivision codes (e.g., IN-MH for India-Maharashtra) instead of 2-letter US state codes (6 records in historical load)
+8. Empty `award_amount` strings cause parse warnings (harmless, already handled)
 
 ---
 
 ## Pending Items
 
-- Historical load (requires 1,000/day rate limit - need ~24 API calls for 2 years x 12 set-aside types)
+- ~~Historical load~~ DONE (2026-02-28)
+- Non-set-aside opportunities for competitive analysis
+- Data quality verification (NAICS/set-aside code validation against ref tables)
 - Scheduled polling (Phase 6)
 - Unit tests for opportunity_loader and sam_opportunity_client
 - Daily incremental load testing

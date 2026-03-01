@@ -71,7 +71,16 @@ fed_prospector/
         test_etl/
         test_utils/
         conftest.py              # Shared fixtures (test DB, mock API responses)
-    main.py                      # CLI entry point (click or argparse)
+    cli/                         # CLI command modules (refactored from main.py)
+        __init__.py
+        database.py              # build-database, load-lookups, status, check-api, seed-quality-rules
+        entities.py              # download-extract, load-entities
+        opportunities.py         # load-opportunities, search
+        prospecting.py           # add-user, list-users, create/update/reassign/list/show prospect, notes, teams, saved searches, dashboard
+        calc.py                  # load-calc
+        awards.py                # load-awards
+        spending.py              # load-transactions, burn-rate
+    main.py                      # CLI entry point (126 lines, delegates to cli/ modules)
     requirements.txt
     requirements-dev.txt
     .env.example
@@ -89,7 +98,7 @@ fed_prospector/
 | `api_clients/sam_extract_client.py` | Implemented | Phase 2 - monthly/daily download, ZIP, JSON streaming |
 | `api_clients/sam_opportunity_client.py` | Implemented | Phase 3 - v2 search, 5-call budget, priority set-aside ordering, date range splitting |
 | `api_clients/sam_fedhier_client.py` | Planned | Phase 5 |
-| `api_clients/sam_awards_client.py` | Planned | Phase 5 |
+| `api_clients/sam_awards_client.py` | Implemented | Phase 5A - v1 API, search by NAICS/awardee/solicitation |
 | `api_clients/sam_exclusions_client.py` | Planned | Phase 5 |
 | `api_clients/sam_subaward_client.py` | Planned | Phase 5 |
 | `api_clients/fpds_client.py` | Planned | Phase 5 |
@@ -103,14 +112,16 @@ fed_prospector/
 | `etl/data_cleaner.py` | Implemented | Phase 2 - all 10 quality rules + DB-driven rules |
 | `etl/dat_parser.py` | Implemented | Phase 2 - V2 pipe-delimited DAT files |
 | `etl/bulk_loader.py` | Implemented | Phase 2 - LOAD DATA INFILE |
-| `etl/usaspending_loader.py` | Implemented | Phase 5B - SHA-256 change detection, batch upsert |
+| `etl/awards_loader.py` | Implemented | Phase 5A - transforms Contract Awards API -> fpds_contract |
+| `etl/usaspending_loader.py` | Implemented | Phase 5B/5B-Enhance - SHA-256 change detection, batch upsert, transactions, burn rate |
 | `etl/calc_loader.py` | Implemented | Phase 5C - full_refresh with TRUNCATE + reload |
 | `etl/prospect_manager.py` | Implemented | Phase 4 - prospect tracking, saved searches, scoring, dashboard |
-| `etl/fedhier_loader.py` | Planned | Phase 5 |
-| `etl/fpds_loader.py` | Planned | Phase 5 |
+| `etl/fedhier_loader.py` | Planned | Phase 5D |
+| `etl/fpds_loader.py` | Planned | Phase 5F |
 | `db/connection.py` | Implemented | Phase 1 |
-| `db/schema/*.sql` | Implemented | Phase 1 - 35 tables + 2 views |
-| `main.py` | Implemented | Phase 1-5 CLI commands |
+| `db/schema/*.sql` | Implemented | Phase 1 - 36 tables + 2 views |
+| `main.py` | Implemented | Phase 5A refactor - 126 lines, delegates to 7 cli/ modules (26 commands) |
+| `cli/*.py` | Implemented | Phase 5A - 7 modules: database, entities, opportunities, prospecting, calc, awards, spending |
 | `scheduler/` | Planned | Phase 6 |
 
 ## Core Dependencies

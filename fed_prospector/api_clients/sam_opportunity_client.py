@@ -21,8 +21,10 @@ logger = logging.getLogger("fed_prospector.api.sam_opportunity")
 # SAM.gov Opportunities API endpoint (v2)
 OPPORTUNITY_ENDPOINT = "/opportunities/v2/search"
 
-# Maximum date range allowed per API call (365 days)
-MAX_DATE_RANGE_DAYS = 365
+# Maximum date range allowed per API call.
+# SAM.gov rejects ranges of exactly 365 days ("Date range must be null year(s) apart"),
+# so we use 364 to stay safely under the 1-year limit.
+MAX_DATE_RANGE_DAYS = 364
 
 # Set-aside codes relevant to WOSB prospecting
 WOSB_SET_ASIDES = ["WOSB", "EDWOSB", "WOSBSS", "EDWOSBSS"]
@@ -77,12 +79,21 @@ class SAMOpportunityClient(BaseAPIClient):
 
     DEFAULT_CALL_BUDGET = 5
 
-    def __init__(self, call_budget=None):
+    def __init__(self, call_budget=None, api_key_number=1):
+        if api_key_number == 2:
+            api_key = settings.SAM_API_KEY_2
+            daily_limit = settings.SAM_DAILY_LIMIT_2
+            source_name = "SAM_OPPORTUNITY_KEY2"
+        else:
+            api_key = settings.SAM_API_KEY
+            daily_limit = settings.SAM_DAILY_LIMIT
+            source_name = "SAM_OPPORTUNITY"
+
         super().__init__(
             base_url=settings.SAM_API_BASE_URL,
-            api_key=settings.SAM_API_KEY,
-            source_name="SAM_OPPORTUNITY",
-            max_daily_requests=settings.SAM_DAILY_LIMIT,
+            api_key=api_key,
+            source_name=source_name,
+            max_daily_requests=daily_limit,
         )
         self.call_budget = call_budget if call_budget is not None else self.DEFAULT_CALL_BUDGET
 

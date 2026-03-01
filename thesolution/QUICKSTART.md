@@ -352,7 +352,7 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 34 tables + 2 views
+python main.py build-database        # Create/rebuild all 36 tables + 2 views
 python main.py load-lookups          # Load all 9 reference tables from CSVs
 python main.py status                # Show table counts, API status, recent loads
 python main.py check-api             # Test SAM.gov API key (uses 1 call)
@@ -411,11 +411,14 @@ python main.py dashboard
 
 See [07-PHASE4-SALES-PROSPECTING.md](07-PHASE4-SALES-PROSPECTING.md) for full details.
 
-**Phase 5** (Extended Data Sources) is IN PROGRESS. USASpending + GSA CALC+ complete:
+**Phase 5** (Extended Data Sources) is IN PROGRESS. Contract Awards, USASpending (+ transactions), GSA CALC+ complete:
 
 ```bash
 # Phase 5: Extended Data Sources
 python main.py load-calc                    # Load ~52K GSA labor rates (no API key needed)
+python main.py load-awards --naics=541511 --key=2   # Load contract awards from SAM.gov API
+python main.py load-transactions --award-id CONT_AWD_...  # Load transaction history for an award
+python main.py burn-rate --award-id CONT_AWD_...          # Calculate spend velocity for an award
 
 # GSA CALC+ labor rates are refreshed nightly by GSA.
 # Reload monthly to stay current:
@@ -424,7 +427,7 @@ python main.py load-calc
 # For SCA minimums, see DOL.gov wage determinations.
 ```
 
-> **Note**: USASpending does not have a CLI command yet -- it is API-only for now. See `fed_prospector/api_clients/usaspending_client.py` and `fed_prospector/etl/usaspending_loader.py`.
+> **Note**: CLI was refactored (Phase 5A) from monolithic main.py to 7 modules in `cli/` (26 total commands). Run `python main.py --help` for the full list.
 
 See [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md) for full details.
 

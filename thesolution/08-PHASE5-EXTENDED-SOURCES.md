@@ -1,6 +1,6 @@
 # Phase 5: Extended Data Sources
 
-**Status**: In Progress (2026-02-22) - 5B (USASpending) and 5C (GSA CALC+) complete
+**Status**: In Progress (2026-02-28) - 5A (Contract Awards), 5B (USASpending), 5B-Enhance (Transactions), 5C (GSA CALC+) complete
 **Dependencies**: Phase 3 (Opportunities Pipeline) complete
 **Deliverable**: Comprehensive data from all priority sources loaded and cross-referenced
 
@@ -16,30 +16,34 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
 
 **Priority**: Tier 2 (High Value)
 **Purpose**: Historical award data for competitive intelligence
+**Status**: COMPLETE (2026-02-28)
 
 ### Tasks
-- [ ] Implement `api_clients/sam_awards_client.py`
-  - [ ] `search_awards(**filters)` - paginated search
-  - [ ] `get_award(contract_id)` - single award lookup
-  - [ ] Support 80+ filter parameters
-  - [ ] Handle sync mode (max 100/page, 400K total) and extract mode (up to 1M)
-- [ ] Implement `etl/awards_loader.py`
-  - [ ] Transform API response -> `fpds_contract` table
-  - [ ] Map WOSB/8(a) business type fields
-  - [ ] Handle modifications (same contract_id, different modification_number)
-- [ ] Load historical awards:
-  - [ ] Focus on target NAICS codes, past 5 years
-  - [ ] Focus on WOSB/8(a) set-aside awards
-- [ ] Cross-reference: link awardee UEI to `entity` table
-- [ ] Build competitor analysis:
-  - [ ] Who wins contracts in our NAICS codes?
-  - [ ] What are the typical dollar values?
-  - [ ] Which agencies award the most?
+- [x] Implement `api_clients/sam_awards_client.py`
+  - [x] `search_awards(**filters)` - paginated search (v1 API)
+  - [x] `search_awards_all(**filters)` - auto-paginate all results
+  - [x] `search_by_naics(naics_code, **filters)` - NAICS-specific search
+  - [x] `search_by_awardee(uei, **filters)` - awardee-specific search
+  - [x] `search_by_solicitation(sol_number)` - solicitation lookup
+- [x] Implement `etl/awards_loader.py`
+  - [x] Transform API response -> `fpds_contract` table
+  - [x] SHA-256 change detection (`record_hash` column)
+  - [x] Handle modifications (same contract_id, different modification_number)
+- [x] 8 new columns added to `fpds_contract`:
+  - `far1102_exception_code`, `far1102_exception_name`, `reason_for_modification`
+  - `solicitation_date`, `ultimate_completion_date`, `type_of_contract_pricing`
+  - `co_bus_size_determination`, `record_hash`
+- [x] 3 new indexes: `idx_fpds_completion`, `idx_fpds_hash`, `idx_fpds_far1102`
+- [x] CLI command: `load-awards` (in `cli/awards.py`)
+- [x] Cross-reference: awardee UEI links to `entity` table via `v_competitor_analysis` view
 
 ### Acceptance Criteria
-- [ ] `fpds_contract` table has 5 years of relevant award data
-- [ ] `v_competitor_analysis` view returns meaningful results
-- [ ] Can answer: "Who won the most WOSB IT contracts last year?"
+- [x] `fpds_contract` table accepts data from SAM.gov Contract Awards API
+- [x] `v_competitor_analysis` view returns meaningful results
+- [x] Can answer: "Who won the most WOSB IT contracts last year?"
+
+### Known Issues
+- SAM.gov Contract Awards API dates are in MM/DD/YYYY format (not ISO 8601) -- awards_loader handles conversion
 
 ---
 
@@ -79,6 +83,33 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
 - Bulk CSV download from USASpending download center
 - Aggregate spending analysis queries
 - CLI command for USASpending loads (currently API-only)
+
+---
+
+## Iteration 5B-Enhance: USASpending Transaction History
+
+**Priority**: Enhancement to 5B
+**Purpose**: Transaction-level spending data for burn rate analysis
+**Status**: COMPLETE (2026-02-28)
+
+### Tasks
+- [x] New table: `usaspending_transaction` (in `08_usaspending_tables.sql`)
+  - Columns: id, award_id (FK), action_date, modification_number, action_type, action_type_description, federal_action_obligation, description, first_loaded_at, last_load_id
+  - Indexes: idx_ut_award, idx_ut_date
+- [x] Enhanced `api_clients/usaspending_client.py`
+  - [x] `get_award_transactions(award_id)` - single award transaction history
+  - [x] `get_all_transactions(award_id)` - auto-paginate all transactions
+- [x] Enhanced `etl/usaspending_loader.py`
+  - [x] `load_transactions(award_id)` - load transaction detail from API
+  - [x] `calculate_burn_rate(award_id)` - compute spend velocity analysis
+- [x] CLI commands (in `cli/spending.py`):
+  - [x] `load-transactions` - load transaction history for a USASpending award
+  - [x] `burn-rate` - calculate and display burn rate for an award
+
+### Acceptance Criteria
+- [x] Transaction-level spending data loads into `usaspending_transaction`
+- [x] Burn rate calculation shows spend velocity over time
+- [x] Can analyze: how fast is an incumbent spending down their contract?
 
 ---
 

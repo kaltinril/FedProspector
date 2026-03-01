@@ -1,5 +1,5 @@
 -- 08_usaspending_tables.sql
--- USASpending.gov award data (1 table) - Incumbent and award history
+-- USASpending.gov award data (2 tables) - Award summaries and transaction detail
 
 USE fed_contracts;
 
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     type_of_set_aside_description VARCHAR(200),
 
     -- Place of Performance
-    pop_state                VARCHAR(2),
+    pop_state                VARCHAR(6),  -- ISO 3166-2 subdivision codes (e.g., IN-MH)
     pop_country              VARCHAR(3),
     pop_zip                  VARCHAR(10),
     pop_city                 VARCHAR(100),
@@ -61,3 +61,21 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     INDEX idx_usa_solicitation (solicitation_identifier),
     INDEX idx_usa_piid (piid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Transaction-level spending detail for burn rate analysis
+CREATE TABLE IF NOT EXISTS usaspending_transaction (
+    id                          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    award_id                    VARCHAR(100) NOT NULL,
+    action_date                 DATE NOT NULL,
+    modification_number         VARCHAR(20),
+    action_type                 VARCHAR(5),
+    action_type_description     VARCHAR(100),
+    federal_action_obligation   DECIMAL(15,2),
+    description                 TEXT,
+    first_loaded_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_load_id                INT,
+    INDEX idx_ut_award (award_id),
+    INDEX idx_ut_date (action_date),
+    CONSTRAINT fk_ut_award FOREIGN KEY (award_id)
+        REFERENCES usaspending_award(generated_unique_award_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
