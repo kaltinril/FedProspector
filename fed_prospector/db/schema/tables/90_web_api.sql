@@ -1,0 +1,125 @@
+-- tables/90_web_api.sql
+-- Web API production tables (8 tables) - Authentication, proposals, audit, notifications, contacts
+
+USE fed_contracts;
+
+CREATE TABLE IF NOT EXISTS app_session (
+    session_id           INT AUTO_INCREMENT PRIMARY KEY,
+    user_id              INT NOT NULL,
+    token_hash           CHAR(64) NOT NULL,
+    issued_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at           DATETIME NOT NULL,
+    revoked_at           DATETIME,
+    ip_address           VARCHAR(45),
+    user_agent           VARCHAR(500),
+    CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
+    UNIQUE INDEX idx_session_token (token_hash),
+    INDEX idx_session_user (user_id),
+    INDEX idx_session_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS contracting_officer (
+    officer_id           INT AUTO_INCREMENT PRIMARY KEY,
+    full_name            VARCHAR(200) NOT NULL,
+    email                VARCHAR(200),
+    phone                VARCHAR(50),
+    fax                  VARCHAR(50),
+    department_name      VARCHAR(200),
+    office_name          VARCHAR(200),
+    officer_type         VARCHAR(50),
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_co_email (email),
+    INDEX idx_co_name (full_name(50))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS opportunity_poc (
+    poc_id               INT AUTO_INCREMENT PRIMARY KEY,
+    notice_id            VARCHAR(50) NOT NULL,
+    officer_id           INT NOT NULL,
+    poc_type             VARCHAR(20) NOT NULL DEFAULT 'PRIMARY',
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_oppoc_opportunity FOREIGN KEY (notice_id) REFERENCES opportunity(notice_id),
+    CONSTRAINT fk_oppoc_officer FOREIGN KEY (officer_id) REFERENCES contracting_officer(officer_id),
+    UNIQUE INDEX idx_oppoc_unique (notice_id, officer_id, poc_type),
+    INDEX idx_oppoc_officer (officer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS proposal (
+    proposal_id          INT AUTO_INCREMENT PRIMARY KEY,
+    prospect_id          INT NOT NULL,
+    proposal_number      VARCHAR(50),
+    submission_deadline  DATETIME,
+    submitted_at         DATETIME,
+    proposal_status      VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    estimated_value      DECIMAL(15,2),
+    win_probability_pct  DECIMAL(5,2),
+    lessons_learned      TEXT,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_proposal_prospect (prospect_id),
+    CONSTRAINT fk_proposal_prospect FOREIGN KEY (prospect_id) REFERENCES prospect(prospect_id),
+    INDEX idx_proposal_status (proposal_status),
+    INDEX idx_proposal_deadline (submission_deadline)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS proposal_document (
+    document_id          INT AUTO_INCREMENT PRIMARY KEY,
+    proposal_id          INT NOT NULL,
+    document_type        VARCHAR(50) NOT NULL,
+    file_name            VARCHAR(255) NOT NULL,
+    file_path            VARCHAR(500) NOT NULL,
+    file_size_bytes      BIGINT,
+    uploaded_by          INT,
+    uploaded_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notes                TEXT,
+    CONSTRAINT fk_pdoc_proposal FOREIGN KEY (proposal_id) REFERENCES proposal(proposal_id) ON DELETE CASCADE,
+    CONSTRAINT fk_pdoc_uploader FOREIGN KEY (uploaded_by) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    INDEX idx_pdoc_proposal (proposal_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS proposal_milestone (
+    milestone_id         INT AUTO_INCREMENT PRIMARY KEY,
+    proposal_id          INT NOT NULL,
+    milestone_name       VARCHAR(100) NOT NULL,
+    due_date             DATE,
+    completed_date       DATE,
+    assigned_to          INT,
+    status               VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    notes                TEXT,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pm_proposal FOREIGN KEY (proposal_id) REFERENCES proposal(proposal_id) ON DELETE CASCADE,
+    CONSTRAINT fk_pm_assigned FOREIGN KEY (assigned_to) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    INDEX idx_pm_proposal (proposal_id),
+    INDEX idx_pm_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS activity_log (
+    activity_id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id              INT,
+    action               VARCHAR(50) NOT NULL,
+    entity_type          VARCHAR(50) NOT NULL,
+    entity_id            VARCHAR(100),
+    details              JSON,
+    ip_address           VARCHAR(45),
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_actlog_user FOREIGN KEY (user_id) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    INDEX idx_activity_target (entity_type, entity_id),
+    INDEX idx_activity_user_date (user_id, created_at),
+    INDEX idx_activity_date (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS notification (
+    notification_id      INT AUTO_INCREMENT PRIMARY KEY,
+    user_id              INT NOT NULL,
+    notification_type    VARCHAR(50) NOT NULL,
+    title                VARCHAR(200) NOT NULL,
+    message              TEXT,
+    entity_type          VARCHAR(50),
+    entity_id            VARCHAR(100),
+    is_read              CHAR(1) NOT NULL DEFAULT 'N',
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    read_at              DATETIME,
+    CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
+    INDEX idx_notif_user_read (user_id, is_read, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

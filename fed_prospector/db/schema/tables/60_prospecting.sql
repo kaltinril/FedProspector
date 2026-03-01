@@ -8,8 +8,14 @@ CREATE TABLE IF NOT EXISTS app_user (
     username             VARCHAR(50) NOT NULL UNIQUE,
     display_name         VARCHAR(100) NOT NULL,
     email                VARCHAR(200),
+    password_hash        VARCHAR(255),
     role                 VARCHAR(20) DEFAULT 'USER',
+    last_login_at        DATETIME,
     is_active            CHAR(1) DEFAULT 'Y',
+    is_admin             CHAR(1) NOT NULL DEFAULT 'N',
+    mfa_enabled          CHAR(1) NOT NULL DEFAULT 'N',
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until         DATETIME,
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -18,7 +24,9 @@ CREATE TABLE IF NOT EXISTS prospect (
     prospect_id          INT AUTO_INCREMENT PRIMARY KEY,
     notice_id            VARCHAR(100) NOT NULL,
     assigned_to          INT,
+    capture_manager_id   INT,
     status               VARCHAR(30) NOT NULL DEFAULT 'NEW',
+    proposal_status      VARCHAR(20),
     priority             VARCHAR(10) DEFAULT 'MEDIUM',
     decision_date        DATE,
     bid_submitted_date   DATE,
@@ -28,18 +36,22 @@ CREATE TABLE IF NOT EXISTS prospect (
     go_no_go_score       DECIMAL(5,2),
     teaming_required     CHAR(1) DEFAULT 'N',
     estimated_proposal_cost DECIMAL(10,2),
+    estimated_gross_margin_pct DECIMAL(5,2),
     proposal_due_days    INT,
     outcome              VARCHAR(20),
     outcome_date         DATE,
     outcome_notes        TEXT,
+    contract_award_id    VARCHAR(50),
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_prospect_notice (notice_id),
     CONSTRAINT fk_prospect_opp FOREIGN KEY (notice_id) REFERENCES opportunity(notice_id),
     CONSTRAINT fk_prospect_user FOREIGN KEY (assigned_to) REFERENCES app_user(user_id),
+    CONSTRAINT fk_prospect_capture_mgr FOREIGN KEY (capture_manager_id) REFERENCES app_user(user_id) ON DELETE SET NULL,
     INDEX idx_prospect_status (status),
     INDEX idx_prospect_user (assigned_to),
-    INDEX idx_prospect_priority (priority)
+    INDEX idx_prospect_priority (priority),
+    INDEX idx_prospect_capture_mgr (capture_manager_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS prospect_note (
@@ -58,11 +70,16 @@ CREATE TABLE IF NOT EXISTS prospect_note (
 CREATE TABLE IF NOT EXISTS prospect_team_member (
     id                   INT AUTO_INCREMENT PRIMARY KEY,
     prospect_id          INT NOT NULL,
-    uei_sam              VARCHAR(12) NOT NULL,
+    uei_sam              VARCHAR(12),
+    app_user_id          INT,
     role                 VARCHAR(50),
     notes                TEXT,
+    proposed_hourly_rate DECIMAL(10,2),
+    commitment_pct       DECIMAL(5,2),
     CONSTRAINT fk_ptm_prospect FOREIGN KEY (prospect_id) REFERENCES prospect(prospect_id),
-    INDEX idx_ptm_entity (uei_sam)
+    CONSTRAINT fk_team_app_user FOREIGN KEY (app_user_id) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    INDEX idx_ptm_entity (uei_sam),
+    INDEX idx_ptm_app_user (app_user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS saved_search (

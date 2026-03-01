@@ -354,7 +354,7 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 40 tables + 4 views
+python main.py build-database        # Create/rebuild all 54 tables + 4 views
 python main.py load-lookups          # Load all 11 reference tables from CSVs
 python main.py status                # Show table counts, API status, recent loads
 python main.py check-api             # Test SAM.gov API key (uses 1 call)
@@ -466,18 +466,18 @@ See [07-REFERENCE-ENRICHMENT.md](phases/07-REFERENCE-ENRICHMENT.md) for full det
 
 ---
 
-## Phases 8-13: Web API & Frontend (PLANNING)
+## Phases 10-13: Web API & Frontend (PLANNING)
 
-Phases 1-7 (Python CLI + MySQL ETL pipeline) are complete. Phases 8-13 build a **C# ASP.NET Core Web API** and a **frontend UI** on top of the existing `fed_contracts` database, turning the CLI-based system into a full web application.
+Phases 1-9 (Python CLI + MySQL ETL pipeline + schema evolution) are complete. Phases 10-13 build a **C# ASP.NET Core Web API** and a **frontend UI** on top of the existing `fed_contracts` database (54 tables + 4 views), turning the CLI-based system into a full web application.
 
-| Phase | Name | Summary | Plan Document |
-|-------|------|---------|---------------|
-| 8 | Web/API Readiness | Gap analysis identifying what the existing schema needs before web consumption | [08-WEB-API-READINESS.md](phases/08-WEB-API-READINESS.md) |
-| 9 | Schema Evolution | 14 new tables (8 production + 6 staging) + column additions (40 to 54 tables) for user auth, notifications, capture management, and API response preservation | [09-SCHEMA-EVOLUTION.md](phases/09-SCHEMA-EVOLUTION.md) |
-| 10 | API Foundation | .NET 10 project scaffolding, Entity Framework Core, JWT authentication | [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md) |
-| 11 | Read Endpoints | 11 GET endpoints for opportunities, awards, entities, and dashboard views | [11-READ-ENDPOINTS.md](phases/11-READ-ENDPOINTS.md) |
-| 12 | Capture Management API | 10 CRUD endpoints for prospects, proposals, notes, and workflow | [12-CAPTURE-MANAGEMENT-API.md](phases/12-CAPTURE-MANAGEMENT-API.md) |
-| 13 | Auth & Production | Authentication hardening, notifications, rate limiting, Docker deployment | [13-AUTH-AND-PRODUCTION.md](phases/13-AUTH-AND-PRODUCTION.md) |
+| Phase | Name | Status | Summary | Plan Document |
+|-------|------|--------|---------|---------------|
+| 8 | Web/API Readiness | COMPLETE | Gap analysis identifying what the existing schema needs before web consumption | [08-WEB-API-READINESS.md](phases/08-WEB-API-READINESS.md) |
+| 9 | Schema Evolution | COMPLETE (2026-03-01) | 14 new tables (8 production + 6 staging) + column additions (40 to 54 tables) for user auth, notifications, capture management, and API response preservation | [09-SCHEMA-EVOLUTION.md](phases/09-SCHEMA-EVOLUTION.md) |
+| 10 | API Foundation | PLANNING | .NET 10 project scaffolding, Entity Framework Core, JWT authentication | [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md) |
+| 11 | Read Endpoints | PLANNING | 11 GET endpoints for opportunities, awards, entities, and dashboard views | [11-READ-ENDPOINTS.md](phases/11-READ-ENDPOINTS.md) |
+| 12 | Capture Management API | PLANNING | 10 CRUD endpoints for prospects, proposals, notes, and workflow | [12-CAPTURE-MANAGEMENT-API.md](phases/12-CAPTURE-MANAGEMENT-API.md) |
+| 13 | Auth & Production | PLANNING | Authentication hardening, notifications, rate limiting, Docker deployment | [13-AUTH-AND-PRODUCTION.md](phases/13-AUTH-AND-PRODUCTION.md) |
 
 The `api/` folder contains the C# ASP.NET Core Web API project. The `ui/` folder will contain the frontend application (framework TBD).
 

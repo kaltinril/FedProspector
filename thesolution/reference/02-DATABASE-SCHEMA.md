@@ -7,12 +7,14 @@ Engine: InnoDB (all tables)
 Charset: utf8mb4
 Collation: utf8mb4_unicode_ci
 
-Tables are organized into five groups:
+Tables are organized into seven groups:
 1. **Reference/Lookup Tables** (`ref_*`) - Loaded once, updated infrequently
 2. **Entity Tables** (`entity*`) - SAM.gov entity/contractor data
 3. **Opportunity Tables** (`opportunity*`) - Contract opportunities
 4. **Federal Data Tables** (`federal_*`, `fpds_*`, `gsa_*`) - Hierarchy, awards, rates
 5. **Operational Tables** (`etl_*`, `app_*`, `prospect*`, `saved_*`) - ETL tracking, prospecting, users
+6. **Raw Staging Tables** (`stg_*_raw`) - API response preservation for replay/rebuild (Phase 9)
+7. **Web API Tables** (`app_session`, `proposal*`, `activity_log`, `notification`, `contracting_officer`, `opportunity_poc`) - Authentication, proposals, audit (Phase 9)
 
 ---
 
@@ -1021,15 +1023,306 @@ GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics,
 
 ---
 
+## 8. Raw Staging Tables (Phase 9)
+
+These tables store the complete JSON response from each API source before normalization into production tables, enabling replay/rebuild without re-fetching. Pattern matches existing `stg_entity_raw` in the Entity tables section.
+
+### stg_opportunity_raw
+Raw opportunity API responses for replay/audit.
+
+```sql
+CREATE TABLE IF NOT EXISTS stg_opportunity_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    notice_id          VARCHAR(100) NOT NULL,
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_opp_load (load_id),
+    INDEX idx_stg_opp_notice (notice_id),
+    INDEX idx_stg_opp_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### stg_fpds_award_raw
+Raw FPDS/SAM contract award API responses for replay/audit.
+
+```sql
+CREATE TABLE IF NOT EXISTS stg_fpds_award_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    contract_id        VARCHAR(50) NOT NULL,
+    modification_number VARCHAR(10),
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_fpds_load (load_id),
+    INDEX idx_stg_fpds_contract (contract_id),
+    INDEX idx_stg_fpds_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### stg_usaspending_raw
+Raw USASpending API responses for replay/audit.
+
+```sql
+CREATE TABLE IF NOT EXISTS stg_usaspending_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    award_id           VARCHAR(100) NOT NULL,
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_usa_load (load_id),
+    INDEX idx_stg_usa_award (award_id),
+    INDEX idx_stg_usa_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### stg_exclusion_raw
+Raw SAM exclusion API responses for replay/audit.
+
+```sql
+CREATE TABLE IF NOT EXISTS stg_exclusion_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    record_id          VARCHAR(100) NOT NULL,
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_excl_load (load_id),
+    INDEX idx_stg_excl_record (record_id),
+    INDEX idx_stg_excl_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### stg_fedhier_raw
+Raw Federal Hierarchy API responses for replay/audit.
+
+```sql
+CREATE TABLE IF NOT EXISTS stg_fedhier_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    fh_org_id          INT NOT NULL,
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_fh_load (load_id),
+    INDEX idx_stg_fh_org (fh_org_id),
+    INDEX idx_stg_fh_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### stg_subaward_raw
+Raw SAM subaward API responses for replay/audit.
+
+```sql
+CREATE TABLE IF NOT EXISTS stg_subaward_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    prime_piid         VARCHAR(50) NOT NULL,
+    sub_uei            VARCHAR(12),
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_sub_load (load_id),
+    INDEX idx_stg_sub_piid (prime_piid),
+    INDEX idx_stg_sub_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+---
+
+## 9. Web API Tables (Phase 9)
+
+Production tables supporting the C# ASP.NET Core Web API: authentication, proposals, audit trails, notifications, and contracting officer contacts.
+
+### app_session
+User authentication sessions for JWT/token management.
+
+```sql
+CREATE TABLE IF NOT EXISTS app_session (
+    session_id           INT AUTO_INCREMENT PRIMARY KEY,
+    user_id              INT NOT NULL,
+    token_hash           CHAR(64) NOT NULL,
+    issued_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at           DATETIME NOT NULL,
+    revoked_at           DATETIME,
+    ip_address           VARCHAR(45),
+    user_agent           VARCHAR(500),
+    CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
+    UNIQUE INDEX idx_session_token (token_hash),
+    INDEX idx_session_user (user_id),
+    INDEX idx_session_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### contracting_officer
+Normalized contracting officer contacts. Auto-populated from SAM.gov Opportunity API `pointOfContact` array.
+
+```sql
+CREATE TABLE IF NOT EXISTS contracting_officer (
+    officer_id           INT AUTO_INCREMENT PRIMARY KEY,
+    full_name            VARCHAR(200) NOT NULL,
+    email                VARCHAR(200),
+    phone                VARCHAR(50),
+    fax                  VARCHAR(50),
+    department_name      VARCHAR(200),
+    office_name          VARCHAR(200),
+    officer_type         VARCHAR(50),
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_co_email (email),
+    INDEX idx_co_name (full_name(50))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### opportunity_poc
+Junction table linking opportunities to their points of contact.
+
+```sql
+CREATE TABLE IF NOT EXISTS opportunity_poc (
+    poc_id               INT AUTO_INCREMENT PRIMARY KEY,
+    notice_id            VARCHAR(50) NOT NULL,
+    officer_id           INT NOT NULL,
+    poc_type             VARCHAR(20) NOT NULL DEFAULT 'PRIMARY',
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_oppoc_opportunity FOREIGN KEY (notice_id) REFERENCES opportunity(notice_id),
+    CONSTRAINT fk_oppoc_officer FOREIGN KEY (officer_id) REFERENCES contracting_officer(officer_id),
+    UNIQUE INDEX idx_oppoc_unique (notice_id, officer_id, poc_type),
+    INDEX idx_oppoc_officer (officer_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### proposal
+Proposal lifecycle tracking, 1:1 with prospect.
+
+```sql
+CREATE TABLE IF NOT EXISTS proposal (
+    proposal_id          INT AUTO_INCREMENT PRIMARY KEY,
+    prospect_id          INT NOT NULL,
+    proposal_number      VARCHAR(50),
+    submission_deadline  DATETIME,
+    submitted_at         DATETIME,
+    proposal_status      VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+    estimated_value      DECIMAL(15,2),
+    win_probability_pct  DECIMAL(5,2),
+    lessons_learned      TEXT,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_proposal_prospect (prospect_id),
+    CONSTRAINT fk_proposal_prospect FOREIGN KEY (prospect_id) REFERENCES prospect(prospect_id),
+    INDEX idx_proposal_status (proposal_status),
+    INDEX idx_proposal_deadline (submission_deadline)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### proposal_document
+File attachment metadata for proposal documents.
+
+```sql
+CREATE TABLE IF NOT EXISTS proposal_document (
+    document_id          INT AUTO_INCREMENT PRIMARY KEY,
+    proposal_id          INT NOT NULL,
+    document_type        VARCHAR(50) NOT NULL,
+    file_name            VARCHAR(255) NOT NULL,
+    file_path            VARCHAR(500) NOT NULL,
+    file_size_bytes      BIGINT,
+    uploaded_by          INT,
+    uploaded_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notes                TEXT,
+    CONSTRAINT fk_pdoc_proposal FOREIGN KEY (proposal_id) REFERENCES proposal(proposal_id) ON DELETE CASCADE,
+    CONSTRAINT fk_pdoc_uploader FOREIGN KEY (uploaded_by) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    INDEX idx_pdoc_proposal (proposal_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### proposal_milestone
+Bid timeline tracking with planned vs actual dates.
+
+```sql
+CREATE TABLE IF NOT EXISTS proposal_milestone (
+    milestone_id         INT AUTO_INCREMENT PRIMARY KEY,
+    proposal_id          INT NOT NULL,
+    milestone_name       VARCHAR(100) NOT NULL,
+    due_date             DATE,
+    completed_date       DATE,
+    assigned_to          INT,
+    status               VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    notes                TEXT,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pm_proposal FOREIGN KEY (proposal_id) REFERENCES proposal(proposal_id) ON DELETE CASCADE,
+    CONSTRAINT fk_pm_assigned FOREIGN KEY (assigned_to) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    INDEX idx_pm_proposal (proposal_id),
+    INDEX idx_pm_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### activity_log
+Audit trail for all user actions in the web app.
+
+```sql
+CREATE TABLE IF NOT EXISTS activity_log (
+    activity_id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id              INT,
+    action               VARCHAR(50) NOT NULL,
+    entity_type          VARCHAR(50) NOT NULL,
+    entity_id            VARCHAR(100),
+    details              JSON,
+    ip_address           VARCHAR(45),
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_actlog_user FOREIGN KEY (user_id) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    INDEX idx_activity_target (entity_type, entity_id),
+    INDEX idx_activity_user_date (user_id, created_at),
+    INDEX idx_activity_date (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### notification
+In-app notification/alert queue.
+
+```sql
+CREATE TABLE IF NOT EXISTS notification (
+    notification_id      INT AUTO_INCREMENT PRIMARY KEY,
+    user_id              INT NOT NULL,
+    notification_type    VARCHAR(50) NOT NULL,
+    title                VARCHAR(200) NOT NULL,
+    message              TEXT,
+    entity_type          VARCHAR(50),
+    entity_id            VARCHAR(100),
+    is_read              CHAR(1) NOT NULL DEFAULT 'N',
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    read_at              DATETIME,
+    CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
+    INDEX idx_notif_user_read (user_id, is_read, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+---
+
 ## Table Count Summary
 
 | Group | Tables | Purpose |
 |-------|--------|---------|
 | Reference (`ref_*`) | 11 | Lookup/classification data (includes ref_entity_structure, ref_sba_type) |
-| Entity | 10 | SAM.gov contractor data |
+| Entity | 10 | SAM.gov contractor data (includes stg_entity_raw) |
 | Opportunity | 3 | Contract opportunities |
 | Federal | 7 | Hierarchy, awards, rates, exclusions, subawards, spending (includes usaspending_award + usaspending_transaction) |
 | ETL | 4 | Load tracking and quality |
 | Prospecting | 5 | Sales pipeline (includes saved_search) |
-| **Total** | **40** | |
+| Raw Staging (Phase 9) | 6 | API response preservation for replay/rebuild (stg_opportunity_raw, stg_fpds_award_raw, stg_usaspending_raw, stg_exclusion_raw, stg_fedhier_raw, stg_subaward_raw) |
+| Web API (Phase 9) | 8 | Auth, proposals, audit, notifications, contacts (app_session, contracting_officer, opportunity_poc, proposal, proposal_document, proposal_milestone, activity_log, notification) |
+| **Total** | **54** | |
 | **Views** | **4** | |

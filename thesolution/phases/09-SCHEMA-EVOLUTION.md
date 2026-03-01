@@ -1,6 +1,6 @@
 # Phase 9: Schema Evolution
 
-**Status**: PLANNING
+**Status**: COMPLETE (2026-03-01)
 **Dependencies**: Phase 8 (Gap Analysis) complete
 **Deliverable**: SQL migration scripts `fed_prospector/db/schema/tables/80_raw_staging.sql` (staging) + `fed_prospector/db/schema/tables/90_web_api.sql` (production) + updated `build-database` CLI
 **Repository**: `pbdc` (this repo -- these are MySQL schema changes)
@@ -28,7 +28,7 @@ All 6 tables follow the same structure: an auto-increment PK, a `load_id` (links
 
 **Deliverable file**: `fed_prospector/db/schema/tables/80_raw_staging.sql` (separate from production DDL in `tables/90_web_api.sql`)
 
-- [ ] Create all 6 raw staging tables
+- [x] Create all 6 raw staging tables
 
 ```sql
 -- ============================================================
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS stg_subaward_raw (
 
 Purpose: User authentication sessions for JWT/token management.
 
-- [ ] Create table `app_session`
+- [x] Create table `app_session`
 
 ```sql
 CREATE TABLE IF NOT EXISTS app_session (
@@ -164,7 +164,7 @@ Indexes beyond PK: `idx_session_user` (user lookup), `idx_session_active` (activ
 
 Purpose: Proposal lifecycle tracking, 1:1 with prospect.
 
-- [ ] Create table `proposal`
+- [x] Create table `proposal`
 
 ```sql
 CREATE TABLE IF NOT EXISTS proposal (
@@ -198,7 +198,7 @@ Indexes beyond PK: `uk_proposal_prospect` (unique -- enforces 1:1), `idx_proposa
 
 Purpose: File attachment metadata for proposal documents.
 
-- [ ] Create table `proposal_document`
+- [x] Create table `proposal_document`
 
 ```sql
 CREATE TABLE IF NOT EXISTS proposal_document (
@@ -227,7 +227,7 @@ Indexes beyond PK: `idx_propdoc_proposal` (lookup documents by proposal).
 
 Purpose: Bid timeline tracking with planned vs actual dates.
 
-- [ ] Create table `proposal_milestone`
+- [x] Create table `proposal_milestone`
 
 ```sql
 CREATE TABLE IF NOT EXISTS proposal_milestone (
@@ -257,7 +257,7 @@ Indexes beyond PK: `idx_milestone_proposal` (lookup milestones by proposal), `id
 
 Purpose: Audit trail for all user actions in the web app.
 
-- [ ] Create table `activity_log`
+- [x] Create table `activity_log`
 
 ```sql
 CREATE TABLE IF NOT EXISTS activity_log (
@@ -286,7 +286,7 @@ Indexes beyond PK: `idx_activity_target` (find changes to a specific record), `i
 
 Purpose: In-app notification/alert queue.
 
-- [ ] Create table `notification`
+- [x] Create table `notification`
 
 ```sql
 CREATE TABLE IF NOT EXISTS notification (
@@ -314,7 +314,7 @@ Indexes beyond PK: `idx_notif_user_read` (unread notifications per user, ordered
 
 Purpose: Normalized contracting officer contacts. Auto-populated from SAM.gov Opportunity API `pointOfContact` array. Also editable via manual entry during capture management (Phase 12).
 
-- [ ] Create table `contracting_officer`
+- [x] Create table `contracting_officer`
 
 ```sql
 -- Normalized contracting officer contacts
@@ -347,7 +347,7 @@ Indexes beyond PK: `idx_co_name` (name lookup), `idx_co_email` (email lookup/ded
 
 Purpose: Junction table linking opportunities to their points of contact. An opportunity can have multiple contacts (primary, secondary, etc.) as returned by the SAM.gov Opportunity API `pointOfContact` array.
 
-- [ ] Create table `opportunity_poc`
+- [x] Create table `opportunity_poc`
 
 ```sql
 -- Links opportunities to their points of contact
@@ -373,7 +373,7 @@ Indexes beyond PK: `idx_oppoc_unique` (prevents duplicate pairings), `idx_oppoc_
 
 ### `app_user` -- Add authentication fields
 
-- [ ] ALTER TABLE `app_user` to add authentication and security columns
+- [x] ALTER TABLE `app_user` to add authentication and security columns
 
 ```sql
 ALTER TABLE app_user
@@ -393,7 +393,7 @@ Note: `password_hash` is nullable because existing CLI-created users don't have 
 
 ### `opportunity` -- Add capture-relevant fields
 
-- [ ] ALTER TABLE `opportunity` to add capture decision fields
+- [x] ALTER TABLE `opportunity` to add capture decision fields
 
 ```sql
 ALTER TABLE opportunity
@@ -414,7 +414,7 @@ Note: All nullable -- populated manually or by future ETL enrichment. `security_
 
 ### `prospect` -- Add capture management fields
 
-- [ ] ALTER TABLE `prospect` to add capture lifecycle columns
+- [x] ALTER TABLE `prospect` to add capture lifecycle columns
 
 ```sql
 ALTER TABLE prospect
@@ -431,7 +431,7 @@ Note: `proposal_status` mirrors `proposal.status` for quick filtering without jo
 
 ### `prospect_team_member` -- Add internal staff tracking
 
-- [ ] ALTER TABLE `prospect_team_member` to add internal user and rate columns
+- [x] ALTER TABLE `prospect_team_member` to add internal user and rate columns
 
 ```sql
 ALTER TABLE prospect_team_member
@@ -448,29 +448,29 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ## 9.4 Update build-database CLI
 
-- [ ] Add `tables/80_raw_staging.sql` to the schema `tables/` subfolder (before `tables/90_web_api.sql`)
-- [ ] Add `tables/90_web_api.sql` to the schema `tables/` subfolder
-- [ ] Ensure table creation order respects foreign key dependencies (staging tables first, then ALTER existing tables, then new production tables in dependency order)
-- [ ] Test: `python main.py build-database` creates all 54 tables without errors
+- [x] Add `tables/80_raw_staging.sql` to the schema `tables/` subfolder (before `tables/90_web_api.sql`)
+- [x] Add `tables/90_web_api.sql` to the schema `tables/` subfolder
+- [x] Ensure table creation order respects foreign key dependencies (staging tables first, then ALTER existing tables, then new production tables in dependency order)
+- [x] Test: `python main.py build-database` creates all 54 tables without errors
 
 ---
 
 ## 9.5 Update load-lookups (if applicable)
 
-- [ ] No new reference data needed for Tier 1 tables
-- [ ] Verify existing reference data is unaffected
+- [x] No new reference data needed for Tier 1 tables
+- [x] Verify existing reference data is unaffected
 
 ---
 
 ## Acceptance Criteria
 
-1. [ ] All 14 new tables (8 production + 6 staging) created successfully in MySQL
-2. [ ] All 4 ALTER TABLE statements execute without errors on existing data
-3. [ ] `python main.py build-database` creates all 54 tables + 4 views
-4. [ ] `python main.py status` reflects 54 tables
-5. [ ] All existing CLI commands still work (ETL unaffected)
-6. [ ] Existing data in `app_user`, `opportunity`, `prospect`, `prospect_team_member` preserved
-7. [ ] Foreign key relationships are correct (test with sample INSERT)
+1. [x] All 14 new tables (8 production + 6 staging) created successfully in MySQL
+2. [x] All 4 ALTER TABLE statements execute without errors on existing data
+3. [x] `python main.py build-database` creates all 54 tables + 4 views
+4. [x] `python main.py status` reflects 54 tables
+5. [x] All existing CLI commands still work (ETL unaffected)
+6. [x] Existing data in `app_user`, `opportunity`, `prospect`, `prospect_team_member` preserved
+7. [x] Foreign key relationships are correct (test with sample INSERT)
 
 ---
 

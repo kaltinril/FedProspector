@@ -49,7 +49,7 @@ pbdc/
 **Status**: [x] COMPLETE (2026-02-22)
 **File**: [01-FOUNDATION.md](phases/01-FOUNDATION.md)
 
-- ~~Set up MySQL database~~ 40 tables + 4 views
+- ~~Set up MySQL database~~ 54 tables + 4 views
 - ~~Load reference data from CSVs~~ ~13,001 rows across 11 tables (originally 12,988 in Phase 1; Phase 7 added ref_sba_type + ref_entity_structure)
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
@@ -138,29 +138,30 @@ pbdc/
 - **Deliverable**: DONE
 
 ### Phase 8: Web/API Readiness (Gap Analysis)
-**Status**: PLANNING
+**Status**: [x] COMPLETE
 **Document**: [08-WEB-API-READINESS.md](phases/08-WEB-API-READINESS.md)
 
 **Architecture Decision**: Python stays as ETL/data gathering only. C# API backend will query MySQL directly. Frontend TBD.
 
 **Scope**:
 - [x] Gap analysis complete — schema audit, missing tables, missing columns documented
-- [ ] Add 14 new tables (8 production: app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc; plus 6 raw staging: `stg_*_raw` tables for API response preservation)
-- [ ] Add ~15 new columns across 4 existing tables (app_user, opportunity, prospect, prospect_team_member)
+- [x] Add 14 new tables — completed in Phase 9
+- [x] Add ~15 new columns across 4 existing tables — completed in Phase 9
 - [ ] Build C# API backend (21 endpoints documented)
 - [ ] Replicate prospect status flow, Go/No-Go scoring, burn rate logic in C#
 
-**Impact**: Current 40 tables + 4 views → 54 tables + 4 views (Tier 1 MVP). Plus 6 raw staging tables (`stg_*_raw`) for API response preservation.
+**Impact**: Current 54 tables + 4 views (schema changes completed in Phase 9).
 
 ### Phase 9: Schema Evolution
-**Status**: PLANNING
+**Status**: [x] COMPLETE (2026-03-01)
 **Document**: [09-SCHEMA-EVOLUTION.md](phases/09-SCHEMA-EVOLUTION.md)
 
 **Scope**:
-- [ ] Add 14 new tables (8 production: app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc; plus 6 raw staging: `stg_*_raw`)
-- [ ] ALTER 4 existing tables with ~15 new columns (app_user, opportunity, prospect, prospect_team_member)
-- [ ] Update `build-database` CLI to include new schema file
-- [ ] Result: 40 → 54 tables + 4 views
+- [x] Add 14 new tables (8 production: app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc; plus 6 raw staging: `stg_*_raw`)
+- [x] ALTER 4 existing tables with ~15 new columns (app_user, opportunity, prospect, prospect_team_member)
+- [x] Update `build-database` CLI to include new schema file
+- [x] Result: 54 tables + 4 views (verified with `check-schema --verbose`: 54 OK, 0 DRIFT, 0 MISSING)
+- **Existing data preserved**: 832K entities, 13K opportunities, 2.1K contracts, 110K labor rates
 
 ### Phase 10: C# API Foundation
 **Status**: PLANNING
@@ -171,7 +172,7 @@ pbdc/
 
 **Scope**:
 - [ ] ASP.NET Core Web API project (.NET 10)
-- [ ] MySQL connectivity via Pomelo EF Core + entity models for 54 tables total (48 production + 6 staging). EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.
+- [ ] MySQL connectivity via Pomelo EF Core + entity models for 54 tables (48 production + 6 staging). EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.
 - [ ] JWT authentication middleware + BCrypt password hashing
 - [ ] Swagger/OpenAPI documentation
 - [ ] Repository pattern, pagination, DTOs, base controller

@@ -45,7 +45,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
-- **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables). EF Core will own application tables (app_user, prospect, saved_search, etc.) starting Phase 10. See Phase 10 plan for details.
+- **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core will own application tables (app_user, prospect, saved_search, etc.) starting Phase 10. See Phase 10 plan for details.
 
 ### Known Data Quality Issues
 
