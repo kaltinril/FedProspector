@@ -65,7 +65,7 @@ api/
 }
 ```
 
-- [ ] Create `FedProspectorDbContext` with DbSet for each of the 45 tables
+- [ ] Create `FedProspectorDbContext` with DbSet for each of the 47 tables
 - [ ] Map entity models to existing MySQL tables (table names, column names, data types)
 - [ ] Handle the existing table naming convention (snake_case MySQL -> PascalCase C#)
   > **Snake-case mapping**: Use `UseSnakeCaseNamingConvention()` from the `EFCore.NamingConventions` package to automatically map C# PascalCase properties to MySQL snake_case columns and tables. No manual mapping needed.

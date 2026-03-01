@@ -125,3 +125,4 @@ These were discovered during the first import attempt and must be handled in the
 | Phase 11 Read Endpoints plan | `thesolution/16-PHASE11-READ-ENDPOINTS.md` |
 | Phase 12 Capture Management API plan | `thesolution/17-PHASE12-CAPTURE-MANAGEMENT-API.md` |
 | Phase 13 Auth & Production plan | `thesolution/18-PHASE13-AUTH-AND-PRODUCTION.md` |
+| Federal Contracting Glossary | `thesolution/19-GLOSSARY.md` |

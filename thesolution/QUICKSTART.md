@@ -469,7 +469,7 @@ Phases 1-7 (Python CLI + MySQL ETL pipeline) are complete. Phases 8-13 build a *
 | Phase | Name | Summary | Plan Document |
 |-------|------|---------|---------------|
 | 8 | Web/API Readiness | Gap analysis identifying what the existing schema needs before web consumption | [13-PHASE8-WEB-API-READINESS.md](13-PHASE8-WEB-API-READINESS.md) |
-| 9 | Schema Evolution | 6 new tables + column additions (39 to 45 tables) for user auth, notifications, and capture management | [14-PHASE9-SCHEMA-EVOLUTION.md](14-PHASE9-SCHEMA-EVOLUTION.md) |
+| 9 | Schema Evolution | 8 new tables + column additions (39 to 47 tables) for user auth, notifications, and capture management | [14-PHASE9-SCHEMA-EVOLUTION.md](14-PHASE9-SCHEMA-EVOLUTION.md) |
 | 10 | API Foundation | ASP.NET Core 8+ project scaffolding, Entity Framework Core, JWT authentication | [15-PHASE10-API-FOUNDATION.md](15-PHASE10-API-FOUNDATION.md) |
 | 11 | Read Endpoints | 11 GET endpoints for opportunities, awards, entities, and dashboard views | [16-PHASE11-READ-ENDPOINTS.md](16-PHASE11-READ-ENDPOINTS.md) |
 | 12 | Capture Management API | 10 CRUD endpoints for prospects, proposals, notes, and workflow | [17-PHASE12-CAPTURE-MANAGEMENT-API.md](17-PHASE12-CAPTURE-MANAGEMENT-API.md) |

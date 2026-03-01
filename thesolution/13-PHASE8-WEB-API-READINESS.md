@@ -647,13 +647,13 @@ LIMIT %s
 | Metric | Count |
 |--------|-------|
 | **Current state** | 39 tables + 2 views |
-| **Tier 1 new tables** | +6 (`app_session`, `proposal`, `proposal_document`, `proposal_milestone`, `activity_log`, `notification`) |
+| **Tier 1 new tables** | +8 (`app_session`, `proposal`, `proposal_document`, `proposal_milestone`, `activity_log`, `notification`, `contracting_officer`, `opportunity_poc`) |
 | **Tier 1 new columns** | ~15 columns across 4 existing tables (`app_user`, `opportunity`, `prospect`, `prospect_team_member`) |
-| **After Tier 1** | **45 tables + 2 views** |
+| **After Tier 1** | **47 tables + 2 views** |
 | **Tier 2 new tables** | +5 (`proposal_compliance_checklist`, `proposal_risk_register`, `bid_financial_estimate`, `win_loss_analysis`, `entity_past_performance`) |
-| **After Tier 2** | **50 tables + 2 views** |
+| **After Tier 2** | **52 tables + 2 views** |
 | **Tier 3 new tables** | +5 (clearance tracking, facility certs, vehicle registry, revenue forecast, capacity tracking) |
-| **After Tier 3** | **55 tables + 2 views** |
+| **After Tier 3** | **57 tables + 2 views** |
 
 ### Migration Order
 

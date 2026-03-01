@@ -144,6 +144,8 @@ Each call returns up to 1,000 opportunities.
 | `resourceLinks` | `resource_links` | JSON array |
 | `officeAddress.officeId` | `contracting_office_id` | |
 
+> **Not currently captured**: The API also returns a `pointOfContact` array containing contact objects with `type`, `fullName`, `title`, `email`, `phone`, `fax`, and `additionalInfo` fields. This data is not captured by the current ETL pipeline. Starting in Phase 9, these contacts will be stored in the `contracting_officer` and `opportunity_poc` tables (see `thesolution/14-PHASE9-SCHEMA-EVOLUTION.md`).
+
 ---
 
 ## Data Loaded

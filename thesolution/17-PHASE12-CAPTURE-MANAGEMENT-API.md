@@ -45,6 +45,8 @@ Validation rules (from Python `create_prospect()`):
 - `assignedTo` must reference an active `app_user` (is_active = 'Y')
 - If `notes` provided, append to the auto-created STATUS_CHANGE note text
 
+> **Contracting Officer association**: When creating or editing a prospect, users can associate a Contracting Officer. The API matches on email (case-insensitive) or name + office to reuse existing `contracting_officer` records, avoiding duplicates. New CO records are created automatically if no match is found. Note that COs are also auto-populated from the SAM.gov Opportunity API during ETL loads (via the `opportunity_poc` junction table), so manual entry here is only needed when the API data is incomplete or missing.
+
 #### `GET /api/v1/prospects` -- List with filters
 - [ ] Filters: `status`, `assignedTo`, `captureManagerId`, `priority`, `naics`, `setAside`, `openOnly` (exclude terminal statuses)
 - [ ] Sort by: `responseDeadline`, `estimatedValue`, `goNoGoScore`, `createdAt`

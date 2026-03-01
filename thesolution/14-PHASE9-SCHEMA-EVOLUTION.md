@@ -9,13 +9,13 @@
 
 ## Overview
 
-Execute the Tier 1 database changes identified in Phase 8's gap analysis. Add 6 new tables and ~15 new columns to 4 existing tables to support the C# API backend. All changes are additive -- the Python ETL pipeline is unaffected.
+Execute the Tier 1 database changes identified in Phase 8's gap analysis. Add 8 new tables and ~15 new columns to 4 existing tables to support the C# API backend. All changes are additive -- the Python ETL pipeline is unaffected.
 
-**Result**: 39 tables -> 45 tables + 2 views (unchanged)
+**Result**: 39 tables -> 47 tables + 2 views (unchanged)
 
 ---
 
-## 9.1 New Tables (6)
+## 9.1 New Tables (8)
 
 ### Table: `app_session`
 
@@ -194,6 +194,65 @@ Indexes beyond PK: `idx_notif_user_read` (unread notifications per user, ordered
 
 ---
 
+### Table: `contracting_officer`
+
+Purpose: Normalized contracting officer contacts. Auto-populated from SAM.gov Opportunity API `pointOfContact` array. Also editable via manual entry during capture management (Phase 12).
+
+- [ ] Create table `contracting_officer`
+
+```sql
+-- Normalized contracting officer contacts
+-- Auto-populated from SAM.gov Opportunity API pointOfContact array
+-- Also editable via manual entry during capture management (Phase 12)
+CREATE TABLE IF NOT EXISTS contracting_officer (
+    co_id                  INT AUTO_INCREMENT PRIMARY KEY,
+    first_name             VARCHAR(100),
+    last_name              VARCHAR(100) NOT NULL,
+    email                  VARCHAR(200),
+    phone                  VARCHAR(30),
+    fax                    VARCHAR(30),
+    title                  VARCHAR(100),
+    contracting_office_id  VARCHAR(20),
+    created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at             DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_co_name (last_name, first_name),
+    INDEX idx_co_email (email),
+    INDEX idx_co_office (contracting_office_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+Indexes beyond PK: `idx_co_name` (name lookup), `idx_co_email` (email lookup/dedup), `idx_co_office` (office affiliation queries).
+
+> **Deduplication strategy**: The ETL pipeline matches on `email` (case-insensitive) when available. If no email, match on `fullName` + `contracting_office_id`. Existing CO records are reused; new ones are created only when no match is found. The C# API (Phase 12) uses the same matching logic for manual entry.
+
+---
+
+### Table: `opportunity_poc`
+
+Purpose: Junction table linking opportunities to their points of contact. An opportunity can have multiple contacts (primary, secondary, etc.) as returned by the SAM.gov Opportunity API `pointOfContact` array.
+
+- [ ] Create table `opportunity_poc`
+
+```sql
+-- Links opportunities to their points of contact
+-- An opportunity can have multiple contacts (primary, secondary, etc.)
+CREATE TABLE IF NOT EXISTS opportunity_poc (
+    opportunity_poc_id     INT AUTO_INCREMENT PRIMARY KEY,
+    notice_id              VARCHAR(100) NOT NULL,
+    co_id                  INT NOT NULL,
+    contact_type           VARCHAR(20) NOT NULL DEFAULT 'primary',
+    created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_oppoc_opportunity FOREIGN KEY (notice_id) REFERENCES opportunity(notice_id),
+    CONSTRAINT fk_oppoc_co FOREIGN KEY (co_id) REFERENCES contracting_officer(co_id),
+    UNIQUE INDEX idx_oppoc_unique (notice_id, co_id),
+    INDEX idx_oppoc_co (co_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+Indexes beyond PK: `idx_oppoc_unique` (prevents duplicate pairings), `idx_oppoc_co` (reverse lookup -- find all opportunities for a given CO).
+
+---
+
 ## 9.2 ALTER Existing Tables
 
 ### `app_user` -- Add authentication fields
@@ -233,7 +292,7 @@ ALTER TABLE opportunity
     ADD COLUMN estimated_contract_value DECIMAL(15,2) AFTER contract_vehicle_type;
 ```
 
-Note: All nullable -- populated manually or by future ETL enrichment. `security_clearance_required` defaults to `'UNKNOWN'`. `incumbent_uei` is an informal FK (not enforced) since the incumbent may not be in our entity table.
+Note: All nullable -- populated manually or by future ETL enrichment. `security_clearance_required` defaults to `'UNKNOWN'`. `incumbent_uei` is an informal FK (not enforced) since the incumbent may not be in our entity table. Contracting officer contacts are linked via the `opportunity_poc` junction table (many-to-many).
 
 ---
 
@@ -275,7 +334,7 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 - [ ] Add `09_web_api_tables.sql` to the schema file list in `build-database` command
 - [ ] Ensure table creation order respects foreign key dependencies (ALTER existing tables first, then new tables in dependency order)
-- [ ] Test: `python main.py build-database` creates all 45 tables without errors
+- [ ] Test: `python main.py build-database` creates all 47 tables without errors
 
 ---
 
@@ -288,10 +347,10 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ## Acceptance Criteria
 
-1. [ ] All 6 new tables created successfully in MySQL
+1. [ ] All 8 new tables created successfully in MySQL
 2. [ ] All 4 ALTER TABLE statements execute without errors on existing data
-3. [ ] `python main.py build-database` creates all 45 tables + 2 views
-4. [ ] `python main.py status` reflects 45 tables
+3. [ ] `python main.py build-database` creates all 47 tables + 2 views
+4. [ ] `python main.py status` reflects 47 tables
 5. [ ] All existing CLI commands still work (ETL unaffected)
 6. [ ] Existing data in `app_user`, `opportunity`, `prospect`, `prospect_team_member` preserved
 7. [ ] Foreign key relationships are correct (test with sample INSERT)
@@ -307,12 +366,15 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ### Migration Order
 
-1. **ALTER existing tables first** -- `app_user` auth fields are needed before `app_session` can reference the updated table
-2. **Create Tier 1 tables in dependency order**:
+1. **ALTER `app_user` first** -- auth fields are needed before `app_session` can reference the updated table
+2. **Create `contracting_officer`** -- must exist before `opportunity_poc` can reference it
+3. **ALTER remaining existing tables** -- `opportunity`, `prospect`, `prospect_team_member`
+4. **Create `opportunity_poc`** -- depends on `opportunity` and `contracting_officer`
+5. **Create remaining Tier 1 tables in dependency order**:
    - `app_session` (depends on `app_user`)
    - `proposal` (depends on `prospect` and `app_user`)
    - `proposal_document` (depends on `proposal` and `app_user`)
    - `proposal_milestone` (depends on `proposal` and `app_user`)
    - `activity_log` (depends on `app_user`)
    - `notification` (depends on `app_user`)
-3. **Verify** -- run `build-database` and `status` commands to confirm 45 tables
+6. **Verify** -- run `build-database` and `status` commands to confirm 47 tables
