@@ -80,7 +80,8 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     INDEX idx_fpds_completion (completion_date),
     INDEX idx_fpds_hash (record_hash),
     INDEX idx_fpds_far1102 (far1102_exception_code),
-    INDEX idx_fpds_solicitation (solicitation_number)
+    INDEX idx_fpds_solicitation (solicitation_number),
+    KEY idx_fpds_vendor_name (vendor_name(50))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gsa_labor_rate (

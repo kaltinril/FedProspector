@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS opportunity (
     INDEX idx_opp_response (response_deadline),
     INDEX idx_opp_type (type),
     INDEX idx_opp_active (active),
-    INDEX idx_opp_sol (solicitation_number)
+    INDEX idx_opp_sol (solicitation_number),
+    KEY idx_opp_department (department_name(50))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS opportunity_history (

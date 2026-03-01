@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS usaspending_transaction (
     description                 TEXT,
     first_loaded_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_load_id                INT,
+    UNIQUE KEY uk_txn_dedup (award_id, modification_number, action_date),
     INDEX idx_ut_award (award_id),
     INDEX idx_ut_date (action_date),
     CONSTRAINT fk_ut_award FOREIGN KEY (award_id)

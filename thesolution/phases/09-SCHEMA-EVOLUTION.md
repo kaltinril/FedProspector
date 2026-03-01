@@ -474,6 +474,16 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ---
 
+## Schema Ownership Transition Note
+
+Phase 9 is the **last phase where Python DDL exclusively manages ALL tables**. After Phase 9 completes:
+
+- The 5 application tables (`app_user`, `prospect`, `prospect_note`, `prospect_team_member`, `saved_search`) plus all new Phase 9 app tables (`app_session`, `proposal`, `proposal_document`, `proposal_milestone`, `activity_log`, `notification`) transition to **C# EF Core migration ownership** in Phase 10.
+- Python DDL continues to own all ETL/data tables, reference tables, and staging tables.
+- See [10-API-FOUNDATION.md](10-API-FOUNDATION.md) "Schema Ownership" section for the full split and rules.
+
+---
+
 ## Migration Notes
 
 - **Backwards compatible**: All new columns are nullable or have defaults

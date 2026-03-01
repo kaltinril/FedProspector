@@ -2,9 +2,7 @@
 
 ## Project Purpose
 
-Build a Python + MySQL system to gather, store, and analyze federal contract opportunity data. The primary goal is to efficiently find WOSB (Women-Owned Small Business) and 8(a) program contracts to bid on.
-
-This replaces a previous Salesforce-based approach. All data gathering uses Python. All data storage uses a local MySQL database.
+Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replaces prior Salesforce approach.
 
 ## Project Organization
 
@@ -15,28 +13,27 @@ This replaces a previous Salesforce-based approach. All data gathering uses Pyth
 | `workdir/` | Data conversion scripts and reference CSV/MD files |
 | `api/` | **C# ASP.NET Core Web API** - backend REST API (Phase 10+) |
 | `ui/` | **Frontend web application** - TBD framework (future) |
-| `OLD_ATTEMPTS/` | Legacy Salesforce/Apex code and prior database schema attempts (archived) |
-| `OLD_RESOURCES/` | Original source files (DOCX, XLSX, PDF, PNG, OpenAPI specs) from prior work (archived) |
+| `OLD_ATTEMPTS/`, `OLD_RESOURCES/` | Archived. Do not modify or reference in new code. |
 
 ## Context Management
 
-- **NEVER read large doc/plan files in the main context window.** Delegate to agents instead.
-- **Multi-file edits (especially doc updates) MUST go to coder agents.** The main context is for orchestration only: decide what to do, launch agents, review results, commit.
-- **Batch doc updates into a single agent call.** Give it the list of files + what changed (e.g., "update table count from 38 to 39 in all docs") and let it handle all reads/edits outside the main window.
-- **Why**: Reading 6+ large markdown files inline causes context compaction, which loses conversation history and wastes the user's time.
+- **NEVER read large doc/plan files in the main context window.** Delegate to agents.
+- **Multi-file edits MUST go to coder agents.** Main context is for orchestration only.
+- **Batch doc updates into a single agent call.**
+- **Why**: Reading 6+ large markdown files inline causes context compaction.
 
 ## Agent Instructions
 
 ### When Working on This Project
 
-1. **Always read the master plan first**: See [thesolution/MASTER-PLAN.md](thesolution/MASTER-PLAN.md) for current status and phase overview.
-2. **Update the plan as you work**: When you complete a task, mark it done in the relevant phase file (thesolution/phases/). When you discover new requirements or issues, add them.
-3. **Follow the phase order**: Phases build on each other. Do not skip ahead unless explicitly told to.
-4. **Record data quality issues**: Any unexpected data formats, bad values, or API behavior must be documented in the relevant phase file under a "Known Issues" section.
-5. **Never hardcode credentials**: All API keys, database passwords, and sensitive config go in `.env` files. Use `python-dotenv` to load them. Passwords are stored in `thesolution/credentials.yml` for easy reference.
-6. **Prefer bulk extracts over API pagination**: SAM.gov rate limits are harsh (10/day without a role). Use monthly/daily extract downloads when available instead of paginated API calls.
-7. **Test with real data**: The `workdir/converted/local database/` folder has real CSV reference data.
-8. **Ignore OLD_ATTEMPTS and OLD_RESOURCES**: These contain archived prior work. Do not modify or reference files from these folders in new code. The relevant data has already been converted into `workdir/converted/`.
+1. **Read the master plan first**: [thesolution/MASTER-PLAN.md](thesolution/MASTER-PLAN.md)
+2. **Update the plan as you work**: Mark tasks done in `thesolution/phases/`.
+3. **Follow the phase order**: Do not skip ahead unless told to.
+4. **Record data quality issues**: Document in relevant phase file under "Known Issues".
+5. **Never hardcode credentials**: Use `.env` + `python-dotenv`. See `thesolution/credentials.yml`.
+6. **Prefer bulk extracts over API pagination**: SAM.gov rate limits are harsh.
+7. **Test with real data**: `workdir/converted/local database/` has reference CSVs.
+8. **Ignore OLD_ATTEMPTS and OLD_RESOURCES**: Relevant data already in `workdir/converted/`.
 
 ### Key Conventions
 
@@ -48,102 +45,34 @@ This replaces a previous Salesforce-based approach. All data gathering uses Pyth
 - **API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
+- **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables). EF Core will own application tables (app_user, prospect, saved_search, etc.) starting Phase 10. See Phase 10 plan for details.
 
-### Known Data Quality Issues (from prior SAM.gov imports)
+### Known Data Quality Issues
 
-These were discovered during the first import attempt and must be handled in the data cleaner:
+See `thesolution/reference/08-DATA-QUALITY-ISSUES.md` for 18 known issues handled by ETL cleaners (ZIP parsing, date formats, SAM.gov API quirks, etc.)
 
-1. ZIP codes containing city/state/country names (9,294 records in first import)
-2. ZIP codes containing PO BOX data (27 records)
-3. State fields containing dates (e.g., "05/03/1963")
-4. Foreign addresses with province names > 2 chars in state field
-5. Non-ASCII characters in country names (Reunion, Cote d'Ivoire)
-6. Missing 3-letter country codes: XKS (Kosovo), XWB (West Bank), XGZ (Gaza)
-7. CAGE codes with multiple values separated by comma+space
-8. NAICS codes from retired vintages not in current lookup tables
-9. Escaped pipe characters in DAT extract files (`|\|` must become `||`)
-10. Dates in YYYYMMDD format needing conversion to DATE type
-11. SBA type entries in DAT file concatenate code+date (e.g., "A620291223" = code "A6" + date "20291223")
-12. Duplicate NAICS entries for some entities (same code, different flags) - 7 occurrences in monthly extract
-13. SAM.gov Opportunities API returns `fullParentPathName` (dot-separated) instead of separate department/subTier/office fields
-14. Opportunity `description` field is a URL, not text content (requires separate authenticated fetch)
-15. SAM.gov Opportunities API rejects date ranges of exactly 365 days (error: "Date range must be null year(s) apart") — use 364-day max chunks
-16. SAM.gov Opportunities API rejects Feb 29 as start date — historical load skips leap day
-17. Opportunity `pop_state` field can contain ISO 3166-2 subdivision codes > 2 chars (e.g., IN-MH for India-Maharashtra) — column widened to VARCHAR(6)
-18. SAM.gov Contract Awards API dates are in MM/DD/YYYY format (not ISO 8601) — awards_loader converts during load
+### Data Linking
 
-### Data Linking Quick Reference
-
-- Opportunity → FPDS: `award_number` = `contract_id` (PIID)
-- Opportunity → USASpending: `solicitation_number` = `solicitation_identifier`
-- FPDS → Entity: `vendor_uei` = `uei_sam`
-- USASpending → Entity: `recipient_uei` = `uei_sam`
-- RFI → RFP: NO API link exists. Manual only via `opportunity_relationship` table.
-- Security clearance: NOT in any API. Check SOW/PWS on SAM.gov.
-- Bidder count: `fpds_contract.number_of_offers` (post-award only)
-- Burn rate: `usaspending_transaction` aggregated by `action_date`
-- Full data architecture: see `thesolution/reference/07-DATA-ARCHITECTURE.md`
+See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contract linking chains and field mappings.
 
 ### Project File References
 
 | What | Location |
 |------|----------|
-| Python application | `fed_prospector/` (CLI: `python main.py --help`, 38 commands in 11 `cli/` modules) |
-| Plan documents | `thesolution/` |
+| Python application | `fed_prospector/` (CLI: `python main.py --help`, 39 commands in 12 `cli/` modules) |
+| CLI modules | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema) |
+| API clients | `fed_prospector/api_clients/` (sam_opportunity, sam_awards, sam_exclusions, sam_subaward, sam_fedhier, usaspending, calc) |
+| ETL loaders | `fed_prospector/etl/` (bulk_loader, dat_parser, opportunity_loader, awards_loader, usaspending_loader, calc_loader, fedhier_loader, exclusions_loader, subaward_loader, prospect_manager, scheduler, health_check, db_maintenance) |
+| DB schema (DDL) | `fed_prospector/db/schema/` |
+| Master plan | `thesolution/MASTER-PLAN.md` |
+| Phase plans | `thesolution/phases/` (01 through 13) |
+| Reference docs | `thesolution/reference/` (01 through 09) |
 | Credentials (DB, API keys) | `thesolution/credentials.yml` |
-| Quick start / environment setup | `thesolution/QUICKSTART.md` |
-| Original Salesforce SOW (legacy) | `workdir/converted/SalesForce Customizations SOW_MS1.md` |
-| SAM Entity API structure | `workdir/converted/entity_api_relationship.md` |
-| Entity field mapping (154 fields) | `workdir/converted/local database/entity compare between formats.csv` |
-| API rate limits & endpoints | `workdir/converted/salesforce to samgov api.csv` |
-| NAICS codes (2022) | `workdir/converted/local database/data_to_import/2-6 digit_2022_Codes.csv` |
-| SBA size standards | `workdir/converted/local database/data_to_import/naics_size_standards.csv` |
-| PSC codes | `workdir/converted/local database/PSC April 2022 - PSC for 042022.csv` |
-| Country codes | `workdir/converted/country_codes_combined.csv` |
-| State codes | `workdir/converted/GG-Updated-Country-and-State-Lists - States.csv` |
-| FIPS county codes | `workdir/converted/local database/FIPS COUNTY CODES.csv` |
-| Proposed MySQL architecture | `workdir/converted/proposed mysql solution.md` |
-| SAM Entity import doc (legacy) | `workdir/converted/PBDC - Import Entity API to SF.md` |
-| Business type codes | `OLD_RESOURCES/BusTypes.csv` |
-| OpenAPI specs (archived, superseded by thesolution/sam_gov_api/) | `OLD_RESOURCES/openapi_entityManagement.json`, `OLD_RESOURCES/samgov_complete.json` |
-| DAT file parser (V2 pipe-delimited) | `fed_prospector/etl/dat_parser.py` |
-| Bulk loader (LOAD DATA INFILE) | `fed_prospector/etl/bulk_loader.py` |
-| SAM Opportunity API client | `fed_prospector/api_clients/sam_opportunity_client.py` |
-| Opportunity loader | `fed_prospector/etl/opportunity_loader.py` |
-| Prospect pipeline manager | `fed_prospector/etl/prospect_manager.py` |
-| USASpending API client | `fed_prospector/api_clients/usaspending_client.py` |
-| GSA CALC+ API client | `fed_prospector/api_clients/calc_client.py` |
-| USASpending loader | `fed_prospector/etl/usaspending_loader.py` |
-| GSA CALC+ loader | `fed_prospector/etl/calc_loader.py` |
-| USASpending table DDL (2 tables) | `fed_prospector/db/schema/tables/70_usaspending.sql` |
-| SAM Contract Awards API client | `fed_prospector/api_clients/sam_awards_client.py` |
-| Awards loader (-> fpds_contract) | `fed_prospector/etl/awards_loader.py` |
-| SAM Federal Hierarchy API client | `fed_prospector/api_clients/sam_fedhier_client.py` |
-| Federal Hierarchy loader | `fed_prospector/etl/fedhier_loader.py` |
-| SAM Exclusions API client | `fed_prospector/api_clients/sam_exclusions_client.py` |
-| Exclusions loader | `fed_prospector/etl/exclusions_loader.py` |
-| SAM Subaward API client | `fed_prospector/api_clients/sam_subaward_client.py` |
-| Subaward loader | `fed_prospector/etl/subaward_loader.py` |
-| Job scheduler definitions | `fed_prospector/etl/scheduler.py` |
-| Health check dashboard | `fed_prospector/etl/health_check.py` |
-| Database maintenance | `fed_prospector/etl/db_maintenance.py` |
-| CLI modules (refactored from main.py) | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward) |
-| Prior import progress notes (archived) | `OLD_ATTEMPTS/local database/progress story.txt` |
-| SAM Contract Awards API spec (OpenAPI 3.0) | `thesolution/sam_gov_api/contract-awards.yaml` |
-| SAM Entity Management API spec (OpenAPI 3.0, v1-v4) | `thesolution/sam_gov_api/entity-api.yaml` |
-| SAM Opportunities v2 API spec (Swagger 2.0) | `thesolution/sam_gov_api/get-opportunities-v2.yaml` |
-| SAM Exclusions API spec (OpenAPI 3.0) | `thesolution/sam_gov_api/exclusions-api.yaml` |
-| SAM Entity/Exclusions Extracts API spec (OpenAPI 3.0) | `thesolution/sam_gov_api/sam-entity-extracts-api.yaml` |
-| SAM Acquisition Subaward Reporting API spec (OpenAPI 3.0) | `thesolution/sam_gov_api/subawardreportingpublicapi.yaml` |
-| SAM Federal Hierarchy Public API spec - hierarchy endpoint | `thesolution/sam_gov_api/fh-public-hierarchy.yml` |
-| SAM Federal Hierarchy Public API spec - orgs endpoint | `thesolution/sam_gov_api/fh-public-org.yml` |
-| SAM Contract Awards API research | `workdir/converted/sam-contract-awards-api.md` |
-| USASpending Transactions API research | `workdir/converted/usaspending-transactions-api.md` |
-| Phase 8 Web/API Readiness gap analysis | `thesolution/phases/08-WEB-API-READINESS.md` |
-| Phase 9 Schema Evolution plan | `thesolution/phases/09-SCHEMA-EVOLUTION.md` |
-| Phase 10 C# API Foundation plan | `thesolution/phases/10-API-FOUNDATION.md` |
-| Phase 11 Read Endpoints plan | `thesolution/phases/11-READ-ENDPOINTS.md` |
-| Phase 12 Capture Management API plan | `thesolution/phases/12-CAPTURE-MANAGEMENT-API.md` |
-| Phase 13 Auth & Production plan | `thesolution/phases/13-AUTH-AND-PRODUCTION.md` |
-| Federal Contracting Glossary | `thesolution/reference/06-GLOSSARY.md` |
-| Data architecture & field mapping | `thesolution/reference/07-DATA-ARCHITECTURE.md` |
+| Quick start | `thesolution/QUICKSTART.md` |
+| SAM.gov API specs | `thesolution/sam_gov_api/` (7 YAML OpenAPI specs) |
+| Reference data CSVs | `workdir/converted/local database/` (NAICS, PSC, SBA size standards, FIPS, entity field mapping) |
+| Reference docs (legacy) | `workdir/converted/` (country_codes, state_codes, entity_api_relationship, proposed mysql solution) |
+| Data architecture | `thesolution/reference/07-DATA-ARCHITECTURE.md` |
+| Data quality issues | `thesolution/reference/08-DATA-QUALITY-ISSUES.md` |
+| SAM.gov API quirks | `thesolution/reference/09-SAM-API-QUIRKS.md` |
+| Glossary | `thesolution/reference/06-GLOSSARY.md` |

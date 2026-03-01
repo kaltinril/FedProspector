@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS prospect (
     outcome_notes        TEXT,
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_prospect_notice (notice_id),
     CONSTRAINT fk_prospect_opp FOREIGN KEY (notice_id) REFERENCES opportunity(notice_id),
     CONSTRAINT fk_prospect_user FOREIGN KEY (assigned_to) REFERENCES app_user(user_id),
     INDEX idx_prospect_status (status),

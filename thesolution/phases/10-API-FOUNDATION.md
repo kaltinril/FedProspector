@@ -13,6 +13,39 @@ Set up the foundational C# ASP.NET Core Web API project that will serve as the b
 
 ---
 
+## Schema Ownership
+
+**Decision**: Schema ownership is split between Python DDL and C# EF Core Migrations. Both systems share the single `fed_contracts` database.
+
+| Owner | Tables | Rationale |
+|-------|--------|-----------|
+| **Python DDL** (`fed_prospector/db/schema/`) | ~35 tables (see full list below) | ETL pipeline populates these. Python is source of truth. `check-schema` validates drift. |
+| **C# EF Core Migrations** | ~5 existing + future app tables (see full list below) | Application/UI tables. C# is source of truth. EF Core migrations manage changes. |
+
+### Python DDL Tables (35)
+
+- **Entity** (10): `entity`, `entity_address`, `entity_business_type`, `entity_disaster_response`, `entity_history`, `entity_naics`, `entity_poc`, `entity_psc`, `entity_sba_certification`, `stg_entity_raw`
+- **Opportunity** (3): `opportunity`, `opportunity_history`, `opportunity_relationship`
+- **Federal/Awards** (2): `fpds_contract`, `federal_organization`
+- **External sources** (5): `gsa_labor_rate`, `sam_exclusion`, `sam_subaward`, `usaspending_award`, `usaspending_transaction`
+- **ETL** (4): `etl_load_log`, `etl_load_error`, `etl_data_quality_rule`, `etl_rate_limit`
+- **Reference** (11): `ref_business_type`, `ref_country_code`, `ref_entity_structure`, `ref_fips_county`, `ref_naics_code`, `ref_naics_footnote`, `ref_psc_code`, `ref_sba_size_standard`, `ref_sba_type`, `ref_set_aside_type`, `ref_state_code`
+
+### C# EF Core Tables (5 existing)
+
+- `app_user`, `prospect`, `prospect_note`, `prospect_team_member`, `saved_search`
+- Future Phase 10+ tables: `app_session`, `proposal`, `proposal_document`, `proposal_milestone`, `activity_log`, `notification`, `contracting_officer`, `opportunity_poc`
+
+### Rules
+
+1. **Python DDL files remain the source of truth for ETL tables.** `build-database` creates them. `check-schema` validates them.
+2. **EF Core maps Python's ETL tables as read-only entities** -- no migrations generated for them. Use `[Table("entity")]` attribute mapping but never create/modify these tables via EF Core.
+3. **EF Core migrations own the application tables.** A "baseline" migration captures the existing DDL for the 5 app tables, then EF Core manages them going forward.
+4. **Python `build-database` will SKIP the 5 app tables** once EF Core takes ownership (add a skip list or move the DDL to a `legacy/` subfolder).
+5. **Both systems share the same `fed_contracts` database.** No separate databases.
+
+---
+
 ## Tasks
 
 ### 10.1 Project Structure
@@ -203,9 +236,13 @@ api/
 | ORM | Pomelo EF Core for CRUD + raw SQL for complex queries | EF Core for simple CRUD, raw SQL for views and aggregations |
 | Auth | JWT Bearer tokens + BCrypt | Stateless, standard, works with any frontend |
 | Logging | Serilog | Structured logging, multiple sinks, industry standard |
-| Mapping | AutoMapper | Widely used, convention-based, reduces boilerplate |
-| Validation | FluentValidation | Cleaner than DataAnnotations for complex rules |
+| Mapping | AutoMapper 13+ | Widely used, convention-based, reduces boilerplate (DI extensions built-in) |
+| Validation | FluentValidation 12+ (manual wiring, NOT deprecated AspNetCore package) | Cleaner than DataAnnotations for complex rules |
 | MySQL Driver | Pomelo.EntityFrameworkCore.MySql | Best-maintained EF Core MySQL provider, uses MySqlConnector underneath |
+| Rate Limiting | Built-in `Microsoft.AspNetCore.RateLimiting` | NOT the deprecated AspNetCoreRateLimit package |
+| API Versioning | `/api/v1/` prefix on all endpoints | URL-based versioning for simplicity |
+| Boolean Convention | `CHAR(1) 'Y'/'N'` in MySQL (not BOOLEAN or ENUM) | Matches existing Python ETL schema convention |
+| Target Framework | .NET 10 LTS | Long-term support release |
 
 ---
 

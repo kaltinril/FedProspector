@@ -17,7 +17,7 @@ This final phase adds user authentication endpoints, an in-app notification syst
 
 ### 13.1 AuthController
 
-#### `POST /api/auth/register` — Create new user account
+#### `POST /api/v1/auth/register` — Create new user account
 - [ ] Fields: username, email, displayName, password
 - [ ] Password requirements: min 8 chars, 1 uppercase, 1 lowercase, 1 number
 - [ ] Hash password with BCrypt (work factor 12)
@@ -25,7 +25,7 @@ This final phase adds user authentication endpoints, an in-app notification syst
 - [ ] Return JWT token
 - [ ] Admin-only OR open registration (configurable)
 
-#### `POST /api/auth/login` — Authenticate user
+#### `POST /api/v1/auth/login` — Authenticate user
 - [ ] Accept username + password
 - [ ] Verify BCrypt hash
 - [ ] Check account not locked (`locked_until` > NOW())
@@ -57,37 +57,37 @@ Response:
 }
 ```
 
-#### `POST /api/auth/logout` — Invalidate session
+#### `POST /api/v1/auth/logout` — Invalidate session
 - [ ] Set `app_session.is_active = 'N'`
 - [ ] Require valid JWT (auth required)
 - [ ] Log activity
 
-#### `POST /api/auth/change-password` — Change password
+#### `POST /api/v1/auth/change-password` — Change password
 - [ ] Require current password + new password
 - [ ] Hash new password, update `app_user.password_hash`
 - [ ] Invalidate all existing sessions for user
 - [ ] Log activity
 
-#### `GET /api/auth/me` — Current user profile
+#### `GET /api/v1/auth/me` — Current user profile
 - [ ] Return current user info from JWT claims + database
 - [ ] Include last_login_at, role, is_admin
 
-#### `PATCH /api/auth/me` — Update profile
+#### `PATCH /api/v1/auth/me` — Update profile
 - [ ] Allow update of displayName, email
 - [ ] Cannot change username or role (admin only)
 
 ### 13.2 NotificationsController
 
-#### `GET /api/notifications` — List user notifications
+#### `GET /api/v1/notifications` — List user notifications
 - [ ] Filter: `unreadOnly` (default true), `type`
 - [ ] Sort by created_at DESC
 - [ ] Pagination standard
 - [ ] Includes unread count in response metadata
 
-#### `PATCH /api/notifications/{id}/read` — Mark notification as read
+#### `PATCH /api/v1/notifications/{id}/read` — Mark notification as read
 - [ ] Set `is_read = TRUE`, `read_at = NOW()`
 
-#### `POST /api/notifications/mark-all-read` — Mark all as read
+#### `POST /api/v1/notifications/mark-all-read` — Mark all as read
 - [ ] Update all unread notifications for current user
 
 #### Notification Generation (Background/Service)
@@ -104,16 +104,16 @@ Response:
 
 ### 13.3 User Management (Admin)
 
-#### `GET /api/admin/users` — List all users
+#### `GET /api/v1/admin/users` — List all users
 - [ ] Admin only
 - [ ] Show: userId, username, displayName, email, role, isActive, isAdmin, lastLoginAt
 
-#### `PATCH /api/admin/users/{id}` — Update user
+#### `PATCH /api/v1/admin/users/{id}` — Update user
 - [ ] Admin only
 - [ ] Change role, is_admin, is_active (deactivate account)
 - [ ] Cannot deactivate self
 
-#### `POST /api/admin/users/{id}/reset-password` — Force password reset
+#### `POST /api/v1/admin/users/{id}/reset-password` — Force password reset
 - [ ] Admin only
 - [ ] Set temporary password, force change on next login
 - [ ] Invalidate all sessions
@@ -212,8 +212,8 @@ Response:
 ## Post-Phase 13: Future Considerations
 
 After all 13 phases are complete, the system will be:
-- **Python ETL** (this repo): 54 tables (48 production + 6 staging) + 4 views, 38 CLI commands, 7+ API integrations, automated scheduling
-- **C# API** (`api/` folder, monorepo): 21+ endpoints, JWT auth, Swagger docs
+- **Python ETL** (this repo): 54 tables (48 production + 6 staging) + 4 views, 39 CLI commands, 7+ API integrations, automated scheduling
+- **C# API** (`api/` folder, monorepo): 36+ endpoints, JWT auth, Swagger docs
 - **Frontend** (TBD): Can now be built against the documented API
 
 Future work beyond Phase 13:

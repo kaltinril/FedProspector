@@ -9,7 +9,7 @@
 ## Implementation
 
 **Business logic**: `fed_prospector/etl/prospect_manager.py` - `ProspectManager` class
-**CLI commands**: 12 new commands added to `fed_prospector/main.py`
+**CLI commands**: 13 new commands added to `fed_prospector/main.py`
 
 ---
 

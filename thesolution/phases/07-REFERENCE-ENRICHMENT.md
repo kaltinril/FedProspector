@@ -338,25 +338,25 @@ FPDS_ATOM_BASE_URL = "https://www.fpds.gov/dbsight/FEEDS/ATOM"
 ## Task 7.10: Update All Project Documentation
 
 Update the following docs to reflect Phase 7 changes:
-- [ ] `thesolution/MASTER-PLAN.md` -- add Phase 7 entry
-- [ ] `thesolution/reference/02-DATABASE-SCHEMA.md` -- update table definitions for altered/new tables
-- [ ] `thesolution/QUICKSTART.md` -- update reference table counts and `load-lookups` output
-- [ ] `CLAUDE.md` -- update table counts, file references, add `ref_sba_type` to references
+- [x] `thesolution/MASTER-PLAN.md` -- add Phase 7 entry
+- [x] `thesolution/reference/02-DATABASE-SCHEMA.md` -- update table definitions for altered/new tables
+- [x] `thesolution/QUICKSTART.md` -- update reference table counts and `load-lookups` output
+- [x] `CLAUDE.md` -- update table counts, file references, add `ref_sba_type` to references
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `ref_business_type` has `category`, `is_socioeconomic`, `is_small_business_related` populated for all rows
-- [ ] `ref_entity_structure` has 8 rows matching all codes found in loaded entity data
-- [ ] `ref_country_code` includes SAM.gov territory codes with `is_iso_standard` flag
-- [ ] `ref_naics_code` has `code_level`, `level_name`, `parent_code` for all rows
-- [ ] `ref_set_aside_type` loaded from CSV with 20+ entries and `category` column
-- [ ] `ref_sba_type` has 5+ rows covering all codes in `entity_sba_certification`
-- [ ] Views produce human-readable output (business type names, NAICS sectors, etc.)
-- [ ] `python main.py load-lookups` reloads all enriched tables idempotently
-- [ ] `python main.py status` shows updated row counts for all reference tables
-- [ ] FPDS deprecation documented, SAM Contract Awards URL in settings.py
+- [x] `ref_business_type` has `category`, `is_socioeconomic`, `is_small_business_related` populated for all rows
+- [x] `ref_entity_structure` has 8 rows matching all codes found in loaded entity data
+- [x] `ref_country_code` includes SAM.gov territory codes with `is_iso_standard` flag
+- [x] `ref_naics_code` has `code_level`, `level_name`, `parent_code` for all rows
+- [x] `ref_set_aside_type` loaded from CSV with 20+ entries and `category` column
+- [x] `ref_sba_type` has 5+ rows covering all codes in `entity_sba_certification`
+- [x] Views produce human-readable output (business type names, NAICS sectors, etc.)
+- [x] `python main.py load-lookups` reloads all enriched tables idempotently
+- [x] `python main.py status` shows updated row counts for all reference tables
+- [x] FPDS deprecation documented, SAM Contract Awards URL in settings.py
 
 ---
 

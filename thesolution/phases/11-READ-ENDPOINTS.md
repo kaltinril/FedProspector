@@ -9,7 +9,7 @@
 
 Implement all read-only endpoints that query the MySQL database. These endpoints expose the data that Python ETL has loaded. No data is modified -- pure query and response.
 
-**Total endpoints this phase: 15 endpoints (12 GET, 2 POST, 1 DELETE)**
+**Total endpoints this phase: 17 endpoints (13 GET, 3 POST, 1 DELETE)**
 
 ---
 
@@ -477,7 +477,7 @@ WHERE status NOT IN ('WON', 'LOST', 'DECLINED', 'NO_BID');
 
 ## Acceptance Criteria
 
-1. [ ] All 15 endpoints return correct data from MySQL
+1. [ ] All 17 endpoints return correct data from MySQL
 2. [ ] Pagination works on all list endpoints (page, pageSize, totalCount, totalPages)
 3. [ ] Filters applied correctly (verified with known test data)
 4. [ ] Swagger documentation shows all endpoints with request/response examples

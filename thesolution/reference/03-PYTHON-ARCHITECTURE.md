@@ -22,7 +22,7 @@ fed_prospector/
         sam_awards_client.py     # SAM Contract Awards API
         sam_exclusions_client.py # SAM Exclusions API
         sam_subaward_client.py   # SAM Subaward Reporting API
-        fpds_client.py           # FPDS ATOM Feed parser (XML)
+        fpds_client.py           # FPDS ATOM Feed parser (XML) (DEPRECATED)
         usaspending_client.py    # USASpending API (no auth, no rate limits)
         calc_client.py           # GSA CALC+ API (no auth)
     etl/
@@ -31,7 +31,7 @@ fed_prospector/
         entity_loader.py         # Entity data transformation and loading
         opportunity_loader.py    # Opportunity transformation and loading
         fedhier_loader.py        # Federal hierarchy loading
-        fpds_loader.py           # FPDS award loading
+        fpds_loader.py           # FPDS award loading (DEPRECATED)
         reference_loader.py      # Load CSV reference tables from workdir
         change_detector.py       # Record hash comparison, field-level diff
         data_cleaner.py          # Data quality rules engine
@@ -90,6 +90,7 @@ fed_prospector/
         spending.py              # load-transactions, burn-rate
         health.py                # check-health, run-job, maintain-db, run-all-searches
         subaward.py              # load-subawards, search-subawards, teaming-partners
+        schema.py                # check-schema
     main.py                      # CLI entry point (170 lines, delegates to cli/ modules)
     requirements.txt
     requirements-dev.txt
@@ -134,10 +135,10 @@ fed_prospector/
 | `etl/scheduler.py` | Implemented | Phase 6 - 8 job definitions, JobRunner, Windows Task Scheduler |
 | `etl/health_check.py` | Implemented | Phase 6 - data freshness, API usage, alerts, key status |
 | `etl/db_maintenance.py` | Implemented | Phase 6 - archive history, purge staging, ANALYZE TABLE |
-| `db/connection.py` | Implemented | Phase 1 |
+| `etl/schema_checker.py` | Implemented | Schema drift detection - compares live DB to DDL files |
 | `db/schema/tables/*.sql`, `db/schema/views/*.sql` | Implemented | Phase 1 + Phase 5/7 - 40 tables + 4 views |
-| `main.py` | Implemented | 170 lines, delegates to 11 cli/ modules (38 commands) |
-| `cli/*.py` | Implemented | 11 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward |
+| `main.py` | Implemented | 170 lines, delegates to 12 cli/ modules (39 commands) |
+| `cli/*.py` | Implemented | 12 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema |
 
 ## Core Dependencies
 
@@ -499,7 +500,7 @@ Sources:
     ref_state_code          <- GG-Updated-Country-and-State-Lists - States.csv
     ref_fips_county         <- FIPS COUNTY CODES.csv
     ref_business_type       <- OLD_RESOURCES/BusTypes.csv
-    ref_set_aside_type      <- (hardcoded seed data for set-aside codes)
+    ref_set_aside_type      <- set_aside_types.csv (23 entries with categories)
 """
 
 class ReferenceLoader:

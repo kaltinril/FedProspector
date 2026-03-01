@@ -613,7 +613,7 @@ class ReferenceLoader:
     def load_entity_structures(self):
         """Load entity structure codes into ref_entity_structure.
 
-        Seed data from SAM.gov documentation and database discovery (8 codes).
+        Seed data from SAM.gov documentation and database discovery (15 codes).
         """
         conn = get_connection()
         cursor = conn.cursor()
@@ -621,14 +621,21 @@ class ReferenceLoader:
             cursor.execute("TRUNCATE TABLE ref_entity_structure")
 
             seed_data = [
-                ("2J", "Sole Proprietorship"),
-                ("2K", "Partnership or Limited Liability Partnership"),
-                ("2L", "Corporate Entity (Not Tax Exempt)"),
+                ("2J", "Corporate Entity (Not Tax Exempt)"),
+                ("2K", "Corporate Entity (Tax Exempt)"),
+                ("2L", "Partnership or Limited Liability Partnership"),
                 ("2A", "U.S. Government Entity"),
-                ("8H", "Joint Venture"),
-                ("CY", "Foreign Government"),
+                ("8H", "Limited Liability Company (LLC)"),
+                ("CY", "Country"),
                 ("X6", "International Organization"),
                 ("ZZ", "Other"),
+                ("2U", "Sole Proprietorship"),
+                ("2V", "Municipality"),
+                ("2W", "County"),
+                ("2X", "Township"),
+                ("2R", "Joint Venture"),
+                ("2F", "Business or Organization"),
+                ("2B", "Indian Tribe (Federally Recognized)"),
             ]
 
             sql = (
@@ -693,7 +700,7 @@ class ReferenceLoader:
     def load_sba_types(self):
         """Load SBA certification type codes into ref_sba_type.
 
-        Seed data from SAM.gov documentation and database discovery (5 codes).
+        Seed data from SAM.gov documentation and database discovery (7 codes).
         """
         conn = get_connection()
         cursor = conn.cursor()
@@ -701,11 +708,13 @@ class ReferenceLoader:
             cursor.execute("TRUNCATE TABLE ref_sba_type")
 
             seed_data = [
-                ("A6", "8(a) Program Participant", "8(a)"),
-                ("A9", "8(a) Joint Venture (Mentor-Protege)", "8(a)"),
-                ("A0", "8(a) Joint Venture (Non Mentor-Protege)", "8(a)"),
-                ("JT", "8(a) Joint Venture", "8(a)"),
-                ("XX", "SBA Certified HUBZone", "HUBZone"),
+                ("A4", "8(a) Program Participant (Disadvantaged)", "8(a)"),
+                ("A6", "8(a) Joint Venture", "8(a)"),
+                ("XX", "HUBZone Certified", "HUBZone"),
+                ("27", "WOSB Program Participant", "WOSB"),
+                ("A2", "EDWOSB Program Participant", "EDWOSB"),
+                ("JT", "SBA Certified Small Disadvantaged Business", "SDB"),
+                ("QF", "Community Development Corporation (CDC)", "CDC"),
             ]
 
             sql = (

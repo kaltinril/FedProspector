@@ -53,7 +53,7 @@ pbdc/
 - ~~Load reference data from CSVs~~ ~13,001 rows across 11 tables (originally 12,988 in Phase 1; Phase 7 added ref_sba_type + ref_entity_structure)
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
-- ~~CLI entry point~~ `python main.py` (38 commands across 11 `cli/` modules)
+- ~~CLI entry point~~ `python main.py` (39 commands across 12 `cli/` modules)
 - **Deliverable**: DONE
 
 ### Phase 2: Entity Data Pipeline (Proof of Concept - 1 Source)
@@ -85,7 +85,7 @@ pbdc/
 **Status**: [x] COMPLETE (2026-02-22)
 **File**: [04-SALES-PROSPECTING.md](phases/04-SALES-PROSPECTING.md)
 
-- ~~Build prospect tracking tables and workflow~~ `ProspectManager` class + 12 CLI commands
+- ~~Build prospect tracking tables and workflow~~ `ProspectManager` class + 13 CLI commands
 - ~~Implement saved search/filter system~~ `save-search`, `run-search`, `list-searches` with dynamic SQL
 - ~~Build go/no-go scoring framework~~ 4-criterion scoring (0-40 scale): set-aside, time, NAICS match, value
 - ~~Create prospect notes and activity logging~~ Auto-logged status changes, assignments; manual notes
@@ -100,12 +100,12 @@ pbdc/
 - ~~USASpending.gov API~~ `usaspending_client.py` + `usaspending_loader.py` (POST-based search, SHA-256 change detection, incumbent search working)
 - ~~USASpending Transaction History (5B-Enhance)~~ `usaspending_transaction` table, `load_transactions()`, `calculate_burn_rate()` for spend analysis
 - ~~FPDS ATOM Feed~~ DEPRECATED (Feb 2026) — replaced by SAM.gov Contract Awards API (5A)
-- ~~GSA CALC+ API~~ `calc_client.py` + `calc_loader.py` (full_refresh, ~52K labor rates loaded)
+- ~~GSA CALC+ API~~ `calc_client.py` + `calc_loader.py` (full_refresh, ~122K labor rates loaded)
 - ~~SAM.gov Federal Hierarchy API~~ `sam_fedhier_client.py` + `fedhier_loader.py` (v1 API, full hierarchy refresh, agency search)
 - ~~SAM.gov Exclusions API~~ `sam_exclusions_client.py` + `exclusions_loader.py` (v4 API, check UEI/name, prospect team member cross-check, loads to `sam_exclusion`)
 - ~~SAM.gov Subaward Reporting API~~ `sam_subaward_client.py` + `subaward_loader.py` (v1 subcontracts API, teaming partner analysis, loads to `sam_subaward`)
 - **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](reference/01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
-- **CLI refactored**: `main.py` (1752 -> 170 lines) with 38 commands split into 11 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward)
+- **CLI refactored**: `main.py` (1752 -> 170 lines) with 39 commands split into 12 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema)
 - **New CLI commands**: `load-awards`, `load-hierarchy`, `search-agencies`, `load-exclusions`, `check-exclusion`, `check-prospects`, `load-transactions`, `burn-rate`, `load-subawards`, `search-subawards`, `teaming-partners`
 - **Deliverable**: DONE
 
@@ -167,8 +167,10 @@ pbdc/
 **Document**: [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md)
 **Repository**: `api/` folder (monorepo -- same repo as Python ETL)
 
+**Schema ownership splits**: Python DDL owns ETL/data tables (~35), EF Core owns application tables (~5 existing + future). Both share the `fed_contracts` database. See [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md) "Schema Ownership" section for full details.
+
 **Scope**:
-- [ ] ASP.NET Core Web API project (.NET 8+)
+- [ ] ASP.NET Core Web API project (.NET 10)
 - [ ] MySQL connectivity via Pomelo EF Core + entity models for 54 tables total (48 production + 6 staging). EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.
 - [ ] JWT authentication middleware + BCrypt password hashing
 - [ ] Swagger/OpenAPI documentation

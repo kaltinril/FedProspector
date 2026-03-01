@@ -417,7 +417,7 @@ See [04-SALES-PROSPECTING.md](phases/04-SALES-PROSPECTING.md) for full details.
 
 ```bash
 # Phase 5: Extended Data Sources
-python main.py load-calc                    # Load ~52K GSA labor rates (no API key needed)
+python main.py load-calc                    # Load ~122K GSA labor rates (no API key needed)
 python main.py load-awards --naics=541511 --key=2   # Load contract awards from SAM.gov API
 python main.py load-hierarchy --key=2       # Load federal org hierarchy from SAM.gov
 python main.py search-agencies --name="Army"  # Search federal organizations
@@ -456,11 +456,13 @@ See [06-AUTOMATION.md](phases/06-AUTOMATION.md) for Windows Task Scheduler setup
 python main.py load-lookups                 # Reload all 11 enriched reference tables
 python main.py load-lookups --table=sba_type  # Load a specific reference table
 python main.py status                       # Show updated row counts for all tables
+python main.py check-schema                 # Validate live DB matches DDL files
+python main.py check-schema --verbose       # Show details for each table
 ```
 
 See [07-REFERENCE-ENRICHMENT.md](phases/07-REFERENCE-ENRICHMENT.md) for full details.
 
-> **Note**: CLI has 38 commands across 11 modules in `cli/`. Run `python main.py --help` for the full list.
+> **Note**: CLI has 39 commands across 12 modules in `cli/`. Run `python main.py --help` for the full list.
 
 ---
 

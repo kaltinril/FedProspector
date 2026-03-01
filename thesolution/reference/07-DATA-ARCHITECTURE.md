@@ -6,6 +6,19 @@ This document maps the federal procurement lifecycle to the database schema, sho
 
 ---
 
+## Schema Ownership
+
+The 40 current tables (growing to 54 in Phase 9) are split between two schema management systems. Both share the single `fed_contracts` database.
+
+| Owner | Count | Tables |
+|-------|-------|--------|
+| **Python DDL** (`fed_prospector/db/schema/`) | 35 | `entity`, `entity_address`, `entity_business_type`, `entity_disaster_response`, `entity_history`, `entity_naics`, `entity_poc`, `entity_psc`, `entity_sba_certification`, `stg_entity_raw`, `opportunity`, `opportunity_history`, `opportunity_relationship`, `fpds_contract`, `federal_organization`, `gsa_labor_rate`, `sam_exclusion`, `sam_subaward`, `usaspending_award`, `usaspending_transaction`, `etl_load_log`, `etl_load_error`, `etl_data_quality_rule`, `etl_rate_limit`, `ref_business_type`, `ref_country_code`, `ref_entity_structure`, `ref_fips_county`, `ref_naics_code`, `ref_naics_footnote`, `ref_psc_code`, `ref_sba_size_standard`, `ref_sba_type`, `ref_set_aside_type`, `ref_state_code` |
+| **C# EF Core Migrations** (Phase 10+) | 5 | `app_user`, `prospect`, `prospect_note`, `prospect_team_member`, `saved_search` |
+
+**Rules**: Python DDL is authoritative for ETL/data tables (`build-database` creates, `check-schema` validates). EF Core maps those tables as read-only entities (no migrations). EF Core migrations own the 5 application tables plus all future app tables added in Phase 10+. See [Phase 10 Schema Ownership](../phases/10-API-FOUNDATION.md) for the full decision record.
+
+---
+
 ## 2. Procurement Lifecycle Linking Chain
 
 ```
@@ -37,7 +50,7 @@ RFI (presolicitation) ──── ? ────► Solicitation (RFP)
                 action_date + federal_action_obligation
                 (burn rate = sum over time)
 
-            sam_entity (incumbent profile)
+            entity (incumbent profile)
                 uei_sam ◄── vendor_uei / recipient_uei
                 entity_sba_certification (WOSB, 8a status)
                 entity_naics, entity_business_type
@@ -49,18 +62,18 @@ RFI (presolicitation) ──── ? ────► Solicitation (RFP)
 
 | From Table | Field | To Table | Field | Notes |
 |------------|-------|----------|-------|-------|
-| sam_opportunity | award_number | fpds_contract | contract_id | PIID link (post-award only) |
-| sam_opportunity | solicitation_number | fpds_contract | solicitation_number | Direct match |
-| sam_opportunity | solicitation_number | usaspending_award | solicitation_identifier | Direct match |
-| sam_opportunity | awardee_uei | sam_entity | uei_sam | Awardee lookup |
+| opportunity | award_number | fpds_contract | contract_id | PIID link (post-award only) |
+| opportunity | solicitation_number | fpds_contract | solicitation_number | Direct match |
+| opportunity | solicitation_number | usaspending_award | solicitation_identifier | Direct match |
+| opportunity | awardee_uei | entity | uei_sam | Awardee lookup |
 | fpds_contract | contract_id | usaspending_award | piid | PIID match |
-| fpds_contract | vendor_uei | sam_entity | uei_sam | Awardee entity |
-| usaspending_award | recipient_uei | sam_entity | uei_sam | Incumbent entity |
+| fpds_contract | vendor_uei | entity | uei_sam | Awardee entity |
+| usaspending_award | recipient_uei | entity | uei_sam | Incumbent entity |
 | usaspending_award | id | usaspending_transaction | award_id | Transaction detail |
 | fpds_contract | contracting_office_id | federal_organization | fh_org_id | Org hierarchy (note: may need mapping) |
-| sam_opportunity | contracting_office_id | federal_organization | fh_org_id | Org hierarchy |
-| opportunity_relationship | parent_notice_id | sam_opportunity | notice_id | Manual RFI-to-RFP link |
-| opportunity_relationship | child_notice_id | sam_opportunity | notice_id | Manual RFI-to-RFP link |
+| opportunity | contracting_office_id | federal_organization | fh_org_id | Org hierarchy |
+| opportunity_relationship | parent_notice_id | opportunity | notice_id | Manual RFI-to-RFP link |
+| opportunity_relationship | child_notice_id | opportunity | notice_id | Manual RFI-to-RFP link |
 
 ---
 
@@ -72,7 +85,7 @@ RFI (presolicitation) ──── ? ────► Solicitation (RFP)
 | Number of bidders | `fpds_contract` | `number_of_offers`, `extent_competed` | Post-award only | N/A for RFIs. Field only populated after contract award. |
 | Security clearance | NOT AVAILABLE VIA API | -- | Manual only | Lives in SOW/PWS document attachments on SAM.gov. GSA CALC+ has clearance data on labor rates (inferential only). |
 | Burn rate | `usaspending_transaction` | `action_date`, `federal_action_obligation` | Ad-hoc API call | Aggregate by month. Shows obligations (committed), not expenditures (paid). |
-| Incumbent info | `usaspending_award` then `sam_entity` | `recipient_uei` then entity profile | Ad-hoc API call | Chain: USASpending finds awardee UEI, SAM Entity gives full company profile + certifications |
+| Incumbent info | `usaspending_award` then `entity` | `recipient_uei` then entity profile | Ad-hoc API call | Chain: USASpending finds awardee UEI, SAM Entity gives full company profile + certifications |
 | RFI to RFP link | `opportunity_relationship` | `parent_notice_id`, `child_notice_id` | Manual entry only | SAM.gov API has NO relational field. Users must link manually or business provides the solicitation number. |
 
 ---
@@ -116,19 +129,19 @@ RFI (presolicitation) ──── ? ────► Solicitation (RFP)
 
 ```mermaid
 erDiagram
-    sam_opportunity ||--o| fpds_contract : "award_number = contract_id"
-    sam_opportunity ||--o| usaspending_award : "solicitation_number = solicitation_identifier"
-    sam_opportunity ||--o| opportunity_relationship : "notice_id (parent or child)"
+    opportunity ||--o| fpds_contract : "award_number = contract_id"
+    opportunity ||--o| usaspending_award : "solicitation_number = solicitation_identifier"
+    opportunity ||--o| opportunity_relationship : "notice_id (parent or child)"
     fpds_contract ||--o| usaspending_award : "contract_id = piid"
-    fpds_contract }o--|| sam_entity : "vendor_uei = uei_sam"
-    usaspending_award }o--|| sam_entity : "recipient_uei = uei_sam"
+    fpds_contract }o--|| entity : "vendor_uei = uei_sam"
+    usaspending_award }o--|| entity : "recipient_uei = uei_sam"
     usaspending_award ||--|{ usaspending_transaction : "id = award_id"
-    sam_entity ||--|{ entity_sba_certification : "uei_sam"
-    sam_entity ||--|{ entity_naics : "uei_sam"
-    sam_entity ||--|{ entity_business_type : "uei_sam"
-    sam_entity ||--|{ fpds_contract : "uei_sam = vendor_uei"
+    entity ||--|{ entity_sba_certification : "uei_sam"
+    entity ||--|{ entity_naics : "uei_sam"
+    entity ||--|{ entity_business_type : "uei_sam"
+    entity ||--|{ fpds_contract : "uei_sam = vendor_uei"
 
-    sam_opportunity {
+    opportunity {
         varchar notice_id PK
         varchar solicitation_number
         varchar award_number
@@ -166,7 +179,7 @@ erDiagram
         decimal federal_action_obligation
     }
 
-    sam_entity {
+    entity {
         varchar uei_sam PK
         varchar legal_business_name
         varchar primary_naics
@@ -180,3 +193,19 @@ erDiagram
         varchar relationship_type
     }
 ```
+
+---
+
+## 9. Architecture Decisions
+
+### Raw Staging Pattern
+ALL API sources get `stg_*_raw` tables (store full JSON + load_id + hash). Enables replay/rebuild without re-fetching from APIs. Entity already has this; 6 more raw tables added in Phase 9 (Schema Evolution).
+
+### SAM.gov Opportunity API Scope
+- **Public API only** (`/opportunities/v2/search`). No System Account access.
+- Public API returns POC data -- extract it into `contracting_officer` + `opportunity_poc` tables.
+- **Authenticated Opportunity Management API** (`/prod/opportunity/v1/api/`): NOT available to us (requires System Account + IP whitelisting). Would give full descriptions, attachments, IVL.
+
+### Schema Ownership
+- **Python DDL** owns ETL/data tables (~35 tables). See `fed_prospector/db/schema/`.
+- **EF Core** will own application tables (`app_user`, `prospect`, `saved_search`, etc.) starting Phase 10.

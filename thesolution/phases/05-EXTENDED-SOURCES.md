@@ -125,7 +125,7 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
   - [x] Filter by: keyword, business_size, price_range, education_level, security_clearance
   - [x] No auth required, no rate limits
 - [x] Implement `etl/calc_loader.py` (full_refresh with TRUNCATE + reload)
-- [x] Load all ~52K labor rate records
+- [x] Load all ~122K labor rate records
 - [x] Implement monthly refresh (full reload via `load-calc` CLI command)
 - [ ] Build pricing analysis queries:
   - [ ] Average rates by labor category
@@ -133,7 +133,7 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
   - [ ] Small business vs large business rate comparison
 
 ### Acceptance Criteria
-- [x] `gsa_labor_rate` table has ~52K records
+- [x] `gsa_labor_rate` table has ~122K records
 - [x] Monthly refresh job works (`python main.py load-calc`)
 - [ ] Can query: "What's the average rate for 'Senior Software Developer' from small businesses?"
 
@@ -262,7 +262,7 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
   - [x] `load-subawards` - load subaward data from SAM.gov API (--naics, --agency, --prime-uei, --max-calls, --key)
   - [x] `search-subawards` - search local subaward data (--prime-uei, --sub-uei, --naics, --piid)
   - [x] `teaming-partners` - find potential teaming partners from subawards (--naics, --min-subs, --limit)
-- [x] Registered in `main.py` (38 CLI commands total in 11 `cli/` modules)
+- [x] Registered in `main.py` (39 CLI commands total in 12 `cli/` modules)
 
 ### Acceptance Criteria
 - [x] Subaward data loaded for recent years

@@ -39,12 +39,13 @@
 | `entity_disaster_response` | 8 | Disaster response geographic registrations |
 | `entity_history` | 7 | Change log for entity field updates (field-level audit) |
 
-### Opportunity Tables (2 tables)
+### Opportunity Tables (3 tables)
 
 | Table | Columns | Capture Management Role |
 |-------|---------|------------------------|
 | `opportunity` | 33 | Core contract opportunity data -- title, deadline, set-aside, NAICS, award info |
 | `opportunity_history` | 7 | Change log for opportunity field updates |
+| `opportunity_relationship` | 6 | Manual RFI-to-RFP and presolicitation-to-solicitation linking |
 
 ### Federal/Awards Tables (5 tables)
 
