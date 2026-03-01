@@ -7,7 +7,7 @@ from USASpending or FPDS ATOM feeds.
 API endpoint: GET /contract-awards/v1/search
 Auth: api_key query parameter (handled by BaseAPIClient.get())
 Pagination: offset-based (limit max 100, offset starts at 0)
-Date format: YYYYMMDD,YYYYMMDD range format (no separators)
+Date format: [MM/DD/YYYY,MM/DD/YYYY] range format (with square brackets)
 Rate limit: Shares daily quota with other SAM.gov APIs
 """
 
@@ -109,11 +109,11 @@ class SAMAwardsClient(BaseAPIClient):
         if naics_code is not None:
             params["naicsCode"] = naics_code
         if set_aside is not None:
-            params["typeOfSetAside"] = set_aside
+            params["typeOfSetAsideCode"] = set_aside
         if agency_code is not None:
-            params["agencyCode"] = agency_code
+            params["contractingDepartmentCode"] = agency_code
         if awardee_uei is not None:
-            params["awardeeUEI"] = awardee_uei
+            params["awardeeUniqueEntityId"] = awardee_uei
         if psc_code is not None:
             params["productOrServiceCode"] = psc_code
         if piid is not None:
@@ -123,7 +123,7 @@ class SAMAwardsClient(BaseAPIClient):
         if pop_state is not None:
             params["popState"] = pop_state
 
-        # Date range filter: "YYYYMMDD,YYYYMMDD" format
+        # Date range filter: "[MM/DD/YYYY,MM/DD/YYYY]" format
         if date_signed_from is not None or date_signed_to is not None:
             params["dateSigned"] = self._format_date_range(
                 date_signed_from, date_signed_to
@@ -140,38 +140,40 @@ class SAMAwardsClient(BaseAPIClient):
 
         Accepts all the same keyword arguments as search_awards except
         offset (which is managed internally). Yields individual award dicts
-        from the data[] array.
+        from the awardSummary[] array.
+
+        NOTE: The SAM Awards API 'offset' is a PAGE INDEX, not record offset.
 
         Yields:
-            dict: Individual award records from the data list.
+            dict: Individual award records from the awardSummary list.
 
         Raises:
             RateLimitExceeded: If daily API limit is reached during pagination.
         """
         kwargs.pop("offset", None)
         limit = kwargs.get("limit", 100)
-        offset = 0
+        page = 0
         total_yielded = 0
 
         while True:
-            data = self.search_awards(offset=offset, **kwargs)
-            total_records = data.get("totalRecords", 0)
-            results = data.get("data", [])
+            data = self.search_awards(offset=page, **kwargs)
+            total_records = int(data.get("totalRecords", 0))
+            results = data.get("awardSummary", [])
 
             for award in results:
                 total_yielded += 1
                 yield award
 
             self.logger.info(
-                "Page at offset %d: %d results (total available: %d, yielded so far: %d)",
-                offset, len(results), total_records, total_yielded,
+                "Page %d: %d results (total available: %d, yielded so far: %d)",
+                page, len(results), total_records, total_yielded,
             )
 
             if not results:
                 break
 
-            offset += limit
-            if offset >= total_records:
+            page += 1
+            if page * limit >= total_records:
                 break
 
         self.logger.info("Award search complete: %d total results", total_yielded)
@@ -280,26 +282,40 @@ class SAMAwardsClient(BaseAPIClient):
 
     @staticmethod
     def _format_date_range(from_date, to_date):
-        """Convert two dates to "YYYYMMDD,YYYYMMDD" format for the API.
+        """Convert two dates to "[MM/DD/YYYY,MM/DD/YYYY]" format for the API.
 
-        Handles date objects, datetime objects, and strings. If a date is
-        None, it is omitted from the range (producing ",YYYYMMDD" or
-        "YYYYMMDD,").
+        The Contract Awards API expects dates in MM/DD/YYYY format with
+        square brackets for ranges, e.g. [10/01/2025,09/30/2026].
 
         Args:
-            from_date: Start date (date, datetime, or YYYYMMDD string), or None.
-            to_date: End date (date, datetime, or YYYYMMDD string), or None.
+            from_date: Start date (date, datetime, or string), or None.
+            to_date: End date (date, datetime, or string), or None.
 
         Returns:
-            str: Date range in "YYYYMMDD,YYYYMMDD" format.
+            str: Date range in "[MM/DD/YYYY,MM/DD/YYYY]" format, or
+                single date as "MM/DD/YYYY" if only one date provided.
         """
         def fmt(d):
             if d is None:
                 return ""
             if isinstance(d, (date, datetime)):
-                return d.strftime("%Y%m%d")
-            # Already a string -- strip any separators just in case
-            s = str(d).replace("-", "").replace("/", "")
+                return d.strftime("%m/%d/%Y")
+            # Try to parse string dates in various formats
+            s = str(d)
+            for parse_fmt in ("%Y-%m-%d", "%Y%m%d", "%m/%d/%Y"):
+                try:
+                    parsed = datetime.strptime(s, parse_fmt)
+                    return parsed.strftime("%m/%d/%Y")
+                except ValueError:
+                    continue
             return s
 
-        return f"{fmt(from_date)},{fmt(to_date)}"
+        f = fmt(from_date)
+        t = fmt(to_date)
+        if f and t:
+            return f"[{f},{t}]"
+        elif f:
+            return f
+        elif t:
+            return t
+        return ""

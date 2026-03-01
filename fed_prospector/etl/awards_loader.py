@@ -129,7 +129,7 @@ class AwardsLoader:
                     contract_id = award_data.get("contract_id")
                     mod_number = award_data.get("modification_number", "0")
                     if not contract_id:
-                        raise ValueError("Missing contractNumber in award record")
+                        raise ValueError("Missing piid in award record")
 
                     record_key = _make_composite_key(contract_id, mod_number)
 
@@ -228,63 +228,121 @@ class AwardsLoader:
         Returns:
             dict: Normalised award data matching fpds_contract columns.
         """
+        # --- Top-level blocks ---
         contract_id_block = raw.get("contractId") or {}
-        awardee_data = raw.get("awardeeData") or {}
+        core_data = raw.get("coreData") or {}
+        award_details = raw.get("awardDetails") or {}
+
+        # --- contractId sub-blocks ---
+        reason_mod = contract_id_block.get("reasonForModification") or {}
+
+        # --- coreData sub-blocks ---
+        fed_org = core_data.get("federalOrganization") or {}
+        contracting_info = fed_org.get("contractingInformation") or {}
+        contracting_dept = contracting_info.get("contractingDepartment") or {}
+        contracting_office = contracting_info.get("contractingOffice") or {}
+        funding_info = fed_org.get("fundingInformation") or {}
+        funding_dept = funding_info.get("fundingDepartment") or {}
+        pop = core_data.get("principalPlaceOfPerformance") or {}
+        pop_state = pop.get("state") or {}
+        pop_country = pop.get("country") or {}
+        product_info = core_data.get("productOrServiceInformation") or {}
+        competition_info = core_data.get("competitionInformation") or {}
+        set_aside = competition_info.get("typeOfSetAside") or {}
+        sol_procedures = competition_info.get("solicitationProcedures") or {}
+        award_or_idv = core_data.get("awardOrIDVType") or {}
+        acq_data = core_data.get("acquisitionData") or {}
+        contract_pricing = acq_data.get("typeOfContractPricing") or {}
+
+        # --- coreData.productOrServiceInformation sub-blocks ---
+        psc = product_info.get("productOrService") or {}
+        naics_list = product_info.get("principalNaics")
+        naics_code = None
+        if isinstance(naics_list, list) and naics_list:
+            naics_code = naics_list[0].get("code")
+        elif isinstance(naics_list, dict):
+            naics_code = naics_list.get("code")
+
+        # --- awardDetails sub-blocks ---
+        award_dates = award_details.get("dates") or {}
+        total_dollars = award_details.get("totalContractDollars") or {}
+        award_competition = award_details.get("competitionInformation") or {}
+        pref_programs = award_details.get("preferenceProgramsInformation") or {}
+        award_product_info = award_details.get("productOrServiceInformation") or {}
+        awardee_data = award_details.get("awardeeData") or {}
         awardee_header = awardee_data.get("awardeeHeader") or {}
-        uei_info = awardee_header.get("awardeeUEIInformation") or {}
-        award_contract = raw.get("awardContractData") or {}
-        date_signed_block = award_contract.get("dateSignedFormat") or {}
-        pop = award_contract.get("placeOfPerformance") or {}
+        uei_info = awardee_data.get("awardeeUEIInformation") or {}
+        transaction_data = award_details.get("transactionData") or {}
+
+        # CO business size determination can be an array; take first entry
+        co_biz_size_list = pref_programs.get(
+            "contractingOfficerBusinessSizeDetermination"
+        )
+        co_biz_size = None
+        if isinstance(co_biz_size_list, list) and co_biz_size_list:
+            co_biz_size = co_biz_size_list[0].get("code")
+        elif isinstance(co_biz_size_list, dict):
+            co_biz_size = co_biz_size_list.get("code")
+
+        # Helper to strip whitespace from string values
+        def _s(val):
+            return val.strip() if isinstance(val, str) else val
 
         return {
-            "contract_id":              contract_id_block.get("contractNumber"),
-            "idv_piid":                 None,
-            "modification_number":      contract_id_block.get("modificationNumber", "0"),
-            "transaction_number":       contract_id_block.get("transactionNumber"),
-            "agency_id":                None,
-            "agency_name":              None,
-            "contracting_office_id":    None,
-            "contracting_office_name":  None,
-            "funding_agency_id":        None,
-            "funding_agency_name":      None,
-            "vendor_uei":               uei_info.get("uniqueEntityId"),
-            "vendor_name":              awardee_header.get("awardeeName"),
+            "contract_id":              _s(contract_id_block.get("piid")),
+            "idv_piid":                 _s(contract_id_block.get("referencedIDVPiid")),
+            "modification_number":      _s(contract_id_block.get("modificationNumber", "0")),
+            "transaction_number":       _s(contract_id_block.get("transactionNumber")),
+            "agency_id":                _s(contracting_dept.get("code")),
+            "agency_name":              _s(contracting_dept.get("name")),
+            "contracting_office_id":    _s(contracting_office.get("code")),
+            "contracting_office_name":  _s(contracting_office.get("name")),
+            "funding_agency_id":        _s(funding_dept.get("code")),
+            "funding_agency_name":      _s(funding_dept.get("name")),
+            "vendor_uei":               _s(uei_info.get("uniqueEntityId")),
+            "vendor_name":              _s(awardee_header.get("awardeeName")),
             "vendor_duns":              None,
             "date_signed":              self._parse_date(
-                                            date_signed_block.get("dateSignedShortFormat")
+                                            award_dates.get("dateSigned")
                                         ),
             "effective_date":           self._parse_date(
-                                            award_contract.get("effectiveDate")
+                                            award_dates.get("periodOfPerformanceStartDate")
                                         ),
             "completion_date":          self._parse_date(
-                                            award_contract.get("completionDate")
+                                            award_dates.get("currentCompletionDate")
                                         ),
             "last_modified_date":       self._parse_date(
-                                            award_contract.get("lastModifiedDate")
+                                            transaction_data.get("lastModifiedDate")
                                         ),
             "dollars_obligated":        self._parse_decimal(
-                                            award_contract.get("dollarsObligated")
+                                            total_dollars.get("totalActionObligation")
                                         ),
             "base_and_all_options":     self._parse_decimal(
-                                            award_contract.get("baseAndAllOptionsValue")
+                                            total_dollars.get("totalBaseAndAllOptionsValue")
                                         ),
-            "naics_code":               award_contract.get("naicsCode"),
-            "psc_code":                 award_contract.get("productOrServiceCode"),
-            "set_aside_type":           award_contract.get("typeOfSetAsideCode"),
-            "type_of_contract":         award_contract.get("typeOfContractCode"),
-            "description":              award_contract.get("contractDescription"),
-            "pop_state":                pop.get("stateCode"),
-            "pop_country":              pop.get("countryCode"),
-            "pop_zip":                  pop.get("zipCode"),
-            "extent_competed":          award_contract.get("extentCompetedCode"),
-            "number_of_offers":         award_contract.get("numberOfOffersReceived"),
-            "far1102_exception_code":   award_contract.get("far1102ExceptionCode"),
+            "naics_code":               _s(naics_code),
+            "psc_code":                 _s(psc.get("code")),
+            "set_aside_type":           _s(set_aside.get("code")),
+            "type_of_contract":         _s(award_or_idv.get("code")),
+            "description":              _s(award_product_info.get(
+                                            "descriptionOfContractRequirement"
+                                        )),
+            "pop_state":                _s(pop_state.get("code")),
+            "pop_country":              _s(pop_country.get("code")),
+            "pop_zip":                  _s(pop.get("zipCode")),
+            "extent_competed":          _s(sol_procedures.get("code")),
+            "number_of_offers":         award_competition.get("numberOfOffersReceived"),
+            "far1102_exception_code":   None,
             "far1102_exception_name":   None,
-            "reason_for_modification":  None,
-            "solicitation_date":        None,
-            "ultimate_completion_date": None,
-            "type_of_contract_pricing": award_contract.get("typeOfContractPricingCode"),
-            "co_bus_size_determination": None,
+            "reason_for_modification":  _s(reason_mod.get("code")),
+            "solicitation_date":        self._parse_date(
+                                            core_data.get("solicitationDate")
+                                        ),
+            "ultimate_completion_date": self._parse_date(
+                                            award_dates.get("ultimateCompletionDate")
+                                        ),
+            "type_of_contract_pricing": _s(contract_pricing.get("code")),
+            "co_bus_size_determination": _s(co_biz_size),
         }
 
     # =================================================================

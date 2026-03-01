@@ -22,11 +22,13 @@ class RateLimitExceeded(Exception):
 
 
 class BaseAPIClient:
-    def __init__(self, base_url, api_key, source_name, max_daily_requests):
+    def __init__(self, base_url, api_key, source_name, max_daily_requests,
+                 request_delay=1.0):
         self.base_url = base_url
         self.api_key = api_key
         self.source_name = source_name
         self.max_daily_requests = max_daily_requests
+        self.request_delay = request_delay  # seconds between consecutive requests
         self.session = requests.Session()
         self.logger = logging.getLogger(f"fed_prospector.api.{source_name}")
 
@@ -125,6 +127,9 @@ class BaseAPIClient:
 
                 if response.status_code == 200:
                     self.logger.debug("Response: %d (%d bytes)", response.status_code, len(response.content))
+                    # Throttle between successful requests to avoid rate limiting
+                    if self.request_delay > 0:
+                        time.sleep(self.request_delay)
                     return response
 
                 if response.status_code == 429:

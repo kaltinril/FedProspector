@@ -23,7 +23,7 @@ def load_exclusions(exclusion_type, agency, max_calls, api_key_number):
     Fetches active exclusion records and loads them into the sam_exclusion
     table. Uses SHA-256 change detection to skip unchanged records.
 
-    Uses offset-based pagination (100 records per API call). Each page
+    Uses page-based pagination (max 10 records per page). Each page
     counts as one API call against the daily SAM.gov limit.
 
     Examples:
@@ -67,16 +67,18 @@ def load_exclusions(exclusion_type, agency, max_calls, api_key_number):
     t_start = time.time()
 
     try:
-        # Collect exclusions with pagination (respecting max_calls)
+        # Collect exclusions with page-based pagination (respecting max_calls)
+        # SAM Exclusions API uses page/size params, max size=10 per page
         all_exclusions = []
         calls_made = 0
-        offset = 0
+        page = 0
+        page_size = 10  # SAM API max
 
         while calls_made < max_calls:
             data = client.search_exclusions(
                 exclusion_type=exclusion_type,
                 excluding_agency_code=agency,
-                limit=100, offset=offset,
+                size=page_size, page=page,
             )
             calls_made += 1
 
@@ -87,9 +89,9 @@ def load_exclusions(exclusion_type, agency, max_calls, api_key_number):
             click.echo(f"  Page {calls_made}: {len(records)} records "
                        f"(total available: {total:,d}, fetched so far: {len(all_exclusions):,d})")
 
-            if not records or offset + 100 >= total:
+            if not records or (page + 1) * page_size >= total:
                 break
-            offset += 100
+            page += 1
 
         click.echo(f"\nFetched {len(all_exclusions):,d} exclusion records in {calls_made} API calls")
 

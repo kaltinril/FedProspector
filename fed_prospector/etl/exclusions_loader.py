@@ -282,8 +282,14 @@ class ExclusionsLoader:
     # =================================================================
 
     def _normalize_exclusion(self, raw):
-        """Flatten the SAM Exclusions API response to a flat dict matching
-        sam_exclusion columns.
+        """Flatten the SAM Exclusions API v4 nested response to a flat dict
+        matching sam_exclusion columns.
+
+        The API returns a nested structure:
+          exclusionDetails: {exclusionType, exclusionProgram, excludingAgencyCode, ...}
+          exclusionIdentification: {ueiSAM, cageCode, entityName, firstName, ...}
+          exclusionActions: {listOfActions: [{activateDate, terminationDate, ...}]}
+          exclusionOtherInformation: {additionalComments, ...}
 
         Args:
             raw: Single exclusion dict from SAM Exclusions API excludedEntity[].
@@ -291,22 +297,31 @@ class ExclusionsLoader:
         Returns:
             dict: Normalised exclusion data matching sam_exclusion columns.
         """
+        details = raw.get("exclusionDetails") or {}
+        ident = raw.get("exclusionIdentification") or {}
+        actions = raw.get("exclusionActions") or {}
+        other_info = raw.get("exclusionOtherInformation") or {}
+
+        # Get dates from first action entry
+        action_list = actions.get("listOfActions") or []
+        first_action = action_list[0] if action_list else {}
+
         return {
-            "uei":                    raw.get("ueiSAM"),
-            "cage_code":              raw.get("cageCode"),
-            "entity_name":            raw.get("entityName"),
-            "first_name":             raw.get("firstName"),
-            "middle_name":            raw.get("middleName"),
-            "last_name":              raw.get("lastName"),
-            "suffix":                 raw.get("suffix"),
-            "prefix":                 raw.get("prefix"),
-            "exclusion_type":         raw.get("exclusionType"),
-            "exclusion_program":      raw.get("exclusionProgram"),
-            "excluding_agency_code":  raw.get("excludingAgencyCode"),
-            "excluding_agency_name":  raw.get("excludingAgencyName"),
-            "activation_date":        self._parse_date(raw.get("activationDate")),
-            "termination_date":       self._parse_date(raw.get("terminationDate")),
-            "additional_comments":    raw.get("additionalComments"),
+            "uei":                    ident.get("ueiSAM"),
+            "cage_code":              ident.get("cageCode"),
+            "entity_name":            (ident.get("entityName") or "").strip() or None,
+            "first_name":             ident.get("firstName"),
+            "middle_name":            ident.get("middleName"),
+            "last_name":              ident.get("lastName"),
+            "suffix":                 ident.get("suffix"),
+            "prefix":                 ident.get("prefix"),
+            "exclusion_type":         details.get("exclusionType"),
+            "exclusion_program":      details.get("exclusionProgram"),
+            "excluding_agency_code":  details.get("excludingAgencyCode"),
+            "excluding_agency_name":  details.get("excludingAgencyName"),
+            "activation_date":        self._parse_date(first_action.get("activateDate")),
+            "termination_date":       self._parse_date(first_action.get("terminationDate")),
+            "additional_comments":    other_info.get("additionalComments"),
         }
 
     # =================================================================
@@ -418,7 +433,7 @@ class ExclusionsLoader:
     def _parse_date(self, date_str):
         """Parse date string to YYYY-MM-DD format.
 
-        Handles: MM/DD/YYYY, YYYY-MM-DD, ISO 8601 datetime, None/empty.
+        Handles: MM/DD/YYYY, MM-DD-YYYY, YYYY-MM-DD, ISO 8601 datetime, None/empty.
 
         Returns:
             str in YYYY-MM-DD format, or None.
@@ -435,6 +450,10 @@ class ExclusionsLoader:
 
         # MM/DD/YYYY
         if len(s) == 10 and s[2] == "/" and s[5] == "/":
+            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
+
+        # MM-DD-YYYY (SAM Exclusions API format)
+        if len(s) == 10 and s[2] == "-" and s[5] == "-":
             return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
 
         # Fallback

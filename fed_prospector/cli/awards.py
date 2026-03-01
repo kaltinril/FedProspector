@@ -100,29 +100,35 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
 
     try:
         # Collect awards with pagination (respecting max_calls)
+        # NOTE: The SAM Awards API 'offset' is a PAGE INDEX, not record offset.
+        # offset=0 is page 0, offset=1 is page 1, etc.
         all_awards = []
         calls_made = 0
-        offset = 0
+        page = 0
+        page_size = 100
 
         while calls_made < max_calls:
+            # Don't send dateSigned range when fiscalYear is set — they're
+            # redundant and combining them causes pagination issues.
             data = client.search_awards(
                 naics_code=naics, set_aside=set_aside, agency_code=agency,
                 awardee_uei=awardee_uei, piid=piid,
-                date_signed_from=date_from, date_signed_to=date_to,
+                date_signed_from=date_from if not fiscal_year else None,
+                date_signed_to=date_to if not fiscal_year else None,
                 fiscal_year=fiscal_year,
-                limit=100, offset=offset,
+                limit=page_size, offset=page,
             )
             calls_made += 1
 
-            records = data.get("data", [])
-            total = data.get("totalRecords", 0)
+            records = data.get("awardSummary", [])
+            total = int(data.get("totalRecords", 0))
             all_awards.extend(records)
 
             click.echo(f"  Page {calls_made}: {len(records)} records (total available: {total:,d}, fetched so far: {len(all_awards):,d})")
 
-            if not records or offset + 100 >= total:
+            if not records or (page + 1) * page_size >= total:
                 break
-            offset += 100
+            page += 1
 
         click.echo(f"\nFetched {len(all_awards):,d} award records in {calls_made} API calls")
 

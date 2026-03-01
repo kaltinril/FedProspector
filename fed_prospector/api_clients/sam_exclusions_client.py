@@ -6,7 +6,7 @@ Used for due diligence on teaming partners and competitors.
 
 API endpoint: GET /entity-information/v4/exclusions
 Auth: api_key query parameter (handled by BaseAPIClient.get())
-Pagination: offset-based (limit max 100, offset starts at 0)
+Pagination: page-based (page starts at 0, size max 10)
 Rate limit: Shares daily quota with other SAM.gov APIs
 """
 
@@ -71,7 +71,7 @@ class SAMExclusionsClient(BaseAPIClient):
 
     def search_exclusions(self, uei=None, q=None, excluding_agency_code=None,
                           exclusion_type=None, exclusion_program=None,
-                          limit=100, offset=0):
+                          size=10, page=0):
         """Search exclusions with filters. Returns one page of results.
 
         Uses GET to /entity-information/v4/exclusions with query parameters.
@@ -83,16 +83,16 @@ class SAMExclusionsClient(BaseAPIClient):
             excluding_agency_code: Agency code that issued the exclusion.
             exclusion_type: Type of exclusion (e.g. "Ineligible (Proceedings Completed)").
             exclusion_program: Exclusion program (e.g. "Reciprocal", "Nonprescribed").
-            limit: Records per page (max 100 per SAM API).
-            offset: 0-based record offset for pagination.
+            size: Records per page (max 10 per SAM API).
+            page: 0-based page number for pagination.
 
         Returns:
-            dict with keys: totalRecords, limit, offset, excludedEntity (list of
+            dict with keys: totalRecords, excludedEntity (list of
             exclusion dicts).
         """
         params = {
-            "limit": limit,
-            "offset": offset,
+            "size": size,
+            "page": page,
         }
 
         if uei is not None:
@@ -107,7 +107,7 @@ class SAMExclusionsClient(BaseAPIClient):
             params["exclusionProgram"] = exclusion_program
 
         self.logger.debug(
-            "Exclusion search offset=%d limit=%d params=%s", offset, limit, params
+            "Exclusion search page=%d size=%d params=%s", page, size, params
         )
         response = self.get(self.SEARCH_ENDPOINT, params=params)
         return response.json()
@@ -116,7 +116,7 @@ class SAMExclusionsClient(BaseAPIClient):
         """Generator that paginates through all results from search_exclusions.
 
         Accepts all the same keyword arguments as search_exclusions except
-        offset (which is managed internally). Yields individual exclusion dicts
+        page (which is managed internally). Yields individual exclusion dicts
         from the excludedEntity[] array.
 
         Yields:
@@ -125,13 +125,13 @@ class SAMExclusionsClient(BaseAPIClient):
         Raises:
             RateLimitExceeded: If daily API limit is reached during pagination.
         """
-        kwargs.pop("offset", None)
-        limit = kwargs.get("limit", 100)
-        offset = 0
+        kwargs.pop("page", None)
+        size = kwargs.get("size", 10)
+        page = 0
         total_yielded = 0
 
         while True:
-            data = self.search_exclusions(offset=offset, **kwargs)
+            data = self.search_exclusions(page=page, **kwargs)
             total_records = data.get("totalRecords", 0)
             results = data.get("excludedEntity", [])
 
@@ -140,15 +140,15 @@ class SAMExclusionsClient(BaseAPIClient):
                 yield exclusion
 
             self.logger.info(
-                "Page at offset %d: %d results (total available: %d, yielded so far: %d)",
-                offset, len(results), total_records, total_yielded,
+                "Page %d: %d results (total available: %d, yielded so far: %d)",
+                page, len(results), total_records, total_yielded,
             )
 
             if not results:
                 break
 
-            offset += limit
-            if offset >= total_records:
+            page += 1
+            if page * size >= total_records:
                 break
 
         self.logger.info("Exclusion search complete: %d total results", total_yielded)
