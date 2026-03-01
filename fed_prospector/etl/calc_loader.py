@@ -25,7 +25,7 @@ from etl.load_manager import LoadManager
 logger = logging.getLogger("fed_prospector.etl.calc_loader")
 
 # ---------------------------------------------------------------------------
-# Column order for gsa_labor_rate (matches 04_federal_tables.sql)
+# Column order for gsa_labor_rate (matches tables/04_federal.sql)
 # Excludes: id (auto-increment), first_loaded_at (default)
 # ---------------------------------------------------------------------------
 _RATE_COLUMNS = [

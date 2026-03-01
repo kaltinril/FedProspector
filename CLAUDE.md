@@ -115,7 +115,7 @@ These were discovered during the first import attempt and must be handled in the
 | GSA CALC+ API client | `fed_prospector/api_clients/calc_client.py` |
 | USASpending loader | `fed_prospector/etl/usaspending_loader.py` |
 | GSA CALC+ loader | `fed_prospector/etl/calc_loader.py` |
-| USASpending table DDL (2 tables) | `fed_prospector/db/schema/08_usaspending_tables.sql` |
+| USASpending table DDL (2 tables) | `fed_prospector/db/schema/tables/70_usaspending.sql` |
 | SAM Contract Awards API client | `fed_prospector/api_clients/sam_awards_client.py` |
 | Awards loader (-> fpds_contract) | `fed_prospector/etl/awards_loader.py` |
 | SAM Federal Hierarchy API client | `fed_prospector/api_clients/sam_fedhier_client.py` |

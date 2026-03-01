@@ -4,7 +4,7 @@ Get your local environment ready for the Federal Contract Prospecting System.
 
 ---
 
-## Your Environment (validated 2026-02-22)
+## Your Environment (validated 2026-03-01)
 
 | Component | Status | Details |
 |-----------|--------|---------|
@@ -431,6 +431,8 @@ python main.py search-subawards --prime-uei=ABC123     # Search local subaward d
 python main.py teaming-partners --naics=541511         # Find teaming partners from subawards
 ```
 
+See [05-EXTENDED-SOURCES.md](phases/05-EXTENDED-SOURCES.md) for full details.
+
 **Phase 6** (Automation and Monitoring) is COMPLETE. Job scheduler, health checks, and DB maintenance:
 
 ```bash
@@ -456,9 +458,9 @@ python main.py load-lookups --table=sba_type  # Load a specific reference table
 python main.py status                       # Show updated row counts for all tables
 ```
 
-> **Note**: CLI has 38 commands across 11 modules in `cli/`. Run `python main.py --help` for the full list.
+See [07-REFERENCE-ENRICHMENT.md](phases/07-REFERENCE-ENRICHMENT.md) for full details.
 
-See [05-EXTENDED-SOURCES.md](phases/05-EXTENDED-SOURCES.md) for full details.
+> **Note**: CLI has 38 commands across 11 modules in `cli/`. Run `python main.py --help` for the full list.
 
 ---
 
@@ -470,7 +472,7 @@ Phases 1-7 (Python CLI + MySQL ETL pipeline) are complete. Phases 8-13 build a *
 |-------|------|---------|---------------|
 | 8 | Web/API Readiness | Gap analysis identifying what the existing schema needs before web consumption | [08-WEB-API-READINESS.md](phases/08-WEB-API-READINESS.md) |
 | 9 | Schema Evolution | 14 new tables (8 production + 6 staging) + column additions (40 to 54 tables) for user auth, notifications, capture management, and API response preservation | [09-SCHEMA-EVOLUTION.md](phases/09-SCHEMA-EVOLUTION.md) |
-| 10 | API Foundation | ASP.NET Core 8+ project scaffolding, Entity Framework Core, JWT authentication | [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md) |
+| 10 | API Foundation | .NET 10 project scaffolding, Entity Framework Core, JWT authentication | [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md) |
 | 11 | Read Endpoints | 11 GET endpoints for opportunities, awards, entities, and dashboard views | [11-READ-ENDPOINTS.md](phases/11-READ-ENDPOINTS.md) |
 | 12 | Capture Management API | 10 CRUD endpoints for prospects, proposals, notes, and workflow | [12-CAPTURE-MANAGEMENT-API.md](phases/12-CAPTURE-MANAGEMENT-API.md) |
 | 13 | Auth & Production | Authentication hardening, notifications, rate limiting, Docker deployment | [13-AUTH-AND-PRODUCTION.md](phases/13-AUTH-AND-PRODUCTION.md) |

@@ -12,6 +12,39 @@ from config.logging_config import setup_logging
 from config import settings
 
 
+def _split_sql_statements(sql: str) -> list[str]:
+    """Split SQL text on semicolons, respecting single-quoted strings.
+
+    Naive split(';') breaks on SEPARATOR '; ' inside GROUP_CONCAT etc.
+    This walks the string and only splits on semicolons outside quotes.
+    """
+    statements = []
+    current = []
+    in_quote = False
+
+    for char in sql:
+        if char == "'" and not in_quote:
+            in_quote = True
+            current.append(char)
+        elif char == "'" and in_quote:
+            in_quote = False
+            current.append(char)
+        elif char == ";" and not in_quote:
+            stmt = "".join(current).strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+        else:
+            current.append(char)
+
+    # Last fragment (no trailing semicolon)
+    stmt = "".join(current).strip()
+    if stmt:
+        statements.append(stmt)
+
+    return statements
+
+
 @click.command("build-database")
 @click.option("--drop-first", is_flag=True, default=False,
               help="Drop and recreate all tables (DESTROYS DATA)")
@@ -26,14 +59,17 @@ def build_database(drop_first):
     from db.connection import get_connection
 
     schema_dir = Path(__file__).parent.parent / "db" / "schema"
-    sql_files = sorted(schema_dir.glob("*.sql"))
+
+    # Process schema in dependency order: tables first, then views, functions, procedures
+    sql_files = []
+    for subfolder in ["tables", "views", "functions", "procedures"]:
+        sub_path = schema_dir / subfolder
+        if sub_path.is_dir():
+            sql_files.extend(sorted(sub_path.glob("*.sql")))
 
     if not sql_files:
         logger.error("No SQL files found in %s", schema_dir)
         sys.exit(1)
-
-    # Skip 00_create_database.sql (needs root privileges)
-    sql_files = [f for f in sql_files if f.name != "00_create_database.sql"]
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -68,20 +104,20 @@ def build_database(drop_first):
             conn.commit()
 
         for sql_file in sql_files:
-            logger.info("Executing: %s", sql_file.name)
+            rel_name = sql_file.relative_to(schema_dir)
+            logger.info("Executing: %s", rel_name)
             with open(sql_file, "r", encoding="utf-8") as f:
                 sql = f.read()
 
-            # Split on semicolons and execute each statement
-            for statement in sql.split(";"):
-                stmt = statement.strip()
+            # Split on semicolons outside of quoted strings
+            for stmt in _split_sql_statements(sql):
                 if stmt and not stmt.startswith("--") and not stmt.startswith("USE "):
                     try:
                         cursor.execute(stmt)
                     except Exception as e:
-                        logger.warning("Statement warning in %s: %s", sql_file.name, e)
+                        logger.warning("Statement warning in %s: %s", rel_name, e)
             conn.commit()
-            click.echo(f"  OK: {sql_file.name}")
+            click.echo(f"  OK: {rel_name}")
 
         # Count results
         cursor.execute("SELECT COUNT(*) FROM information_schema.TABLES "

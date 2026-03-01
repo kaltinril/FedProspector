@@ -98,7 +98,7 @@ Response includes nested objects:
 - [ ] Additional filters: `minValue`, `maxValue`, `naicsSector`
 - [ ] Include the full view SQL as a comment/reference in the code
 
-**View SQL reference** (from `fed_prospector/db/schema/07_views.sql`):
+**View SQL reference** (from `fed_prospector/db/schema/views/10_target_opportunities.sql`):
 
 ```sql
 CREATE OR REPLACE VIEW v_target_opportunities AS
@@ -262,7 +262,7 @@ Response DTO:
 - [ ] Include the full view SQL as reference
 - [ ] Returns aggregated business types, SBA certs, past contract count, total obligated, most recent award
 
-**View SQL reference** (from `fed_prospector/db/schema/07_views.sql`):
+**View SQL reference** (from `fed_prospector/db/schema/views/20_competitor_analysis.sql`):
 
 ```sql
 CREATE OR REPLACE VIEW v_competitor_analysis AS
@@ -496,8 +496,8 @@ All SQL in this document was copied from the Python codebase source files:
 | Query | Source File |
 |-------|------------|
 | Opportunity search | `fed_prospector/cli/opportunities.py` |
-| v_target_opportunities view | `fed_prospector/db/schema/07_views.sql` |
-| v_competitor_analysis view | `fed_prospector/db/schema/07_views.sql` |
+| v_target_opportunities view | `fed_prospector/db/schema/views/10_target_opportunities.sql` |
+| v_competitor_analysis view | `fed_prospector/db/schema/views/20_competitor_analysis.sql` |
 | Burn rate aggregation | `fed_prospector/etl/usaspending_loader.py` |
 | Teaming partners GROUP BY | `fed_prospector/etl/subaward_loader.py` |
 | Subaward search | `fed_prospector/cli/subaward.py` |

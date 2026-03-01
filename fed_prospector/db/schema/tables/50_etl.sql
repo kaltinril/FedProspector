@@ -1,4 +1,4 @@
--- 05_etl_tables.sql
+-- tables/50_etl.sql
 -- ETL operational tables (4 tables) - Load tracking and data quality
 
 USE fed_contracts;

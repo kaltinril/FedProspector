@@ -129,13 +129,16 @@ fed_prospector/
     db/__init__.py
     db/connection.py              # Connection pool
     db/schema/00_create_database.sql
-    db/schema/01_reference_tables.sql
-    db/schema/02_entity_tables.sql
-    db/schema/03_opportunity_tables.sql
-    db/schema/04_federal_tables.sql
-    db/schema/05_etl_tables.sql
-    db/schema/06_prospecting_tables.sql
-    db/schema/07_views.sql
+    db/schema/tables/10_reference.sql
+    db/schema/tables/20_entity.sql
+    db/schema/tables/30_opportunity.sql
+    db/schema/tables/40_federal.sql
+    db/schema/tables/50_etl.sql
+    db/schema/tables/60_prospecting.sql
+    db/schema/views/10_target_opportunities.sql
+    db/schema/views/20_competitor_analysis.sql
+    db/schema/views/30_procurement_intelligence.sql
+    db/schema/views/40_incumbent_profile.sql
     utils/__init__.py
     utils/hashing.py              # SHA-256 record hashing
     utils/date_utils.py           # Date format conversion

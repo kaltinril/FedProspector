@@ -4,11 +4,11 @@ C# ASP.NET Core Web API backend for the Federal Contract Prospecting System.
 
 **Status**: Phase 10 (PLANNING)
 
-See [thesolution/15-PHASE10-API-FOUNDATION.md](../thesolution/15-PHASE10-API-FOUNDATION.md) for the implementation plan.
+See [thesolution/phases/10-API-FOUNDATION.md](../thesolution/phases/10-API-FOUNDATION.md) for the implementation plan.
 
 ## Architecture
 
-- **Framework**: ASP.NET Core Web API (.NET 8+)
+- **Framework**: ASP.NET Core Web API (.NET 10)
 - **Database**: MySQL 8.0+ (shared with Python ETL in `fed_prospector/`)
 - **ORM**: Pomelo Entity Framework Core
 - **Auth**: JWT Bearer tokens + BCrypt password hashing

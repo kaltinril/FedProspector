@@ -1,4 +1,4 @@
--- 04_federal_tables.sql
+-- tables/40_federal.sql
 -- Federal data tables (5 tables) - Hierarchy, awards, rates, exclusions, subawards
 
 USE fed_contracts;

@@ -1,4 +1,4 @@
--- 02_entity_tables.sql
+-- tables/20_entity.sql
 -- Entity tables (10 tables) - SAM.gov contractor data
 
 USE fed_contracts;

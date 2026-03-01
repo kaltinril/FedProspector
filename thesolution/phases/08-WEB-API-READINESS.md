@@ -82,12 +82,14 @@
 | `usaspending_award` | 32 | Award summaries from USASpending.gov -- incumbent data, obligation totals |
 | `usaspending_transaction` | 10 | Transaction-level spending -- monthly burn rate calculation |
 
-### Views (2 views)
+### Views (4 views)
 
 | View | Capture Management Role |
 |------|------------------------|
 | `v_target_opportunities` | Pre-filtered WOSB/8(a) opportunities with NAICS descriptions, size standards, and prospect status -- the primary "what should we bid on" view |
 | `v_competitor_analysis` | Aggregated contractor profiles with business types, SBA certs, past contract history -- competitive intelligence |
+| `v_procurement_intelligence` | Joins opportunity -> fpds_contract -> usaspending_award for award history, bidder count, burn rate, and incumbent data per solicitation |
+| `v_incumbent_profile` | Entity profile with active SBA certifications, total past contracts, total obligated amount, and most recent award date |
 
 **Totals**: 40 tables + 4 views (current, pre-Phase 9)
 
@@ -97,14 +99,14 @@
 
 | Capture Management Question | Current Answer | Source |
 |----------------------------|----------------|--------|
-| Find opportunities to bid on | `v_target_opportunities` view filters for WOSB/EDWOSB/8(a) set-asides with future deadlines. Key columns: `notice_id`, `title`, `solicitation_number`, `department_name`, `office`, `posted_date`, `response_deadline`, `days_until_due`, `set_aside_code`, `set_aside_description`, `set_aside_category`, `naics_code`, `naics_description`, `naics_sector`, `size_standard`, `size_type`, `award_amount`, `pop_state`, `pop_city`, `prospect_status`, `prospect_priority`, `assigned_to` | `07_views.sql` |
-| Incumbent contractor | `fpds_contract.vendor_uei` + `fpds_contract.vendor_name` joined to `entity` for full profile; also `usaspending_award.recipient_uei` + `recipient_name` for USASpending data | `04_federal_tables.sql`, `08_usaspending_tables.sql` |
-| Number of bidders | `fpds_contract.number_of_offers` (INT) -- how many vendors submitted offers on the original award | `04_federal_tables.sql` |
+| Find opportunities to bid on | `v_target_opportunities` view filters for WOSB/EDWOSB/8(a) set-asides with future deadlines. Key columns: `notice_id`, `title`, `solicitation_number`, `department_name`, `office`, `posted_date`, `response_deadline`, `days_until_due`, `set_aside_code`, `set_aside_description`, `set_aside_category`, `naics_code`, `naics_description`, `naics_sector`, `size_standard`, `size_type`, `award_amount`, `pop_state`, `pop_city`, `prospect_status`, `prospect_priority`, `assigned_to` | `views/10_target_opportunities.sql` |
+| Incumbent contractor | `fpds_contract.vendor_uei` + `fpds_contract.vendor_name` joined to `entity` for full profile; also `usaspending_award.recipient_uei` + `recipient_name` for USASpending data | `tables/40_federal.sql`, `tables/70_usaspending.sql` |
+| Number of bidders | `fpds_contract.number_of_offers` (INT) -- how many vendors submitted offers on the original award | `tables/40_federal.sql` |
 | Burn rate | `usaspending_transaction` aggregated by month using `DATE_FORMAT(action_date, '%Y-%m')` with `SUM(federal_action_obligation)` -- see Section 9 for full SQL | `usaspending_loader.py` |
-| Competitor profile | `v_competitor_analysis` view aggregates entity data with business types, SBA certifications, past contract count, total obligated amount, most recent award date | `07_views.sql` |
-| Exclusion/debarment check | `sam_exclusion` table by `uei` -- look up any contractor UEI to check for active exclusions | `04_federal_tables.sql` |
+| Competitor profile | `v_competitor_analysis` view aggregates entity data with business types, SBA certifications, past contract count, total obligated amount, most recent award date | `views/20_competitor_analysis.sql` |
+| Exclusion/debarment check | `sam_exclusion` table by `uei` -- look up any contractor UEI to check for active exclusions | `tables/40_federal.sql` |
 | Teaming partners | `sam_subaward` grouped by `prime_uei` with `COUNT(*)`, `SUM(sub_amount)`, `COUNT(DISTINCT sub_uei)` -- see Section 9 for full SQL | `subaward_loader.py` |
-| Prospect tracking | `prospect` table with status flow: NEW -> REVIEWING -> PURSUING -> BID_SUBMITTED -> WON/LOST. Includes priority, estimated value, win probability | `06_prospecting_tables.sql` |
+| Prospect tracking | `prospect` table with status flow: NEW -> REVIEWING -> PURSUING -> BID_SUBMITTED -> WON/LOST. Includes priority, estimated value, win probability | `tables/60_prospecting.sql` |
 | Go/No-Go scoring | `prospect.go_no_go_score` on 0-40 scale. Four criteria: set-aside favorability (0-10), time remaining (0-10), NAICS match (0-10), award value bracket (0-10) | `prospect_manager.py` |
 
 ---
@@ -516,7 +518,7 @@ Calculated fields:
 
 ### Target Opportunity View
 
-Full SQL from `fed_prospector/db/schema/07_views.sql`:
+Full SQL from `fed_prospector/db/schema/views/10_target_opportunities.sql`:
 
 ```sql
 CREATE OR REPLACE VIEW v_target_opportunities AS
@@ -565,7 +567,7 @@ The C# API can `SELECT * FROM v_target_opportunities` directly, adding `ORDER BY
 
 ### Competitor Analysis View
 
-Full SQL from `fed_prospector/db/schema/07_views.sql`:
+Full SQL from `fed_prospector/db/schema/views/20_competitor_analysis.sql`:
 
 ```sql
 CREATE OR REPLACE VIEW v_competitor_analysis AS

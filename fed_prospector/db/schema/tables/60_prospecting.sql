@@ -1,4 +1,4 @@
--- 06_prospecting_tables.sql
+-- tables/60_prospecting.sql
 -- Sales pipeline / prospecting tables (4 tables)
 
 USE fed_contracts;

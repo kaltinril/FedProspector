@@ -63,7 +63,7 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
   - [x] No rate limits - can query aggressively
 - [x] Implement `etl/usaspending_loader.py`
   - [x] SHA-256 change detection, batch upsert
-  - [x] `usaspending_award` table created in MySQL (`db/schema/08_usaspending_tables.sql`)
+  - [x] `usaspending_award` table created in MySQL (`db/schema/tables/70_usaspending.sql`)
   - [x] Incumbent search working (find previous winners by NAICS/agency)
 - [ ] Implement bulk download processing:
   - [ ] Download FY archives from download center
@@ -93,7 +93,7 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
 **Status**: COMPLETE (2026-02-28)
 
 ### Tasks
-- [x] New table: `usaspending_transaction` (in `08_usaspending_tables.sql`)
+- [x] New table: `usaspending_transaction` (in `tables/70_usaspending.sql`)
   - Columns: id, award_id (FK), action_date, modification_number, action_type, action_type_description, federal_action_obligation, description, first_loaded_at, last_load_id
   - Indexes: idx_ut_award, idx_ut_date
 - [x] Enhanced `api_clients/usaspending_client.py`
@@ -193,7 +193,7 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
   - [x] `check_prospects()` - check prospect_team_member UEIs against exclusions
   - [x] `check_team_members()` - alias for check_prospects
   - [x] SHA-256 change detection via `record_hash` column
-- [x] New table: `sam_exclusion` (in `04_federal_tables.sql`)
+- [x] New table: `sam_exclusion` (in `tables/40_federal.sql`)
   - 20 columns including person name fields (first/middle/last/prefix/suffix)
   - 4 indexes: uei, entity_name, activation_date, exclusion_type
 - [x] CLI commands (in `cli/exclusions.py`):
@@ -255,7 +255,7 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
   - [x] `find_teaming_partners(naics_code, min_subs)` - local DB teaming analysis
   - [x] Composite key: `prime_piid|sub_uei|sub_date` for change detection
   - [x] NULL-safe comparison (`<=>`) in upsert WHERE clauses
-- [x] New table: `sam_subaward` (in `04_federal_tables.sql`)
+- [x] New table: `sam_subaward` (in `tables/40_federal.sql`)
   - 22 columns including prime/sub entity info, amounts, business type
   - 6 indexes: prime_uei, sub_uei, naics, prime_piid, sub_date, record_hash
 - [x] CLI commands (in `cli/subaward.py`):

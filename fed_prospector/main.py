@@ -39,6 +39,7 @@ Usage:
     python main.py load-subawards      Load subaward data from SAM.gov API
     python main.py search-subawards    Search local subaward data
     python main.py teaming-partners    Find potential teaming partners from subawards
+    python main.py check-schema         Compare DB schema against DDL source files
     python main.py help                Show this help
 
 Commands are organized in cli/ modules:
@@ -55,6 +56,7 @@ Commands are organized in cli/ modules:
     cli/spending.py       load-transactions, burn-rate
     cli/health.py         check-health, run-job, maintain-db, run-all-searches
     cli/subaward.py       load-subawards, search-subawards, teaming-partners
+    cli/schema.py         check-schema
 """
 
 import sys
@@ -163,6 +165,11 @@ from cli.subaward import load_subawards, search_subawards, teaming_partners
 cli.add_command(load_subawards)
 cli.add_command(search_subawards)
 cli.add_command(teaming_partners)
+
+# --- Schema drift checking ---
+from cli.schema import check_schema
+
+cli.add_command(check_schema)
 
 
 if __name__ == "__main__":

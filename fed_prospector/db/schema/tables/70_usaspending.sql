@@ -1,4 +1,4 @@
--- 08_usaspending_tables.sql
+-- tables/70_usaspending.sql
 -- USASpending.gov award data (2 tables) - Award summaries and transaction detail
 
 USE fed_contracts;

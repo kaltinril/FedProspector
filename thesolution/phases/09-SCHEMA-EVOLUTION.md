@@ -2,7 +2,7 @@
 
 **Status**: PLANNING
 **Dependencies**: Phase 8 (Gap Analysis) complete
-**Deliverable**: SQL migration scripts `fed_prospector/db/schema/09a_raw_staging_tables.sql` (staging) + `fed_prospector/db/schema/09_web_api_tables.sql` (production) + updated `build-database` CLI
+**Deliverable**: SQL migration scripts `fed_prospector/db/schema/tables/80_raw_staging.sql` (staging) + `fed_prospector/db/schema/tables/90_web_api.sql` (production) + updated `build-database` CLI
 **Repository**: `pbdc` (this repo -- these are MySQL schema changes)
 
 ---
@@ -17,7 +17,7 @@ Execute the Tier 1 database changes identified in Phase 8's gap analysis. Add 14
 
 ## 9.1 Raw Staging Tables (6)
 
-The entity pipeline already stores raw API responses in `stg_entity_raw` (see `02_entity_tables.sql`) before normalizing into production tables. This section extends that pattern to the remaining 6 data sources, enabling:
+The entity pipeline already stores raw API responses in `stg_entity_raw` (see `tables/20_entity.sql`) before normalizing into production tables. This section extends that pattern to the remaining 6 data sources, enabling:
 
 - **Re-processing/replay** without re-fetching from APIs
 - **Capturing fields we don't yet normalize** (e.g., `pointOfContact` arrays, nested sub-objects)
@@ -26,7 +26,7 @@ The entity pipeline already stores raw API responses in `stg_entity_raw` (see `0
 
 All 6 tables follow the same structure: an auto-increment PK, a `load_id` (links to `etl_load_log`), a natural key for the source record, the full `raw_json` (MySQL JSON type), a `raw_record_hash` (SHA-256 for change detection), a `processed` flag, and an optional `error_message`.
 
-**Deliverable file**: `fed_prospector/db/schema/09a_raw_staging_tables.sql` (separate from production DDL in `09_web_api_tables.sql`)
+**Deliverable file**: `fed_prospector/db/schema/tables/80_raw_staging.sql` (separate from production DDL in `tables/90_web_api.sql`)
 
 - [ ] Create all 6 raw staging tables
 
@@ -448,8 +448,8 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ## 9.4 Update build-database CLI
 
-- [ ] Add `09a_raw_staging_tables.sql` to the schema file list in `build-database` command (before `09_web_api_tables.sql`)
-- [ ] Add `09_web_api_tables.sql` to the schema file list in `build-database` command
+- [ ] Add `tables/80_raw_staging.sql` to the schema `tables/` subfolder (before `tables/90_web_api.sql`)
+- [ ] Add `tables/90_web_api.sql` to the schema `tables/` subfolder
 - [ ] Ensure table creation order respects foreign key dependencies (staging tables first, then ALTER existing tables, then new production tables in dependency order)
 - [ ] Test: `python main.py build-database` creates all 54 tables without errors
 
@@ -483,7 +483,7 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ### Migration Order
 
-1. **Create all 6 raw staging tables first** (`09a_raw_staging_tables.sql`) -- these have NO foreign keys and can be created in any order, so they are the safest starting point
+1. **Create all 6 raw staging tables first** (`tables/80_raw_staging.sql`) -- these have NO foreign keys and can be created in any order, so they are the safest starting point
 2. **ALTER `app_user`** -- auth fields are needed before `app_session` can reference the updated table
 3. **Create `contracting_officer`** -- must exist before `opportunity_poc` can reference it
 4. **ALTER remaining existing tables** -- `opportunity`, `prospect`, `prospect_team_member`

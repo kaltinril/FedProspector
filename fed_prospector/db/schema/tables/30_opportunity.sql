@@ -1,4 +1,4 @@
--- 03_opportunity_tables.sql
+-- tables/30_opportunity.sql
 -- Opportunity tables (3 tables) - Contract opportunities from SAM.gov
 
 USE fed_contracts;

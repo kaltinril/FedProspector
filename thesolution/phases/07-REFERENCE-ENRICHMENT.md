@@ -58,7 +58,7 @@ Set-aside codes from loaded opportunities (4 so far, more will come):
 
 **Changes**:
 
-Schema (`01_reference_tables.sql`):
+Schema (`tables/10_reference.sql`):
 ```sql
 ALTER TABLE ref_business_type
   ADD COLUMN category VARCHAR(50) AFTER classification,
@@ -91,7 +91,7 @@ Small business flags (`is_small_business_related = 'Y'`): 8W, 8E, 8C, 8D, 27, 1D
 **Source**: `OLD_RESOURCES/BusTypes.csv` (76 rows) + category mapping above
 
 **Files to modify**:
-- [x] `fed_prospector/db/schema/01_reference_tables.sql`
+- [x] `fed_prospector/db/schema/tables/10_reference.sql`
 - [x] `fed_prospector/etl/reference_loader.py`
 
 ---
@@ -127,7 +127,7 @@ Add to `load_all()` list.
 
 **Changes**:
 
-Schema (`01_reference_tables.sql`):
+Schema (`tables/10_reference.sql`):
 ```sql
 ALTER TABLE ref_country_code
   ADD COLUMN is_iso_standard CHAR(1) DEFAULT 'Y',
@@ -146,7 +146,7 @@ Update `load_country_codes()` to:
 - Wikipedia ISO 3166-1 pages for validation: https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3, https://en.wikipedia.org/wiki/ISO_3166-1
 
 **Files to modify**:
-- [x] `fed_prospector/db/schema/01_reference_tables.sql`
+- [x] `fed_prospector/db/schema/tables/10_reference.sql`
 - [x] `fed_prospector/etl/reference_loader.py`
 
 ---
@@ -157,7 +157,7 @@ Update `load_country_codes()` to:
 
 **Changes**:
 
-Schema (`01_reference_tables.sql`):
+Schema (`tables/10_reference.sql`):
 ```sql
 ALTER TABLE ref_naics_code
   ADD COLUMN code_level TINYINT AFTER description,
@@ -179,7 +179,7 @@ Level mapping (computed from code length):
 **Loader**: Update `load_naics_codes()` to compute `code_level`, `level_name`, and `parent_code` during the INSERT. These are derived from the code length, no new CSV needed.
 
 **Files to modify**:
-- [x] `fed_prospector/db/schema/01_reference_tables.sql`
+- [x] `fed_prospector/db/schema/tables/10_reference.sql`
 - [x] `fed_prospector/etl/reference_loader.py`
 
 ---
@@ -190,7 +190,7 @@ Level mapping (computed from code length):
 
 **Changes**:
 
-Schema (`01_reference_tables.sql`):
+Schema (`tables/10_reference.sql`):
 ```sql
 ALTER TABLE ref_set_aside_type
   ADD COLUMN category VARCHAR(50) AFTER is_small_business;
@@ -228,7 +228,7 @@ Comprehensive set-aside codes (from SAM.gov Opportunities API documentation):
 **Loader**: Replace `seed_set_aside_types()` with `load_set_aside_types()` that reads from CSV.
 
 **Files to modify**:
-- [x] `fed_prospector/db/schema/01_reference_tables.sql`
+- [x] `fed_prospector/db/schema/tables/10_reference.sql`
 - [x] `fed_prospector/etl/reference_loader.py`
 - [x] NEW: `workdir/converted/local database/data_to_import/set_aside_types.csv`
 
@@ -242,7 +242,7 @@ Comprehensive set-aside codes (from SAM.gov Opportunities API documentation):
 
 **Changes**:
 
-Schema (`01_reference_tables.sql`):
+Schema (`tables/10_reference.sql`):
 ```sql
 CREATE TABLE IF NOT EXISTS ref_sba_type (
     sba_type_code   VARCHAR(10) NOT NULL,
@@ -264,7 +264,7 @@ Seed data (from SAM.gov documentation + database discovery):
 **Loader**: Add `load_sba_types()` to `reference_loader.py` and include in `load_all()`.
 
 **Files to modify**:
-- [x] `fed_prospector/db/schema/01_reference_tables.sql`
+- [x] `fed_prospector/db/schema/tables/10_reference.sql`
 - [x] `fed_prospector/etl/reference_loader.py`
 
 ---
@@ -273,7 +273,7 @@ Seed data (from SAM.gov documentation + database discovery):
 
 **Problem**: Current views (`v_target_opportunities`, `v_competitor_analysis`) don't leverage the enriched reference tables for human-readable output.
 
-**Changes** to `07_views.sql`:
+**Changes** to `views/` (split across view files):
 
 `v_competitor_analysis`:
 - JOIN `ref_business_type` to show business type descriptions and categories instead of raw codes
@@ -285,7 +285,7 @@ Seed data (from SAM.gov documentation + database discovery):
 - Already JOINs `ref_naics_code` -- add `level_name` and sector parent description
 
 **Files to modify**:
-- [x] `fed_prospector/db/schema/07_views.sql`
+- [x] `fed_prospector/db/schema/views/` (4 view files)
 
 ---
 

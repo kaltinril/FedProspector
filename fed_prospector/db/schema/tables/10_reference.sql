@@ -1,4 +1,4 @@
--- 01_reference_tables.sql
+-- tables/10_reference.sql
 -- Reference/lookup tables (11 tables)
 -- Loaded once from CSV files, updated infrequently
 

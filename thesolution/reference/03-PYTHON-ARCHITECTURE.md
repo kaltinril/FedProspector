@@ -49,14 +49,19 @@ fed_prospector/
         connection.py            # MySQL connection pool (mysql-connector-python)
         schema/
             00_create_database.sql
-            01_reference_tables.sql
-            02_entity_tables.sql
-            03_opportunity_tables.sql
-            04_federal_tables.sql
-            05_etl_tables.sql
-            06_prospecting_tables.sql
-            07_views.sql
-            08_usaspending_tables.sql
+            tables/
+                10_reference.sql
+                20_entity.sql
+                30_opportunity.sql
+                40_federal.sql
+                50_etl.sql
+                60_prospecting.sql
+                70_usaspending.sql
+            views/
+                10_target_opportunities.sql
+                20_competitor_analysis.sql
+                30_procurement_intelligence.sql
+                40_incumbent_profile.sql
         seed/
             seed_reference_data.py  # Load CSVs from workdir into ref tables
     # Note: Scheduler implemented in etl/scheduler.py (not a separate package)
@@ -130,7 +135,7 @@ fed_prospector/
 | `etl/health_check.py` | Implemented | Phase 6 - data freshness, API usage, alerts, key status |
 | `etl/db_maintenance.py` | Implemented | Phase 6 - archive history, purge staging, ANALYZE TABLE |
 | `db/connection.py` | Implemented | Phase 1 |
-| `db/schema/*.sql` | Implemented | Phase 1 + Phase 5/7 - 40 tables + 4 views |
+| `db/schema/tables/*.sql`, `db/schema/views/*.sql` | Implemented | Phase 1 + Phase 5/7 - 40 tables + 4 views |
 | `main.py` | Implemented | 170 lines, delegates to 11 cli/ modules (38 commands) |
 | `cli/*.py` | Implemented | 11 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward |
 
