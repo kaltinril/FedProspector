@@ -20,6 +20,8 @@ This project replaces Salesforce with a local MySQL database and Python-based da
 ```
 pbdc/
 ├── fed_prospector/    Main Python application (CLI, API clients, ETL, DB schema)
+├── api/               C# ASP.NET Core Web API (Phase 10+)
+├── ui/                Frontend web application (future)
 ├── thesolution/       Current plan documents (this folder)
 ├── workdir/           Data conversion scripts and reference CSV/MD files
 ├── OLD_ATTEMPTS/      Archived: legacy Salesforce/Apex code, prior DB schema attempts
@@ -134,6 +136,79 @@ pbdc/
 - ~~Update views~~ enriched JOINs for human-readable output (business types, NAICS sectors, SBA certs)
 - ~~FPDS.gov deprecation~~ documented in Phase 5F, SAM.gov Contract Awards API URL in settings.py
 - **Deliverable**: DONE
+
+### Phase 8: Web/API Readiness (Gap Analysis)
+**Status**: PLANNING
+**Document**: [13-PHASE8-WEB-API-READINESS.md](13-PHASE8-WEB-API-READINESS.md)
+
+**Architecture Decision**: Python stays as ETL/data gathering only. C# API backend will query MySQL directly. Frontend TBD.
+
+**Scope**:
+- [x] Gap analysis complete — schema audit, missing tables, missing columns documented
+- [ ] Add 6 new tables (app_session, proposal, proposal_document, proposal_milestone, activity_log, notification)
+- [ ] Add ~15 new columns across 4 existing tables (app_user, opportunity, prospect, prospect_team_member)
+- [ ] Build C# API backend (21 endpoints documented)
+- [ ] Replicate prospect status flow, Go/No-Go scoring, burn rate logic in C#
+
+**Impact**: Current 39 tables + 2 views → 45 tables + 2 views (Tier 1 MVP)
+
+### Phase 9: Schema Evolution
+**Status**: PLANNING
+**Document**: [14-PHASE9-SCHEMA-EVOLUTION.md](14-PHASE9-SCHEMA-EVOLUTION.md)
+
+**Scope**:
+- [ ] Add 6 new Tier 1 tables (app_session, proposal, proposal_document, proposal_milestone, activity_log, notification)
+- [ ] ALTER 4 existing tables with ~15 new columns (app_user, opportunity, prospect, prospect_team_member)
+- [ ] Update `build-database` CLI to include new schema file
+- [ ] Result: 39 → 45 tables + 2 views
+
+### Phase 10: C# API Foundation
+**Status**: PLANNING
+**Document**: [15-PHASE10-API-FOUNDATION.md](15-PHASE10-API-FOUNDATION.md)
+**Repository**: `api/` folder (monorepo -- same repo as Python ETL)
+
+**Scope**:
+- [ ] ASP.NET Core Web API project (.NET 8+)
+- [ ] MySQL connectivity via Pomelo EF Core + entity models for 45 tables
+- [ ] JWT authentication middleware + BCrypt password hashing
+- [ ] Swagger/OpenAPI documentation
+- [ ] Repository pattern, pagination, DTOs, base controller
+- [ ] Serilog logging, CORS, error handling, health check
+
+### Phase 11: Read-Only Query Endpoints
+**Status**: PLANNING
+**Document**: [16-PHASE11-READ-ENDPOINTS.md](16-PHASE11-READ-ENDPOINTS.md)
+
+**Scope**:
+- [ ] 11 GET endpoints across 6 controllers
+- [ ] OpportunitiesController: search + detail + WOSB/8(a) targets
+- [ ] AwardsController: search + detail + burn-rate calculation
+- [ ] EntitiesController: search + detail + competitor profile + exclusion check
+- [ ] SubawardsController: teaming partners
+- [ ] DashboardController + AdminController (ETL status)
+
+### Phase 12: Capture Management API (CRUD)
+**Status**: PLANNING
+**Document**: [17-PHASE12-CAPTURE-MANAGEMENT-API.md](17-PHASE12-CAPTURE-MANAGEMENT-API.md)
+
+**Scope**:
+- [ ] 10 write endpoints for prospects, proposals, notes, team members
+- [ ] Prospect status flow validation (replicate Python STATUS_FLOW)
+- [ ] Go/No-Go scoring (4 criteria, 0-40 scale)
+- [ ] Proposal lifecycle (DRAFT → SUBMITTED → AWARDED/NOT_AWARDED)
+- [ ] Activity logging on all write operations
+
+### Phase 13: Auth, Notifications & Production Readiness
+**Status**: PLANNING
+**Document**: [18-PHASE13-AUTH-AND-PRODUCTION.md](18-PHASE13-AUTH-AND-PRODUCTION.md)
+
+**Scope**:
+- [ ] Auth endpoints: register, login, logout, change-password, profile
+- [ ] Notification system: deadline alerts, status change alerts, saved search results
+- [ ] Admin user management
+- [ ] Production hardening: rate limiting, input validation, security headers
+- [ ] Docker containerization + CI/CD pipeline skeleton
+- [ ] API documentation (Swagger + Postman collection)
 
 ## Success Criteria
 

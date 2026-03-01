@@ -462,6 +462,23 @@ See [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md) for full deta
 
 ---
 
+## Phases 8-13: Web API & Frontend (PLANNING)
+
+Phases 1-7 (Python CLI + MySQL ETL pipeline) are complete. Phases 8-13 build a **C# ASP.NET Core Web API** and a **frontend UI** on top of the existing `fed_contracts` database, turning the CLI-based system into a full web application.
+
+| Phase | Name | Summary | Plan Document |
+|-------|------|---------|---------------|
+| 8 | Web/API Readiness | Gap analysis identifying what the existing schema needs before web consumption | [13-PHASE8-WEB-API-READINESS.md](13-PHASE8-WEB-API-READINESS.md) |
+| 9 | Schema Evolution | 6 new tables + column additions (39 to 45 tables) for user auth, notifications, and capture management | [14-PHASE9-SCHEMA-EVOLUTION.md](14-PHASE9-SCHEMA-EVOLUTION.md) |
+| 10 | API Foundation | ASP.NET Core 8+ project scaffolding, Entity Framework Core, JWT authentication | [15-PHASE10-API-FOUNDATION.md](15-PHASE10-API-FOUNDATION.md) |
+| 11 | Read Endpoints | 11 GET endpoints for opportunities, awards, entities, and dashboard views | [16-PHASE11-READ-ENDPOINTS.md](16-PHASE11-READ-ENDPOINTS.md) |
+| 12 | Capture Management API | 10 CRUD endpoints for prospects, proposals, notes, and workflow | [17-PHASE12-CAPTURE-MANAGEMENT-API.md](17-PHASE12-CAPTURE-MANAGEMENT-API.md) |
+| 13 | Auth & Production | Authentication hardening, notifications, rate limiting, Docker deployment | [18-PHASE13-AUTH-AND-PRODUCTION.md](18-PHASE13-AUTH-AND-PRODUCTION.md) |
+
+The `api/` folder contains the C# ASP.NET Core Web API project. The `ui/` folder will contain the frontend application (framework TBD).
+
+---
+
 ## Troubleshooting
 
 ### MySQL won't start

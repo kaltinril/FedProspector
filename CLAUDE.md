@@ -13,6 +13,8 @@ This replaces a previous Salesforce-based approach. All data gathering uses Pyth
 | `fed_prospector/` | **Main Python application** - CLI, API clients, ETL pipeline, DB schema |
 | `thesolution/` | Plan documents and implementation roadmap |
 | `workdir/` | Data conversion scripts and reference CSV/MD files |
+| `api/` | **C# ASP.NET Core Web API** - backend REST API (Phase 10+) |
+| `ui/` | **Frontend web application** - TBD framework (future) |
 | `OLD_ATTEMPTS/` | Legacy Salesforce/Apex code and prior database schema attempts (archived) |
 | `OLD_RESOURCES/` | Original source files (DOCX, XLSX, PDF, PNG, OpenAPI specs) from prior work (archived) |
 
@@ -28,7 +30,7 @@ This replaces a previous Salesforce-based approach. All data gathering uses Pyth
 ### When Working on This Project
 
 1. **Always read the master plan first**: See [thesolution/00-MASTER-PLAN.md](thesolution/00-MASTER-PLAN.md) for current status and phase overview.
-2. **Update the plan as you work**: When you complete a task, mark it done in the relevant phase file (thesolution/04-11). When you discover new requirements or issues, add them.
+2. **Update the plan as you work**: When you complete a task, mark it done in the relevant phase file (thesolution/04-18). When you discover new requirements or issues, add them.
 3. **Follow the phase order**: Phases build on each other. Do not skip ahead unless explicitly told to.
 4. **Record data quality issues**: Any unexpected data formats, bad values, or API behavior must be documented in the relevant phase file under a "Known Issues" section.
 5. **Never hardcode credentials**: All API keys, database passwords, and sensitive config go in `.env` files. Use `python-dotenv` to load them. Passwords are stored in `thesolution/credentials.yml` for easy reference.
@@ -117,3 +119,9 @@ These were discovered during the first import attempt and must be handled in the
 | Prior import progress notes (archived) | `OLD_ATTEMPTS/local database/progress story.txt` |
 | SAM Contract Awards API research | `workdir/converted/sam-contract-awards-api.md` |
 | USASpending Transactions API research | `workdir/converted/usaspending-transactions-api.md` |
+| Phase 8 Web/API Readiness gap analysis | `thesolution/13-PHASE8-WEB-API-READINESS.md` |
+| Phase 9 Schema Evolution plan | `thesolution/14-PHASE9-SCHEMA-EVOLUTION.md` |
+| Phase 10 C# API Foundation plan | `thesolution/15-PHASE10-API-FOUNDATION.md` |
+| Phase 11 Read Endpoints plan | `thesolution/16-PHASE11-READ-ENDPOINTS.md` |
+| Phase 12 Capture Management API plan | `thesolution/17-PHASE12-CAPTURE-MANAGEMENT-API.md` |
+| Phase 13 Auth & Production plan | `thesolution/18-PHASE13-AUTH-AND-PRODUCTION.md` |
