@@ -47,11 +47,11 @@ pbdc/
 **Status**: [x] COMPLETE (2026-02-22)
 **File**: [04-PHASE1-FOUNDATION.md](04-PHASE1-FOUNDATION.md)
 
-- ~~Set up MySQL database~~ 38 tables + 2 views
+- ~~Set up MySQL database~~ 39 tables + 2 views
 - ~~Load reference data from CSVs~~ 12,988 rows across 11 tables
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
-- ~~CLI entry point~~ `python main.py` (31 commands across 9 `cli/` modules)
+- ~~CLI entry point~~ `python main.py` (38 commands across 11 `cli/` modules)
 - **Deliverable**: DONE
 
 ### Phase 2: Entity Data Pipeline (Proof of Concept - 1 Source)
@@ -68,16 +68,16 @@ pbdc/
 - **Deliverable**: DONE
 
 ### Phase 3: Opportunities Pipeline (Proof of Concept - Load First Data)
-**Status**: [~] IN PROGRESS (2026-02-28) - 12,209 opportunities loaded (2-year historical), polling pending
+**Status**: [x] COMPLETE (2026-02-28) - 12,209 opportunities loaded (2-year historical), polling via Phase 6
 **File**: [06-PHASE3-OPPORTUNITIES-PIPELINE.md](06-PHASE3-OPPORTUNITIES-PIPELINE.md)
 
 - ~~Build SAM.gov Opportunities API client~~ `sam_opportunity_client.py` (v2 search, 5-call budget, priority set-aside ordering)
 - ~~Implement opportunity loader with change tracking~~ `opportunity_loader.py` (SHA-256 hashing, opportunity_history)
 - ~~Create CLI commands~~ `load-opportunities` (--max-calls, --historical) + `search` (local DB query)
 - ~~Initial + historical load~~ 12,209 opportunities across 12 SB set-aside types (2-year range, Mar 2024 - Feb 2026)
-- [ ] Set up scheduled polling (Phase 6)
+- ~~Set up scheduled polling~~ Phase 6 `run-job opportunities` + Windows Task Scheduler (every 4 hours)
 - **Note**: SAM.gov API key 2 confirmed at 1000/day tier (enables full historical loads)
-- **Deliverable**: IN PROGRESS - Historical opportunities loaded, search working, scheduled polling pending (Phase 6)
+- **Deliverable**: DONE
 
 ### Phase 4: Sales/Prospecting Pipeline
 **Status**: [x] COMPLETE (2026-02-22)
@@ -91,7 +91,7 @@ pbdc/
 - **Deliverable**: DONE
 
 ### Phase 5: Extended Data Sources (Remaining Phases Build-Out)
-**Status**: [~] IN PROGRESS (2026-02-28) - 5A, 5B, 5B-Enhance, 5C, 5D, 5E complete; 5F deprecated; 5G pending
+**Status**: [x] COMPLETE (2026-02-28) - All iterations complete (5A-5E, 5G); 5F deprecated
 **File**: [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md)
 
 - ~~SAM.gov Contract Awards API~~ `sam_awards_client.py` + `awards_loader.py` (v1 API, search by NAICS/awardee/solicitation, loads to `fpds_contract`)
@@ -101,22 +101,25 @@ pbdc/
 - ~~GSA CALC+ API~~ `calc_client.py` + `calc_loader.py` (full_refresh, ~52K labor rates loaded)
 - ~~SAM.gov Federal Hierarchy API~~ `sam_fedhier_client.py` + `fedhier_loader.py` (v1 API, full hierarchy refresh, agency search)
 - ~~SAM.gov Exclusions API~~ `sam_exclusions_client.py` + `exclusions_loader.py` (v4 API, check UEI/name, prospect team member cross-check, loads to `sam_exclusion`)
-- [ ] SAM.gov Subaward Reporting API (subcontracting intelligence)
+- ~~SAM.gov Subaward Reporting API~~ `sam_subaward_client.py` + `subaward_loader.py` (v1 subcontracts API, teaming partner analysis, loads to `sam_subaward`)
 - **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
-- **CLI refactored**: `main.py` (1752 -> 146 lines) with 31 commands split into 9 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending)
-- **New CLI commands**: `load-awards`, `load-hierarchy`, `search-agencies`, `load-exclusions`, `check-exclusion`, `check-prospects`, `load-transactions`, `burn-rate`
-- **Deliverable**: IN PROGRESS - 5A-5E complete, 5F deprecated, 5G pending
+- **CLI refactored**: `main.py` (1752 -> 170 lines) with 38 commands split into 11 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward)
+- **New CLI commands**: `load-awards`, `load-hierarchy`, `search-agencies`, `load-exclusions`, `check-exclusion`, `check-prospects`, `load-transactions`, `burn-rate`, `load-subawards`, `search-subawards`, `teaming-partners`
+- **Deliverable**: DONE
 
 ### Phase 6: Automation and Monitoring
-**Status**: [ ] Not Started
+**Status**: [x] COMPLETE (2026-02-28)
 **File**: [09-PHASE6-AUTOMATION.md](09-PHASE6-AUTOMATION.md)
 
-- Fully automated daily/weekly/monthly refresh schedule
-- Error alerting and monitoring
-- API key expiration reminders (90-day cycle)
-- Data staleness detection
-- Operational documentation and runbooks
-- **Deliverable**: Hands-off daily operation with alerts for issues
+- ~~Job scheduler~~ `etl/scheduler.py` with 8 job definitions, `JobRunner` class, Windows Task Scheduler integration
+- ~~Health check dashboard~~ `etl/health_check.py` + `check-health` CLI command (data freshness, API usage, alerts)
+- ~~Data staleness detection~~ Threshold-based staleness per source (6h opportunities, 48h entities, 14d hierarchy/awards/exclusions, 45d CALC+/USASpending)
+- ~~API key management~~ Configuration checks, daily limit monitoring
+- ~~Database maintenance~~ `etl/db_maintenance.py` + `maintain-db` CLI (archive history, purge staging, ANALYZE TABLE)
+- ~~Job runner CLI~~ `run-job` command to manually trigger any scheduled job
+- ~~Saved search automation~~ `run-all-searches` command to execute all active saved searches
+- **CLI**: 4 new commands in `cli/health.py` (check-health, run-job, maintain-db, run-all-searches)
+- **Deliverable**: DONE
 
 ### Phase 7: Reference Data Enrichment
 **Status**: [x] COMPLETE (2026-02-28)

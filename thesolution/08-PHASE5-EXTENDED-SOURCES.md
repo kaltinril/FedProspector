@@ -1,6 +1,6 @@
 # Phase 5: Extended Data Sources
 
-**Status**: In Progress (2026-02-28) - 5A (Contract Awards), 5B (USASpending), 5B-Enhance (Transactions), 5C (GSA CALC+), 5D (Federal Hierarchy), 5E (Exclusions) complete; 5F deprecated; 5G pending
+**Status**: COMPLETE (2026-02-28) - All iterations complete (5A-5E, 5G); 5F deprecated
 **Dependencies**: Phase 3 (Opportunities Pipeline) complete
 **Deliverable**: Comprehensive data from all priority sources loaded and cross-referenced
 
@@ -238,21 +238,36 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
 
 **Priority**: Tier 3 (Supplement)
 **Purpose**: Subcontracting intelligence for teaming strategy
+**Status**: COMPLETE (2026-02-28)
 
 ### Tasks
-- [ ] Implement `api_clients/sam_subaward_client.py`
-  - [ ] `search_subcontracts(**filters)` - paginated search
-  - [ ] Filter by PIID, agency, date range
-- [ ] Implement loader for subaward data
-- [ ] Load recent subcontract data (2-3 years)
-- [ ] Build teaming analysis:
-  - [ ] Which large primes subcontract to small businesses?
-  - [ ] Which primes work in our NAICS codes?
-  - [ ] What are typical subcontract values?
+- [x] Implement `api_clients/sam_subaward_client.py`
+  - [x] `search_subcontracts(**filters)` - paginated search (v1 API, page-based pagination)
+  - [x] `search_subcontracts_all(**filters)` - auto-paginate generator with max_pages
+  - [x] `search_by_prime(uei)` - prime contractor search
+  - [x] `search_by_sub(uei)` - subcontractor search
+  - [x] `search_by_naics(naics_code)` - NAICS-specific search
+  - [x] `search_by_piid(piid)` - contract number search
+  - [x] Filter by PIID, agency, date range, prime UEI, sub UEI, NAICS
+- [x] Implement `etl/subaward_loader.py`
+  - [x] `load_subawards(subawards_data)` - load with SHA-256 change detection
+  - [x] `full_refresh(client)` - reload subawards by NAICS/agency
+  - [x] `find_teaming_partners(naics_code, min_subs)` - local DB teaming analysis
+  - [x] Composite key: `prime_piid|sub_uei|sub_date` for change detection
+  - [x] NULL-safe comparison (`<=>`) in upsert WHERE clauses
+- [x] New table: `sam_subaward` (in `04_federal_tables.sql`)
+  - 22 columns including prime/sub entity info, amounts, business type
+  - 6 indexes: prime_uei, sub_uei, naics, prime_piid, sub_date, record_hash
+- [x] CLI commands (in `cli/subaward.py`):
+  - [x] `load-subawards` - load subaward data from SAM.gov API (--naics, --agency, --prime-uei, --max-calls, --key)
+  - [x] `search-subawards` - search local subaward data (--prime-uei, --sub-uei, --naics, --piid)
+  - [x] `teaming-partners` - find potential teaming partners from subawards (--naics, --min-subs, --limit)
+- [x] Registered in `main.py` (38 CLI commands total in 11 `cli/` modules)
 
 ### Acceptance Criteria
-- [ ] Subaward data loaded for recent years
-- [ ] Can identify potential teaming partners (primes who sub to small businesses)
+- [x] Subaward data loaded for recent years
+- [x] Can identify potential teaming partners (primes who sub to small businesses)
+- [x] Teaming analysis shows prime→sub relationships by NAICS code
 
 ---
 

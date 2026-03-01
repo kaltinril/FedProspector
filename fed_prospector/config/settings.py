@@ -35,6 +35,9 @@ USASPENDING_API_BASE_URL = "https://api.usaspending.gov"
 # SAM.gov Contract Awards API (replacement for FPDS)
 SAM_CONTRACT_AWARDS_URL = "https://api.sam.gov/contract-awards/v1/search"
 
+# SAM.gov Subaward Reporting API
+SAM_SUBAWARD_URL = "https://api.sam.gov/prod/contract/v1/subcontracts/search"
+
 # FPDS ATOM Feed - DEPRECATED: ezSearch decommissioned Feb 24, 2026;
 # ATOM feed sunsetting later FY2026. Use SAM_CONTRACT_AWARDS_URL instead.
 FPDS_ATOM_BASE_URL = "https://www.fpds.gov/dbsight/FEEDS/ATOM"

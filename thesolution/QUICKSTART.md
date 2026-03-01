@@ -354,7 +354,7 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 38 tables + 2 views
+python main.py build-database        # Create/rebuild all 39 tables + 2 views
 python main.py load-lookups          # Load all 11 reference tables from CSVs
 python main.py status                # Show table counts, API status, recent loads
 python main.py check-api             # Test SAM.gov API key (uses 1 call)
@@ -383,7 +383,7 @@ python main.py load-entities --mode=daily --file=data/downloads/daily.json    # 
 
 See [05-PHASE2-ENTITY-PIPELINE.md](05-PHASE2-ENTITY-PIPELINE.md) for full details.
 
-**Phase 3** (Opportunities Pipeline) is IN PROGRESS. 12,209 opportunities loaded (2-year historical). Run the pipeline:
+**Phase 3** (Opportunities Pipeline) is COMPLETE. 12,209 opportunities loaded (2-year historical), auto-polling via Phase 6. Run the pipeline:
 
 ```bash
 # Phase 3 commands:
@@ -413,7 +413,7 @@ python main.py dashboard
 
 See [07-PHASE4-SALES-PROSPECTING.md](07-PHASE4-SALES-PROSPECTING.md) for full details.
 
-**Phase 5** (Extended Data Sources) is IN PROGRESS. 5A-5E complete, 5F deprecated, 5G pending:
+**Phase 5** (Extended Data Sources) is COMPLETE. All iterations (5A-5E, 5G) done, 5F deprecated:
 
 ```bash
 # Phase 5: Extended Data Sources
@@ -426,9 +426,27 @@ python main.py check-exclusion --uei=ABC123 --key=2   # Check entity for exclusi
 python main.py check-prospects              # Check prospect team members against exclusions
 python main.py load-transactions --award-id CONT_AWD_...  # Load transaction history for an award
 python main.py burn-rate --award-id CONT_AWD_...          # Calculate spend velocity for an award
+python main.py load-subawards --naics=541511 --key=2   # Load subaward data from SAM.gov
+python main.py search-subawards --prime-uei=ABC123     # Search local subaward data
+python main.py teaming-partners --naics=541511         # Find teaming partners from subawards
 ```
 
-> **Note**: CLI was refactored from monolithic main.py to 9 modules in `cli/` (31 total commands). Run `python main.py --help` for the full list.
+**Phase 6** (Automation and Monitoring) is COMPLETE. Job scheduler, health checks, and DB maintenance:
+
+```bash
+# Phase 6: Automation & Health
+python main.py check-health             # Comprehensive health check (freshness, API, alerts)
+python main.py check-health --json      # Machine-readable JSON output
+python main.py run-job opportunities    # Manually trigger any scheduled job
+python main.py run-job --list           # List all jobs with last-run status
+python main.py maintain-db              # Run database maintenance (cleanup old history)
+python main.py maintain-db --dry-run    # Preview what would be cleaned up
+python main.py maintain-db --analyze    # Run ANALYZE TABLE on all tables
+python main.py maintain-db --sizes      # Show table sizes (data + index)
+python main.py run-all-searches         # Execute all active saved searches
+```
+
+See [09-PHASE6-AUTOMATION.md](09-PHASE6-AUTOMATION.md) for Windows Task Scheduler setup.
 
 **Phase 7** (Reference Data Enrichment) is COMPLETE. 11 reference tables with enriched metadata:
 
@@ -437,6 +455,8 @@ python main.py load-lookups                 # Reload all 11 enriched reference t
 python main.py load-lookups --table=sba_type  # Load a specific reference table
 python main.py status                       # Show updated row counts for all tables
 ```
+
+> **Note**: CLI has 38 commands across 11 modules in `cli/`. Run `python main.py --help` for the full list.
 
 See [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md) for full details.
 

@@ -32,6 +32,13 @@ Usage:
     python main.py check-prospects     Check prospect team members against exclusions
     python main.py load-transactions   Load transaction history for a USASpending award
     python main.py burn-rate           Calculate and display burn rate for an award
+    python main.py check-health        Comprehensive system health check with alerts
+    python main.py run-job             Manually trigger a scheduled job by name
+    python main.py maintain-db         Run database maintenance (cleanup, analyze, sizes)
+    python main.py run-all-searches    Run all active saved searches
+    python main.py load-subawards      Load subaward data from SAM.gov API
+    python main.py search-subawards    Search local subaward data
+    python main.py teaming-partners    Find potential teaming partners from subawards
     python main.py help                Show this help
 
 Commands are organized in cli/ modules:
@@ -46,6 +53,8 @@ Commands are organized in cli/ modules:
     cli/fedhier.py        load-hierarchy, search-agencies
     cli/exclusions.py     load-exclusions, check-exclusion, check-prospects
     cli/spending.py       load-transactions, burn-rate
+    cli/health.py         check-health, run-job, maintain-db, run-all-searches
+    cli/subaward.py       load-subawards, search-subawards, teaming-partners
 """
 
 import sys
@@ -139,6 +148,21 @@ from cli.spending import load_transactions, burn_rate
 
 cli.add_command(load_transactions)
 cli.add_command(burn_rate)
+
+# --- Health/monitoring commands (Phase 6) ---
+from cli.health import check_health, run_job, maintain_db, run_all_searches
+
+cli.add_command(check_health)
+cli.add_command(run_job)
+cli.add_command(maintain_db)
+cli.add_command(run_all_searches)
+
+# --- Subaward commands (Phase 5G) ---
+from cli.subaward import load_subawards, search_subawards, teaming_partners
+
+cli.add_command(load_subawards)
+cli.add_command(search_subawards)
+cli.add_command(teaming_partners)
 
 
 if __name__ == "__main__":

@@ -630,6 +630,43 @@ CREATE TABLE sam_exclusion (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
+### sam_subaward
+SAM.gov subaward/subcontract data for teaming partner analysis.
+
+```sql
+CREATE TABLE sam_subaward (
+    id                      INT AUTO_INCREMENT PRIMARY KEY,
+    prime_piid              VARCHAR(50),           -- Prime contract number
+    prime_agency_id         VARCHAR(10),
+    prime_agency_name       VARCHAR(200),
+    prime_uei               VARCHAR(12),
+    prime_name              VARCHAR(500),
+    sub_uei                 VARCHAR(12),
+    sub_name                VARCHAR(500),
+    sub_amount              DECIMAL(15,2),
+    sub_date                DATE,
+    sub_description         TEXT,
+    naics_code              VARCHAR(6),
+    psc_code                VARCHAR(10),
+    sub_business_type       VARCHAR(50),           -- Small business designation codes
+    pop_state               VARCHAR(6),
+    pop_country             VARCHAR(3),
+    pop_zip                 VARCHAR(10),
+    recovery_model_q1       VARCHAR(3),            -- Y/N recovery act
+    recovery_model_q2       VARCHAR(3),
+    record_hash             CHAR(64),
+    first_loaded_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_load_id            INT,
+    INDEX idx_sub_prime_uei (prime_uei),
+    INDEX idx_sub_sub_uei (sub_uei),
+    INDEX idx_sub_naics (naics_code),
+    INDEX idx_sub_prime_piid (prime_piid),
+    INDEX idx_sub_date (sub_date),
+    INDEX idx_sub_hash (record_hash)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
 ### usaspending_award
 USASpending.gov award data for incumbent and spending analysis.
 
@@ -971,8 +1008,8 @@ GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics,
 | Reference (`ref_*`) | 11 | Lookup/classification data (includes ref_entity_structure, ref_sba_type) |
 | Entity | 10 | SAM.gov contractor data |
 | Opportunity | 2 | Contract opportunities |
-| Federal | 6 | Hierarchy, awards, rates, exclusions, spending (includes usaspending_award + usaspending_transaction) |
+| Federal | 7 | Hierarchy, awards, rates, exclusions, subawards, spending (includes usaspending_award + usaspending_transaction) |
 | ETL | 4 | Load tracking and quality |
 | Prospecting | 5 | Sales pipeline (includes saved_search) |
-| **Total** | **38** | |
+| **Total** | **39** | |
 | **Views** | **2** | |

@@ -208,7 +208,7 @@ def status():
             etl_tables.append((name, rows))
         elif name in ("entity", "opportunity", "fpds_contract", "federal_organization",
                       "gsa_labor_rate", "stg_entity_raw", "usaspending_award",
-                      "usaspending_transaction"):
+                      "usaspending_transaction", "sam_subaward"):
             data_tables.append((name, rows))
         else:
             other_tables.append((name, rows))

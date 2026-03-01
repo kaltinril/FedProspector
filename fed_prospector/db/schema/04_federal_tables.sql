@@ -1,5 +1,5 @@
 -- 04_federal_tables.sql
--- Federal data tables (4 tables) - Hierarchy, awards, rates, exclusions
+-- Federal data tables (5 tables) - Hierarchy, awards, rates, exclusions, subawards
 
 USE fed_contracts;
 
@@ -131,4 +131,36 @@ CREATE TABLE IF NOT EXISTS sam_exclusion (
     INDEX idx_excl_entity_name (entity_name),
     INDEX idx_excl_activation (activation_date),
     INDEX idx_excl_type (exclusion_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sam_subaward (
+    id                      INT AUTO_INCREMENT PRIMARY KEY,
+    prime_piid              VARCHAR(50),           -- Prime contract number
+    prime_agency_id         VARCHAR(10),
+    prime_agency_name       VARCHAR(200),
+    prime_uei               VARCHAR(12),
+    prime_name              VARCHAR(500),
+    sub_uei                 VARCHAR(12),
+    sub_name                VARCHAR(500),
+    sub_amount              DECIMAL(15,2),
+    sub_date                DATE,
+    sub_description         TEXT,
+    naics_code              VARCHAR(6),
+    psc_code                VARCHAR(10),
+    sub_business_type       VARCHAR(50),           -- Small business designation codes
+    pop_state               VARCHAR(6),
+    pop_country             VARCHAR(3),
+    pop_zip                 VARCHAR(10),
+    recovery_model_q1       VARCHAR(3),            -- Y/N recovery act
+    recovery_model_q2       VARCHAR(3),
+    record_hash             CHAR(64),
+    first_loaded_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_load_id            INT,
+    INDEX idx_sub_prime_uei (prime_uei),
+    INDEX idx_sub_sub_uei (sub_uei),
+    INDEX idx_sub_naics (naics_code),
+    INDEX idx_sub_prime_piid (prime_piid),
+    INDEX idx_sub_date (sub_date),
+    INDEX idx_sub_hash (record_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

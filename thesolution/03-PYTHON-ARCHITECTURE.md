@@ -40,6 +40,10 @@ fed_prospector/
         usaspending_loader.py    # USASpending award data loading
         calc_loader.py           # GSA CALC+ labor rate loading
         prospect_manager.py      # Prospect tracking, saved searches, scoring
+        subaward_loader.py       # Subaward loading, teaming partner analysis
+        scheduler.py             # Job definitions, JobRunner, Windows Task Scheduler
+        health_check.py          # Data freshness, API usage, alerts
+        db_maintenance.py        # Archive history, purge staging, ANALYZE TABLE
     db/
         __init__.py
         connection.py            # MySQL connection pool (mysql-connector-python)
@@ -55,10 +59,7 @@ fed_prospector/
             08_usaspending_tables.sql
         seed/
             seed_reference_data.py  # Load CSVs from workdir into ref tables
-    scheduler/
-        __init__.py
-        job_runner.py            # APScheduler or cron-based job execution
-        job_definitions.py       # Define which jobs run when
+    # Note: Scheduler implemented in etl/scheduler.py (not a separate package)
     utils/
         __init__.py
         hashing.py               # SHA-256 record hashing for change detection
@@ -82,7 +83,9 @@ fed_prospector/
         fedhier.py               # load-hierarchy, search-agencies
         exclusions.py            # load-exclusions, check-exclusion, check-prospects
         spending.py              # load-transactions, burn-rate
-    main.py                      # CLI entry point (146 lines, delegates to cli/ modules)
+        health.py                # check-health, run-job, maintain-db, run-all-searches
+        subaward.py              # load-subawards, search-subawards, teaming-partners
+    main.py                      # CLI entry point (170 lines, delegates to cli/ modules)
     requirements.txt
     requirements-dev.txt
     .env.example
@@ -102,7 +105,7 @@ fed_prospector/
 | `api_clients/sam_fedhier_client.py` | Implemented | Phase 5D - v1 API, full hierarchy refresh, agency search |
 | `api_clients/sam_awards_client.py` | Implemented | Phase 5A - v1 API, search by NAICS/awardee/solicitation |
 | `api_clients/sam_exclusions_client.py` | Implemented | Phase 5E - v4 API, check UEI/name, batch entity checks |
-| `api_clients/sam_subaward_client.py` | Planned | Phase 5G |
+| `api_clients/sam_subaward_client.py` | Implemented | Phase 5G - v1 subcontracts API, search by prime/sub/NAICS, teaming analysis |
 | `api_clients/fpds_client.py` | Deprecated | FPDS decommissioned Feb 2026, use SAM Contract Awards API |
 | `api_clients/usaspending_client.py` | Implemented | Phase 5B - POST-based search, no auth, no rate limits |
 | `api_clients/calc_client.py` | Implemented | Phase 5C - GET-based, no auth, no rate limits |
@@ -122,10 +125,14 @@ fed_prospector/
 | `etl/exclusions_loader.py` | Implemented | Phase 5E - exclusion loading, prospect/team member cross-check |
 | `etl/fpds_loader.py` | Deprecated | FPDS decommissioned Feb 2026, use awards_loader.py |
 | `db/connection.py` | Implemented | Phase 1 |
-| `db/schema/*.sql` | Implemented | Phase 1 + Phase 5/7 - 38 tables + 2 views |
-| `main.py` | Implemented | 146 lines, delegates to 9 cli/ modules (31 commands) |
-| `cli/*.py` | Implemented | 9 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending |
-| `scheduler/` | Planned | Phase 6 |
+| `etl/subaward_loader.py` | Implemented | Phase 5G - subaward loading, teaming partner analysis |
+| `etl/scheduler.py` | Implemented | Phase 6 - 8 job definitions, JobRunner, Windows Task Scheduler |
+| `etl/health_check.py` | Implemented | Phase 6 - data freshness, API usage, alerts, key status |
+| `etl/db_maintenance.py` | Implemented | Phase 6 - archive history, purge staging, ANALYZE TABLE |
+| `db/connection.py` | Implemented | Phase 1 |
+| `db/schema/*.sql` | Implemented | Phase 1 + Phase 5/7 - 39 tables + 2 views |
+| `main.py` | Implemented | 170 lines, delegates to 11 cli/ modules (38 commands) |
+| `cli/*.py` | Implemented | 11 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward |
 
 ## Core Dependencies
 
