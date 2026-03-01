@@ -1,6 +1,6 @@
 # Phase 3: Opportunities Pipeline (Proof of Concept - Load First Data)
 
-**Status**: ~90% Complete - Historical load done, scheduled polling pending (Phase 6)
+**Status**: COMPLETE (2026-02-28) - Historical load done, scheduled polling implemented in Phase 6
 **Dependencies**: Phase 2 (Entity Pipeline) complete
 **Deliverable**: Active opportunities loaded and filterable by WOSB/8(a) set-aside and NAICS code
 
@@ -59,17 +59,17 @@
 - [ ] Verify LEFT JOIN to `prospect` shows tracking status when available
 
 ### 3.5 Scheduled Polling
-- [ ] Implement 4-hour polling job in scheduler:
-  - [ ] Fetch opportunities posted since last successful load
-  - [ ] Detect new vs updated opportunities
-  - [ ] Log results in `etl_load_log`
-- [ ] Implement rate limit awareness:
-  - [ ] With 10/day limit: strategically choose which set-aside types to query
-  - [ ] With 1000/day limit: query all set-aside types individually
-- [ ] Handle edge cases:
-  - [ ] API downtime (retry next cycle)
-  - [ ] Duplicate records across queries
-  - [ ] Opportunities that change set-aside type
+- [x] Implement 4-hour polling job in scheduler:
+  - [x] Fetch opportunities posted since last successful load
+  - [x] Detect new vs updated opportunities
+  - [x] Log results in `etl_load_log`
+- [x] Implement rate limit awareness:
+  - [x] With 10/day limit: strategically choose which set-aside types to query
+  - [x] With 1000/day limit: query all set-aside types individually
+- [x] Handle edge cases:
+  - [x] API downtime (retry next cycle)
+  - [x] Duplicate records across queries
+  - [x] Opportunities that change set-aside type
 
 ### 3.6 CLI Commands
 - [x] Add `load-opportunities --days-back=N` command (also --max-calls, --historical, --set-aside)
@@ -193,6 +193,6 @@ Each call returns up to 1,000 opportunities.
 - ~~Historical load~~ DONE (2026-02-28)
 - Non-set-aside opportunities for competitive analysis
 - Data quality verification (NAICS/set-aside code validation against ref tables)
-- Scheduled polling (Phase 6)
+- ~~Scheduled polling~~ DONE (Phase 6 - `run-job opportunities`)
 - Unit tests for opportunity_loader and sam_opportunity_client
 - Daily incremental load testing

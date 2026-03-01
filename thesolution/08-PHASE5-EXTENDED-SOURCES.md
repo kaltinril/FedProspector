@@ -82,7 +82,7 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
 ### Remaining Work
 - Bulk CSV download from USASpending download center
 - Aggregate spending analysis queries
-- CLI command for USASpending loads (currently API-only)
+- ~~CLI command for USASpending loads~~ DONE -- `load-transactions` and `burn-rate` commands implemented in Phase 5B-Enhance
 
 ---
 

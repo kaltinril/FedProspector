@@ -48,7 +48,7 @@ pbdc/
 **File**: [04-PHASE1-FOUNDATION.md](04-PHASE1-FOUNDATION.md)
 
 - ~~Set up MySQL database~~ 39 tables + 2 views
-- ~~Load reference data from CSVs~~ 12,988 rows across 11 tables
+- ~~Load reference data from CSVs~~ ~13,001 rows across 11 tables (originally 12,988 in Phase 1; Phase 7 added ref_sba_type + ref_entity_structure)
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
 - ~~CLI entry point~~ `python main.py` (38 commands across 11 `cli/` modules)

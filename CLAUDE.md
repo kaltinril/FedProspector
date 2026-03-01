@@ -115,3 +115,5 @@ These were discovered during the first import attempt and must be handled in the
 | Database maintenance | `fed_prospector/etl/db_maintenance.py` |
 | CLI modules (refactored from main.py) | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward) |
 | Prior import progress notes (archived) | `OLD_ATTEMPTS/local database/progress story.txt` |
+| SAM Contract Awards API research | `workdir/converted/sam-contract-awards-api.md` |
+| USASpending Transactions API research | `workdir/converted/usaspending-transactions-api.md` |

@@ -20,10 +20,10 @@
   - [x] ETL tables (4 tables)
   - [x] Prospecting tables (5 tables, schema doc said 4 but saved_search was a 5th)
   - [x] Views (2 views)
-- [x] Verify all tables created successfully (35 tables + 2 views confirmed)
+- [x] Verify all tables created successfully (35 tables + 2 views confirmed at Phase 1; now 39 tables + 2 views after all phases)
 - [x] Verify foreign key relationships are correct (15 FKs confirmed)
 
-> **Note**: Schema doc summary said 32 tables but actual DDL defines 35. Originally 34 from Phase 1; usaspending_award added in Phase 5B. The ref_entity_structure (10th reference table) and saved_search (5th prospecting table) were listed in the DDL but not in the count summary. All are created.
+> **Note**: Schema doc summary said 32 tables but actual DDL defines 35. Originally 34 from Phase 1; usaspending_award added in Phase 5B. The ref_entity_structure (10th reference table) and saved_search (5th prospecting table) were listed in the DDL but not in the count summary. All are created. **Current total (all phases complete)**: 39 tables + 2 views. Phase 5 added sam_exclusion, sam_subaward, usaspending_transaction; Phase 7 added ref_sba_type.
 
 ### 1.2 Python Project Scaffolding -- DONE (2026-02-22)
 - [x] Create project directory structure per [03-PYTHON-ARCHITECTURE.md](03-PYTHON-ARCHITECTURE.md)
@@ -47,7 +47,7 @@
 - [x] `ref_fips_county` - 3,243 rows (state carried forward from group headers)
 - [x] `ref_business_type` - 75 rows
 - [x] `ref_set_aside_type` - 14 rows (hardcoded seed data)
-- [x] Total: 12,988 rows across 9 tables
+- [x] Total: 12,988 rows across 9 tables (now 11 tables / ~13,001 rows after Phase 7 added ref_sba_type and ref_entity_structure)
 
 > **Known Issue**: SBA size standards CSV has 18 "exception" NAICS codes (e.g., `115310e1`, `541330e2`) that don't match standard NAICS codes. These represent alternate size standards for specific subsectors. Skipped with warnings for now - could be handled by stripping the suffix and storing as a secondary record.
 
@@ -87,8 +87,8 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 35 tables + 2 views
-python main.py load-lookups          # Load all 9 reference tables from CSVs
+python main.py build-database        # Create/rebuild all 39 tables + 2 views
+python main.py load-lookups          # Load all 11 reference tables from CSVs
 python main.py load-lookups --table naics   # Load just one table
 python main.py status                # Show everything: tables, counts, API status
 python main.py check-api             # Test SAM.gov API key (uses 1 call)
@@ -99,8 +99,8 @@ python main.py build-database --drop-first  # Nuclear option: drop and rebuild
 
 ## Acceptance Criteria
 
-1. [x] MySQL database has all 35 tables and 2 views created
-2. [x] All 9 reference tables are populated with correct row counts (12,988 total)
+1. [x] MySQL database has all 35 tables and 2 views created (now 39 tables + 2 views after later phases)
+2. [x] All 9 reference tables are populated with correct row counts (12,988 total; now 11 tables / ~13,001 rows after Phase 7)
 3. [x] Python project runs `main.py status` and shows database connection + table stats
 4. [x] `.env.example` exists with all required config keys documented
 5. [x] No hardcoded credentials anywhere in code
