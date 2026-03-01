@@ -10,6 +10,8 @@ Pagination: page-based (page starts at 0, size max 10)
 Rate limit: Shares daily quota with other SAM.gov APIs
 """
 
+# OpenAPI spec: thesolution/sam_gov_api/exclusions-api.yaml
+
 import logging
 from datetime import date, datetime
 

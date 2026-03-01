@@ -9,6 +9,8 @@ Pagination: page-based (pageNumber starts at 0, pageSize max 1,000)
 Rate limit: Shares daily quota with other SAM.gov APIs
 """
 
+# OpenAPI spec: thesolution/sam_gov_api/subawardreportingpublicapi.yaml
+
 import logging
 from datetime import date, datetime
 

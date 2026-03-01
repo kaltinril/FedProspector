@@ -10,6 +10,8 @@ Pagination: offset-based (limit max 100, offset starts at 0)
 Rate limit: Shares daily quota with other SAM.gov APIs
 """
 
+# OpenAPI spec: thesolution/sam_gov_api/fh-public-hierarchy.yml, fh-public-org.yml
+
 import logging
 from datetime import date, datetime
 

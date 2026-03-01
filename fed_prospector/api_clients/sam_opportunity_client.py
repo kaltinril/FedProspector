@@ -10,6 +10,8 @@ Endpoint: /opportunities/v2/search
 Free tier: 10 requests/day (shared with entity API, configurable via SAM_DAILY_LIMIT)
 """
 
+# OpenAPI spec: thesolution/sam_gov_api/get-opportunities-v2.yaml
+
 import logging
 from datetime import date, datetime, timedelta
 

@@ -9,6 +9,8 @@ Extract files are ZIP archives containing either pipe-delimited DAT
 files (V1) or JSON files (V2).
 """
 
+# OpenAPI spec: thesolution/sam_gov_api/sam-entity-extracts-api.yaml
+
 import json
 import logging
 import zipfile

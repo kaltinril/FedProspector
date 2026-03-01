@@ -11,6 +11,8 @@ Date format: [MM/DD/YYYY,MM/DD/YYYY] range format (with square brackets)
 Rate limit: Shares daily quota with other SAM.gov APIs
 """
 
+# OpenAPI spec: thesolution/sam_gov_api/contract-awards.yaml
+
 import logging
 from datetime import date, datetime
 

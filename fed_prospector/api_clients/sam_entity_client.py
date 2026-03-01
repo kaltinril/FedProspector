@@ -9,6 +9,8 @@ Endpoint: /entity-information/v3/entities
 Free tier: 10 requests/day (configurable via SAM_DAILY_LIMIT env var)
 """
 
+# OpenAPI spec: thesolution/sam_gov_api/entity-api.yaml
+
 import logging
 from datetime import date, datetime
 
@@ -147,7 +149,7 @@ class SAMEntityClient(BaseAPIClient):
         """Search entities with arbitrary filters. Returns a generator.
 
         Passes all keyword arguments directly as SAM.gov API query parameters.
-        See the OpenAPI spec for valid parameter names.
+        See the OpenAPI spec (thesolution/sam_gov_api/entity-api.yaml) for valid parameter names.
 
         Common filter parameters:
             ueiSAM, legalBusinessName, dbaName, registrationStatus,

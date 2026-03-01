@@ -93,7 +93,7 @@ These were discovered during the first import attempt and must be handled in the
 | Proposed MySQL architecture | `workdir/converted/proposed mysql solution.md` |
 | SAM Entity import doc (legacy) | `workdir/converted/PBDC - Import Entity API to SF.md` |
 | Business type codes | `OLD_RESOURCES/BusTypes.csv` |
-| OpenAPI specs (archived) | `OLD_RESOURCES/openapi_entityManagement.json`, `OLD_RESOURCES/samgov_complete.json` |
+| OpenAPI specs (archived, superseded by thesolution/sam_gov_api/) | `OLD_RESOURCES/openapi_entityManagement.json`, `OLD_RESOURCES/samgov_complete.json` |
 | DAT file parser (V2 pipe-delimited) | `fed_prospector/etl/dat_parser.py` |
 | Bulk loader (LOAD DATA INFILE) | `fed_prospector/etl/bulk_loader.py` |
 | SAM Opportunity API client | `fed_prospector/api_clients/sam_opportunity_client.py` |
@@ -117,6 +117,14 @@ These were discovered during the first import attempt and must be handled in the
 | Database maintenance | `fed_prospector/etl/db_maintenance.py` |
 | CLI modules (refactored from main.py) | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward) |
 | Prior import progress notes (archived) | `OLD_ATTEMPTS/local database/progress story.txt` |
+| SAM Contract Awards API spec (OpenAPI 3.0) | `thesolution/sam_gov_api/contract-awards.yaml` |
+| SAM Entity Management API spec (OpenAPI 3.0, v1-v4) | `thesolution/sam_gov_api/entity-api.yaml` |
+| SAM Opportunities v2 API spec (Swagger 2.0) | `thesolution/sam_gov_api/get-opportunities-v2.yaml` |
+| SAM Exclusions API spec (OpenAPI 3.0) | `thesolution/sam_gov_api/exclusions-api.yaml` |
+| SAM Entity/Exclusions Extracts API spec (OpenAPI 3.0) | `thesolution/sam_gov_api/sam-entity-extracts-api.yaml` |
+| SAM Acquisition Subaward Reporting API spec (OpenAPI 3.0) | `thesolution/sam_gov_api/subawardreportingpublicapi.yaml` |
+| SAM Federal Hierarchy Public API spec - hierarchy endpoint | `thesolution/sam_gov_api/fh-public-hierarchy.yml` |
+| SAM Federal Hierarchy Public API spec - orgs endpoint | `thesolution/sam_gov_api/fh-public-org.yml` |
 | SAM Contract Awards API research | `workdir/converted/sam-contract-awards-api.md` |
 | USASpending Transactions API research | `workdir/converted/usaspending-transactions-api.md` |
 | Phase 8 Web/API Readiness gap analysis | `thesolution/13-PHASE8-WEB-API-READINESS.md` |
