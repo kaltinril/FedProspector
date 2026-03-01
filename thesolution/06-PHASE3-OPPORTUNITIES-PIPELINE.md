@@ -90,6 +90,16 @@
 
 ---
 
+## API Clarification
+
+**API clarification**: SAM.gov has two Opportunity APIs:
+- **Public API** (`/opportunities/v2/search`) — Read-only search. Requires public API key. Returns notices, POC data, set-aside info, award details. **This is what we use.**
+- **Authenticated Management API** (`/prod/opportunity/v1/api/`) — Full CRUD with 26 endpoints including full description text, attachment downloads, Interested Vendor List, and revision history. Requires System Account with IP whitelisting. **Not available to us.**
+
+The public API returns `pointOfContact` data (CO name, email, phone, title) which is captured starting in Phase 9 via the `contracting_officer` and `opportunity_poc` tables.
+
+---
+
 ## API Call Budget Strategy
 
 **With 10 calls/day (no role)**:

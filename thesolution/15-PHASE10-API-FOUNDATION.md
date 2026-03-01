@@ -65,7 +65,7 @@ api/
 }
 ```
 
-- [ ] Create `FedProspectorDbContext` with DbSet for each of the 47 tables
+- [ ] Create `FedProspectorDbContext` with DbSet for each of the 47 production tables (53 tables total: 47 production + 6 staging. EF Core models needed for 47 production tables only; staging tables are managed by the Python ETL pipeline.)
 - [ ] Map entity models to existing MySQL tables (table names, column names, data types)
 - [ ] Handle the existing table naming convention (snake_case MySQL -> PascalCase C#)
   > **Snake-case mapping**: Use `UseSnakeCaseNamingConvention()` from the `EFCore.NamingConventions` package to automatically map C# PascalCase properties to MySQL snake_case columns and tables. No manual mapping needed.
@@ -189,7 +189,7 @@ api/
 3. [ ] Swagger UI accessible at `/swagger` with all endpoint groups
 4. [ ] MySQL connection established -- `/health` returns OK with DB status
 5. [ ] JWT auth works: login returns token, protected endpoints reject without token
-6. [ ] All 45 table entity models mapped and queryable via EF Core
+6. [ ] All 47 production table entity models mapped and queryable via EF Core (6 staging tables excluded -- Python ETL only)
 7. [ ] Pagination model works on a test endpoint
 8. [ ] Serilog logging visible in console and file
 9. [ ] CORS allows configured frontend origin

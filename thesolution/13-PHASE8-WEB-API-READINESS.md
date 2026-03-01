@@ -89,7 +89,7 @@
 | `v_target_opportunities` | Pre-filtered WOSB/8(a) opportunities with NAICS descriptions, size standards, and prospect status -- the primary "what should we bid on" view |
 | `v_competitor_analysis` | Aggregated contractor profiles with business types, SBA certs, past contract history -- competitive intelligence |
 
-**Totals**: 39 tables + 2 views
+**Totals**: 39 tables + 2 views (current, pre-Phase 9)
 
 ---
 
@@ -251,6 +251,8 @@ CREATE TABLE IF NOT EXISTS notification (
     INDEX idx_notif_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
+
+Plus 6 raw staging tables (`stg_*_raw`) for API response preservation. These are ETL infrastructure managed by the Python pipeline, not production/application tables. They do not require C# EF Core models.
 
 ---
 
@@ -647,13 +649,13 @@ LIMIT %s
 | Metric | Count |
 |--------|-------|
 | **Current state** | 39 tables + 2 views |
-| **Tier 1 new tables** | +8 (`app_session`, `proposal`, `proposal_document`, `proposal_milestone`, `activity_log`, `notification`, `contracting_officer`, `opportunity_poc`) |
+| **Tier 1 new tables** | +14 (8 production: `app_session`, `proposal`, `proposal_document`, `proposal_milestone`, `activity_log`, `notification`, `contracting_officer`, `opportunity_poc`; plus 6 raw staging: `stg_*_raw` tables for API response preservation) |
 | **Tier 1 new columns** | ~15 columns across 4 existing tables (`app_user`, `opportunity`, `prospect`, `prospect_team_member`) |
-| **After Tier 1** | **47 tables + 2 views** |
+| **After Tier 1** | **53 tables + 2 views** |
 | **Tier 2 new tables** | +5 (`proposal_compliance_checklist`, `proposal_risk_register`, `bid_financial_estimate`, `win_loss_analysis`, `entity_past_performance`) |
-| **After Tier 2** | **52 tables + 2 views** |
+| **After Tier 2** | **58 tables + 2 views** |
 | **Tier 3 new tables** | +5 (clearance tracking, facility certs, vehicle registry, revenue forecast, capacity tracking) |
-| **After Tier 3** | **57 tables + 2 views** |
+| **After Tier 3** | **63 tables + 2 views** |
 
 ### Migration Order
 

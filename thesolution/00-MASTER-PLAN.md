@@ -145,22 +145,22 @@ pbdc/
 
 **Scope**:
 - [x] Gap analysis complete — schema audit, missing tables, missing columns documented
-- [ ] Add 8 new tables (app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc)
+- [ ] Add 14 new tables (8 production: app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc; plus 6 raw staging: `stg_*_raw` tables for API response preservation)
 - [ ] Add ~15 new columns across 4 existing tables (app_user, opportunity, prospect, prospect_team_member)
 - [ ] Build C# API backend (21 endpoints documented)
 - [ ] Replicate prospect status flow, Go/No-Go scoring, burn rate logic in C#
 
-**Impact**: Current 39 tables + 2 views → 47 tables + 2 views (Tier 1 MVP)
+**Impact**: Current 39 tables + 2 views → 53 tables + 2 views (Tier 1 MVP). Plus 6 raw staging tables (`stg_*_raw`) for API response preservation.
 
 ### Phase 9: Schema Evolution
 **Status**: PLANNING
 **Document**: [14-PHASE9-SCHEMA-EVOLUTION.md](14-PHASE9-SCHEMA-EVOLUTION.md)
 
 **Scope**:
-- [ ] Add 8 new Tier 1 tables (app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc)
+- [ ] Add 14 new tables (8 production: app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc; plus 6 raw staging: `stg_*_raw`)
 - [ ] ALTER 4 existing tables with ~15 new columns (app_user, opportunity, prospect, prospect_team_member)
 - [ ] Update `build-database` CLI to include new schema file
-- [ ] Result: 39 → 47 tables + 2 views
+- [ ] Result: 39 → 53 tables + 2 views
 
 ### Phase 10: C# API Foundation
 **Status**: PLANNING
@@ -169,7 +169,7 @@ pbdc/
 
 **Scope**:
 - [ ] ASP.NET Core Web API project (.NET 8+)
-- [ ] MySQL connectivity via Pomelo EF Core + entity models for 47 tables
+- [ ] MySQL connectivity via Pomelo EF Core + entity models for 53 tables total (47 production + 6 staging). EF Core models needed for 47 production tables only; staging tables are managed by the Python ETL pipeline.
 - [ ] JWT authentication middleware + BCrypt password hashing
 - [ ] Swagger/OpenAPI documentation
 - [ ] Repository pattern, pagination, DTOs, base controller

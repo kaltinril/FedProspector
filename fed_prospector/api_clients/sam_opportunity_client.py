@@ -4,7 +4,8 @@ Wraps the Opportunities Search API for finding federal contract opportunities.
 Provides convenience methods for WOSB and 8(a) set-aside searches, which are
 the primary prospecting use case for this system.
 
-API docs: https://open.gsa.gov/api/opportunities-api/
+Public API docs: https://open.gsa.gov/api/get-opportunities-public-api/
+Auth API docs (not used - requires System Account): https://open.gsa.gov/api/opportunities-api/
 Endpoint: /opportunities/v2/search
 Free tier: 10 requests/day (shared with entity API, configurable via SAM_DAILY_LIMIT)
 """

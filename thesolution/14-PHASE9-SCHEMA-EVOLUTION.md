@@ -2,20 +2,136 @@
 
 **Status**: PLANNING
 **Dependencies**: Phase 8 (Gap Analysis) complete
-**Deliverable**: SQL migration script `fed_prospector/db/schema/09_web_api_tables.sql` + updated `build-database` CLI
+**Deliverable**: SQL migration scripts `fed_prospector/db/schema/09a_raw_staging_tables.sql` (staging) + `fed_prospector/db/schema/09_web_api_tables.sql` (production) + updated `build-database` CLI
 **Repository**: `pbdc` (this repo -- these are MySQL schema changes)
 
 ---
 
 ## Overview
 
-Execute the Tier 1 database changes identified in Phase 8's gap analysis. Add 8 new tables and ~15 new columns to 4 existing tables to support the C# API backend. All changes are additive -- the Python ETL pipeline is unaffected.
+Execute the Tier 1 database changes identified in Phase 8's gap analysis. Add 14 new tables (8 production + 6 raw staging) and ~15 new columns to 4 existing tables to support the C# API backend and raw data replay. All changes are additive -- the Python ETL pipeline is unaffected.
 
-**Result**: 39 tables -> 47 tables + 2 views (unchanged)
+**Result**: 39 tables -> 53 tables + 2 views (unchanged)
 
 ---
 
-## 9.1 New Tables (8)
+## 9.1 Raw Staging Tables (6)
+
+The entity pipeline already stores raw API responses in `stg_entity_raw` (see `02_entity_tables.sql`) before normalizing into production tables. This section extends that pattern to the remaining 6 data sources, enabling:
+
+- **Re-processing/replay** without re-fetching from APIs
+- **Capturing fields we don't yet normalize** (e.g., `pointOfContact` arrays, nested sub-objects)
+- **Historical audit trail** of what each API returned and when
+- **Schema evolution safety** -- rebuild production tables from raw data if column definitions change
+
+All 6 tables follow the same structure: an auto-increment PK, a `load_id` (links to `etl_load_log`), a natural key for the source record, the full `raw_json` (MySQL JSON type), a `raw_record_hash` (SHA-256 for change detection), a `processed` flag, and an optional `error_message`.
+
+**Deliverable file**: `fed_prospector/db/schema/09a_raw_staging_tables.sql` (separate from production DDL in `09_web_api_tables.sql`)
+
+- [ ] Create all 6 raw staging tables
+
+```sql
+-- ============================================================
+-- Raw staging tables: preserve full API responses for replay
+-- Pattern matches existing stg_entity_raw table
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS stg_opportunity_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    notice_id          VARCHAR(100) NOT NULL,
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_opp_load (load_id),
+    INDEX idx_stg_opp_notice (notice_id),
+    INDEX idx_stg_opp_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS stg_fpds_award_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    contract_id        VARCHAR(50) NOT NULL,
+    modification_number VARCHAR(10),
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_fpds_load (load_id),
+    INDEX idx_stg_fpds_contract (contract_id),
+    INDEX idx_stg_fpds_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS stg_usaspending_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    award_id           VARCHAR(100) NOT NULL,
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_usa_load (load_id),
+    INDEX idx_stg_usa_award (award_id),
+    INDEX idx_stg_usa_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS stg_exclusion_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    record_id          VARCHAR(100) NOT NULL,
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_excl_load (load_id),
+    INDEX idx_stg_excl_record (record_id),
+    INDEX idx_stg_excl_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS stg_fedhier_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    fh_org_id          INT NOT NULL,
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_fh_load (load_id),
+    INDEX idx_stg_fh_org (fh_org_id),
+    INDEX idx_stg_fh_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS stg_subaward_raw (
+    id                 INT AUTO_INCREMENT PRIMARY KEY,
+    load_id            INT NOT NULL,
+    prime_piid         VARCHAR(50) NOT NULL,
+    sub_uei            VARCHAR(12),
+    raw_json           JSON NOT NULL,
+    raw_record_hash    CHAR(64) NOT NULL,
+    processed          CHAR(1) NOT NULL DEFAULT 'N',
+    error_message      TEXT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_stg_sub_load (load_id),
+    INDEX idx_stg_sub_piid (prime_piid),
+    INDEX idx_stg_sub_processed (processed)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+> **Replay capability**: To rebuild production tables from raw data, query `stg_*_raw WHERE processed = 'Y'` and re-run the normalize step. The `raw_record_hash` (SHA-256) enables change detection without re-processing unchanged records.
+
+> **Python loader modifications**: Each of the 6 loaders (`opportunity_loader.py`, `awards_loader.py`, `usaspending_loader.py`, `exclusions_loader.py`, `fedhier_loader.py`, `subaward_loader.py`) needs a one-line change: insert the raw JSON into the staging table before calling the normalize function. This matches the existing pattern in `bulk_loader.py` for entities.
+
+> **Storage note**: Raw JSON for ~500K entities is ~2-3GB. Opportunity and award volumes are smaller. The staging tables use MySQL's native JSON type for efficient storage and querying.
+
+---
+
+## 9.2 New Tables (8)
 
 ### Table: `app_session`
 
@@ -253,7 +369,7 @@ Indexes beyond PK: `idx_oppoc_unique` (prevents duplicate pairings), `idx_oppoc_
 
 ---
 
-## 9.2 ALTER Existing Tables
+## 9.3 ALTER Existing Tables
 
 ### `app_user` -- Add authentication fields
 
@@ -330,15 +446,16 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ---
 
-## 9.3 Update build-database CLI
+## 9.4 Update build-database CLI
 
+- [ ] Add `09a_raw_staging_tables.sql` to the schema file list in `build-database` command (before `09_web_api_tables.sql`)
 - [ ] Add `09_web_api_tables.sql` to the schema file list in `build-database` command
-- [ ] Ensure table creation order respects foreign key dependencies (ALTER existing tables first, then new tables in dependency order)
-- [ ] Test: `python main.py build-database` creates all 47 tables without errors
+- [ ] Ensure table creation order respects foreign key dependencies (staging tables first, then ALTER existing tables, then new production tables in dependency order)
+- [ ] Test: `python main.py build-database` creates all 53 tables without errors
 
 ---
 
-## 9.4 Update load-lookups (if applicable)
+## 9.5 Update load-lookups (if applicable)
 
 - [ ] No new reference data needed for Tier 1 tables
 - [ ] Verify existing reference data is unaffected
@@ -347,10 +464,10 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ## Acceptance Criteria
 
-1. [ ] All 8 new tables created successfully in MySQL
+1. [ ] All 14 new tables (8 production + 6 staging) created successfully in MySQL
 2. [ ] All 4 ALTER TABLE statements execute without errors on existing data
-3. [ ] `python main.py build-database` creates all 47 tables + 2 views
-4. [ ] `python main.py status` reflects 47 tables
+3. [ ] `python main.py build-database` creates all 53 tables + 2 views
+4. [ ] `python main.py status` reflects 53 tables
 5. [ ] All existing CLI commands still work (ETL unaffected)
 6. [ ] Existing data in `app_user`, `opportunity`, `prospect`, `prospect_team_member` preserved
 7. [ ] Foreign key relationships are correct (test with sample INSERT)
@@ -366,15 +483,16 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 ### Migration Order
 
-1. **ALTER `app_user` first** -- auth fields are needed before `app_session` can reference the updated table
-2. **Create `contracting_officer`** -- must exist before `opportunity_poc` can reference it
-3. **ALTER remaining existing tables** -- `opportunity`, `prospect`, `prospect_team_member`
-4. **Create `opportunity_poc`** -- depends on `opportunity` and `contracting_officer`
-5. **Create remaining Tier 1 tables in dependency order**:
+1. **Create all 6 raw staging tables first** (`09a_raw_staging_tables.sql`) -- these have NO foreign keys and can be created in any order, so they are the safest starting point
+2. **ALTER `app_user`** -- auth fields are needed before `app_session` can reference the updated table
+3. **Create `contracting_officer`** -- must exist before `opportunity_poc` can reference it
+4. **ALTER remaining existing tables** -- `opportunity`, `prospect`, `prospect_team_member`
+5. **Create `opportunity_poc`** -- depends on `opportunity` and `contracting_officer`
+6. **Create remaining Tier 1 tables in dependency order**:
    - `app_session` (depends on `app_user`)
    - `proposal` (depends on `prospect` and `app_user`)
    - `proposal_document` (depends on `proposal` and `app_user`)
    - `proposal_milestone` (depends on `proposal` and `app_user`)
    - `activity_log` (depends on `app_user`)
    - `notification` (depends on `app_user`)
-6. **Verify** -- run `build-database` and `status` commands to confirm 47 tables
+7. **Verify** -- run `build-database` and `status` commands to confirm 53 tables
