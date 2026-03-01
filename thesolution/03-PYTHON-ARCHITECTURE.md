@@ -79,8 +79,10 @@ fed_prospector/
         prospecting.py           # add-user, list-users, create/update/reassign/list/show prospect, notes, teams, saved searches, dashboard
         calc.py                  # load-calc
         awards.py                # load-awards
+        fedhier.py               # load-hierarchy, search-agencies
+        exclusions.py            # load-exclusions, check-exclusion, check-prospects
         spending.py              # load-transactions, burn-rate
-    main.py                      # CLI entry point (126 lines, delegates to cli/ modules)
+    main.py                      # CLI entry point (146 lines, delegates to cli/ modules)
     requirements.txt
     requirements-dev.txt
     .env.example
@@ -97,17 +99,17 @@ fed_prospector/
 | `api_clients/sam_entity_client.py` | Implemented | Phase 2 - v3 API, WOSB/8(a) search |
 | `api_clients/sam_extract_client.py` | Implemented | Phase 2 - monthly/daily download, ZIP, JSON streaming |
 | `api_clients/sam_opportunity_client.py` | Implemented | Phase 3 - v2 search, 5-call budget, priority set-aside ordering, date range splitting |
-| `api_clients/sam_fedhier_client.py` | Planned | Phase 5 |
+| `api_clients/sam_fedhier_client.py` | Implemented | Phase 5D - v1 API, full hierarchy refresh, agency search |
 | `api_clients/sam_awards_client.py` | Implemented | Phase 5A - v1 API, search by NAICS/awardee/solicitation |
-| `api_clients/sam_exclusions_client.py` | Planned | Phase 5 |
-| `api_clients/sam_subaward_client.py` | Planned | Phase 5 |
-| `api_clients/fpds_client.py` | Planned | Phase 5 |
+| `api_clients/sam_exclusions_client.py` | Implemented | Phase 5E - v4 API, check UEI/name, batch entity checks |
+| `api_clients/sam_subaward_client.py` | Planned | Phase 5G |
+| `api_clients/fpds_client.py` | Deprecated | FPDS decommissioned Feb 2026, use SAM Contract Awards API |
 | `api_clients/usaspending_client.py` | Implemented | Phase 5B - POST-based search, no auth, no rate limits |
 | `api_clients/calc_client.py` | Implemented | Phase 5C - GET-based, no auth, no rate limits |
 | `etl/load_manager.py` | Implemented | Phase 1 |
 | `etl/entity_loader.py` | Implemented | Phase 2 - JSON normalization, 1+8 tables, SHA-256, batch commits |
 | `etl/opportunity_loader.py` | Implemented | Phase 3 - SHA-256 change detection, opportunity_history, batch commits |
-| `etl/reference_loader.py` | Implemented | Phase 1 |
+| `etl/reference_loader.py` | Implemented | Phase 1 + Phase 7 enrichment (hierarchy, categories, flags) |
 | `etl/change_detector.py` | Implemented | Phase 2 |
 | `etl/data_cleaner.py` | Implemented | Phase 2 - all 10 quality rules + DB-driven rules |
 | `etl/dat_parser.py` | Implemented | Phase 2 - V2 pipe-delimited DAT files |
@@ -116,12 +118,13 @@ fed_prospector/
 | `etl/usaspending_loader.py` | Implemented | Phase 5B/5B-Enhance - SHA-256 change detection, batch upsert, transactions, burn rate |
 | `etl/calc_loader.py` | Implemented | Phase 5C - full_refresh with TRUNCATE + reload |
 | `etl/prospect_manager.py` | Implemented | Phase 4 - prospect tracking, saved searches, scoring, dashboard |
-| `etl/fedhier_loader.py` | Planned | Phase 5D |
-| `etl/fpds_loader.py` | Planned | Phase 5F |
+| `etl/fedhier_loader.py` | Implemented | Phase 5D - hierarchy refresh, agency org normalization |
+| `etl/exclusions_loader.py` | Implemented | Phase 5E - exclusion loading, prospect/team member cross-check |
+| `etl/fpds_loader.py` | Deprecated | FPDS decommissioned Feb 2026, use awards_loader.py |
 | `db/connection.py` | Implemented | Phase 1 |
-| `db/schema/*.sql` | Implemented | Phase 1 - 36 tables + 2 views |
-| `main.py` | Implemented | Phase 5A refactor - 126 lines, delegates to 7 cli/ modules (26 commands) |
-| `cli/*.py` | Implemented | Phase 5A - 7 modules: database, entities, opportunities, prospecting, calc, awards, spending |
+| `db/schema/*.sql` | Implemented | Phase 1 + Phase 5/7 - 38 tables + 2 views |
+| `main.py` | Implemented | 146 lines, delegates to 9 cli/ modules (31 commands) |
+| `cli/*.py` | Implemented | 9 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending |
 | `scheduler/` | Planned | Phase 6 |
 
 ## Core Dependencies

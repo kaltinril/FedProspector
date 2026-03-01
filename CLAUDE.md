@@ -67,7 +67,7 @@ These were discovered during the first import attempt and must be handled in the
 
 | What | Location |
 |------|----------|
-| Python application | `fed_prospector/` (CLI: `python main.py --help`, 26 commands in 7 `cli/` modules) |
+| Python application | `fed_prospector/` (CLI: `python main.py --help`, 31 commands in 9 `cli/` modules) |
 | Plan documents | `thesolution/` |
 | Credentials (DB, API keys) | `thesolution/credentials.yml` |
 | Quick start / environment setup | `thesolution/QUICKSTART.md` |
@@ -97,5 +97,9 @@ These were discovered during the first import attempt and must be handled in the
 | USASpending table DDL (2 tables) | `fed_prospector/db/schema/08_usaspending_tables.sql` |
 | SAM Contract Awards API client | `fed_prospector/api_clients/sam_awards_client.py` |
 | Awards loader (-> fpds_contract) | `fed_prospector/etl/awards_loader.py` |
-| CLI modules (refactored from main.py) | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, spending) |
+| SAM Federal Hierarchy API client | `fed_prospector/api_clients/sam_fedhier_client.py` |
+| Federal Hierarchy loader | `fed_prospector/etl/fedhier_loader.py` |
+| SAM Exclusions API client | `fed_prospector/api_clients/sam_exclusions_client.py` |
+| Exclusions loader | `fed_prospector/etl/exclusions_loader.py` |
+| CLI modules (refactored from main.py) | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending) |
 | Prior import progress notes (archived) | `OLD_ATTEMPTS/local database/progress story.txt` |

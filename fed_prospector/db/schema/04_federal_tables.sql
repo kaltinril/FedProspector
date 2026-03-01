@@ -1,5 +1,5 @@
 -- 04_federal_tables.sql
--- Federal data tables (3 tables) - Hierarchy, awards, rates
+-- Federal data tables (4 tables) - Hierarchy, awards, rates, exclusions
 
 USE fed_contracts;
 
@@ -16,12 +16,17 @@ CREATE TABLE IF NOT EXISTS federal_organization (
     level                INT,
     created_date         DATE,
     last_modified_date   DATE,
+    record_hash          CHAR(64),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_load_id         INT,
     PRIMARY KEY (fh_org_id),
     INDEX idx_fh_parent (parent_org_id),
     INDEX idx_fh_agency (agency_code),
-    INDEX idx_fh_type (fh_org_type)
+    INDEX idx_fh_type (fh_org_type),
+    INDEX idx_fh_status (status),
+    INDEX idx_fh_cgac (cgac),
+    INDEX idx_fh_hash (record_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS fpds_contract (
@@ -99,4 +104,31 @@ CREATE TABLE IF NOT EXISTS gsa_labor_rate (
     INDEX idx_labor_category (labor_category),
     INDEX idx_labor_schedule (schedule),
     INDEX idx_labor_size (business_size)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS sam_exclusion (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    uei                  VARCHAR(12),
+    cage_code            VARCHAR(10),
+    entity_name          VARCHAR(500),
+    first_name           VARCHAR(100),
+    middle_name          VARCHAR(100),
+    last_name            VARCHAR(100),
+    suffix               VARCHAR(20),
+    prefix               VARCHAR(20),
+    exclusion_type       VARCHAR(50),
+    exclusion_program    VARCHAR(50),
+    excluding_agency_code VARCHAR(10),
+    excluding_agency_name VARCHAR(200),
+    activation_date      DATE,
+    termination_date     DATE,
+    additional_comments  TEXT,
+    record_hash          CHAR(64),
+    first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_load_id         INT,
+    INDEX idx_excl_uei (uei),
+    INDEX idx_excl_entity_name (entity_name),
+    INDEX idx_excl_activation (activation_date),
+    INDEX idx_excl_type (exclusion_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

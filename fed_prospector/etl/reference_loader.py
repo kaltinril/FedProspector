@@ -1,4 +1,4 @@
-"""Load reference data from CSV files in workdir into ref_* tables. (Phase 1 - Task 1.3)"""
+"""Load reference data from CSV files in workdir into ref_* tables. (Phase 1 - Task 1.3, Phase 7 enrichment)"""
 
 import csv
 import logging
@@ -16,6 +16,46 @@ class ReferenceLoader:
     """
 
     BATCH_SIZE = 500
+
+    # ------------------------------------------------------------------
+    # Category and flag mappings for ref_business_type (Task 7.1)
+    # ------------------------------------------------------------------
+
+    BUSINESS_TYPE_CATEGORIES = {
+        "Government": {"2R", "2F", "12", "3I", "CY", "NG"},
+        "Ownership/Ethnicity": {"20", "OW", "FR", "QZ", "OY", "PI", "NB", "05", "XY", "8U", "1B", "1E", "1S"},
+        "Woman-Owned": {"A2", "8W", "8E", "8C", "8D"},
+        "Veteran": {"A5", "QF"},
+        "Small Business": {"27", "1D", "A3", "HQ", "JX"},
+        "Non-Profit/Foundation": {"A7", "A8", "2U", "BZ", "H2", "6D"},
+        "Education": {"M8", "G6", "G7", "G8", "HB", "1A", "1R", "ZW", "GW", "OH", "HS", "QU", "G3", "G5"},
+        "Organization Type": {"LJ", "XS", "MF", "2X", "HK", "QW"},
+        "Local Government": {"C8", "C7", "ZR", "MG", "C6", "H6", "TW", "UD", "8B", "86", "KM", "T4", "FO", "TR"},
+        "Healthcare": {"80", "FY"},
+        "Other": {"G9"},
+    }
+
+    SOCIOECONOMIC_CODES = {
+        "A2", "8W", "8E", "8C", "8D", "A5", "QF", "27", "23", "FR", "QZ",
+        "OY", "PI", "NB", "OW", "HQ", "JX", "1E", "1S", "05", "XY", "8U",
+        "1B", "A3", "A7",
+    }
+
+    SMALL_BUSINESS_CODES = {
+        "8W", "8E", "8C", "8D", "27", "1D", "A3", "QF", "HQ", "JX", "1E", "1S",
+    }
+
+    # ------------------------------------------------------------------
+    # NAICS hierarchy level mapping (Task 7.4)
+    # ------------------------------------------------------------------
+
+    NAICS_LEVEL_MAP = {
+        2: (1, "Sector"),
+        3: (2, "Subsector"),
+        4: (3, "Industry Group"),
+        5: (4, "NAICS Industry"),
+        6: (5, "National Industry"),
+    }
 
     def __init__(self):
         self.logger = logging.getLogger("fed_prospector.etl.reference_loader")
@@ -36,7 +76,9 @@ class ReferenceLoader:
             ("ref_state_code", self.load_state_codes),
             ("ref_fips_county", self.load_fips_counties),
             ("ref_business_type", self.load_business_types),
-            ("ref_set_aside_type", self.seed_set_aside_types),
+            ("ref_entity_structure", self.load_entity_structures),
+            ("ref_set_aside_type", self.load_set_aside_types),
+            ("ref_sba_type", self.load_sba_types),
         ]
         for table_name, loader in loaders:
             try:
@@ -49,11 +91,38 @@ class ReferenceLoader:
         return results
 
     # ------------------------------------------------------------------
+    # Helper: resolve category for a business type code
+    # ------------------------------------------------------------------
+
+    def _get_business_type_category(self, code):
+        """Return the category name for a given business type code."""
+        for category, codes in self.BUSINESS_TYPE_CATEGORIES.items():
+            if code in codes:
+                return category
+        return None
+
+    # ------------------------------------------------------------------
+    # Helper: compute NAICS hierarchy fields
+    # ------------------------------------------------------------------
+
+    def _naics_hierarchy(self, code):
+        """Return (code_level, level_name, parent_code) for a NAICS code."""
+        # Strip any non-digit suffix (exception codes like '115310e1')
+        digits_only = code.rstrip("abcdefghijklmnopqrstuvwxyz")
+        code_len = len(digits_only)
+        level_info = self.NAICS_LEVEL_MAP.get(code_len)
+        if level_info is None:
+            return (None, None, None)
+        code_level, level_name = level_info
+        parent_code = digits_only[:-1] if code_len > 2 else None
+        return (code_level, level_name, parent_code)
+
+    # ------------------------------------------------------------------
     # Individual loaders
     # ------------------------------------------------------------------
 
     def load_naics_codes(self):
-        """Load 2022 and 2017 NAICS codes into ref_naics_code."""
+        """Load 2022 and 2017 NAICS codes into ref_naics_code with hierarchy metadata."""
         conn = get_connection()
         cursor = conn.cursor()
         try:
@@ -72,12 +141,14 @@ class ReferenceLoader:
                     title = (row.get("2022 NAICS US Title") or "").strip()
                     if not code:
                         continue
-                    rows.append((code, title, "2022", "Y"))
+                    code_level, level_name, parent_code = self._naics_hierarchy(code)
+                    rows.append((code, title, code_level, level_name, parent_code, "2022", "Y"))
 
             sql = (
                 "INSERT INTO ref_naics_code "
-                "(naics_code, description, year_version, is_active) "
-                "VALUES (%s, %s, %s, %s)"
+                "(naics_code, description, code_level, level_name, parent_code, "
+                "year_version, is_active) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)"
             )
             for batch_start in range(0, len(rows), self.BATCH_SIZE):
                 batch = rows[batch_start : batch_start + self.BATCH_SIZE]
@@ -95,12 +166,14 @@ class ReferenceLoader:
                     title = (row.get("2017 NAICS Title") or "").rstrip()
                     if not code:
                         continue
-                    rows_2017.append((code, title, "2017", "Y"))
+                    code_level, level_name, parent_code = self._naics_hierarchy(code)
+                    rows_2017.append((code, title, code_level, level_name, parent_code, "2017", "Y"))
 
             sql_ignore = (
                 "INSERT IGNORE INTO ref_naics_code "
-                "(naics_code, description, year_version, is_active) "
-                "VALUES (%s, %s, %s, %s)"
+                "(naics_code, description, code_level, level_name, parent_code, "
+                "year_version, is_active) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)"
             )
             inserted_2017 = 0
             for batch_start in range(0, len(rows_2017), self.BATCH_SIZE):
@@ -307,8 +380,9 @@ class ReferenceLoader:
             conn.close()
 
     def load_country_codes(self):
-        """Load country codes into ref_country_code."""
-        file_path = settings.WORKDIR / "country_codes_combined.csv"
+        """Load country codes into ref_country_code with SAM.gov territory enrichment."""
+        iso_file = settings.WORKDIR / "country_codes_combined.csv"
+        sam_file = settings.WORKDIR / "GG-Updated-Country-and-State-Lists - Countries.csv"
         conn = get_connection()
         cursor = conn.cursor()
         try:
@@ -317,8 +391,10 @@ class ReferenceLoader:
             # Regex to strip footnote markers like [b], [a][c], etc.
             footnote_re = re.compile(r"\[[\w]+\]")
 
+            # Step 1: Load ISO 3166-1 data (primary source)
+            iso_codes = set()
             rows = []
-            with open(file_path, encoding="utf-8-sig", newline="") as f:
+            with open(iso_file, encoding="utf-8-sig", newline="") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     raw_name = (row.get("COUNTRY_NAME") or "").strip()
@@ -329,38 +405,71 @@ class ReferenceLoader:
                     independent = (row.get("INDEPENDENT") or "").strip() or None
                     if not three_code:
                         continue
+                    iso_codes.add(three_code)
+                    # is_iso_standard='Y', sam_gov_recognized='Y' (defaults)
                     rows.append((
-                        country_name, two_code, three_code, numeric_code, independent,
+                        country_name, two_code, three_code, numeric_code,
+                        independent, "Y", "Y",
                     ))
 
             sql = (
                 "INSERT INTO ref_country_code "
-                "(country_name, two_code, three_code, numeric_code, independent) "
-                "VALUES (%s, %s, %s, %s, %s)"
+                "(country_name, two_code, three_code, numeric_code, "
+                "independent, is_iso_standard, sam_gov_recognized) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)"
             )
             for batch_start in range(0, len(rows), self.BATCH_SIZE):
                 batch = rows[batch_start : batch_start + self.BATCH_SIZE]
                 cursor.executemany(sql, batch)
+            iso_count = len(rows)
 
-            # Insert missing special territories
+            # Step 2: Insert special territories (XKS, XWB, XGZ) if not in ISO
             special_territories = [
-                ("Kosovo", "XK", "XKS", None, None),
-                ("West Bank", "XW", "XWB", None, None),
-                ("Gaza Strip", "XG", "XGZ", None, None),
+                ("Kosovo", "XK", "XKS", None, None, "N", "Y"),
+                ("West Bank", "XW", "XWB", None, None, "N", "Y"),
+                ("Gaza Strip", "XG", "XGZ", None, None, "N", "Y"),
             ]
             sql_ignore = (
                 "INSERT IGNORE INTO ref_country_code "
-                "(country_name, two_code, three_code, numeric_code, independent) "
-                "VALUES (%s, %s, %s, %s, %s)"
+                "(country_name, two_code, three_code, numeric_code, "
+                "independent, is_iso_standard, sam_gov_recognized) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s)"
             )
             cursor.executemany(sql_ignore, special_territories)
-            extra = cursor.rowcount
+            special_count = cursor.rowcount
+            # Track which codes we have now
+            loaded_codes = iso_codes | {"XKS", "XWB", "XGZ"}
+
+            # Step 3: Merge SAM.gov territory codes not already loaded
+            sam_extra = []
+            with open(sam_file, encoding="utf-8-sig", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    three_code = (row.get("Country Code") or "").strip()
+                    country_name = (row.get("Country") or "").strip()
+                    if not three_code or three_code in loaded_codes:
+                        continue
+                    # SAM.gov-only codes: non-ISO, but SAM recognized
+                    # two_code not available in this file, use first 2 chars
+                    two_code = three_code[:2]
+                    sam_extra.append((
+                        country_name.title(), two_code, three_code, None,
+                        None, "N", "Y",
+                    ))
+                    loaded_codes.add(three_code)
+
+            if sam_extra:
+                cursor.executemany(sql_ignore, sam_extra)
+                self.logger.info(
+                    "Added %d SAM.gov-specific territory codes (non-ISO)",
+                    len(sam_extra),
+                )
 
             conn.commit()
-            total = len(rows) + extra
-            if extra:
+            total = iso_count + special_count + len(sam_extra)
+            if special_count:
                 self.logger.info(
-                    "Added %d special territory codes (XKS, XWB, XGZ)", extra
+                    "Added %d special territory codes (XKS, XWB, XGZ)", special_count
                 )
             return total
         except Exception:
@@ -458,7 +567,7 @@ class ReferenceLoader:
             conn.close()
 
     def load_business_types(self):
-        """Load business type codes into ref_business_type."""
+        """Load business type codes into ref_business_type with category and flag enrichment."""
         file_path = settings.OLD_RESOURCES / "BusTypes.csv"
         conn = get_connection()
         cursor = conn.cursor()
@@ -474,12 +583,19 @@ class ReferenceLoader:
                     classification = (row.get("Classification") or "").strip() or None
                     if not code:
                         continue
-                    rows.append((code, description, classification))
+                    category = self._get_business_type_category(code)
+                    is_socioeconomic = "Y" if code in self.SOCIOECONOMIC_CODES else "N"
+                    is_small_business = "Y" if code in self.SMALL_BUSINESS_CODES else "N"
+                    rows.append((
+                        code, description, classification,
+                        category, is_socioeconomic, is_small_business,
+                    ))
 
             sql = (
                 "INSERT INTO ref_business_type "
-                "(business_type_code, description, classification) "
-                "VALUES (%s, %s, %s)"
+                "(business_type_code, description, classification, "
+                "category, is_socioeconomic, is_small_business_related) "
+                "VALUES (%s, %s, %s, %s, %s, %s)"
             )
             for batch_start in range(0, len(rows), self.BATCH_SIZE):
                 batch = rows[batch_start : batch_start + self.BATCH_SIZE]
@@ -494,33 +610,107 @@ class ReferenceLoader:
             cursor.close()
             conn.close()
 
-    def seed_set_aside_types(self):
-        """Insert hardcoded set-aside type seed data into ref_set_aside_type."""
+    def load_entity_structures(self):
+        """Load entity structure codes into ref_entity_structure.
+
+        Seed data from SAM.gov documentation and database discovery (8 codes).
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("TRUNCATE TABLE ref_entity_structure")
+
+            seed_data = [
+                ("2J", "Sole Proprietorship"),
+                ("2K", "Partnership or Limited Liability Partnership"),
+                ("2L", "Corporate Entity (Not Tax Exempt)"),
+                ("2A", "U.S. Government Entity"),
+                ("8H", "Joint Venture"),
+                ("CY", "Foreign Government"),
+                ("X6", "International Organization"),
+                ("ZZ", "Other"),
+            ]
+
+            sql = (
+                "INSERT INTO ref_entity_structure "
+                "(structure_code, description) "
+                "VALUES (%s, %s)"
+            )
+            cursor.executemany(sql, seed_data)
+
+            conn.commit()
+            return len(seed_data)
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
+    def load_set_aside_types(self):
+        """Load set-aside types from CSV into ref_set_aside_type.
+
+        Replaces the previous seed_set_aside_types() hardcoded approach
+        with a CSV-driven load supporting category enrichment.
+        """
+        file_path = settings.REF_DATA_DIR / "set_aside_types.csv"
         conn = get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute("TRUNCATE TABLE ref_set_aside_type")
 
-            seed_data = [
-                ("WOSB", "Women-Owned Small Business Program Set-Aside", "Y"),
-                ("WOSBSS", "WOSB Program Sole Source", "Y"),
-                ("EDWOSB", "Economically Disadvantaged WOSB Set-Aside", "Y"),
-                ("EDWOSBSS", "EDWOSB Program Sole Source", "Y"),
-                ("8A", "8(a) Set-Aside", "Y"),
-                ("8AN", "8(a) Sole Source", "Y"),
-                ("SBA", "Total Small Business Set-Aside", "Y"),
-                ("SBP", "Partial Small Business Set-Aside", "Y"),
-                ("HZC", "HUBZone Set-Aside", "Y"),
-                ("HZS", "HUBZone Sole Source", "Y"),
-                ("SDVOSBC", "Service-Disabled Veteran-Owned SB Set-Aside", "Y"),
-                ("SDVOSBS", "SDVOSB Sole Source", "Y"),
-                ("VSA", "Veteran-Owned Small Business Set-Aside", "Y"),
-                ("VSB", "Veteran-Owned Small Business Sole Source", "Y"),
-            ]
+            rows = []
+            with open(file_path, encoding="utf-8-sig", newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    code = (row.get("set_aside_code") or "").strip()
+                    description = (row.get("description") or "").strip()
+                    is_sb = (row.get("is_small_business") or "Y").strip()
+                    category = (row.get("category") or "").strip() or None
+                    if not code:
+                        continue
+                    rows.append((code, description, is_sb, category))
 
             sql = (
                 "INSERT INTO ref_set_aside_type "
-                "(set_aside_code, description, is_small_business) "
+                "(set_aside_code, description, is_small_business, category) "
+                "VALUES (%s, %s, %s, %s)"
+            )
+            cursor.executemany(sql, rows)
+
+            conn.commit()
+            return len(rows)
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
+    # Keep old name as alias for backward compatibility with CLI
+    seed_set_aside_types = load_set_aside_types
+
+    def load_sba_types(self):
+        """Load SBA certification type codes into ref_sba_type.
+
+        Seed data from SAM.gov documentation and database discovery (5 codes).
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("TRUNCATE TABLE ref_sba_type")
+
+            seed_data = [
+                ("A6", "8(a) Program Participant", "8(a)"),
+                ("A9", "8(a) Joint Venture (Mentor-Protege)", "8(a)"),
+                ("A0", "8(a) Joint Venture (Non Mentor-Protege)", "8(a)"),
+                ("JT", "8(a) Joint Venture", "8(a)"),
+                ("XX", "SBA Certified HUBZone", "HUBZone"),
+            ]
+
+            sql = (
+                "INSERT INTO ref_sba_type "
+                "(sba_type_code, description, program_name) "
                 "VALUES (%s, %s, %s)"
             )
             cursor.executemany(sql, seed_data)

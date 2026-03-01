@@ -1,5 +1,5 @@
 -- 01_reference_tables.sql
--- Reference/lookup tables (9 tables)
+-- Reference/lookup tables (11 tables)
 -- Loaded once from CSV files, updated infrequently
 
 USE fed_contracts;
@@ -7,6 +7,9 @@ USE fed_contracts;
 CREATE TABLE IF NOT EXISTS ref_naics_code (
     naics_code       VARCHAR(11) NOT NULL,
     description      VARCHAR(500) NOT NULL,
+    code_level       TINYINT,
+    level_name       VARCHAR(30),
+    parent_code      VARCHAR(11),
     year_version     VARCHAR(4),
     is_active        CHAR(1) DEFAULT 'Y',
     footnote_id      VARCHAR(5),
@@ -55,12 +58,14 @@ CREATE TABLE IF NOT EXISTS ref_psc_code (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ref_country_code (
-    country_name    VARCHAR(100) NOT NULL,
-    two_code        VARCHAR(2) NOT NULL,
-    three_code      VARCHAR(3) NOT NULL,
-    numeric_code    VARCHAR(4),
-    independent     VARCHAR(3),
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    country_name        VARCHAR(100) NOT NULL,
+    two_code            VARCHAR(2) NOT NULL,
+    three_code          VARCHAR(3) NOT NULL,
+    numeric_code        VARCHAR(4),
+    independent         VARCHAR(3),
+    is_iso_standard     CHAR(1) DEFAULT 'Y',
+    sam_gov_recognized  CHAR(1) DEFAULT 'Y',
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (three_code),
     INDEX idx_two_code (two_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -80,9 +85,12 @@ CREATE TABLE IF NOT EXISTS ref_fips_county (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS ref_business_type (
-    business_type_code  VARCHAR(4) NOT NULL,
-    description         VARCHAR(200) NOT NULL,
-    classification      VARCHAR(50),
+    business_type_code         VARCHAR(4) NOT NULL,
+    description                VARCHAR(200) NOT NULL,
+    classification             VARCHAR(50),
+    category                   VARCHAR(50),
+    is_socioeconomic           CHAR(1) DEFAULT 'N',
+    is_small_business_related  CHAR(1) DEFAULT 'N',
     PRIMARY KEY (business_type_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -96,5 +104,13 @@ CREATE TABLE IF NOT EXISTS ref_set_aside_type (
     set_aside_code  VARCHAR(10) NOT NULL,
     description     VARCHAR(200) NOT NULL,
     is_small_business CHAR(1) DEFAULT 'Y',
+    category        VARCHAR(50),
     PRIMARY KEY (set_aside_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS ref_sba_type (
+    sba_type_code   VARCHAR(10) NOT NULL,
+    description     VARCHAR(200) NOT NULL,
+    program_name    VARCHAR(100),
+    PRIMARY KEY (sba_type_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

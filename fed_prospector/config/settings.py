@@ -20,13 +20,23 @@ SAM_API_BASE_URL = "https://api.sam.gov"
 SAM_DAILY_LIMIT = int(os.getenv("SAM_DAILY_LIMIT", "10"))
 SAM_DAILY_LIMIT_2 = int(os.getenv("SAM_DAILY_LIMIT_2", "1000"))
 
+# SAM.gov Federal Hierarchy API
+SAM_FED_HIERARCHY_URL = "https://api.sam.gov/prod/federalorganizations/v1/orgs"
+
+# SAM.gov Exclusions API
+SAM_EXCLUSIONS_URL = "https://api.sam.gov/entity-information/v4/exclusions"
+
 # GSA CALC API (no auth needed)
 CALC_API_BASE_URL = "https://api.gsa.gov/acquisition/calc/v3/api"
 
 # USASpending API (no auth needed)
 USASPENDING_API_BASE_URL = "https://api.usaspending.gov"
 
-# FPDS ATOM Feed (no auth needed)
+# SAM.gov Contract Awards API (replacement for FPDS)
+SAM_CONTRACT_AWARDS_URL = "https://api.sam.gov/contract-awards/v1/search"
+
+# FPDS ATOM Feed - DEPRECATED: ezSearch decommissioned Feb 24, 2026;
+# ATOM feed sunsetting later FY2026. Use SAM_CONTRACT_AWARDS_URL instead.
 FPDS_ATOM_BASE_URL = "https://www.fpds.gov/dbsight/FEEDS/ATOM"
 
 # Paths

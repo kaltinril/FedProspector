@@ -17,7 +17,7 @@ Get your local environment ready for the Federal Contract Prospecting System.
 | `fed_contracts` database | Ready | Created 2026-02-22, utf8mb4 charset |
 | `fed_app` user | Ready | Full privileges on `fed_contracts` |
 | SAM.gov API key | Ready | Free tier (10 calls/day), stored in `samgov.yml` and `credentials.yml` |
-| Reference CSV files | Ready | All 9 files present in `workdir/converted/` |
+| Reference CSV files | Ready | All 10 files present in `workdir/converted/` |
 
 > **Python note**: Python 3.10 has been uninstalled. `python` resolves to 3.14.3 via the Windows App Execution Alias. Use `python -m pip` for pip commands.
 
@@ -325,7 +325,7 @@ else:
 
 ## Step 6: Verify Reference Data Files
 
-The CSV files needed for Phase 1 reference table loading are already in place. All 9 confirmed present:
+The CSV files needed for reference table loading are already in place. All 10 confirmed present:
 
 | File | Location | Status |
 |------|----------|--------|
@@ -333,8 +333,10 @@ The CSV files needed for Phase 1 reference table loading are already in place. A
 | NAICS 2017 codes | `workdir/converted/local database/data_to_import/6-digit_2017_Codes.csv` | Present |
 | SBA size standards | `workdir/converted/local database/data_to_import/naics_size_standards.csv` | Present |
 | NAICS footnotes | `workdir/converted/local database/data_to_import/footnotes.csv` | Present |
+| Set-aside types | `workdir/converted/local database/data_to_import/set_aside_types.csv` | Present |
 | PSC codes | `workdir/converted/local database/PSC April 2022 - PSC for 042022.csv` | Present |
 | Country codes | `workdir/converted/country_codes_combined.csv` | Present |
+| SAM.gov countries | `workdir/converted/GG-Updated-Country-and-State-Lists - Countries.csv` | Present |
 | State codes | `workdir/converted/GG-Updated-Country-and-State-Lists - States.csv` | Present |
 | FIPS county codes | `workdir/converted/local database/FIPS COUNTY CODES.csv` | Present |
 | Business types | `OLD_RESOURCES/BusTypes.csv` | Present |
@@ -352,8 +354,8 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 36 tables + 2 views
-python main.py load-lookups          # Load all 9 reference tables from CSVs
+python main.py build-database        # Create/rebuild all 38 tables + 2 views
+python main.py load-lookups          # Load all 11 reference tables from CSVs
 python main.py status                # Show table counts, API status, recent loads
 python main.py check-api             # Test SAM.gov API key (uses 1 call)
 python main.py build-database --drop-first  # Nuclear option: drop and rebuild everything
@@ -381,7 +383,7 @@ python main.py load-entities --mode=daily --file=data/downloads/daily.json    # 
 
 See [05-PHASE2-ENTITY-PIPELINE.md](05-PHASE2-ENTITY-PIPELINE.md) for full details.
 
-**Phase 3** (Opportunities Pipeline) is IN PROGRESS. 57 opportunities loaded. Run the pipeline:
+**Phase 3** (Opportunities Pipeline) is IN PROGRESS. 12,209 opportunities loaded (2-year historical). Run the pipeline:
 
 ```bash
 # Phase 3 commands:
@@ -411,23 +413,30 @@ python main.py dashboard
 
 See [07-PHASE4-SALES-PROSPECTING.md](07-PHASE4-SALES-PROSPECTING.md) for full details.
 
-**Phase 5** (Extended Data Sources) is IN PROGRESS. Contract Awards, USASpending (+ transactions), GSA CALC+ complete:
+**Phase 5** (Extended Data Sources) is IN PROGRESS. 5A-5E complete, 5F deprecated, 5G pending:
 
 ```bash
 # Phase 5: Extended Data Sources
 python main.py load-calc                    # Load ~52K GSA labor rates (no API key needed)
 python main.py load-awards --naics=541511 --key=2   # Load contract awards from SAM.gov API
+python main.py load-hierarchy --key=2       # Load federal org hierarchy from SAM.gov
+python main.py search-agencies --name="Army"  # Search federal organizations
+python main.py load-exclusions --key=2      # Load exclusion records from SAM.gov
+python main.py check-exclusion --uei=ABC123 --key=2   # Check entity for exclusions
+python main.py check-prospects              # Check prospect team members against exclusions
 python main.py load-transactions --award-id CONT_AWD_...  # Load transaction history for an award
 python main.py burn-rate --award-id CONT_AWD_...          # Calculate spend velocity for an award
-
-# GSA CALC+ labor rates are refreshed nightly by GSA.
-# Reload monthly to stay current:
-python main.py load-calc
-# These are GSA schedule CEILING rates, NOT SCA wage determinations.
-# For SCA minimums, see DOL.gov wage determinations.
 ```
 
-> **Note**: CLI was refactored (Phase 5A) from monolithic main.py to 7 modules in `cli/` (26 total commands). Run `python main.py --help` for the full list.
+> **Note**: CLI was refactored from monolithic main.py to 9 modules in `cli/` (31 total commands). Run `python main.py --help` for the full list.
+
+**Phase 7** (Reference Data Enrichment) is COMPLETE. 11 reference tables with enriched metadata:
+
+```bash
+python main.py load-lookups                 # Reload all 11 enriched reference tables
+python main.py load-lookups --table=sba_type  # Load a specific reference table
+python main.py status                       # Show updated row counts for all tables
+```
 
 See [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md) for full details.
 

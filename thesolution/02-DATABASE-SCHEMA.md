@@ -19,12 +19,15 @@ Tables are organized into five groups:
 ## 1. Reference/Lookup Tables
 
 ### ref_naics_code
-NAICS classification codes (2-6 digit hierarchy). Sources: `2-6 digit_2022_Codes.csv`, `6-digit_2017_Codes.csv`
+NAICS classification codes (2-6 digit hierarchy) with level metadata. Sources: `2-6 digit_2022_Codes.csv`, `6-digit_2017_Codes.csv`
 
 ```sql
 CREATE TABLE ref_naics_code (
     naics_code       VARCHAR(11) NOT NULL,
     description      VARCHAR(500) NOT NULL,
+    code_level       TINYINT,                -- 1=Sector, 2=Subsector, 3=Industry Group, 4=NAICS Industry, 5=National Industry
+    level_name       VARCHAR(30),            -- Human-readable level name
+    parent_code      VARCHAR(11),            -- Parent NAICS code (left(code, len-1))
     year_version     VARCHAR(4),
     is_active        CHAR(1) DEFAULT 'Y',
     footnote_id      VARCHAR(5),
@@ -89,16 +92,18 @@ CREATE TABLE ref_psc_code (
 ```
 
 ### ref_country_code
-ISO country codes. Source: `country_codes_combined.csv`, `three letter country codes.csv`
+ISO country codes with SAM.gov territory enrichment. Source: `country_codes_combined.csv`, `GG-Updated-Country-and-State-Lists - Countries.csv`
 
 ```sql
 CREATE TABLE ref_country_code (
-    country_name    VARCHAR(100) NOT NULL,
-    two_code        VARCHAR(2) NOT NULL,
-    three_code      VARCHAR(3) NOT NULL,
-    numeric_code    VARCHAR(4),
-    independent     VARCHAR(3),
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    country_name        VARCHAR(100) NOT NULL,
+    two_code            VARCHAR(2) NOT NULL,
+    three_code          VARCHAR(3) NOT NULL,
+    numeric_code        VARCHAR(4),
+    independent         VARCHAR(3),
+    is_iso_standard     CHAR(1) DEFAULT 'Y',
+    sam_gov_recognized  CHAR(1) DEFAULT 'Y',
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (three_code),
     INDEX idx_two_code (two_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -129,13 +134,16 @@ CREATE TABLE ref_fips_county (
 ```
 
 ### ref_business_type
-Business type classification codes. Source: `OLD_RESOURCES/BusTypes.csv`
+Business type classification codes with category and socioeconomic flags. Source: `OLD_RESOURCES/BusTypes.csv`
 
 ```sql
 CREATE TABLE ref_business_type (
-    business_type_code  VARCHAR(4) NOT NULL,
-    description         VARCHAR(200) NOT NULL,
-    classification      VARCHAR(50),
+    business_type_code         VARCHAR(4) NOT NULL,
+    description                VARCHAR(200) NOT NULL,
+    classification             VARCHAR(50),
+    category                   VARCHAR(50),             -- Woman-Owned, Veteran, Government, etc.
+    is_socioeconomic           CHAR(1) DEFAULT 'N',
+    is_small_business_related  CHAR(1) DEFAULT 'N',
     PRIMARY KEY (business_type_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
@@ -152,14 +160,27 @@ CREATE TABLE ref_entity_structure (
 ```
 
 ### ref_set_aside_type
-Set-aside type codes for filtering opportunities
+Set-aside type codes for filtering opportunities. Source: `set_aside_types.csv` (23 entries)
 
 ```sql
 CREATE TABLE ref_set_aside_type (
     set_aside_code  VARCHAR(10) NOT NULL,
     description     VARCHAR(200) NOT NULL,
     is_small_business CHAR(1) DEFAULT 'Y',
+    category        VARCHAR(50),             -- WOSB, 8(a), HUBZone, SDVOSB, Veteran, General Small Business, etc.
     PRIMARY KEY (set_aside_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### ref_sba_type
+SBA certification type codes for entity SBA certifications lookup.
+
+```sql
+CREATE TABLE ref_sba_type (
+    sba_type_code   VARCHAR(10) NOT NULL,
+    description     VARCHAR(200) NOT NULL,
+    program_name    VARCHAR(100),            -- 8(a), HUBZone
+    PRIMARY KEY (sba_type_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
@@ -476,12 +497,17 @@ CREATE TABLE federal_organization (
     level                INT,
     created_date         DATE,
     last_modified_date   DATE,
+    record_hash          CHAR(64),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_load_id         INT,
     PRIMARY KEY (fh_org_id),
     INDEX idx_fh_parent (parent_org_id),
     INDEX idx_fh_agency (agency_code),
-    INDEX idx_fh_type (fh_org_type)
+    INDEX idx_fh_type (fh_org_type),
+    INDEX idx_fh_status (status),
+    INDEX idx_fh_cgac (cgac),
+    INDEX idx_fh_hash (record_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
@@ -569,6 +595,38 @@ CREATE TABLE gsa_labor_rate (
     INDEX idx_labor_category (labor_category),
     INDEX idx_labor_schedule (schedule),
     INDEX idx_labor_size (business_size)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### sam_exclusion
+SAM.gov debarred/suspended entity records for due diligence.
+
+```sql
+CREATE TABLE sam_exclusion (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    uei                  VARCHAR(12),
+    cage_code            VARCHAR(10),
+    entity_name          VARCHAR(500),
+    first_name           VARCHAR(100),
+    middle_name          VARCHAR(100),
+    last_name            VARCHAR(100),
+    suffix               VARCHAR(20),
+    prefix               VARCHAR(20),
+    exclusion_type       VARCHAR(50),
+    exclusion_program    VARCHAR(50),
+    excluding_agency_code VARCHAR(10),
+    excluding_agency_name VARCHAR(200),
+    activation_date      DATE,
+    termination_date     DATE,
+    additional_comments  TEXT,
+    record_hash          CHAR(64),
+    first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    last_load_id         INT,
+    INDEX idx_excl_uei (uei),
+    INDEX idx_excl_entity_name (entity_name),
+    INDEX idx_excl_activation (activation_date),
+    INDEX idx_excl_type (exclusion_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
@@ -845,37 +903,27 @@ CREATE TABLE saved_search (
 ## 7. Key Views
 
 ### v_target_opportunities
-Active WOSB/8(a) opportunities with enriched data.
+Active WOSB/8(a) opportunities with enriched reference data.
 
 ```sql
 CREATE OR REPLACE VIEW v_target_opportunities AS
 SELECT
-    o.notice_id,
-    o.title,
-    o.solicitation_number,
-    o.department_name,
-    o.office,
-    o.posted_date,
-    o.response_deadline,
+    o.notice_id, o.title, o.solicitation_number,
+    o.department_name, o.office, o.posted_date, o.response_deadline,
     DATEDIFF(o.response_deadline, NOW()) AS days_until_due,
-    o.set_aside_code,
-    o.set_aside_description,
-    o.naics_code,
-    n.description AS naics_description,
-    ss.size_standard,
-    ss.size_type,
-    o.award_amount,
-    o.pop_state,
-    o.pop_city,
-    o.description,
-    o.link,
-    p.prospect_id,
-    p.status AS prospect_status,
-    p.priority AS prospect_priority,
-    u.display_name AS assigned_to
+    o.set_aside_code, o.set_aside_description,
+    sa.category AS set_aside_category,
+    o.naics_code, n.description AS naics_description,
+    n.level_name AS naics_level, sector.description AS naics_sector,
+    ss.size_standard, ss.size_type,
+    o.award_amount, o.pop_state, o.pop_city, o.description, o.link,
+    p.prospect_id, p.status AS prospect_status,
+    p.priority AS prospect_priority, u.display_name AS assigned_to
 FROM opportunity o
 LEFT JOIN ref_naics_code n ON n.naics_code = o.naics_code
+LEFT JOIN ref_naics_code sector ON sector.naics_code = LEFT(o.naics_code, 2) AND sector.code_level = 1
 LEFT JOIN ref_sba_size_standard ss ON ss.naics_code = o.naics_code
+LEFT JOIN ref_set_aside_type sa ON sa.set_aside_code = o.set_aside_code
 LEFT JOIN prospect p ON p.notice_id = o.notice_id
 LEFT JOIN app_user u ON u.user_id = p.assigned_to
 WHERE o.active = 'Y'
@@ -884,25 +932,34 @@ WHERE o.active = 'Y'
 ```
 
 ### v_competitor_analysis
-Entity competitive intelligence using FPDS award history.
+Entity competitive intelligence with enriched reference data and FPDS award history.
 
 ```sql
 CREATE OR REPLACE VIEW v_competitor_analysis AS
 SELECT
-    e.uei_sam,
-    e.legal_business_name,
-    e.primary_naics,
-    GROUP_CONCAT(DISTINCT ebt.business_type_code) AS business_types,
-    GROUP_CONCAT(DISTINCT esc.sba_type_code) AS sba_certifications,
+    e.uei_sam, e.legal_business_name, e.primary_naics,
+    n.description AS naics_description, sector.description AS naics_sector,
+    es.description AS entity_structure,
+    GROUP_CONCAT(DISTINCT CONCAT(ebt.business_type_code, ':', COALESCE(rbt.description, ''))
+        ORDER BY ebt.business_type_code SEPARATOR '; ') AS business_types,
+    GROUP_CONCAT(DISTINCT rbt.category ORDER BY rbt.category SEPARATOR ', ') AS business_type_categories,
+    GROUP_CONCAT(DISTINCT CONCAT(esc.sba_type_code, ':', COALESCE(rst.description, ''))
+        ORDER BY esc.sba_type_code SEPARATOR '; ') AS sba_certifications,
     COUNT(DISTINCT fc.contract_id) AS past_contracts,
     SUM(fc.dollars_obligated) AS total_obligated,
     MAX(fc.date_signed) AS most_recent_award
 FROM entity e
+LEFT JOIN ref_naics_code n ON n.naics_code = e.primary_naics
+LEFT JOIN ref_naics_code sector ON sector.naics_code = LEFT(e.primary_naics, 2) AND sector.code_level = 1
+LEFT JOIN ref_entity_structure es ON es.structure_code = e.entity_structure_code
 LEFT JOIN entity_business_type ebt ON ebt.uei_sam = e.uei_sam
+LEFT JOIN ref_business_type rbt ON rbt.business_type_code = ebt.business_type_code
 LEFT JOIN entity_sba_certification esc ON esc.uei_sam = e.uei_sam
+LEFT JOIN ref_sba_type rst ON rst.sba_type_code = esc.sba_type_code
 LEFT JOIN fpds_contract fc ON fc.vendor_uei = e.uei_sam
 WHERE e.registration_status = 'A'
-GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics;
+GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics,
+         n.description, sector.description, es.description;
 ```
 
 ---
@@ -911,11 +968,11 @@ GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics;
 
 | Group | Tables | Purpose |
 |-------|--------|---------|
-| Reference (`ref_*`) | 10 | Lookup/classification data (includes ref_entity_structure) |
+| Reference (`ref_*`) | 11 | Lookup/classification data (includes ref_entity_structure, ref_sba_type) |
 | Entity | 10 | SAM.gov contractor data |
 | Opportunity | 2 | Contract opportunities |
-| Federal | 5 | Hierarchy, awards, rates, spending (includes usaspending_award + usaspending_transaction) |
+| Federal | 6 | Hierarchy, awards, rates, exclusions, spending (includes usaspending_award + usaspending_transaction) |
 | ETL | 4 | Load tracking and quality |
 | Prospecting | 5 | Sales pipeline (includes saved_search) |
-| **Total** | **36** | |
+| **Total** | **38** | |
 | **Views** | **2** | |

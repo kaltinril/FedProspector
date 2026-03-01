@@ -47,11 +47,11 @@ pbdc/
 **Status**: [x] COMPLETE (2026-02-22)
 **File**: [04-PHASE1-FOUNDATION.md](04-PHASE1-FOUNDATION.md)
 
-- ~~Set up MySQL database~~ 36 tables + 2 views
-- ~~Load reference data from CSVs~~ 12,988 rows across 9 tables
+- ~~Set up MySQL database~~ 38 tables + 2 views
+- ~~Load reference data from CSVs~~ 12,988 rows across 11 tables
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
-- ~~CLI entry point~~ `python main.py` (26 commands across 7 `cli/` modules)
+- ~~CLI entry point~~ `python main.py` (31 commands across 9 `cli/` modules)
 - **Deliverable**: DONE
 
 ### Phase 2: Entity Data Pipeline (Proof of Concept - 1 Source)
@@ -91,21 +91,21 @@ pbdc/
 - **Deliverable**: DONE
 
 ### Phase 5: Extended Data Sources (Remaining Phases Build-Out)
-**Status**: [~] IN PROGRESS (2026-02-28) - 5A, 5B, 5B-Enhance, 5C complete
+**Status**: [~] IN PROGRESS (2026-02-28) - 5A, 5B, 5B-Enhance, 5C, 5D, 5E complete; 5F deprecated; 5G pending
 **File**: [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md)
 
 - ~~SAM.gov Contract Awards API~~ `sam_awards_client.py` + `awards_loader.py` (v1 API, search by NAICS/awardee/solicitation, loads to `fpds_contract`)
 - ~~USASpending.gov API~~ `usaspending_client.py` + `usaspending_loader.py` (POST-based search, SHA-256 change detection, incumbent search working)
 - ~~USASpending Transaction History (5B-Enhance)~~ `usaspending_transaction` table, `load_transactions()`, `calculate_burn_rate()` for spend analysis
-- [ ] FPDS ATOM Feed (deep historical procurement data)
+- ~~FPDS ATOM Feed~~ DEPRECATED (Feb 2026) — replaced by SAM.gov Contract Awards API (5A)
 - ~~GSA CALC+ API~~ `calc_client.py` + `calc_loader.py` (full_refresh, ~52K labor rates loaded)
-- [ ] SAM.gov Federal Hierarchy API (agency org structure)
-- [ ] SAM.gov Exclusions API (due diligence)
+- ~~SAM.gov Federal Hierarchy API~~ `sam_fedhier_client.py` + `fedhier_loader.py` (v1 API, full hierarchy refresh, agency search)
+- ~~SAM.gov Exclusions API~~ `sam_exclusions_client.py` + `exclusions_loader.py` (v4 API, check UEI/name, prospect team member cross-check, loads to `sam_exclusion`)
 - [ ] SAM.gov Subaward Reporting API (subcontracting intelligence)
 - **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
-- **CLI refactored**: `main.py` (1752 -> 126 lines) with 26 commands split into `cli/` modules (database, entities, opportunities, prospecting, calc, awards, spending)
-- **New CLI commands**: `load-awards`, `load-transactions`, `burn-rate`
-- **Deliverable**: IN PROGRESS - 5A (Contract Awards), 5B (USASpending), 5B-Enhance (Transactions), 5C (GSA CALC+) complete; 5D/5E/5F/5G pending
+- **CLI refactored**: `main.py` (1752 -> 146 lines) with 31 commands split into 9 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending)
+- **New CLI commands**: `load-awards`, `load-hierarchy`, `search-agencies`, `load-exclusions`, `check-exclusion`, `check-prospects`, `load-transactions`, `burn-rate`
+- **Deliverable**: IN PROGRESS - 5A-5E complete, 5F deprecated, 5G pending
 
 ### Phase 6: Automation and Monitoring
 **Status**: [ ] Not Started
@@ -119,18 +119,18 @@ pbdc/
 - **Deliverable**: Hands-off daily operation with alerts for issues
 
 ### Phase 7: Reference Data Enrichment
-**Status**: [ ] Not Started
+**Status**: [x] COMPLETE (2026-02-28)
 **File**: [12-PHASE7-REFERENCE-ENRICHMENT.md](12-PHASE7-REFERENCE-ENRICHMENT.md)
 
-- Enrich `ref_business_type` with categories and socioeconomic flags
-- Load `ref_entity_structure` (currently empty -- 8 codes discovered from entity data)
-- Merge SAM.gov territory codes into `ref_country_code` with ISO standard flags
-- Add NAICS hierarchy metadata (Sector/Subsector/Industry Group/Industry/National Industry)
-- Expand `ref_set_aside_type` from 14 hardcoded to comprehensive CSV-driven load
-- New `ref_sba_type` lookup table for SBA certification codes
-- Update views with enriched JOINs for human-readable output
-- FPDS.gov deprecation: update Phase 5F docs, add SAM.gov Contract Awards API URL
-- **Deliverable**: All reference tables enriched, repeatable via `load-lookups`, views show human-readable data
+- ~~Enrich `ref_business_type`~~ categories (11 groups), socioeconomic flags, small business flags
+- ~~Load `ref_entity_structure`~~ 8 codes from entity data discovery
+- ~~Merge SAM.gov territory codes~~ `ref_country_code` with `is_iso_standard` flag (21 SAM-only territories)
+- ~~Add NAICS hierarchy metadata~~ `code_level`, `level_name`, `parent_code` (Sector→National Industry)
+- ~~Expand `ref_set_aside_type`~~ 23 entries from CSV with categories (was 14 hardcoded)
+- ~~New `ref_sba_type` lookup table~~ 5 SBA certification codes (A6, A9, A0, JT, XX)
+- ~~Update views~~ enriched JOINs for human-readable output (business types, NAICS sectors, SBA certs)
+- ~~FPDS.gov deprecation~~ documented in Phase 5F, SAM.gov Contract Awards API URL in settings.py
+- **Deliverable**: DONE
 
 ## Success Criteria
 

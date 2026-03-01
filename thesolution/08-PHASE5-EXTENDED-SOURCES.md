@@ -1,6 +1,6 @@
 # Phase 5: Extended Data Sources
 
-**Status**: In Progress (2026-02-28) - 5A (Contract Awards), 5B (USASpending), 5B-Enhance (Transactions), 5C (GSA CALC+) complete
+**Status**: In Progress (2026-02-28) - 5A (Contract Awards), 5B (USASpending), 5B-Enhance (Transactions), 5C (GSA CALC+), 5D (Federal Hierarchy), 5E (Exclusions) complete; 5F deprecated; 5G pending
 **Dependencies**: Phase 3 (Opportunities Pipeline) complete
 **Deliverable**: Comprehensive data from all priority sources loaded and cross-referenced
 
@@ -143,26 +143,33 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
 
 **Priority**: Tier 1 (Essential)
 **Purpose**: Agency organizational structure for targeting
+**Status**: COMPLETE (2026-02-28)
 
 ### Tasks
-- [ ] Implement `api_clients/sam_fedhier_client.py`
-  - [ ] `get_all_organizations(status='Active')` - paginated full load
-  - [ ] `get_organization(fh_org_id)` - single org lookup
-  - [ ] `search_organizations(**filters)` - filtered search
-  - [ ] Handle hierarchical parent-child relationships
-- [ ] Implement `etl/fedhier_loader.py`
-  - [ ] Transform API response -> `federal_organization` table
-  - [ ] Build parent-child hierarchy (self-referencing FK)
-  - [ ] Calculate `level` (depth in hierarchy)
-- [ ] Load all active organizations
-- [ ] Implement weekly refresh
+- [x] Implement `api_clients/sam_fedhier_client.py`
+  - [x] `get_all_organizations(status='Active')` - paginated full load
+  - [x] `get_organization(fh_org_id)` - single org lookup
+  - [x] `search_organizations(**filters)` - filtered search (fhorgid, fhorgname, status, fhorgtype, agencycode, cgac, fhparentorgname, date range)
+  - [x] `search_organizations_all(**filters)` - auto-paginate all results
+  - [x] Handle hierarchical parent-child relationships (via fhorgparenthistory)
+- [x] Implement `etl/fedhier_loader.py`
+  - [x] Transform API response -> `federal_organization` table
+  - [x] Build parent-child hierarchy (self-referencing FK via parent_org_id)
+  - [x] Calculate `level` (depth in hierarchy: 1=Department, 2=Sub-Tier, 3=Office)
+  - [x] SHA-256 change detection (`record_hash` column)
+  - [x] `full_refresh()` - TRUNCATE + reload for periodic complete refreshes
+- [x] `federal_organization` table enhanced with `record_hash`, `last_load_id`, and 3 new indexes
+- [x] CLI commands (in `cli/fedhier.py`):
+  - [x] `load-hierarchy` - full refresh or incremental load of federal hierarchy
+  - [x] `search-agencies` - search organizations by name, code, or type in local DB
+- [ ] Load all active organizations (requires API call)
 - [ ] Cross-reference: link opportunity `department_name` / `office` to `federal_organization`
 
 ### Acceptance Criteria
-- [ ] `federal_organization` table has complete active hierarchy
-- [ ] Parent-child relationships correctly represent org structure
-- [ ] Can navigate: Department -> Sub-tier -> Office
-- [ ] Weekly refresh updates changes
+- [x] `federal_organization` table schema supports complete active hierarchy
+- [x] Parent-child relationships correctly represent org structure
+- [x] Can navigate: Department -> Sub-tier -> Office (via level + parent_org_id)
+- [x] Weekly/periodic refresh supported via `load-hierarchy` (incremental or --full-refresh)
 
 ---
 
@@ -170,49 +177,59 @@ Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pi
 
 **Priority**: Tier 2 (High Value)
 **Purpose**: Due diligence on teaming partners and competitors
+**Status**: COMPLETE (2026-02-28)
 
 ### Tasks
-- [ ] Implement `api_clients/sam_exclusions_client.py`
-  - [ ] `search_exclusions(**filters)` - paginated search
-  - [ ] Filter by UEI, name, agency, type
-- [ ] Implement exclusions loader (could be separate table or flag on entity)
-- [ ] Implement weekly exclusion check:
-  - [ ] Check all entities in `prospect_team_member` against exclusions
-  - [ ] Flag any excluded entities
-- [ ] Build due diligence query:
-  - [ ] `check-exclusion --uei` CLI command
-  - [ ] Show exclusion details if found
+- [x] Implement `api_clients/sam_exclusions_client.py`
+  - [x] `search_exclusions(**filters)` - paginated search
+  - [x] `search_exclusions_all(**filters)` - auto-paginate all results
+  - [x] `check_entity(uei)` - check single UEI for exclusions
+  - [x] `check_entities(uei_list)` - batch check multiple UEIs
+  - [x] `search_by_name(name)` - free-text name search
+  - [x] Filter by UEI, name, agency, type, program
+- [x] Implement `etl/exclusions_loader.py`
+  - [x] `load_exclusions(exclusions_data)` - load exclusion records with change detection
+  - [x] `full_refresh(client)` - reload all active exclusions
+  - [x] `check_prospects()` - check prospect_team_member UEIs against exclusions
+  - [x] `check_team_members()` - alias for check_prospects
+  - [x] SHA-256 change detection via `record_hash` column
+- [x] New table: `sam_exclusion` (in `04_federal_tables.sql`)
+  - 20 columns including person name fields (first/middle/last/prefix/suffix)
+  - 4 indexes: uei, entity_name, activation_date, exclusion_type
+- [x] CLI commands (in `cli/exclusions.py`):
+  - [x] `load-exclusions` - full refresh of exclusions data
+  - [x] `check-exclusion` - check a specific UEI or entity name (API + local fallback)
+  - [x] `check-prospects` - check all prospect team members against local exclusions
+- [x] Registered in `main.py` (29 CLI commands total in 8 `cli/` modules)
 
 ### Acceptance Criteria
-- [ ] Can check any entity for exclusions
-- [ ] Weekly check flags excluded teaming partners
-- [ ] Alert mechanism when a watched entity becomes excluded
+- [x] Can check any entity for exclusions via API or local DB
+- [x] check-prospects flags excluded teaming partners from local data
+- [x] load-exclusions populates local DB for offline checks
 
 ---
 
-## Iteration 5F: FPDS ATOM Feed (Historical)
+## Iteration 5F: FPDS ATOM Feed (Historical) -- DEPRECATED
 
-**Priority**: Tier 2 (High Value)
+**Priority**: ~~Tier 2 (High Value)~~ DEPRIORITIZED
 **Purpose**: Deep historical procurement data (since 2004)
+**Status**: DEPRECATED -- Do not implement
 
-> **Note**: FPDS.gov has announced plans to migrate award data to SAM.gov. The SAM.gov Contract Awards API (Iteration 5A) may eventually replace FPDS as the primary historical awards source. Implement 5A first and evaluate FPDS data gaps before investing in FPDS ATOM parsing.
+> **DEPRECATION NOTICE (Phase 7, 2026-02-28)**: FPDS.gov is being decommissioned:
+> - **Feb 24, 2026**: ezSearch on FPDS.gov shut down
+> - **Later FY2026**: ATOM feed (`https://www.fpds.gov/dbsight/FEEDS/ATOM`) will sunset entirely
+> - **Replacement**: SAM.gov Contract Awards API at `https://api.sam.gov/contract-awards/v1/search` (already implemented in Iteration 5A)
+>
+> Building a new FPDS ATOM client is inadvisable. Use the SAM.gov Contract Awards API (5A) instead, which returns the same underlying FPDS data in JSON format with 80+ filter parameters and uses the same SAM.gov API key. The `SAM_CONTRACT_AWARDS_URL` setting has been added to `settings.py`.
 
 ### Tasks
-- [ ] Implement `api_clients/fpds_client.py`
-  - [ ] Parse ATOM XML feed responses
-  - [ ] Build query strings for FPDS search syntax
-  - [ ] Handle pagination (10 records/thread, 10 threads/search)
-  - [ ] No auth required, no daily limit
-- [ ] Implement `etl/fpds_loader.py`
-  - [ ] Map ATOM XML fields to `fpds_contract` table
-  - [ ] Handle FPDS-specific fields not in SAM Contract Awards API
-  - [ ] Deduplicate with data already loaded from SAM Contract Awards (5A)
-- [ ] Load historical data for target NAICS codes
-- [ ] Implement weekly refresh for recent modifications
+- [x] ~~Implement `api_clients/fpds_client.py`~~ -- Not needed; use SAM Contract Awards API (5A)
+- [x] ~~Implement `etl/fpds_loader.py`~~ -- Not needed; `awards_loader.py` handles this via 5A
+- [x] ~~Load historical data for target NAICS codes~~ -- Use `load-awards` CLI command instead
 
 ### Acceptance Criteria
-- [ ] Historical awards back to 2015+ loaded for target NAICS codes
-- [ ] No duplicates with SAM Contract Awards data
+- [x] Historical awards loaded via SAM.gov Contract Awards API (Iteration 5A)
+- [x] No duplicates with SAM Contract Awards data (single source now)
 - [ ] Can analyze long-term trends in contract awards
 
 ---

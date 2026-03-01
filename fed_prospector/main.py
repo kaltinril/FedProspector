@@ -25,6 +25,11 @@ Usage:
     python main.py list-searches       List saved searches
     python main.py dashboard           Show pipeline dashboard
     python main.py load-awards         Load historical contract awards from SAM.gov
+    python main.py load-hierarchy      Load federal org hierarchy from SAM.gov
+    python main.py search-agencies     Search federal organizations in local DB
+    python main.py load-exclusions     Load exclusion records from SAM.gov
+    python main.py check-exclusion     Check a UEI or name for exclusions
+    python main.py check-prospects     Check prospect team members against exclusions
     python main.py load-transactions   Load transaction history for a USASpending award
     python main.py burn-rate           Calculate and display burn rate for an award
     python main.py help                Show this help
@@ -38,6 +43,8 @@ Commands are organized in cli/ modules:
                           add-team-member, save-search, run-search, list-searches, dashboard
     cli/calc.py           load-calc
     cli/awards.py         load-awards
+    cli/fedhier.py        load-hierarchy, search-agencies
+    cli/exclusions.py     load-exclusions, check-exclusion, check-prospects
     cli/spending.py       load-transactions, burn-rate
 """
 
@@ -113,6 +120,19 @@ cli.add_command(load_calc)
 from cli.awards import load_awards
 
 cli.add_command(load_awards)
+
+# --- Federal Hierarchy commands (Phase 5D) ---
+from cli.fedhier import load_hierarchy, search_agencies
+
+cli.add_command(load_hierarchy)
+cli.add_command(search_agencies)
+
+# --- Exclusions commands (Phase 5E) ---
+from cli.exclusions import load_exclusions, check_exclusion, check_prospects
+
+cli.add_command(load_exclusions)
+cli.add_command(check_exclusion)
+cli.add_command(check_prospects)
 
 # --- Spending/burn-rate commands (Phase 5B-Enhance) ---
 from cli.spending import load_transactions, burn_rate

@@ -148,7 +148,9 @@ def load_lookups(table):
             "state": loader.load_state_codes,
             "fips": loader.load_fips_counties,
             "business": loader.load_business_types,
-            "setaside": loader.seed_set_aside_types,
+            "entity_structure": loader.load_entity_structures,
+            "setaside": loader.load_set_aside_types,
+            "sba_type": loader.load_sba_types,
         }
         if table not in method_map:
             click.echo(f"Unknown table: {table}")
@@ -205,7 +207,8 @@ def status():
         elif name.startswith("etl_"):
             etl_tables.append((name, rows))
         elif name in ("entity", "opportunity", "fpds_contract", "federal_organization",
-                      "gsa_labor_rate", "stg_entity_raw"):
+                      "gsa_labor_rate", "stg_entity_raw", "usaspending_award",
+                      "usaspending_transaction"):
             data_tables.append((name, rows))
         else:
             other_tables.append((name, rows))
