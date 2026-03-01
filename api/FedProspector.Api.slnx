@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FedProspector.Api/FedProspector.Api.csproj" />
+    <Project Path="src/FedProspector.Core/FedProspector.Core.csproj" />
+    <Project Path="src/FedProspector.Infrastructure/FedProspector.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FedProspector.Api.Tests/FedProspector.Api.Tests.csproj" />
+    <Project Path="tests/FedProspector.Core.Tests/FedProspector.Core.Tests.csproj" />
+  </Folder>
+</Solution>
