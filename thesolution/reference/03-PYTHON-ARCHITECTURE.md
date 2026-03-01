@@ -136,7 +136,7 @@ fed_prospector/
 | `etl/health_check.py` | Implemented | Phase 6 - data freshness, API usage, alerts, key status |
 | `etl/db_maintenance.py` | Implemented | Phase 6 - archive history, purge staging, ANALYZE TABLE |
 | `etl/schema_checker.py` | Implemented | Schema drift detection - compares live DB to DDL files |
-| `db/schema/tables/*.sql`, `db/schema/views/*.sql` | Implemented | Phase 1 + Phase 5/7 - 40 tables + 4 views |
+| `db/schema/tables/*.sql`, `db/schema/views/*.sql` | Implemented | Phase 1 + Phase 5/7/9 - 54 tables + 4 views |
 | `main.py` | Implemented | 170 lines, delegates to 12 cli/ modules (39 commands) |
 | `cli/*.py` | Implemented | 12 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema |
 
