@@ -1007,9 +1007,9 @@ GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics,
 |-------|--------|---------|
 | Reference (`ref_*`) | 11 | Lookup/classification data (includes ref_entity_structure, ref_sba_type) |
 | Entity | 10 | SAM.gov contractor data |
-| Opportunity | 2 | Contract opportunities |
+| Opportunity | 3 | Contract opportunities |
 | Federal | 7 | Hierarchy, awards, rates, exclusions, subawards, spending (includes usaspending_award + usaspending_transaction) |
 | ETL | 4 | Load tracking and quality |
 | Prospecting | 5 | Sales pipeline (includes saved_search) |
-| **Total** | **39** | |
-| **Views** | **2** | |
+| **Total** | **40** | |
+| **Views** | **4** | |

@@ -8,7 +8,7 @@
 
 ## Overview
 
-Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pipelines. Each is a self-contained iteration that can be implemented independently. The order below reflects priority ranking from [01-RESEARCH-AND-DATA-SOURCES.md](01-RESEARCH-AND-DATA-SOURCES.md).
+Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pipelines. Each is a self-contained iteration that can be implemented independently. The order below reflects priority ranking from [01-RESEARCH-AND-DATA-SOURCES.md](../reference/01-RESEARCH-AND-DATA-SOURCES.md).
 
 ---
 

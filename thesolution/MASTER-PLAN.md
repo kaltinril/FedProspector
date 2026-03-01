@@ -47,9 +47,9 @@ pbdc/
 
 ### Phase 1: Foundation
 **Status**: [x] COMPLETE (2026-02-22)
-**File**: [04-PHASE1-FOUNDATION.md](04-PHASE1-FOUNDATION.md)
+**File**: [01-FOUNDATION.md](phases/01-FOUNDATION.md)
 
-- ~~Set up MySQL database~~ 39 tables + 2 views
+- ~~Set up MySQL database~~ 40 tables + 4 views
 - ~~Load reference data from CSVs~~ ~13,001 rows across 11 tables (originally 12,988 in Phase 1; Phase 7 added ref_sba_type + ref_entity_structure)
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
@@ -58,7 +58,7 @@ pbdc/
 
 ### Phase 2: Entity Data Pipeline (Proof of Concept - 1 Source)
 **Status**: [x] COMPLETE (2026-02-22) - 865K entities loaded
-**File**: [05-PHASE2-ENTITY-PIPELINE.md](05-PHASE2-ENTITY-PIPELINE.md)
+**File**: [02-ENTITY-PIPELINE.md](phases/02-ENTITY-PIPELINE.md)
 
 - ~~Build SAM.gov Entity API client~~ `sam_entity_client.py` (v3 API, WOSB/8(a) search)
 - ~~Build SAM.gov Extract client~~ `sam_extract_client.py` (monthly/daily download, ZIP, JSON streaming via ijson)
@@ -71,7 +71,7 @@ pbdc/
 
 ### Phase 3: Opportunities Pipeline (Proof of Concept - Load First Data)
 **Status**: [x] COMPLETE (2026-02-28) - 12,209 opportunities loaded (2-year historical), polling via Phase 6
-**File**: [06-PHASE3-OPPORTUNITIES-PIPELINE.md](06-PHASE3-OPPORTUNITIES-PIPELINE.md)
+**File**: [03-OPPORTUNITIES-PIPELINE.md](phases/03-OPPORTUNITIES-PIPELINE.md)
 
 - ~~Build SAM.gov Opportunities API client~~ `sam_opportunity_client.py` (v2 search, 5-call budget, priority set-aside ordering)
 - ~~Implement opportunity loader with change tracking~~ `opportunity_loader.py` (SHA-256 hashing, opportunity_history)
@@ -83,7 +83,7 @@ pbdc/
 
 ### Phase 4: Sales/Prospecting Pipeline
 **Status**: [x] COMPLETE (2026-02-22)
-**File**: [07-PHASE4-SALES-PROSPECTING.md](07-PHASE4-SALES-PROSPECTING.md)
+**File**: [04-SALES-PROSPECTING.md](phases/04-SALES-PROSPECTING.md)
 
 - ~~Build prospect tracking tables and workflow~~ `ProspectManager` class + 12 CLI commands
 - ~~Implement saved search/filter system~~ `save-search`, `run-search`, `list-searches` with dynamic SQL
@@ -94,7 +94,7 @@ pbdc/
 
 ### Phase 5: Extended Data Sources (Remaining Phases Build-Out)
 **Status**: [x] COMPLETE (2026-02-28) - All iterations complete (5A-5E, 5G); 5F deprecated
-**File**: [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md)
+**File**: [05-EXTENDED-SOURCES.md](phases/05-EXTENDED-SOURCES.md)
 
 - ~~SAM.gov Contract Awards API~~ `sam_awards_client.py` + `awards_loader.py` (v1 API, search by NAICS/awardee/solicitation, loads to `fpds_contract`)
 - ~~USASpending.gov API~~ `usaspending_client.py` + `usaspending_loader.py` (POST-based search, SHA-256 change detection, incumbent search working)
@@ -104,14 +104,14 @@ pbdc/
 - ~~SAM.gov Federal Hierarchy API~~ `sam_fedhier_client.py` + `fedhier_loader.py` (v1 API, full hierarchy refresh, agency search)
 - ~~SAM.gov Exclusions API~~ `sam_exclusions_client.py` + `exclusions_loader.py` (v4 API, check UEI/name, prospect team member cross-check, loads to `sam_exclusion`)
 - ~~SAM.gov Subaward Reporting API~~ `sam_subaward_client.py` + `subaward_loader.py` (v1 subcontracts API, teaming partner analysis, loads to `sam_subaward`)
-- **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
+- **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](reference/01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
 - **CLI refactored**: `main.py` (1752 -> 170 lines) with 38 commands split into 11 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward)
 - **New CLI commands**: `load-awards`, `load-hierarchy`, `search-agencies`, `load-exclusions`, `check-exclusion`, `check-prospects`, `load-transactions`, `burn-rate`, `load-subawards`, `search-subawards`, `teaming-partners`
 - **Deliverable**: DONE
 
 ### Phase 6: Automation and Monitoring
 **Status**: [x] COMPLETE (2026-02-28)
-**File**: [09-PHASE6-AUTOMATION.md](09-PHASE6-AUTOMATION.md)
+**File**: [06-AUTOMATION.md](phases/06-AUTOMATION.md)
 
 - ~~Job scheduler~~ `etl/scheduler.py` with 8 job definitions, `JobRunner` class, Windows Task Scheduler integration
 - ~~Health check dashboard~~ `etl/health_check.py` + `check-health` CLI command (data freshness, API usage, alerts)
@@ -125,7 +125,7 @@ pbdc/
 
 ### Phase 7: Reference Data Enrichment
 **Status**: [x] COMPLETE (2026-02-28)
-**File**: [12-PHASE7-REFERENCE-ENRICHMENT.md](12-PHASE7-REFERENCE-ENRICHMENT.md)
+**File**: [07-REFERENCE-ENRICHMENT.md](phases/07-REFERENCE-ENRICHMENT.md)
 
 - ~~Enrich `ref_business_type`~~ categories (11 groups), socioeconomic flags, small business flags
 - ~~Load `ref_entity_structure`~~ 8 codes from entity data discovery
@@ -139,7 +139,7 @@ pbdc/
 
 ### Phase 8: Web/API Readiness (Gap Analysis)
 **Status**: PLANNING
-**Document**: [13-PHASE8-WEB-API-READINESS.md](13-PHASE8-WEB-API-READINESS.md)
+**Document**: [08-WEB-API-READINESS.md](phases/08-WEB-API-READINESS.md)
 
 **Architecture Decision**: Python stays as ETL/data gathering only. C# API backend will query MySQL directly. Frontend TBD.
 
@@ -150,26 +150,26 @@ pbdc/
 - [ ] Build C# API backend (21 endpoints documented)
 - [ ] Replicate prospect status flow, Go/No-Go scoring, burn rate logic in C#
 
-**Impact**: Current 39 tables + 2 views → 53 tables + 2 views (Tier 1 MVP). Plus 6 raw staging tables (`stg_*_raw`) for API response preservation.
+**Impact**: Current 40 tables + 4 views → 54 tables + 4 views (Tier 1 MVP). Plus 6 raw staging tables (`stg_*_raw`) for API response preservation.
 
 ### Phase 9: Schema Evolution
 **Status**: PLANNING
-**Document**: [14-PHASE9-SCHEMA-EVOLUTION.md](14-PHASE9-SCHEMA-EVOLUTION.md)
+**Document**: [09-SCHEMA-EVOLUTION.md](phases/09-SCHEMA-EVOLUTION.md)
 
 **Scope**:
 - [ ] Add 14 new tables (8 production: app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc; plus 6 raw staging: `stg_*_raw`)
 - [ ] ALTER 4 existing tables with ~15 new columns (app_user, opportunity, prospect, prospect_team_member)
 - [ ] Update `build-database` CLI to include new schema file
-- [ ] Result: 39 → 53 tables + 2 views
+- [ ] Result: 40 → 54 tables + 4 views
 
 ### Phase 10: C# API Foundation
 **Status**: PLANNING
-**Document**: [15-PHASE10-API-FOUNDATION.md](15-PHASE10-API-FOUNDATION.md)
+**Document**: [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md)
 **Repository**: `api/` folder (monorepo -- same repo as Python ETL)
 
 **Scope**:
 - [ ] ASP.NET Core Web API project (.NET 8+)
-- [ ] MySQL connectivity via Pomelo EF Core + entity models for 53 tables total (47 production + 6 staging). EF Core models needed for 47 production tables only; staging tables are managed by the Python ETL pipeline.
+- [ ] MySQL connectivity via Pomelo EF Core + entity models for 54 tables total (48 production + 6 staging). EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.
 - [ ] JWT authentication middleware + BCrypt password hashing
 - [ ] Swagger/OpenAPI documentation
 - [ ] Repository pattern, pagination, DTOs, base controller
@@ -177,7 +177,7 @@ pbdc/
 
 ### Phase 11: Read-Only Query Endpoints
 **Status**: PLANNING
-**Document**: [16-PHASE11-READ-ENDPOINTS.md](16-PHASE11-READ-ENDPOINTS.md)
+**Document**: [11-READ-ENDPOINTS.md](phases/11-READ-ENDPOINTS.md)
 
 **Scope**:
 - [ ] 11 GET endpoints across 6 controllers
@@ -189,7 +189,7 @@ pbdc/
 
 ### Phase 12: Capture Management API (CRUD)
 **Status**: PLANNING
-**Document**: [17-PHASE12-CAPTURE-MANAGEMENT-API.md](17-PHASE12-CAPTURE-MANAGEMENT-API.md)
+**Document**: [12-CAPTURE-MANAGEMENT-API.md](phases/12-CAPTURE-MANAGEMENT-API.md)
 
 **Scope**:
 - [ ] 10 write endpoints for prospects, proposals, notes, team members
@@ -200,7 +200,7 @@ pbdc/
 
 ### Phase 13: Auth, Notifications & Production Readiness
 **Status**: PLANNING
-**Document**: [18-PHASE13-AUTH-AND-PRODUCTION.md](18-PHASE13-AUTH-AND-PRODUCTION.md)
+**Document**: [13-AUTH-AND-PRODUCTION.md](phases/13-AUTH-AND-PRODUCTION.md)
 
 **Scope**:
 - [ ] Auth endpoints: register, login, logout, change-password, profile
@@ -224,10 +224,10 @@ pbdc/
 
 | Document | Purpose |
 |----------|---------|
-| [01-RESEARCH-AND-DATA-SOURCES.md](01-RESEARCH-AND-DATA-SOURCES.md) | All federal data sources with APIs, limits, and priority ranking |
-| [02-DATABASE-SCHEMA.md](02-DATABASE-SCHEMA.md) | Complete MySQL DDL for all tables, views, and indexes |
-| [03-PYTHON-ARCHITECTURE.md](03-PYTHON-ARCHITECTURE.md) | Python module design, patterns, and class structure |
-| [10-DATA-OVERLAP-AND-LIMITS.md](10-DATA-OVERLAP-AND-LIMITS.md) | Data redundancy map and rate limit strategy |
-| [11-LEGAL-CONSIDERATIONS.md](11-LEGAL-CONSIDERATIONS.md) | Terms of use, PII, D&B restrictions |
+| [01-RESEARCH-AND-DATA-SOURCES.md](reference/01-RESEARCH-AND-DATA-SOURCES.md) | All federal data sources with APIs, limits, and priority ranking |
+| [02-DATABASE-SCHEMA.md](reference/02-DATABASE-SCHEMA.md) | Complete MySQL DDL for all tables, views, and indexes |
+| [03-PYTHON-ARCHITECTURE.md](reference/03-PYTHON-ARCHITECTURE.md) | Python module design, patterns, and class structure |
+| [04-DATA-OVERLAP-AND-LIMITS.md](reference/04-DATA-OVERLAP-AND-LIMITS.md) | Data redundancy map and rate limit strategy |
+| [05-LEGAL-CONSIDERATIONS.md](reference/05-LEGAL-CONSIDERATIONS.md) | Terms of use, PII, D&B restrictions |
 | [QUICKSTART.md](QUICKSTART.md) | Environment setup guide (MySQL, Python, SAM.gov API key) |
 | [credentials.yml](credentials.yml) | All local dev passwords (MySQL root, fed_app, SAM.gov API key) |

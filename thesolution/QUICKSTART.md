@@ -354,7 +354,7 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 39 tables + 2 views
+python main.py build-database        # Create/rebuild all 40 tables + 4 views
 python main.py load-lookups          # Load all 11 reference tables from CSVs
 python main.py status                # Show table counts, API status, recent loads
 python main.py check-api             # Test SAM.gov API key (uses 1 call)
@@ -381,7 +381,7 @@ python main.py load-entities --mode=daily --file=data/downloads/daily.json    # 
 
 > **Note**: LOAD DATA INFILE requires MySQL to be started with `--secure-file-priv=""` and the `fed_app` user to have FILE privilege (`GRANT FILE ON *.* TO 'fed_app'@'localhost';`). Both are already configured in Steps 1b and 1c above.
 
-See [05-PHASE2-ENTITY-PIPELINE.md](05-PHASE2-ENTITY-PIPELINE.md) for full details.
+See [02-ENTITY-PIPELINE.md](phases/02-ENTITY-PIPELINE.md) for full details.
 
 **Phase 3** (Opportunities Pipeline) is COMPLETE. 12,209 opportunities loaded (2-year historical), auto-polling via Phase 6. Run the pipeline:
 
@@ -394,7 +394,7 @@ python main.py search --open-only --days=30                # Search local DB for
 python main.py search --set-aside=WOSB --naics=541511      # Filtered search
 ```
 
-See [06-PHASE3-OPPORTUNITIES-PIPELINE.md](06-PHASE3-OPPORTUNITIES-PIPELINE.md) for full details.
+See [03-OPPORTUNITIES-PIPELINE.md](phases/03-OPPORTUNITIES-PIPELINE.md) for full details.
 
 **Phase 4** (Sales/Prospecting Pipeline) is COMPLETE. 12 CLI commands for prospect management:
 
@@ -411,7 +411,7 @@ python main.py run-search --name "WOSB IT"
 python main.py dashboard
 ```
 
-See [07-PHASE4-SALES-PROSPECTING.md](07-PHASE4-SALES-PROSPECTING.md) for full details.
+See [04-SALES-PROSPECTING.md](phases/04-SALES-PROSPECTING.md) for full details.
 
 **Phase 5** (Extended Data Sources) is COMPLETE. All iterations (5A-5E, 5G) done, 5F deprecated:
 
@@ -446,7 +446,7 @@ python main.py maintain-db --sizes      # Show table sizes (data + index)
 python main.py run-all-searches         # Execute all active saved searches
 ```
 
-See [09-PHASE6-AUTOMATION.md](09-PHASE6-AUTOMATION.md) for Windows Task Scheduler setup.
+See [06-AUTOMATION.md](phases/06-AUTOMATION.md) for Windows Task Scheduler setup.
 
 **Phase 7** (Reference Data Enrichment) is COMPLETE. 11 reference tables with enriched metadata:
 
@@ -458,7 +458,7 @@ python main.py status                       # Show updated row counts for all ta
 
 > **Note**: CLI has 38 commands across 11 modules in `cli/`. Run `python main.py --help` for the full list.
 
-See [08-PHASE5-EXTENDED-SOURCES.md](08-PHASE5-EXTENDED-SOURCES.md) for full details.
+See [05-EXTENDED-SOURCES.md](phases/05-EXTENDED-SOURCES.md) for full details.
 
 ---
 
@@ -468,12 +468,12 @@ Phases 1-7 (Python CLI + MySQL ETL pipeline) are complete. Phases 8-13 build a *
 
 | Phase | Name | Summary | Plan Document |
 |-------|------|---------|---------------|
-| 8 | Web/API Readiness | Gap analysis identifying what the existing schema needs before web consumption | [13-PHASE8-WEB-API-READINESS.md](13-PHASE8-WEB-API-READINESS.md) |
-| 9 | Schema Evolution | 14 new tables (8 production + 6 staging) + column additions (39 to 53 tables) for user auth, notifications, capture management, and API response preservation | [14-PHASE9-SCHEMA-EVOLUTION.md](14-PHASE9-SCHEMA-EVOLUTION.md) |
-| 10 | API Foundation | ASP.NET Core 8+ project scaffolding, Entity Framework Core, JWT authentication | [15-PHASE10-API-FOUNDATION.md](15-PHASE10-API-FOUNDATION.md) |
-| 11 | Read Endpoints | 11 GET endpoints for opportunities, awards, entities, and dashboard views | [16-PHASE11-READ-ENDPOINTS.md](16-PHASE11-READ-ENDPOINTS.md) |
-| 12 | Capture Management API | 10 CRUD endpoints for prospects, proposals, notes, and workflow | [17-PHASE12-CAPTURE-MANAGEMENT-API.md](17-PHASE12-CAPTURE-MANAGEMENT-API.md) |
-| 13 | Auth & Production | Authentication hardening, notifications, rate limiting, Docker deployment | [18-PHASE13-AUTH-AND-PRODUCTION.md](18-PHASE13-AUTH-AND-PRODUCTION.md) |
+| 8 | Web/API Readiness | Gap analysis identifying what the existing schema needs before web consumption | [08-WEB-API-READINESS.md](phases/08-WEB-API-READINESS.md) |
+| 9 | Schema Evolution | 14 new tables (8 production + 6 staging) + column additions (40 to 54 tables) for user auth, notifications, capture management, and API response preservation | [09-SCHEMA-EVOLUTION.md](phases/09-SCHEMA-EVOLUTION.md) |
+| 10 | API Foundation | ASP.NET Core 8+ project scaffolding, Entity Framework Core, JWT authentication | [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md) |
+| 11 | Read Endpoints | 11 GET endpoints for opportunities, awards, entities, and dashboard views | [11-READ-ENDPOINTS.md](phases/11-READ-ENDPOINTS.md) |
+| 12 | Capture Management API | 10 CRUD endpoints for prospects, proposals, notes, and workflow | [12-CAPTURE-MANAGEMENT-API.md](phases/12-CAPTURE-MANAGEMENT-API.md) |
+| 13 | Auth & Production | Authentication hardening, notifications, rate limiting, Docker deployment | [13-AUTH-AND-PRODUCTION.md](phases/13-AUTH-AND-PRODUCTION.md) |
 
 The `api/` folder contains the C# ASP.NET Core Web API project. The `ui/` folder will contain the frontend application (framework TBD).
 

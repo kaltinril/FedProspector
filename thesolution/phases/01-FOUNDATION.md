@@ -12,7 +12,7 @@
 - [x] Install/verify MySQL 8.0+ is running locally (MySQL 8.4.8 LTS at D:\mysql)
 - [x] Create database `fed_contracts` with utf8mb4 charset
 - [x] Create application user `fed_app` with appropriate grants
-- [x] Execute all DDL from [02-DATABASE-SCHEMA.md](02-DATABASE-SCHEMA.md):
+- [x] Execute all DDL from [02-DATABASE-SCHEMA.md](../reference/02-DATABASE-SCHEMA.md):
   - [x] Reference tables (`ref_*` - 10 tables, schema doc said 9 but ref_entity_structure was a 10th)
   - [x] Entity tables (10 tables)
   - [x] Opportunity tables (2 tables)
@@ -20,13 +20,13 @@
   - [x] ETL tables (4 tables)
   - [x] Prospecting tables (5 tables, schema doc said 4 but saved_search was a 5th)
   - [x] Views (2 views)
-- [x] Verify all tables created successfully (35 tables + 2 views confirmed at Phase 1; now 39 tables + 2 views after all phases)
+- [x] Verify all tables created successfully (35 tables + 2 views confirmed at Phase 1; now 40 tables + 4 views after all phases)
 - [x] Verify foreign key relationships are correct (15 FKs confirmed)
 
-> **Note**: Schema doc summary said 32 tables but actual DDL defines 35. Originally 34 from Phase 1; usaspending_award added in Phase 5B. The ref_entity_structure (10th reference table) and saved_search (5th prospecting table) were listed in the DDL but not in the count summary. All are created. **Current total (all phases complete)**: 39 tables + 2 views. Phase 5 added sam_exclusion, sam_subaward, usaspending_transaction; Phase 7 added ref_sba_type.
+> **Note**: Schema doc summary said 32 tables but actual DDL defines 35. Originally 34 from Phase 1; usaspending_award added in Phase 5B. The ref_entity_structure (10th reference table) and saved_search (5th prospecting table) were listed in the DDL but not in the count summary. All are created. **Current total (all phases complete)**: 40 tables + 4 views. Phase 5 added sam_exclusion, sam_subaward, usaspending_transaction; Phase 7 added ref_sba_type; opportunity_relationship table and v_procurement_intelligence/v_incumbent_profile views added later.
 
 ### 1.2 Python Project Scaffolding -- DONE (2026-02-22)
-- [x] Create project directory structure per [03-PYTHON-ARCHITECTURE.md](03-PYTHON-ARCHITECTURE.md)
+- [x] Create project directory structure per [03-PYTHON-ARCHITECTURE.md](../reference/03-PYTHON-ARCHITECTURE.md)
 - [x] Create `requirements.txt` with core dependencies
 - [x] Create `.env.example` template
 - [x] Create `.gitignore` (include .env, __pycache__, data/downloads/*)
@@ -87,7 +87,7 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 39 tables + 2 views
+python main.py build-database        # Create/rebuild all 40 tables + 4 views
 python main.py load-lookups          # Load all 11 reference tables from CSVs
 python main.py load-lookups --table naics   # Load just one table
 python main.py status                # Show everything: tables, counts, API status
@@ -99,7 +99,7 @@ python main.py build-database --drop-first  # Nuclear option: drop and rebuild
 
 ## Acceptance Criteria
 
-1. [x] MySQL database has all 35 tables and 2 views created (now 39 tables + 2 views after later phases)
+1. [x] MySQL database has all 35 tables and 2 views created (now 40 tables + 4 views after later phases)
 2. [x] All 9 reference tables are populated with correct row counts (12,988 total; now 11 tables / ~13,001 rows after Phase 7)
 3. [x] Python project runs `main.py status` and shows database connection + table stats
 4. [x] `.env.example` exists with all required config keys documented

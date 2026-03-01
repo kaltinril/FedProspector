@@ -29,8 +29,8 @@ This replaces a previous Salesforce-based approach. All data gathering uses Pyth
 
 ### When Working on This Project
 
-1. **Always read the master plan first**: See [thesolution/00-MASTER-PLAN.md](thesolution/00-MASTER-PLAN.md) for current status and phase overview.
-2. **Update the plan as you work**: When you complete a task, mark it done in the relevant phase file (thesolution/04-18). When you discover new requirements or issues, add them.
+1. **Always read the master plan first**: See [thesolution/MASTER-PLAN.md](thesolution/MASTER-PLAN.md) for current status and phase overview.
+2. **Update the plan as you work**: When you complete a task, mark it done in the relevant phase file (thesolution/phases/). When you discover new requirements or issues, add them.
 3. **Follow the phase order**: Phases build on each other. Do not skip ahead unless explicitly told to.
 4. **Record data quality issues**: Any unexpected data formats, bad values, or API behavior must be documented in the relevant phase file under a "Known Issues" section.
 5. **Never hardcode credentials**: All API keys, database passwords, and sensitive config go in `.env` files. Use `python-dotenv` to load them. Passwords are stored in `thesolution/credentials.yml` for easy reference.
@@ -71,6 +71,18 @@ These were discovered during the first import attempt and must be handled in the
 16. SAM.gov Opportunities API rejects Feb 29 as start date — historical load skips leap day
 17. Opportunity `pop_state` field can contain ISO 3166-2 subdivision codes > 2 chars (e.g., IN-MH for India-Maharashtra) — column widened to VARCHAR(6)
 18. SAM.gov Contract Awards API dates are in MM/DD/YYYY format (not ISO 8601) — awards_loader converts during load
+
+### Data Linking Quick Reference
+
+- Opportunity → FPDS: `award_number` = `contract_id` (PIID)
+- Opportunity → USASpending: `solicitation_number` = `solicitation_identifier`
+- FPDS → Entity: `vendor_uei` = `uei_sam`
+- USASpending → Entity: `recipient_uei` = `uei_sam`
+- RFI → RFP: NO API link exists. Manual only via `opportunity_relationship` table.
+- Security clearance: NOT in any API. Check SOW/PWS on SAM.gov.
+- Bidder count: `fpds_contract.number_of_offers` (post-award only)
+- Burn rate: `usaspending_transaction` aggregated by `action_date`
+- Full data architecture: see `thesolution/reference/07-DATA-ARCHITECTURE.md`
 
 ### Project File References
 
@@ -127,10 +139,11 @@ These were discovered during the first import attempt and must be handled in the
 | SAM Federal Hierarchy Public API spec - orgs endpoint | `thesolution/sam_gov_api/fh-public-org.yml` |
 | SAM Contract Awards API research | `workdir/converted/sam-contract-awards-api.md` |
 | USASpending Transactions API research | `workdir/converted/usaspending-transactions-api.md` |
-| Phase 8 Web/API Readiness gap analysis | `thesolution/13-PHASE8-WEB-API-READINESS.md` |
-| Phase 9 Schema Evolution plan | `thesolution/14-PHASE9-SCHEMA-EVOLUTION.md` |
-| Phase 10 C# API Foundation plan | `thesolution/15-PHASE10-API-FOUNDATION.md` |
-| Phase 11 Read Endpoints plan | `thesolution/16-PHASE11-READ-ENDPOINTS.md` |
-| Phase 12 Capture Management API plan | `thesolution/17-PHASE12-CAPTURE-MANAGEMENT-API.md` |
-| Phase 13 Auth & Production plan | `thesolution/18-PHASE13-AUTH-AND-PRODUCTION.md` |
-| Federal Contracting Glossary | `thesolution/19-GLOSSARY.md` |
+| Phase 8 Web/API Readiness gap analysis | `thesolution/phases/08-WEB-API-READINESS.md` |
+| Phase 9 Schema Evolution plan | `thesolution/phases/09-SCHEMA-EVOLUTION.md` |
+| Phase 10 C# API Foundation plan | `thesolution/phases/10-API-FOUNDATION.md` |
+| Phase 11 Read Endpoints plan | `thesolution/phases/11-READ-ENDPOINTS.md` |
+| Phase 12 Capture Management API plan | `thesolution/phases/12-CAPTURE-MANAGEMENT-API.md` |
+| Phase 13 Auth & Production plan | `thesolution/phases/13-AUTH-AND-PRODUCTION.md` |
+| Federal Contracting Glossary | `thesolution/reference/06-GLOSSARY.md` |
+| Data architecture & field mapping | `thesolution/reference/07-DATA-ARCHITECTURE.md` |

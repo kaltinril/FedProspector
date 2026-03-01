@@ -11,7 +11,7 @@
 
 Execute the Tier 1 database changes identified in Phase 8's gap analysis. Add 14 new tables (8 production + 6 raw staging) and ~15 new columns to 4 existing tables to support the C# API backend and raw data replay. All changes are additive -- the Python ETL pipeline is unaffected.
 
-**Result**: 39 tables -> 53 tables + 2 views (unchanged)
+**Result**: 40 tables -> 54 tables + 4 views
 
 ---
 
@@ -451,7 +451,7 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 - [ ] Add `09a_raw_staging_tables.sql` to the schema file list in `build-database` command (before `09_web_api_tables.sql`)
 - [ ] Add `09_web_api_tables.sql` to the schema file list in `build-database` command
 - [ ] Ensure table creation order respects foreign key dependencies (staging tables first, then ALTER existing tables, then new production tables in dependency order)
-- [ ] Test: `python main.py build-database` creates all 53 tables without errors
+- [ ] Test: `python main.py build-database` creates all 54 tables without errors
 
 ---
 
@@ -466,8 +466,8 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
 
 1. [ ] All 14 new tables (8 production + 6 staging) created successfully in MySQL
 2. [ ] All 4 ALTER TABLE statements execute without errors on existing data
-3. [ ] `python main.py build-database` creates all 53 tables + 2 views
-4. [ ] `python main.py status` reflects 53 tables
+3. [ ] `python main.py build-database` creates all 54 tables + 4 views
+4. [ ] `python main.py status` reflects 54 tables
 5. [ ] All existing CLI commands still work (ETL unaffected)
 6. [ ] Existing data in `app_user`, `opportunity`, `prospect`, `prospect_team_member` preserved
 7. [ ] Foreign key relationships are correct (test with sample INSERT)
@@ -495,4 +495,4 @@ Note: A team member is either an external entity (`uei_sam`) OR an internal staf
    - `proposal_milestone` (depends on `proposal` and `app_user`)
    - `activity_log` (depends on `app_user`)
    - `notification` (depends on `app_user`)
-7. **Verify** -- run `build-database` and `status` commands to confirm 53 tables
+7. **Verify** -- run `build-database` and `status` commands to confirm 54 tables

@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     INDEX idx_usa_dates (start_date, end_date),
     INDEX idx_usa_solicitation (solicitation_identifier),
     INDEX idx_usa_piid (piid)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Transaction-level spending detail for burn rate analysis
 CREATE TABLE IF NOT EXISTS usaspending_transaction (

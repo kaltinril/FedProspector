@@ -1,5 +1,5 @@
 -- 03_opportunity_tables.sql
--- Opportunity tables (2 tables) - Contract opportunities from SAM.gov
+-- Opportunity tables (3 tables) - Contract opportunities from SAM.gov
 
 USE fed_contracts;
 
@@ -57,4 +57,19 @@ CREATE TABLE IF NOT EXISTS opportunity_history (
     load_id              INT NOT NULL,
     INDEX idx_oh_notice (notice_id),
     INDEX idx_oh_date (changed_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS opportunity_relationship (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    parent_notice_id     VARCHAR(100) NOT NULL,
+    child_notice_id      VARCHAR(100) NOT NULL,
+    relationship_type    VARCHAR(30) NOT NULL,  -- 'RFI_TO_RFP', 'PRESOL_TO_SOL', 'SOL_TO_AWARD'
+    created_by           INT,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    notes                TEXT,
+    UNIQUE KEY uq_opp_rel (parent_notice_id, child_notice_id),
+    INDEX idx_opp_rel_parent (parent_notice_id),
+    INDEX idx_opp_rel_child (child_notice_id),
+    CONSTRAINT fk_opp_rel_parent FOREIGN KEY (parent_notice_id) REFERENCES opportunity(notice_id),
+    CONSTRAINT fk_opp_rel_child FOREIGN KEY (child_notice_id) REFERENCES opportunity(notice_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

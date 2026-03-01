@@ -324,22 +324,22 @@ SAM_CONTRACT_AWARDS_URL = "https://api.sam.gov/contract-awards/v1/search"
 FPDS_ATOM_BASE_URL = "https://www.fpds.gov/dbsight/FEEDS/ATOM"
 ```
 
-`08-PHASE5-EXTENDED-SOURCES.md`:
+`05-EXTENDED-SOURCES.md`:
 - Update Phase 5F to note FPDS is deprecated
 - Add recommendation to prioritize Phase 5A (SAM.gov Contract Awards API) instead
 - Note that building a new FPDS ATOM client is inadvisable
 
 **Files to modify**:
 - [x] `fed_prospector/config/settings.py`
-- [x] `thesolution/08-PHASE5-EXTENDED-SOURCES.md`
+- [x] `thesolution/phases/05-EXTENDED-SOURCES.md`
 
 ---
 
 ## Task 7.10: Update All Project Documentation
 
 Update the following docs to reflect Phase 7 changes:
-- [ ] `thesolution/00-MASTER-PLAN.md` -- add Phase 7 entry
-- [ ] `thesolution/02-DATABASE-SCHEMA.md` -- update table definitions for altered/new tables
+- [ ] `thesolution/MASTER-PLAN.md` -- add Phase 7 entry
+- [ ] `thesolution/reference/02-DATABASE-SCHEMA.md` -- update table definitions for altered/new tables
 - [ ] `thesolution/QUICKSTART.md` -- update reference table counts and `load-lookups` output
 - [ ] `CLAUDE.md` -- update table counts, file references, add `ref_sba_type` to references
 

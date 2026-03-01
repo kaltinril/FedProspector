@@ -130,7 +130,7 @@ fed_prospector/
 | `etl/health_check.py` | Implemented | Phase 6 - data freshness, API usage, alerts, key status |
 | `etl/db_maintenance.py` | Implemented | Phase 6 - archive history, purge staging, ANALYZE TABLE |
 | `db/connection.py` | Implemented | Phase 1 |
-| `db/schema/*.sql` | Implemented | Phase 1 + Phase 5/7 - 39 tables + 2 views |
+| `db/schema/*.sql` | Implemented | Phase 1 + Phase 5/7 - 40 tables + 4 views |
 | `main.py` | Implemented | 170 lines, delegates to 11 cli/ modules (38 commands) |
 | `cli/*.py` | Implemented | 11 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward |
 

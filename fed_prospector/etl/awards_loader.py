@@ -42,7 +42,8 @@ _UPSERT_COLS = [
     "description", "pop_state", "pop_country", "pop_zip",
     "extent_competed", "number_of_offers",
     "far1102_exception_code", "far1102_exception_name",
-    "reason_for_modification", "solicitation_date", "ultimate_completion_date",
+    "reason_for_modification", "solicitation_number",
+    "solicitation_date", "ultimate_completion_date",
     "type_of_contract_pricing", "co_bus_size_determination",
     "record_hash", "last_load_id",
 ]
@@ -335,6 +336,7 @@ class AwardsLoader:
             "far1102_exception_code":   None,
             "far1102_exception_name":   None,
             "reason_for_modification":  _s(reason_mod.get("code")),
+            "solicitation_number":      _s(core_data.get("solicitationId")),
             "solicitation_date":        self._parse_date(
                                             core_data.get("solicitationDate")
                                         ),
