@@ -16,6 +16,13 @@ This replaces a previous Salesforce-based approach. All data gathering uses Pyth
 | `OLD_ATTEMPTS/` | Legacy Salesforce/Apex code and prior database schema attempts (archived) |
 | `OLD_RESOURCES/` | Original source files (DOCX, XLSX, PDF, PNG, OpenAPI specs) from prior work (archived) |
 
+## Context Management
+
+- **NEVER read large doc/plan files in the main context window.** Delegate to agents instead.
+- **Multi-file edits (especially doc updates) MUST go to coder agents.** The main context is for orchestration only: decide what to do, launch agents, review results, commit.
+- **Batch doc updates into a single agent call.** Give it the list of files + what changed (e.g., "update table count from 38 to 39 in all docs") and let it handle all reads/edits outside the main window.
+- **Why**: Reading 6+ large markdown files inline causes context compaction, which loses conversation history and wastes the user's time.
+
 ## Agent Instructions
 
 ### When Working on This Project
