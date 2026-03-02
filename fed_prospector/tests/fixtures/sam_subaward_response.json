@@ -1,0 +1,33 @@
+{
+  "totalRecords": 2,
+  "totalPages": 1,
+  "pageNumber": 0,
+  "nextPageLink": null,
+  "previousPageLink": null,
+  "data": [
+    {
+      "piid": "W911NF-25-C-0001",
+      "agencyId": "9700",
+      "primeEntityUei": "PRIME123UEI456",
+      "primeEntityLegalBusinessName": "Big Prime Contractor Inc",
+      "subEntityUei": "SUB789UEI012",
+      "subEntityLegalBusinessName": "Small Sub LLC",
+      "primeNaics": "541512",
+      "subAwardAmount": 250000.00,
+      "subAwardDate": "2025-11-01",
+      "status": "Published"
+    },
+    {
+      "piid": "W911NF-25-C-0001",
+      "agencyId": "9700",
+      "primeEntityUei": "PRIME123UEI456",
+      "primeEntityLegalBusinessName": "Big Prime Contractor Inc",
+      "subEntityUei": "SUB345UEI678",
+      "subEntityLegalBusinessName": "Another Sub Corp",
+      "primeNaics": "541512",
+      "subAwardAmount": 150000.00,
+      "subAwardDate": "2025-12-01",
+      "status": "Published"
+    }
+  ]
+}

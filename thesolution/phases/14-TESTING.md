@@ -1,8 +1,8 @@
 # Phase 14: Testing Strategy — Unit, Integration, Regression & E2E
 
-**Status**: PLANNING
+**Status**: COMPLETE (2026-03-01)
 **Dependencies**: Phase 10 (API Foundation) in progress; Python ETL (Phases 1-9) complete
-**Deliverable**: Comprehensive test suites for Python ETL, C# API, and future UI — runnable with single commands
+**Deliverable**: 920 tests passing (568 Python + 234 C# Core + 118 C# Api) across 59 test files
 **Repository**: `fed_prospector/tests/` (Python), `api/tests/` (C#), `ui/tests/` (future)
 
 ---
@@ -45,19 +45,19 @@ This phase establishes a formal testing strategy across all three layers of the 
 ### 14.1.1 Unit Tests (no DB, no network)
 
 #### API Client Tests
-- [ ] `test_sam_opportunity_client.py` — query parameter construction, pagination logic, response parsing
+- [x] `test_sam_opportunity_client.py` — query parameter construction, pagination logic, response parsing
 - [ ] `test_sam_entity_client.py` — search param building, WOSB/8(a) filter construction
 - [ ] `test_sam_extract_client.py` — URL construction for monthly/daily extracts, ZIP handling logic
-- [ ] `test_sam_awards_client.py` — award search params, NAICS/awardee/solicitation filtering
-- [ ] `test_sam_exclusions_client.py` — UEI/name lookup construction, v4 response parsing
-- [ ] `test_sam_subaward_client.py` — subcontract search params, response normalization
-- [ ] `test_sam_fedhier_client.py` — hierarchy traversal, agency search
-- [ ] `test_usaspending_client.py` — POST body construction, award/transaction response mapping
-- [ ] `test_calc_client.py` — labor rate query params, pagination
-- [ ] `test_base_client.py` — retry logic (exponential backoff), rate limit checking, error classification
+- [x] `test_sam_awards_client.py` — award search params, NAICS/awardee/solicitation filtering
+- [x] `test_sam_exclusions_client.py` — UEI/name lookup construction, v4 response parsing
+- [x] `test_sam_subaward_client.py` — subcontract search params, response normalization
+- [x] `test_sam_fedhier_client.py` — hierarchy traversal, agency search
+- [x] `test_usaspending_client.py` — POST body construction, award/transaction response mapping
+- [x] `test_calc_client.py` — labor rate query params, pagination
+- [x] `test_base_client.py` — retry logic (exponential backoff), rate limit checking, error classification
 
 #### Data Quality Tests
-- [ ] `test_data_cleaner.py` — all 10+ cleaning rules individually
+- [x] `test_data_cleaner.py` — all 10+ cleaning rules individually
   - ZIP code parsing (5-digit, 9-digit, international)
   - Date format normalization (various SAM.gov formats)
   - Phone number cleaning
@@ -68,22 +68,27 @@ This phase establishes a formal testing strategy across all three layers of the 
   - Country code mapping
   - State code validation
   - Business type code normalization
+- [x] `test_date_utils.py` — date parsing and formatting utilities
+- [x] `test_parsing_utils.py` — field parsing and extraction utilities
 
 #### Loader Logic Tests (no DB)
-- [ ] `test_opportunity_loader_logic.py` — SHA-256 hash computation, change detection logic, field mapping
+- [x] `test_opportunity_loader_logic.py` — SHA-256 hash computation, change detection logic, field mapping
 - [ ] `test_entity_loader_logic.py` — JSON normalization for 1+8 entity tables, hash comparison
-- [ ] `test_awards_loader_logic.py` — FPDS field mapping, deduplication logic
-- [ ] `test_usaspending_loader_logic.py` — award/transaction mapping, burn rate calculation formula
-- [ ] `test_dat_parser.py` — V2 DAT file parsing, field extraction, delimiter handling
+- [x] `test_awards_loader_logic.py` — FPDS field mapping, deduplication logic
+- [x] `test_usaspending_loader_logic.py` — award/transaction mapping, burn rate calculation formula
+- [x] `test_dat_parser.py` — V2 DAT file parsing, field extraction, delimiter handling
+- [x] `test_bulk_loader.py` — bulk loading logic, LOAD DATA INFILE construction
 
 #### Utility Tests
-- [ ] `test_config.py` — .env loading, default values, missing key handling
-- [ ] `test_db_pool.py` — connection string construction (no actual connections)
-- [ ] `test_scheduler.py` — job definition validation, schedule parsing, threshold checks
+- [x] `test_config.py` — .env loading, default values, missing key handling
+- [x] `test_db_pool.py` — connection string construction (no actual connections)
+- [x] `test_scheduler.py` — job definition validation, schedule parsing, threshold checks
+- [x] `test_health_check.py` — health check logic, freshness thresholds
+- [x] `test_change_detector.py` — SHA-256 change detection logic
 
 #### Scoring and Business Logic
-- [ ] `test_prospect_scoring.py` — Go/No-Go scoring (4 criteria, 0-40 scale), edge cases (missing data, boundary values)
-- [ ] `test_status_flow.py` — prospect status transitions (valid and invalid), STATUS_FLOW enforcement
+- [x] `test_prospect_scoring.py` — Go/No-Go scoring (4 criteria, 0-40 scale), edge cases (missing data, boundary values)
+- [x] `test_status_flow.py` — prospect status transitions (valid and invalid), STATUS_FLOW enforcement
 
 ### 14.1.2 Integration Tests (require MySQL)
 
@@ -109,11 +114,12 @@ This phase establishes a formal testing strategy across all three layers of the 
 
 ### 14.1.4 Test Fixtures
 
-- [ ] Create `fed_prospector/tests/fixtures/` directory
+- [x] Create `fed_prospector/tests/fixtures/` directory — 8 JSON fixture files
 - [ ] `api_responses/` — captured JSON responses from each SAM.gov sub-API (sanitized)
 - [ ] `dat_files/` — small sample DAT extract files (10-20 records)
 - [ ] `csv_files/` — reference data CSVs for test database seeding
 - [ ] `bad_records/` — known-bad records that trigger each data quality rule
+- [x] Shared `conftest.py` with autouse DB/API mocking
 
 ---
 
@@ -124,37 +130,41 @@ This phase establishes a formal testing strategy across all three layers of the 
 **Run command**: `dotnet test api/` (runs all test projects)
 **Existing scaffolding**: `FedProspector.Api.Tests` and `FedProspector.Core.Tests` projects exist (empty)
 
-### 14.2.1 Unit Tests — FedProspector.Core.Tests
+### 14.2.1 Unit Tests — FedProspector.Core.Tests (234 tests, 25 files)
 
-#### Validator Tests
-- [ ] `LoginRequestValidatorTests.cs` — valid/invalid usernames, passwords, edge cases
-- [ ] `PagedRequestValidatorTests.cs` — page size bounds, negative page numbers, max limits
-- [ ] Future CRUD validators as they are added in Phase 12
+#### Validator Tests (22 test files)
+- [x] `LoginRequestValidatorTests.cs` — valid/invalid usernames, passwords, edge cases
+- [x] `PagedRequestValidatorTests.cs` — page size bounds, negative page numbers, max limits
+- [x] All Phase 11-13 validator tests (OpportunitySearch, AwardSearch, EntitySearch, SubawardTeamingPartnerSearch, TargetOpportunitySearch, SavedSearch, Prospect, Proposal, Notification, Auth, Admin, etc.)
 
 #### DTO / Mapping Tests
-- [ ] `MappingProfileTests.cs` — AutoMapper configuration is valid, all mappings resolve
-- [ ] `PagedResponseTests.cs` — pagination math (total pages, has-next, has-previous)
+- [x] `MappingProfileTests.cs` — AutoMapper configuration is valid, all mappings resolve
+- [x] `PagedResponseTests.cs` — pagination math (total pages, has-next, has-previous)
 
 #### Business Logic Tests (when added in Phase 12)
 - [ ] `ProspectScoringTests.cs` — Go/No-Go scoring logic in C# (mirrors Python tests)
 - [ ] `StatusFlowTests.cs` — prospect status transitions, invalid transition rejection
 - [ ] `BurnRateCalculationTests.cs` — spend analysis calculation
 
-### 14.2.2 Unit Tests — FedProspector.Api.Tests
+### 14.2.2 Unit Tests — FedProspector.Api.Tests (118 tests, 11 files)
 
 #### Middleware Tests
-- [ ] `ExceptionHandlerMiddlewareTests.cs` — maps exception types to HTTP status codes, response format
-- [ ] `FluentValidationFilterTests.cs` — validation errors produce 400 with correct body
+- [x] `ExceptionHandlerMiddlewareTests.cs` — maps exception types to HTTP status codes, response format
+- [x] `SecurityHeadersMiddlewareTests.cs` — security headers added to responses
 
 #### Controller Tests (with mocked services)
-- [ ] `HealthControllerTests.cs` — returns 200 with expected shape
-- [ ] `AuthControllerTests.cs` — login success/failure, token format, lockout after N failures
-- [ ] `OpportunitiesControllerTests.cs` — search params passed to repository, pagination applied
-- [ ] `AwardsControllerTests.cs` — search + burn rate endpoint
-- [ ] `EntitiesControllerTests.cs` — search + exclusion check
+- [x] `HealthControllerTests.cs` — returns 200 with expected shape
+- [x] `AuthControllerTests.cs` — login success/failure, token format, lockout after N failures
+- [x] `OpportunitiesControllerTests.cs` — search params passed to service, pagination applied
+- [x] `AwardsControllerTests.cs` — search + burn rate endpoint
+- [x] `EntitiesControllerTests.cs` — search + exclusion check
 - [ ] `ProspectsControllerTests.cs` — CRUD operations, status flow enforcement
 - [ ] `ProposalsControllerTests.cs` — lifecycle transitions, document association
-- [ ] `DashboardControllerTests.cs` — aggregation queries return expected shape
+- [x] `DashboardControllerTests.cs` — aggregation queries return expected shape
+- [x] `SubawardsControllerTests.cs` — teaming partner search
+- [x] `AdminControllerTests.cs` — admin endpoints, user management
+- [x] `SavedSearchesControllerTests.cs` — CRUD for saved searches
+- [x] `NotificationsControllerTests.cs` — notification list, mark-read
 
 ### 14.2.3 Integration Tests (WebApplicationFactory + test DB)
 
@@ -208,7 +218,7 @@ This phase establishes a formal testing strategy across all three layers of the 
 ## 14.4 Test Infrastructure
 
 ### Automation
-- [ ] GitHub Actions workflow: `.github/workflows/test.yml`
+- [ ] GitHub Actions workflow: `.github/workflows/test.yml` — SKIPPED (user preference for lean tooling)
   - Python: `pytest` with coverage report (fail below 70% threshold)
   - C#: `dotnet test` with coverage via Coverlet (fail below 70% threshold)
   - UI: `npm test` + `npx playwright test` (when UI exists)
@@ -249,14 +259,14 @@ This phase establishes a formal testing strategy across all three layers of the 
 
 ## Acceptance Criteria
 
-1. `pytest fed_prospector/tests/ -v` runs all Python unit tests — all pass
-2. `pytest fed_prospector/tests/integration/ -v --db-test` runs integration tests against test DB — all pass
-3. `dotnet test api/` runs all C# unit + integration tests — all pass
-4. Coverage reports generated for both Python and C#
-5. CI workflow runs tests on every push/PR
-6. Test fixtures exist for all SAM.gov API response formats
-7. Regression tests cover all 18 documented data quality issues
-8. No test touches the production `fed_contracts` database
+1. [x] `pytest fed_prospector/tests/ -v` runs all Python unit tests — 568 tests pass
+2. [ ] `pytest fed_prospector/tests/integration/ -v --db-test` runs integration tests against test DB — deferred (no test DB yet)
+3. [x] `dotnet test api/tests/FedProspector.Core.Tests/` — 234 tests pass
+4. [x] `dotnet test api/tests/FedProspector.Api.Tests/` — 118 tests pass
+5. [ ] CI workflow runs tests on every push/PR — SKIPPED (user preference for lean tooling)
+6. [x] Test fixtures exist for SAM.gov API response formats (8 JSON fixture files)
+7. [ ] Regression tests cover all 18 documented data quality issues — deferred
+8. [x] No test touches the production `fed_contracts` database
 
 ---
 

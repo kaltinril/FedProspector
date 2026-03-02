@@ -46,6 +46,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
 - **API**: ASP.NET Core Web API with 44 endpoints across 12 controllers + auth + health (Phases 10-13 complete)
+- **Testing**: 920 tests total (568 Python pytest + 234 C# Core xUnit + 118 C# Api xUnit), all passing
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core will own application tables (app_user, prospect, saved_search, etc.) starting Phase 10. See Phase 10 plan for details.
 
 ### Known Data Quality Issues
@@ -66,6 +67,9 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 | ETL loaders | `fed_prospector/etl/` (bulk_loader, dat_parser, opportunity_loader, awards_loader, usaspending_loader, calc_loader, fedhier_loader, exclusions_loader, subaward_loader, prospect_manager, scheduler, health_check, db_maintenance) |
 | API controllers | `api/src/FedProspector.Api/Controllers/` (12 controllers: Auth, Health, Opportunities, Awards, Entities, Subawards, Dashboard, Admin, SavedSearches, Prospects, Proposals, Notifications) |
 | API services | `api/src/FedProspector.Infrastructure/Services/` (13 services: Auth, Opportunity, Award, Entity, Subaward, Dashboard, Admin, SavedSearch, Prospect, Proposal, ActivityLog, GoNoGoScoring, Notification) |
+| Python tests | `fed_prospector/tests/` (23 test files, 8 JSON fixtures in `fixtures/`, shared `conftest.py`) |
+| C# Core tests | `api/tests/FedProspector.Core.Tests/` (25 test files: 22 validator, 1 mapping, 1 DTO, 1 paged response) |
+| C# Api tests | `api/tests/FedProspector.Api.Tests/` (11 test files: 2 middleware, 9 controller) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
 | Master plan | `thesolution/MASTER-PLAN.md` |
 | Phase plans | `thesolution/phases/` (01 through 14) |

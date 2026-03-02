@@ -1,0 +1,25 @@
+{
+  "totalrecords": 2,
+  "orglist": [
+    {
+      "fhorgid": 100000000,
+      "fhorgname": "Department of Defense",
+      "fhorgtype": "Department/Ind. Agency",
+      "status": "Active",
+      "agencycode": "9700",
+      "cgac": "097",
+      "fhparentorgname": null,
+      "description": "DoD"
+    },
+    {
+      "fhorgid": 100000001,
+      "fhorgname": "Department of the Army",
+      "fhorgtype": "Sub-Tier",
+      "status": "Active",
+      "agencycode": "2100",
+      "cgac": "021",
+      "fhparentorgname": "Department of Defense",
+      "description": "Army"
+    }
+  ]
+}

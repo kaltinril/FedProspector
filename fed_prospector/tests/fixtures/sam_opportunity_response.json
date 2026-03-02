@@ -1,0 +1,51 @@
+{
+  "totalRecords": 2,
+  "opportunitiesData": [
+    {
+      "noticeId": "abc123",
+      "title": "IT Support Services",
+      "solicitationNumber": "W911NF-25-R-0001",
+      "department": "Defense",
+      "subTier": "Army",
+      "office": "Army Contracting Command",
+      "postedDate": "01/15/2026",
+      "type": "Solicitation",
+      "baseType": "Solicitation",
+      "archiveType": "auto15",
+      "archiveDate": null,
+      "typeOfSetAsideDescription": "Women-Owned Small Business (WOSB) Program Set-Aside",
+      "typeOfSetAside": "WOSB",
+      "responseDeadLine": "02/15/2026",
+      "naicsCode": "541512",
+      "classificationCode": "D302",
+      "active": "Yes",
+      "award": null,
+      "organizationType": "DEPT",
+      "description": "https://api.sam.gov/opportunities/v2/search?noticeid=abc123",
+      "uiLink": "https://sam.gov/opp/abc123/view"
+    },
+    {
+      "noticeId": "def456",
+      "title": "Cybersecurity Assessment",
+      "solicitationNumber": "FA8750-26-R-0002",
+      "department": "Defense",
+      "subTier": "Air Force",
+      "office": "AF Life Cycle Management Center",
+      "postedDate": "01/20/2026",
+      "type": "Combined Synopsis/Solicitation",
+      "baseType": "Combined Synopsis/Solicitation",
+      "archiveType": "auto15",
+      "archiveDate": null,
+      "typeOfSetAsideDescription": "8(a) Set-Aside",
+      "typeOfSetAside": "8A",
+      "responseDeadLine": "03/01/2026",
+      "naicsCode": "541519",
+      "classificationCode": "D399",
+      "active": "Yes",
+      "award": null,
+      "organizationType": "DEPT",
+      "description": "https://api.sam.gov/opportunities/v2/search?noticeid=def456",
+      "uiLink": "https://sam.gov/opp/def456/view"
+    }
+  ]
+}

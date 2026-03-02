@@ -1,0 +1,68 @@
+{
+  "totalRecords": 1,
+  "entityData": [
+    {
+      "entityRegistration": {
+        "samRegistered": "Yes",
+        "ueiSAM": "ABC123DEF456",
+        "cageCode": "1ABC2",
+        "legalBusinessName": "Acme Federal Solutions LLC",
+        "registrationStatus": "Active",
+        "registrationDate": "2020-01-15",
+        "lastUpdateDate": "2026-01-10",
+        "registrationExpirationDate": "2027-01-15",
+        "activationDate": "2020-01-20"
+      },
+      "coreData": {
+        "physicalAddress": {
+          "addressLine1": "123 Main St",
+          "city": "Arlington",
+          "stateOrProvinceCode": "VA",
+          "zipCode": "22201",
+          "countryCode": "USA"
+        },
+        "mailingAddress": {
+          "addressLine1": "PO Box 100",
+          "city": "Arlington",
+          "stateOrProvinceCode": "VA",
+          "zipCode": "22201-1234",
+          "countryCode": "USA"
+        },
+        "generalInformation": {
+          "countryOfIncorporationCode": "USA"
+        },
+        "entityInformation": {
+          "entityStartDate": "2015-06-01",
+          "fiscalYearEndCloseDate": "12/31",
+          "submissionDate": "2026-01-10"
+        },
+        "businessTypes": {
+          "businessTypeList": [
+            {"businessTypeCode": "8W", "businessTypeDescription": "Woman Owned Small Business"}
+          ],
+          "sbaBusinessTypeList": []
+        }
+      },
+      "assertions": {
+        "goodsAndServices": {
+          "naicsList": [
+            {
+              "naicsCode": {"code": "541512"},
+              "isPrimary": true,
+              "naicsDescription": "Computer Systems Design Services"
+            }
+          ]
+        }
+      },
+      "pointsOfContact": {
+        "governmentBusinessPOC": {
+          "firstName": "Jane",
+          "lastName": "Doe",
+          "stateOrProvinceCode": "VA",
+          "zipCode": "22201",
+          "countryCode": "USA"
+        }
+      }
+    }
+  ]
+}

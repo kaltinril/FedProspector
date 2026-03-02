@@ -1,0 +1,60 @@
+{
+  "hits": {
+    "total": {"value": 3, "relation": "eq"},
+    "hits": [
+      {
+        "_id": "rate_001",
+        "_source": {
+          "id": 1001,
+          "vendor_name": "Acme Consulting LLC",
+          "labor_category": "Software Developer",
+          "schedule": "IT Schedule 70",
+          "current_price": 125.50,
+          "education_level": "Bachelors",
+          "min_years_experience": 3,
+          "business_size": "SMALL",
+          "worksite": "Both",
+          "security_clearance": "None"
+        }
+      },
+      {
+        "_id": "rate_002",
+        "_source": {
+          "id": 1002,
+          "vendor_name": "TechCorp Solutions",
+          "labor_category": "Senior Software Developer",
+          "schedule": "IT Schedule 70",
+          "current_price": 175.00,
+          "education_level": "Masters",
+          "min_years_experience": 7,
+          "business_size": "LARGE",
+          "worksite": "Customer",
+          "security_clearance": "Secret"
+        }
+      },
+      {
+        "_id": "rate_003",
+        "_source": {
+          "id": 1003,
+          "vendor_name": "Federal IT Partners",
+          "labor_category": "Software Developer",
+          "schedule": "OASIS",
+          "current_price": 140.25,
+          "education_level": "Bachelors",
+          "min_years_experience": 5,
+          "business_size": "SMALL",
+          "worksite": "Contractor",
+          "security_clearance": "None"
+        }
+      }
+    ]
+  },
+  "aggregations": {
+    "wage_stats": {
+      "count": 3,
+      "min": 125.50,
+      "max": 175.00,
+      "avg": 146.92
+    }
+  }
+}

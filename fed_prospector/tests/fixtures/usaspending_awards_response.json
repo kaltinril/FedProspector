@@ -1,0 +1,37 @@
+{
+  "results": [
+    {
+      "Award ID": "W911NF-25-C-0001",
+      "Recipient Name": "Acme Federal Solutions LLC",
+      "Recipient UEI": "ABC123DEF456",
+      "Start Date": "2025-10-01",
+      "End Date": "2026-09-30",
+      "Award Amount": 3000000.00,
+      "Total Outlays": 1500000.00,
+      "Description": "IT Support Services for Army Contracting Command",
+      "Contract Award Type": "D",
+      "recipient_id": "abc-def-123",
+      "prime_award_recipient_id": "abc-def-123",
+      "Awarding Agency": "Department of Defense",
+      "Awarding Sub Agency": "Army Contracting Command",
+      "Funding Agency": "Department of Defense",
+      "NAICS Code": "541512",
+      "NAICS Description": "Computer Systems Design Services",
+      "PSC Code": "D302",
+      "Type of Set Aside": "WOSB",
+      "Place of Performance State Code": "VA",
+      "Place of Performance Country Code": "USA",
+      "Place of Performance Zip5": "22201",
+      "Place of Performance City Code": "03000",
+      "Last Date to Order": null,
+      "Base and All Options Value": 5000000.00,
+      "generated_unique_award_id": "CONT_AWD_W911NF25C0001_9700_W911NF25D0001_9700"
+    }
+  ],
+  "page_metadata": {
+    "page": 1,
+    "hasNext": false,
+    "total": 1,
+    "limit": 100
+  }
+}

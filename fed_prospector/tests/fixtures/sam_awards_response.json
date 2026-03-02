@@ -1,0 +1,31 @@
+{
+  "totalRecords": 1,
+  "awardSummary": [
+    {
+      "contractId": {
+        "contractNumber": "W911NF-25-C-0001",
+        "idvPIID": null,
+        "modNumber": "0"
+      },
+      "awardDetail": {
+        "typeOfContractDescription": "Firm Fixed Price",
+        "typeOfSetAsideDescription": "Women-Owned Small Business",
+        "naicsCode": "541512",
+        "dateSigned": "10/15/2025",
+        "obligatedAmount": 1500000.00,
+        "totalBaseAndAllOptionsValue": 3000000.00
+      },
+      "awardee": {
+        "name": "Acme Federal Solutions LLC",
+        "uei": "ABC123DEF456",
+        "cageCode": "1ABC2",
+        "stateCode": "VA",
+        "countryCode": "USA"
+      },
+      "awardingAgency": {
+        "agencyName": "Army Contracting Command",
+        "departmentName": "Department of the Army"
+      }
+    }
+  ]
+}

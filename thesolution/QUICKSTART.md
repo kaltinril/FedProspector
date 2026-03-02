@@ -500,6 +500,34 @@ The API starts at `https://localhost:5001` (or `http://localhost:5000`).
 - Health: per-source ETL freshness monitoring in `GET /health`
 - Swagger: enhanced API documentation with request/response examples and auth flow
 
+### Phase 14: Testing — COMPLETE (2026-03-01)
+
+920 tests across Python and C#, all passing.
+
+**Run Python tests** (568 tests):
+```bash
+cd fed_prospector
+source .venv/Scripts/activate        # Git Bash
+python -m pytest fed_prospector/tests/ -v
+```
+
+**Run C# Core tests** (234 tests):
+```bash
+dotnet test api/tests/FedProspector.Core.Tests/
+```
+
+**Run C# Api tests** (118 tests):
+```bash
+dotnet test api/tests/FedProspector.Api.Tests/
+```
+
+**Run all C# tests at once**:
+```bash
+dotnet test api/tests/FedProspector.Core.Tests/ && dotnet test api/tests/FedProspector.Api.Tests/
+```
+
+See [14-TESTING.md](phases/14-TESTING.md) for full details.
+
 ---
 
 ## Troubleshooting
