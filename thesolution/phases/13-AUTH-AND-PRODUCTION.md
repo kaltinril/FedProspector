@@ -186,7 +186,7 @@ Response:
 - [x] Authentication flow documented (how to get token, where to send it)
 - [x] Error response format documented
 - [x] Rate limit documentation
-- [ ] Postman collection export
+- [x] Postman collection export (`api/docs/FedProspector.postman_collection.json`)
 
 ---
 

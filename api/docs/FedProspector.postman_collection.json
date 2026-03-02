@@ -1,0 +1,1963 @@
+{
+  "info": {
+    "_postman_id": "c9333fe5-1af8-42ef-90ca-b87426c41976",
+    "name": "FedProspector API",
+    "description": "Federal contract prospecting system API \u00e2\u20ac\u201d search opportunities, manage prospects, track proposals",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Authenticate a user and return a JWT token.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"P@ssw0rd123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set(\"authToken\", json.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Revoke the current session token (log out).",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register a new user account and return a JWT token.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "register"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"jdoe\",\n  \"email\": \"user@example.com\",\n  \"password\": \"P@ssw0rd123!\",\n  \"displayName\": \"jdoe\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Change the current user's password. Revokes all active sessions.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/change-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "change-password"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"P@ssw0rd123!\",\n  \"newPassword\": \"P@ssw0rd123!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get the current user's profile.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update the current user's profile (display name and/or email).",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"jdoe\",\n  \"email\": \"user@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Get ETL pipeline status, API usage, and recent errors. Admin only.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/etl-status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "etl-status"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List all users. Admin only.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update a user's role, admin status, or active status. Admin only.",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"analyst\",\n  \"isAdmin\": false,\n  \"isActive\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Force-reset a user's password and revoke all sessions. Admin only.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/admin/users/:id/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "admin",
+                "users",
+                ":id",
+                "reset-password"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Opportunities",
+      "item": [
+        {
+          "name": "GET /api/v1/opportunities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/opportunities",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "opportunities"
+              ],
+              "query": [
+                {
+                  "key": "SetAside",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Naics",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Keyword",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "DaysOut",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "OpenOnly",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                },
+                {
+                  "key": "Department",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "State",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/opportunities/targets",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/opportunities/targets",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "opportunities",
+                "targets"
+              ],
+              "query": [
+                {
+                  "key": "MinValue",
+                  "value": "",
+                  "description": "(number)",
+                  "disabled": true
+                },
+                {
+                  "key": "MaxValue",
+                  "value": "",
+                  "description": "(number)",
+                  "disabled": true
+                },
+                {
+                  "key": "NaicsSector",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SetAside",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Naics",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Department",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "State",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/opportunities/{noticeId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/opportunities/:noticeId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "opportunities",
+                ":noticeId"
+              ],
+              "variable": [
+                {
+                  "key": "noticeId",
+                  "value": "abc123def456",
+                  "description": "(string)"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Awards",
+      "item": [
+        {
+          "name": "GET /api/v1/awards",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/awards",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "awards"
+              ],
+              "query": [
+                {
+                  "key": "Solicitation",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Naics",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Agency",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "VendorUei",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "VendorName",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SetAside",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "MinValue",
+                  "value": "",
+                  "description": "(number)",
+                  "disabled": true
+                },
+                {
+                  "key": "MaxValue",
+                  "value": "",
+                  "description": "(number)",
+                  "disabled": true
+                },
+                {
+                  "key": "DateFrom",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "DateTo",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/awards/{contractId}/burn-rate",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/awards/:contractId/burn-rate",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "awards",
+                ":contractId",
+                "burn-rate"
+              ],
+              "variable": [
+                {
+                  "key": "contractId",
+                  "value": "string",
+                  "description": "(string)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/awards/{contractId}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/awards/:contractId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "awards",
+                ":contractId"
+              ],
+              "variable": [
+                {
+                  "key": "contractId",
+                  "value": "string",
+                  "description": "(string)"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Entities",
+      "item": [
+        {
+          "name": "GET /api/v1/entities",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/entities",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "entities"
+              ],
+              "query": [
+                {
+                  "key": "Name",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Uei",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Naics",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "State",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "BusinessType",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SbaCertification",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "RegistrationStatus",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/entities/{uei}/competitor-profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/entities/:uei/competitor-profile",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "entities",
+                ":uei",
+                "competitor-profile"
+              ],
+              "variable": [
+                {
+                  "key": "uei",
+                  "value": "EXAMPLEUEI0001",
+                  "description": "(string)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/entities/{uei}/exclusion-check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/entities/:uei/exclusion-check",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "entities",
+                ":uei",
+                "exclusion-check"
+              ],
+              "variable": [
+                {
+                  "key": "uei",
+                  "value": "EXAMPLEUEI0001",
+                  "description": "(string)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /api/v1/entities/{uei}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/entities/:uei",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "entities",
+                ":uei"
+              ],
+              "variable": [
+                {
+                  "key": "uei",
+                  "value": "EXAMPLEUEI0001",
+                  "description": "(string)"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Subawards",
+      "item": [
+        {
+          "name": "Search for teaming partners based on subaward history.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/subawards/teaming-partners",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "subawards",
+                "teaming-partners"
+              ],
+              "query": [
+                {
+                  "key": "Naics",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "MinSubawards",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "PrimeUei",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SubUei",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Get the prospect pipeline dashboard with status counts, due items, and workload.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/dashboard",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "dashboard"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Prospects",
+      "item": [
+        {
+          "name": "Create a new prospect from an opportunity.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"noticeId\": \"abc123def456\",\n  \"assignedTo\": 0,\n  \"captureManagerId\": 0,\n  \"priority\": \"high\",\n  \"notes\": \"Example note text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search prospects with filters and pagination.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects"
+              ],
+              "query": [
+                {
+                  "key": "Status",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "AssignedTo",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "CaptureManagerId",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "Priority",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Naics",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SetAside",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "OpenOnly",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get full prospect detail including opportunity, notes, team, proposal, and score.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update a prospect's status following the defined status flow.",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects/:id/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects",
+                ":id",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newStatus\": \"active\",\n  \"notes\": \"Example note text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reassign a prospect to a different user.",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects/:id/reassign",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects",
+                ":id",
+                "reassign"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newAssignedTo\": 0,\n  \"notes\": \"Example note text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add a note to a prospect.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects/:id/notes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects",
+                ":id",
+                "notes"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"noteType\": \"general\",\n  \"noteText\": \"Example note text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add a team member to a prospect.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects/:id/team-members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects",
+                ":id",
+                "team-members"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ueiSam\": \"EXAMPLEUEI0001\",\n  \"role\": \"analyst\",\n  \"notes\": \"Example note text\",\n  \"proposedHourlyRate\": 0.0,\n  \"commitmentPct\": 0.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Remove a team member from a prospect.",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects/:id/team-members/:memberId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects",
+                ":id",
+                "team-members",
+                ":memberId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                },
+                {
+                  "key": "memberId",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Recalculate the Go/No-Go score for a prospect.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/prospects/:id/recalculate-score",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "prospects",
+                ":id",
+                "recalculate-score"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Proposals",
+      "item": [
+        {
+          "name": "Create a new proposal linked to a prospect.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/proposals",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"prospectId\": 0,\n  \"submissionDeadline\": \"2026-01-15T12:00:00Z\",\n  \"estimatedValue\": 0.0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update a proposal (status, estimated value, win probability).",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/proposals/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\",\n  \"estimatedValue\": 0.0,\n  \"winProbabilityPct\": 0.0,\n  \"notes\": \"Example note text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Add a document record to a proposal.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/proposals/:id/documents",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                ":id",
+                "documents"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fileName\": \"proposal_v1.pdf\",\n  \"documentType\": \"technical_volume\",\n  \"fileSizeBytes\": 0,\n  \"notes\": \"Example note text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List milestones for a proposal.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/proposals/:id/milestones",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                ":id",
+                "milestones"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update a milestone within a proposal.",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/proposals/:id/milestones/:milestoneId",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                ":id",
+                "milestones",
+                ":milestoneId"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                },
+                {
+                  "key": "milestoneId",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"completedDate\": \"2026-01-15\",\n  \"status\": \"active\",\n  \"notes\": \"Example note text\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "SavedSearches",
+      "item": [
+        {
+          "name": "List all active saved searches for the current user.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/saved-searches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "saved-searches"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create a new saved search.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/saved-searches",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "saved-searches"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"searchName\": \"My WOSB Search\",\n  \"description\": \"Search description\",\n  \"filterCriteria\": {\n    \"setAsideCodes\": [\n      \"string\"\n    ],\n    \"naicsCodes\": [\n      \"string\"\n    ],\n    \"states\": [\n      \"string\"\n    ],\n    \"minAwardAmount\": 0.0,\n    \"maxAwardAmount\": 0.0,\n    \"openOnly\": false,\n    \"types\": [\n      \"string\"\n    ],\n    \"daysBack\": 0\n  },\n  \"notificationEnabled\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Execute a saved search and return matching opportunities.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/saved-searches/:id/run",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "saved-searches",
+                ":id",
+                "run"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Soft-delete a saved search (sets IsActive to N).",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/saved-searches/:id",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "saved-searches",
+                ":id"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "List notifications for the current user with optional filters.",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "UnreadOnly",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                },
+                {
+                  "key": "Type",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "Page",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "PageSize",
+                  "value": "",
+                  "description": "(integer)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortBy",
+                  "value": "",
+                  "description": "(string)",
+                  "disabled": true
+                },
+                {
+                  "key": "SortDescending",
+                  "value": "",
+                  "description": "(boolean)",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark a single notification as read.",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/:id/read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                ":id",
+                "read"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": "",
+                  "description": "(integer)"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mark all notifications as read for the current user.",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/notifications/mark-all-read",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "notifications",
+                "mark-all-read"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5100",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
