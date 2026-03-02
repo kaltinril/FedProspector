@@ -7,11 +7,13 @@ setlocal enabledelayedexpansion
 ::
 ::  Usage:  fed_prospector.bat <command> [service]
 ::
-::  Commands:  start | stop | restart | status
+::  Commands:  start | stop | restart | status | build
 ::  Services:  all (default) | db | api | ui
 ::
 ::  Examples:
-::    fed_prospector.bat start          Start DB + API
+::    fed_prospector.bat build          Build API (Release)
+::    fed_prospector.bat build api      Build API (Release)
+::    fed_prospector.bat start          Start DB + API (no build)
 ::    fed_prospector.bat stop api       Stop only the API
 ::    fed_prospector.bat restart db     Restart MySQL
 ::    fed_prospector.bat status         Show status of all services
@@ -23,7 +25,7 @@ if "%CMD%"=="" goto :usage
 if "%SVC%"=="" set "SVC=all"
 
 :: Normalize to lowercase
-for %%a in (start stop restart status) do if /I "%CMD%"=="%%a" set "CMD=%%a"
+for %%a in (start stop restart status build) do if /I "%CMD%"=="%%a" set "CMD=%%a"
 for %%a in (all db api ui) do if /I "%SVC%"=="%%a" set "SVC=%%a"
 
 :: Paths
@@ -33,11 +35,28 @@ set "API_PROJECT=%~dp0api\src\FedProspector.Api"
 set "API_EXE=FedProspector.Api.exe"
 
 :: Route command
+if "%CMD%"=="build"   goto :cmd_build
 if "%CMD%"=="start"   goto :cmd_start
 if "%CMD%"=="stop"    goto :cmd_stop
 if "%CMD%"=="restart" goto :cmd_restart
 if "%CMD%"=="status"  goto :cmd_status
 goto :usage
+
+:: ----------------------------------------
+::  BUILD
+:: ----------------------------------------
+:cmd_build
+if "%SVC%"=="all" (
+    call :build_api
+) else if "%SVC%"=="api" (
+    call :build_api
+) else if "%SVC%"=="ui" (
+    call :build_ui
+) else (
+    echo  [BUILD] Unknown target: %SVC%
+    goto :usage
+)
+goto :eof
 
 :: ----------------------------------------
 ::  START
@@ -164,8 +183,8 @@ if %ERRORLEVEL%==0 (
     echo  [API] Already running.
     goto :eof
 )
-echo  [API] Starting .NET API ...
-start "FedProspector API" /MIN dotnet run --project "%API_PROJECT%"
+echo  [API] Starting .NET API (no build) ...
+start "FedProspector API" /MIN dotnet run --no-build --project "%API_PROJECT%"
 :: Wait for API to respond
 :wait_api
 timeout /t 1 /nobreak >NUL
@@ -196,6 +215,23 @@ if %ERRORLEVEL%==0 (
 goto :eof
 
 :: ========================================
+::  Build functions
+:: ========================================
+:build_api
+echo  [API] Building (Release) ...
+dotnet build "%~dp0api\FedProspector.Api.slnx" -c Release --verbosity quiet
+if %ERRORLEVEL%==0 (
+    echo  [API] Build succeeded.
+) else (
+    echo  [API] Build FAILED.
+)
+goto :eof
+
+:build_ui
+echo  [UI]  Not yet implemented. (Awaiting frontend framework selection)
+goto :eof
+
+:: ========================================
 ::  UI functions (placeholder)
 :: ========================================
 :start_ui
@@ -218,7 +254,8 @@ echo.
 echo  Usage:  fed_prospector.bat ^<command^> [service]
 echo.
 echo  Commands:
-echo    start      Start service(s)
+echo    build      Build project(s) (Release config)
+echo    start      Start service(s) (no build, run build first)
 echo    stop       Stop service(s)
 echo    restart    Stop then start service(s)
 echo    status     Show running status
@@ -230,6 +267,7 @@ echo    api        .NET API only
 echo    ui         Frontend only  (not yet implemented)
 echo.
 echo  Examples:
+echo    fed_prospector.bat build
 echo    fed_prospector.bat start
 echo    fed_prospector.bat stop api
 echo    fed_prospector.bat restart db
