@@ -22,7 +22,7 @@ API_SLN = SCRIPT_DIR / "api" / "FedProspector.Api.slnx"
 API_EXE = "FedProspector.Api.exe"
 MYSQL_EXE = "mysqld.exe"
 MYSQL_ROOT_PASS = "root_2026"
-API_URL = "http://localhost:5100"
+API_URL = "http://localhost:5056"
 
 
 def is_running(image_name: str) -> bool:
@@ -121,10 +121,14 @@ def start_api():
         f'start "FedProspector API" /MIN dotnet run --no-build --project "{API_PROJECT}"',
         shell=True,
     )
-    while not url_reachable(f"{API_URL}/health"):
+    for _ in range(30):
         time.sleep(1)
-    print(f"  [API] Ready.  Swagger: {API_URL}/swagger")
-    print(f"                Health:  {API_URL}/health")
+        if url_reachable(f"{API_URL}/health"):
+            print(f"  [API] Ready.  Swagger: {API_URL}/swagger")
+            print(f"                Health:  {API_URL}/health")
+            return
+    print("  [API] Started but health check not responding after 30s.")
+    print(f"        Check manually: {API_URL}/health")
 
 
 def stop_api():
