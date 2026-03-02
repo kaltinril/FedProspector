@@ -30,6 +30,16 @@ The primary discovery page. Users search for active solicitations and RFIs.
 - Days out (deadline within N days)
 - Open only toggle (default: on)
 
+#### Additional Opportunity Filters (Competitive Parity)
+
+These filters match what competing products (GovWin IQ, etc.) offer:
+
+- **Notice/Contract Type**: Solicitation, Pre-solicitation, Sources Sought, RFI, Special Notice, Award Notice. Dropdown multi-select from `opportunity.type` field.
+- **Re-compete Status**: New requirement vs. re-compete. Derived from linked prior awards — if `fpds_contract` exists for same solicitation number or same NAICS+agency, flag as "Likely Re-compete". Display as toggle filter: "All" / "New Only" / "Re-competes Only".
+- **Full Socioeconomic Set-Aside**: All 23 set-aside types from `ref_set_aside_type` (not just WOSB/8(a)). Includes HUBZone, SDVOSB, 8(a) Sole Source, Total Small Business, etc. Checkbox group or multi-select dropdown.
+- **Security Clearance**: "Clearance Required" flag if opportunity description/title contains clearance keywords (Secret, Top Secret, TS/SCI, Public Trust). Binary toggle filter. Note: SAM.gov API does not provide a structured clearance field — this is a keyword-derived indicator.
+- **Size Standard Eligibility**: Filter by NAICS size standard threshold. "Show only opportunities where my company's revenue/employee count qualifies as small." Requires user profile to store company size info (future enhancement — for now, filter by NAICS size standard range).
+
 **Grid columns:**
 - Title (link to detail)
 - Solicitation #
@@ -163,6 +173,21 @@ Find potential teaming partners based on subaward history.
 - [ ] Loading skeletons for all grids (match column layout per page)
 - [ ] Stale/invalid URL param handling: validate filters on load, toast notification if invalid params are stripped
 - [ ] Graceful error states for API failures (retry button, error message)
+
+### 16.X Save Search Integration
+
+**Purpose**: Let users save their current search filters for quick re-use. Phase 19 extends saved searches with notifications and auto-run.
+
+**Implementation**:
+- "Save Search" button in the search results toolbar (next to export button)
+- Opens modal: search name (required), description (optional)
+- Calls `POST /api/v1/saved-searches` (already exists from Phase 11) with current URL filter params as `filter_criteria`
+- Success toast: "Search saved. Manage saved searches in Dashboard (Phase 19)."
+- Saved searches appear in sidebar under "Saved Searches" section (read-only list, click to re-run)
+
+**API**: Uses existing endpoint. No new backend work needed.
+
+**Phase 19 extends**: Adds notification toggle, auto-run scheduling, and dashboard card for saved search management.
 
 ---
 

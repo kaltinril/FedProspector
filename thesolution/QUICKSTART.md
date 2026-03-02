@@ -528,6 +528,37 @@ dotnet test api/tests/FedProspector.Core.Tests/ && dotnet test api/tests/FedPros
 
 See [14-TESTING.md](phases/14-TESTING.md) for full details.
 
+### Phase 14.5: Multi-Tenancy & Security Hardening — NOT STARTED
+
+> **BLOCKER for all UI phases.** Must complete before Phase 15.
+
+**What it delivers**:
+- Organization table + invite-only registration (companies control who joins)
+- httpOnly cookie auth replacing localStorage JWT (XSS protection)
+- Token refresh flow (30-min access + 7-day refresh tokens)
+- Multi-tenant data isolation on all capture endpoints (prospects, proposals, searches, notifications)
+- 6 missing API endpoints needed by UI (saved search update, milestone create, proposal list, auth refresh, notification count, CSV export)
+- Security hardening: CSP headers, CORS tightening, CSRF protection, generic error messages
+
+**New endpoints**: 8 organization management + 6 missing functionality = 14 new endpoints.
+
+See [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md) for full details.
+
+### Phases 15-20: UI Roadmap — NOT STARTED
+
+**Tech Stack**: Vite 6 + React 19 + TypeScript + MUI v6 (Material UI) + TanStack Query + Axios
+
+| Phase | Name | Key Deliverables |
+|-------|------|-----------------|
+| 15 | UI Foundation | Project scaffold, auth flow, layout, shared components, API client layer |
+| 16 | Search & Discovery | Opportunity/award/entity/teaming search with advanced filters, CSV export, save search |
+| 17 | Detail Views & Intel | Opportunity/award/entity detail pages, incumbent analysis, burn rate charts, market share |
+| 18 | Capture Management | Prospect Kanban pipeline, Go/No-Go scoring, proposals, team collaboration |
+| 19 | Dashboard & Notifications | Executive dashboard, saved search management, notification center |
+| 20 | Admin & Polish | Org admin panel, ETL monitoring, responsive design, accessibility (WCAG AA) |
+
+See individual phase docs in `thesolution/phases/` for full specifications.
+
 ---
 
 ## Troubleshooting
@@ -553,3 +584,16 @@ See [14-TESTING.md](phases/14-TESTING.md) for full details.
 - Verify the `fed_app` user was created: `D:\mysql\bin\mysql.exe -u root -p<your_root_password> -e "SELECT USER, HOST FROM mysql.user;"`
 - Verify grants: `D:\mysql\bin\mysql.exe -u root -p<your_root_password> -e "SHOW GRANTS FOR 'fed_app'@'localhost';"`
 - Make sure the password in `.env` matches `credentials.yml`
+
+---
+
+## Current Priority: Phase 14.5 (Multi-Tenancy)
+
+The next step is **Phase 14.5: Multi-Tenancy & Security Hardening**. This blocks all UI work because it changes:
+- How authentication works (cookies instead of localStorage tokens)
+- What's in the JWT (adds `org_id` and `org_role` claims)
+- How every capture endpoint filters data (adds `organization_id` scoping)
+
+**After Phase 14.5**: Phase 15 (UI Foundation) → Phase 16 (Search) → and so on through Phase 20.
+
+See [MASTER-PLAN.md](MASTER-PLAN.md) for the complete phase roadmap.

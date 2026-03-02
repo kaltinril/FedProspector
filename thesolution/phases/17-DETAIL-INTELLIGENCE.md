@@ -72,10 +72,28 @@ These pages are the competitive intelligence engine — the core value propositi
 
 **Tab 3: Competition**
 - Related awards by same NAICS + set-aside (who's winning similar work?)
-- Top vendors in this NAICS (from entity data)
-  > Top vendors by NAICS: No dedicated endpoint exists. Use entity search filtered by NAICS code to approximate, or defer to future analytics phase.
+- Top vendors in this NAICS (see Market Share section below)
 - USAspending summary (if linked) — display from `UsaspendingSummaryDto`:
   - `GeneratedUniqueAwardId`, `RecipientName`, `TotalObligation`, `BaseAndAllOptionsValue`, `StartDate`, `EndDate`
+
+#### Market Share: Top Vendors by NAICS (Required)
+
+**Purpose**: Show which companies dominate the opportunity's NAICS code. This is a primary competitive intelligence differentiator — customers pay for this insight.
+
+**Data source**: Aggregate `fpds_contract` records grouped by `vendor_uei` WHERE `naics_code` matches the opportunity's NAICS.
+
+**Display**:
+- Horizontal bar chart: Top 10 vendors by total award value
+- Table below chart: Vendor name, UEI, award count, total value, average value, most recent award date
+- Click vendor name → navigate to Entity Detail page
+
+**API**: New endpoint `GET /api/v1/awards/market-share?naicsCode={code}&limit=10`
+- Returns: `[{ vendorName, vendorUei, awardCount, totalValue, averageValue, lastAwardDate }]`
+- If fewer than 3 vendors found: show "Insufficient award data for NAICS {code}" with suggestion to broaden search
+
+**Edge cases**:
+- If NAICS code has no awards in DB: show "No contract award data available for this NAICS code. Award data coverage depends on ETL load history."
+- If vendor UEI not in entity table: show vendor name from award record with "(Not in entity database)" note
 
 **Tab 4: Prospect (if tracked)**
 - Prospect status, priority, score
@@ -114,6 +132,19 @@ These pages are the competitive intelligence engine — the core value propositi
 - Vendor summary card (from VendorSummaryDto)
 - Link to full entity detail
 - Other awards by same vendor
+
+#### Subcontractors Tab
+
+**Purpose**: Show all known subcontractors for this prime contract. Critical for teaming partner intelligence.
+
+**Data source**: `sam_subaward` table WHERE `prime_award_id` matches the award.
+
+**Display**:
+- Table: Subcontractor name, UEI, subaward value, description, report date
+- Click subcontractor name → navigate to Entity Detail page (if UEI exists in entity table)
+- If no subawards found: "No subaward data reported for this contract."
+
+**API**: Uses existing `GET /api/v1/subawards` endpoint filtered by prime award ID.
 
 ### Entity Detail (`/entities/:uei`)
 

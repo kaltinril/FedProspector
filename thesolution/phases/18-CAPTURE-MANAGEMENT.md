@@ -13,6 +13,36 @@ Build the capture management workflow — once a user finds an opportunity, they
 
 **Data scoping:** All prospect/proposal data is scoped to the user's organization. Users only see their company's pipeline.
 
+#### Prospect Status State Machine
+
+Valid transitions (enforced by `ProspectStatusValidator` in C# and `STATUS_FLOW` dict in Python):
+
+```
+NEW ──────────→ REVIEWING
+  └──────────→ DECLINED (terminal)
+
+REVIEWING ────→ PURSUING
+  └──────────→ DECLINED (terminal)
+
+PURSUING ─────→ BID_SUBMITTED
+  └──────────→ DECLINED (terminal)
+
+BID_SUBMITTED → WON (terminal)
+  └──────────→ LOST (terminal)
+```
+
+| From | Valid Targets | Notes |
+|------|--------------|-------|
+| NEW | REVIEWING, DECLINED | Initial triage |
+| REVIEWING | PURSUING, DECLINED | Go/No-Go evaluation |
+| PURSUING | BID_SUBMITTED, DECLINED | Active pursuit → submission |
+| BID_SUBMITTED | WON, LOST | Awaiting award decision |
+| DECLINED | (none) | Terminal — cannot reopen |
+| WON | (none) | Terminal — contract awarded |
+| LOST | (none) | Terminal — not selected |
+
+**UI enforcement**: Kanban drag-and-drop validates target column against this table. Invalid drops show error toast and snap card back to original column. The status chip dropdown on prospect detail also only shows valid next statuses.
+
 This is where the tool goes beyond search (what GovWin does) into active bid management (what a CRM does). Users manage their pipeline, assign team members, write internal notes, create proposals, and track milestones.
 
 **User workflow this enables:**
@@ -131,6 +161,21 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 - [ ] Quick filter chips (status, priority, assigned user)
 
 ### 18.3 Create Prospect Flow
+
+#### Prospect Creation Defaults
+
+When creating a prospect from the "Track as Prospect" button on an opportunity:
+
+| Field | Default | Required? |
+|-------|---------|-----------|
+| Opportunity | Pre-filled from source opportunity | Yes (auto) |
+| Assignee | Current logged-in user | No (defaults to self) |
+| Priority | MEDIUM | No (defaults to MEDIUM) |
+| Status | NEW | Yes (auto, not user-editable) |
+| Notes | Empty | No |
+
+**Design rationale**: Minimize friction. Users should be able to track an opportunity with a single click. All fields except the opportunity link are optional with sensible defaults. Users can edit assignee, priority, and add notes after creation from the prospect detail page.
+
 - [ ] "Track as Prospect" from opportunity detail/search
 - [ ] Create prospect form (assignee, priority, initial notes)
 - [ ] Wire to `POST /api/v1/prospects`
@@ -161,7 +206,9 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 - [ ] Create Milestone flow (Phase 14.5 adds the POST endpoint)
 - [ ] Milestone status update (inline toggle) — milestone display includes `AssignedTo` field
 - [ ] Document registry (metadata display) — includes `FileSizeBytes`
-  - MVP: Document registry displays metadata only. The backend `POST /proposals/{id}/documents` endpoint supports file upload but the UI upload component is deferred. Add file upload UI when storage infrastructure (filesystem/S3) is configured.
+  - **MVP**: Document metadata registry — displays document title, type, uploaded date, and uploader name. Documents are tracked but not stored in the application.
+
+  > **Competitive Gap**: Without document upload, teams must manage RFP responses, compliance docs, and past performance examples in external tools (Box, Dropbox, SharePoint). This fragments the capture workflow. **Document upload (S3 or local storage) is a high-priority addition for Phase 20 or early post-MVP.** Include: file upload, download, version tracking, and per-document access within the prospect/proposal context.
 - [ ] Wire to proposal API endpoints
 - [ ] Breadcrumb: Dashboard > Prospects > [Name] > Proposal #[X]
 

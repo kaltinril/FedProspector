@@ -141,6 +141,22 @@ ui/
 - [ ] Configure TanStack Query defaults: `staleTime` (2-5min searches, 30s notifications, 60s dashboard), `retry` (2 queries, 1 mutations, 0 auth), `refetchOnWindowFocus` per query type
 - [ ] Consider generating TypeScript types from the API's OpenAPI/Swagger spec using `openapi-typescript` to prevent manual DTO drift.
 
+#### DTO Sync Strategy
+
+**Recommended**: Use [`openapi-typescript`](https://github.com/openapi-ts/openapi-typescript) to auto-generate TypeScript types from the API's Swagger/OpenAPI spec (`/swagger/v1/swagger.json`). This prevents type drift between C# DTOs and TypeScript interfaces.
+
+```bash
+# Generate types from running API
+npx openapi-typescript http://localhost:5056/swagger/v1/swagger.json -o src/api/generated-types.ts
+
+# Or from exported JSON file
+npx openapi-typescript ../api/swagger.json -o src/api/generated-types.ts
+```
+
+Add as an npm script: `"generate-types": "openapi-typescript http://localhost:5056/swagger/v1/swagger.json -o src/api/generated-types.ts"`
+
+**Alternative for MVP**: Manually maintain TypeScript types mirroring C# DTOs. Acceptable if build pipeline complexity is unwanted, but document the drift risk and plan to automate post-MVP.
+
 ### 15.3 Authentication
 - [ ] Create AuthContext -- check session via `GET /auth/me` on app load
 - [ ] Auth transport configured in 15.2 (withCredentials, CSRF, 401 interceptor)

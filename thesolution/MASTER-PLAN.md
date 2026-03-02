@@ -2,18 +2,20 @@
 
 ## Mission
 
-Build a complete system that gathers federal contract opportunity data from government APIs, loads it into a local MySQL database, and enables fast discovery, evaluation, and pursuit of WOSB (Women-Owned Small Business) and 8(a) program contracts.
+Build a B2B SaaS platform that helps companies discover, evaluate, and win federal contracts — with a focus on WOSB (Women-Owned Small Business) and 8(a) set-aside opportunities.
+
+The platform gathers data from 10+ government APIs, normalizes it into a MySQL database, and provides a web application with powerful search, competitive intelligence, and pipeline management. Companies subscribe to give their teams the best intel for finding and winning contracts.
 
 ## Background
 
-This project targets federal contract prospecting for a women-owned small business. A previous Salesforce CRM approach hit Salesforce CPU/transaction limits when processing 1M+ entity records and required expensive licensing.
+This project targets federal contract prospecting as a paid SaaS product. The initial customer is a women-owned small business (MSOne LLC), with the architecture designed to support multiple subscribing companies from day one.
 
-This project replaces Salesforce with a local MySQL database and Python-based data pipeline that:
-- Gathers data from 10+ federal government APIs and data sources
-- Loads and normalizes the data into a relational schema
-- Tracks changes between data loads
-- Enables fast filtering for WOSB/8(a) set-aside contracts by NAICS code
-- Supports prospecting workflow (assign, track, score, decide on contracts)
+A previous Salesforce CRM approach hit CPU/transaction limits when processing 1M+ entity records and required expensive licensing. This project replaces Salesforce with:
+- A Python ETL pipeline gathering data from 10+ federal government APIs
+- A MySQL database with 54 tables normalizing opportunities, awards, entities, and competitive intelligence
+- A C# ASP.NET Core Web API with multi-tenant organization isolation
+- A React web application for search, analysis, and capture management
+- Per-organization data isolation so each subscribing company's prospects, proposals, and searches are private
 
 ## Project Organization
 
@@ -42,6 +44,9 @@ pbdc/
 | Change Detection | SHA-256 record hashing | Compare one hash instead of 100+ fields. Log field-level diffs only when hash differs. |
 | Rate Limit Strategy | Bulk extracts first, API for incremental | Monthly extract = 1 API call for all entities. Daily API = targeted updates only. |
 | Credentials | `.env` + python-dotenv | Never hardcode. Prior work had keys visible in SQL definition files. |
+| Web API | ASP.NET Core (.NET 10) | Type-safe, high-perf backend. EF Core for MySQL. Separate from Python ETL. |
+| Frontend | Vite + React 19 + TypeScript + MUI v6 | Modern stack, enterprise component library, fast dev server. |
+| Multi-Tenancy | Shared public data + org-isolated capture data | Government data is shared; prospects/proposals are private per company. |
 
 ## Phase Roadmap
 
@@ -233,6 +238,8 @@ pbdc/
 **Dependencies**: Phase 13 (Auth), Phase 14 (Testing)
 
 **Scope**:
+> **BLOCKER**: Must complete before Phase 15. Multi-tenancy changes affect auth flow, JWT claims, cookie handling, and all capture endpoint signatures. The UI cannot be built against the pre-14.5 API.
+
 - [ ] Organization-scoped data isolation: `organization` table, `organization_invite` table, `app_user` modifications (`org_role`, `organization_id`)
 - [ ] httpOnly cookie auth replacing localStorage, token refresh endpoint, `OnTokenValidated` session check
 - [ ] Invite-only registration flow
@@ -308,13 +315,22 @@ pbdc/
 
 ## Success Criteria
 
+### Data & ETL
 1. Can find all active WOSB/8(a) opportunities matching target NAICS codes within seconds
-2. Daily refresh of opportunities runs automatically
+2. Daily refresh of opportunities runs automatically via scheduler
 3. Entity data for 500K+ contractors available for competitive analysis
 4. Change history shows what changed and when for entities and opportunities
-5. Team members can claim, track, and manage prospects through the pipeline
+5. Data quality issues are caught and cleaned automatically during load
 6. API rate limits are never exceeded
-7. Data quality issues are caught and cleaned automatically during load
+
+### SaaS Product
+7. Multiple companies can use the system simultaneously with complete data isolation
+8. Company admins can invite team members and manage roles (owner/admin/member)
+9. Invite-only registration prevents unauthorized access to company data
+10. Paying customers get competitive intelligence (incumbent analysis, burn rate, market share by NAICS) unavailable on free government sites
+11. Sub-second search across 100K+ opportunities with advanced filtering (NAICS, set-aside, contract type, re-compete status, clearance)
+12. Team members can claim, track, and manage prospects through a Kanban pipeline
+13. Secure authentication with httpOnly cookies, token refresh, and CSRF protection
 
 ## Supporting Documents
 
@@ -327,3 +343,11 @@ pbdc/
 | [05-LEGAL-CONSIDERATIONS.md](reference/05-LEGAL-CONSIDERATIONS.md) | Terms of use, PII, D&B restrictions |
 | [QUICKSTART.md](QUICKSTART.md) | Environment setup guide (MySQL, Python, SAM.gov API key) |
 | [credentials.yml](credentials.yml) | All local dev passwords (MySQL root, fed_app, SAM.gov API key) |
+| [06-GLOSSARY.md](reference/06-GLOSSARY.md) | Federal contracting terminology definitions |
+| [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md) | Multi-tenant architecture, auth hardening, org isolation |
+| [15-UI-FOUNDATION.md](phases/15-UI-FOUNDATION.md) | React + TypeScript UI scaffold and shared components |
+| [16-SEARCH-DISCOVERY.md](phases/16-SEARCH-DISCOVERY.md) | Opportunity, award, entity, and teaming partner search |
+| [17-DETAIL-INTELLIGENCE.md](phases/17-DETAIL-INTELLIGENCE.md) | Detail views and competitive intelligence features |
+| [18-CAPTURE-MANAGEMENT.md](phases/18-CAPTURE-MANAGEMENT.md) | Prospect pipeline Kanban and proposal management |
+| [19-DASHBOARD-NOTIFICATIONS.md](phases/19-DASHBOARD-NOTIFICATIONS.md) | Executive dashboard, saved searches, notification system |
+| [20-ADMIN-POLISH.md](phases/20-ADMIN-POLISH.md) | Admin panel, profile, responsive design, accessibility |

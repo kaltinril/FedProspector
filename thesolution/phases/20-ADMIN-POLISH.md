@@ -25,10 +25,24 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 
 **ETL Status Tab:**
 - Source status table: source name, last load time, staleness indicator, records loaded
-- Staleness: green (< 24h), yellow (24-48h), red (> 48h)
 - API usage: SAM.gov daily quota consumed vs. limit (progress bar)
 - Recent errors table: timestamp, source, error message, severity
 - Alerts section: active warnings (stale data, rate limits, etc.)
+
+#### ETL Staleness Thresholds (from Phase 6 `health_check.py`)
+
+| Data Source | Green (Fresh) | Yellow (Stale) | Red (Critical) |
+|------------|---------------|----------------|----------------|
+| Opportunities | < 6 hours | 6-12 hours | > 12 hours |
+| Entities | < 48 hours | 48-96 hours | > 96 hours |
+| Federal Hierarchy | < 14 days | 14-28 days | > 28 days |
+| Contract Awards | < 14 days | 14-28 days | > 28 days |
+| Exclusions | < 14 days | 14-28 days | > 28 days |
+| Subawards | < 14 days | 14-28 days | > 28 days |
+| CALC+ Labor Rates | < 45 days | 45-90 days | > 90 days |
+| USASpending | < 45 days | 45-90 days | > 90 days |
+
+These thresholds are sourced from Phase 6 (`etl/health_check.py`). The ETL Status tab displays a color-coded table using these values, with last refresh timestamp and row count for each source.
 
 **User Management Tab:**
 - System admin sees all users across all orgs. Org admin sees only their org's members.
@@ -36,6 +50,47 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - Inline actions: toggle active, change role (user/admin), reset password
 - Reset password → display temporary password modal. After reset, `force_password_change` flag is set (added in Phase 14.5). Temp password only usable for password change, not normal app access.
 - Cannot deactivate yourself (handled by API)
+
+### Organization Admin Panel (Org Admin / Owner Role)
+
+Accessible to users with `org_role` = `admin` or `owner`. Manages the subscribing company's team.
+
+#### Org Settings Page
+- View organization name, slug, member count, seat limit, subscription tier
+- Edit organization name (org admin+)
+- View created date
+
+#### Member Management
+- Table: display name, email, org role (owner/admin/member), status (active/inactive), last login
+- Inline actions: change role (owner can promote/demote), toggle active status
+- "Invite Member" button → modal with email + role selection → calls `POST /api/v1/org/invites`
+- Cannot deactivate yourself or demote yourself below current role
+
+#### Pending Invites
+- Table: email, role, invited by, sent date, expires date, status
+- Actions: revoke invite (DELETE /api/v1/org/invites/{id}), resend (future — requires email infra)
+
+#### Activity Log (Org-Scoped)
+- Table: timestamp, user, action, entity type, entity name/ID
+- Filterable by user, action type, date range
+- Data source: `activity_log` table scoped by `organization_id`
+- Shows: prospect created/updated, status changes, proposals created, searches saved, team changes
+- **Purpose**: Compliance visibility for federal contractors — auditable record of who did what
+
+### System Admin Panel (System Admin Role)
+
+Accessible to users with system `is_admin = true`. Manages the platform across all organizations.
+
+#### Organization Management
+- Table: org name, slug, member count, seat limit, subscription tier, is_active, created date
+- Actions: create organization (`POST /api/v1/admin/organizations`), toggle active, edit seat limit
+- "Create Organization" button → modal with name, slug, subscription tier, seat limit
+- "Create Owner" button on each org → modal with email, display name, password → calls `POST /api/v1/admin/organizations/{id}/owner`
+
+#### Cross-Org User Management
+- Existing user list (from Phase 13) enhanced with organization name column
+- Filter by organization
+- Actions: toggle active, force password reset, view user's org
 
 ### User Profile (`/profile`)
 - Display name, email, username (read-only)

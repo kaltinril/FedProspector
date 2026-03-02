@@ -90,6 +90,53 @@ Build the "home base" experience — the dashboard users see when they log in, t
 - Dropdown shows last 5 notifications
 - "View all" link → notification center page
 
+### Notification Mechanism
+
+#### MVP: Polling-Based Notifications
+
+**Top bar bell widget polling**:
+- `GET /api/v1/notifications/unread-count` polled every **60 seconds** via TanStack Query `refetchInterval`
+- Lightweight endpoint returns `{ unreadCount: number }` only
+- Badge updates without full notification list fetch
+- Full notification list fetched only when user opens notification dropdown/page
+
+**Saved search automation**:
+- Backend job (extends Phase 6 scheduler) runs each saved search with `notifications_enabled = true`
+- **Default interval**: Every 4 hours (matches opportunity ETL refresh cycle)
+- Job compares current results against `last_run_result_count` — if new matches found, creates `new_match` notification
+- "New results" determined by: opportunities with `posted_date` > saved search's `last_run_at`
+
+**Notification creation triggers**:
+| Trigger | NotificationType | EntityType | When |
+|---------|-----------------|------------|------|
+| Saved search finds new matches | `new_match` | `opportunity` | Scheduler job |
+| Opportunity deadline within 7 days | `deadline_approaching` | `prospect` | Scheduler job (daily) |
+| Prospect status changed by teammate | `status_changed` | `prospect` | On status update API call |
+| Go/No-Go score recalculated | `score_recalculated` | `prospect` | On score recalc API call |
+
+#### Future: Real-Time Push (Post-MVP)
+
+- **SignalR WebSocket** for instant notifications without polling
+- Reduces server load from N users * 1 request/minute to persistent connections
+- Implement when user base exceeds ~50 concurrent users
+
+#### Future: Email Digests (Post-MVP)
+
+- Daily/weekly email summary of new matching opportunities
+- Requires email infrastructure (SendGrid/SES) — see Phase 14.5 Known Gap
+
+### Dashboard Metric Definitions
+
+| Metric | Calculation | Edge Cases |
+|--------|------------|------------|
+| **Total Open Prospects** | Count of prospects WHERE status NOT IN ('WON', 'LOST', 'DECLINED') AND organization_id = user's org | Zero = "No active prospects" |
+| **Due This Week** | Count of prospects WHERE linked opportunity's `response_deadline` BETWEEN today AND today + 7 days AND status NOT IN terminal states | Zero = "No upcoming deadlines" |
+| **Win Rate** | WON / (WON + LOST) for the organization. Excludes DECLINED (voluntary withdrawal ≠ loss). | Zero denominator = show "N/A" (no completed bids yet) |
+| **Pipeline Value** | SUM of `opportunity.base_and_all_options` for all non-terminal prospects in the org. Computed server-side by `DashboardService`. | Null opportunity values excluded from sum. Show "$0" if all values null. |
+| **Workload by Assignee** | Count of non-terminal prospects grouped by `assigned_to` user | Unassigned prospects grouped under "Unassigned" |
+
+**"Won" timing**: A prospect is marked WON when the user manually transitions it after receiving the contract award notification. This is a manual action, not auto-detected from FPDS data (auto-detection is a future enhancement).
+
 ---
 
 ## Tasks
