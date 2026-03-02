@@ -2,11 +2,13 @@ using FedProspector.Core.DTOs.Subawards;
 using FedProspector.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FedProspector.Api.Controllers;
 
 [Route("api/v1/subawards")]
 [Authorize]
+[EnableRateLimiting("search")]
 public class SubawardsController : ApiControllerBase
 {
     private readonly ISubawardService _service;

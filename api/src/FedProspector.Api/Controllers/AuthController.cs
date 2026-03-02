@@ -6,12 +6,13 @@ using FedProspector.Core.DTOs;
 using FedProspector.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FedProspector.Api.Controllers;
 
-[ApiController]
 [Route("api/v1/auth")]
-public class AuthController : ControllerBase
+[EnableRateLimiting("auth")]
+public class AuthController : ApiControllerBase
 {
     private readonly IAuthService _authService;
     private readonly ILogger<AuthController> _logger;
@@ -77,6 +78,99 @@ public class AuthController : ControllerBase
         }
 
         return Ok(new { message = "Logged out successfully." });
+    }
+
+    /// <summary>
+    /// Register a new user account and return a JWT token.
+    /// </summary>
+    [HttpPost("register")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    {
+        var result = await _authService.RegisterAsync(request);
+
+        if (!result.Success)
+        {
+            return BadRequest(new { error = result.Error });
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Change the current user's password. Revokes all active sessions.
+    /// </summary>
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(new { error = "Invalid token." });
+        }
+
+        try
+        {
+            await _authService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword);
+            return Ok(new { message = "Password changed successfully" });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Get the current user's profile.
+    /// </summary>
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<IActionResult> GetProfile()
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(new { error = "Invalid token." });
+        }
+
+        try
+        {
+            var profile = await _authService.GetProfileAsync(userId.Value);
+            return Ok(profile);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { error = "User not found." });
+        }
+    }
+
+    /// <summary>
+    /// Update the current user's profile (display name and/or email).
+    /// </summary>
+    [HttpPatch("me")]
+    [Authorize]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        var userId = GetCurrentUserId();
+        if (userId is null)
+        {
+            return Unauthorized(new { error = "Invalid token." });
+        }
+
+        try
+        {
+            var profile = await _authService.UpdateProfileAsync(userId.Value, request);
+            return Ok(profile);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { error = "User not found." });
+        }
     }
 
     private static string ComputeSha256Hash(string input)

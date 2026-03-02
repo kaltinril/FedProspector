@@ -1,11 +1,13 @@
 using FedProspector.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FedProspector.Api.Controllers;
 
 [Route("api/v1/dashboard")]
 [Authorize]
+[EnableRateLimiting("search")]
 public class DashboardController : ApiControllerBase
 {
     private readonly IDashboardService _service;

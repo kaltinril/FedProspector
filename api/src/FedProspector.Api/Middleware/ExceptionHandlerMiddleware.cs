@@ -1,4 +1,5 @@
 using FedProspector.Core.DTOs;
+using FedProspector.Core.Exceptions;
 
 namespace FedProspector.Api.Middleware;
 
@@ -21,16 +22,33 @@ public class ExceptionHandlerMiddleware
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unhandled exception for {Method} {Path}",
-                context.Request.Method, context.Request.Path);
+            var (statusCode, message) = ex switch
+            {
+                KeyNotFoundException => (404, ex.Message),
+                InvalidOperationException => (400, ex.Message),
+                UnauthorizedAccessException => (403, ex.Message),
+                ConflictException => (409, ex.Message),
+                _ => (500, "An internal server error occurred")
+            };
 
-            context.Response.StatusCode = 500;
+            if (statusCode == 500)
+            {
+                _logger.LogError(ex, "Unhandled exception for {Method} {Path}",
+                    context.Request.Method, context.Request.Path);
+            }
+            else
+            {
+                _logger.LogWarning(ex, "Handled exception ({StatusCode}) for {Method} {Path}",
+                    statusCode, context.Request.Method, context.Request.Path);
+            }
+
+            context.Response.StatusCode = statusCode;
             context.Response.ContentType = "application/json";
 
             var response = new ApiErrorResponse
             {
-                StatusCode = 500,
-                Message = "An internal server error occurred",
+                StatusCode = statusCode,
+                Message = message,
                 TraceId = context.TraceIdentifier
             };
 

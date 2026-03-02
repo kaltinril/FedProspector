@@ -2,11 +2,13 @@ using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FedProspector.Api.Controllers;
 
 [Route("api/v1/opportunities")]
 [Authorize]
+[EnableRateLimiting("search")]
 public class OpportunitiesController : ApiControllerBase
 {
     private readonly IOpportunityService _service;

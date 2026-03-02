@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Threading.RateLimiting;
 using FedProspector.Api.Extensions;
 using FedProspector.Api.Filters;
 using FedProspector.Api.Middleware;
@@ -10,6 +11,7 @@ using FedProspector.Infrastructure;
 using FedProspector.Infrastructure.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Serilog;
@@ -59,6 +61,7 @@ builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 builder.Services.AddScoped<IGoNoGoScoringService, GoNoGoScoringService>();
 builder.Services.AddScoped<IProspectService, ProspectService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();
@@ -79,6 +82,51 @@ builder.Services.AddCors(options =>
     });
 });
 
+// --- Rate Limiting ---
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Auth endpoints: 10/min per IP
+    options.AddFixedWindowLimiter("auth", opt =>
+    {
+        opt.PermitLimit = 10;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+
+    // Search/read endpoints: 60/min per user
+    options.AddFixedWindowLimiter("search", opt =>
+    {
+        opt.PermitLimit = 60;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+
+    // Write endpoints: 30/min per user
+    options.AddFixedWindowLimiter("write", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+
+    // Admin endpoints: 30/min per user
+    options.AddFixedWindowLimiter("admin", opt =>
+    {
+        opt.PermitLimit = 30;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueLimit = 0;
+    });
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        var response = new { statusCode = 429, message = "Too many requests. Please try again later." };
+        await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken);
+    };
+});
+
 // --- Controllers + global filters ---
 builder.Services.AddControllers(options =>
 {
@@ -90,9 +138,13 @@ builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "Federal Contract Prospecting API",
+        Title = "FedProspector API",
         Version = "v1",
-        Description = "REST API for federal contract opportunity discovery and capture management"
+        Description = "Federal contract prospecting system API — search opportunities, manage prospects, track proposals",
+        Contact = new OpenApiContact
+        {
+            Name = "FedProspector",
+        }
     });
 
     // JWT auth in Swagger UI
@@ -127,7 +179,10 @@ var app = builder.Build();
 // 1. Global exception handler (first, catches everything)
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 
-// 2. Swagger UI (all environments for now)
+// 2. Security headers (early, applies to all responses)
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+// 3. Swagger UI (all environments for now)
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
@@ -135,17 +190,20 @@ app.UseSwaggerUI(options =>
     options.RoutePrefix = "swagger";
 });
 
-// 3. HTTPS redirect
+// 4. HTTPS redirect
 app.UseHttpsRedirection();
 
-// 4. CORS (before auth)
+// 5. CORS (before auth)
 app.UseCors();
 
-// 5. Authentication & Authorization
+// 6. Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 6. Map controllers
+// 7. Rate limiting (after auth, before controllers)
+app.UseRateLimiter();
+
+// 8. Map controllers
 app.MapControllers();
 
 app.Run();

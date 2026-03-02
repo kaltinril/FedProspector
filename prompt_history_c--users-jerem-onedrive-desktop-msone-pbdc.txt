@@ -1,0 +1,620 @@
+============================================================
+SESSION 1 -- 2026-02-22 15:10
+============================================================
+
+--- Prompt 1 ---
+Are you able to read docx files ?
+
+--- Prompt 2 ---
+i have the open office tool called libreoffice does that help you ?
+
+--- Prompt 3 ---
+we'd probably want them in MD format
+
+--- Prompt 4 ---
+create a workdir folder and inside it, create python virtual enviornment .venv and then install the required tools to write a python script to convert word docx to md files
+
+also, need to be able to revview/read drawio drawings, csv files, png files, yaml, etc.  so if the ai agents can't do that, we will need them to have converters for that also.
+
+--- Prompt 5 ---
+I don't think converting XLSX to MD is smart, shouldn't we have left those as xlsx or converted to csv?
+
+--- Prompt 6 ---
+ok create a root directory with all r
+
+============================================================
+SESSION 2 -- 2026-02-22 16:36
+============================================================
+
+--- Prompt 1 ---
+review the workdir files.
+
+Create a comprehensive plan document in "thesolution" folder.
+
+it should contain information in mulitple phases, features, tasks, iterations etc.
+
+Project purpose:
+1. gather data related to federal contract work (available contracts).  There is a lot of data online about contracts, the departments asking for the contract, the history of work on that contract, who to contact, etc etc etc.
+2. this data needs to be able to be gathered on a regular basis
+3. One of the migrated EXCEL->CSV documents and one of the DOCX->MD files should have details on the original plan and scope using salesforce, however we do  NOT want to use salesforce, we want to use a local MySQL database.
+4. review the first attempt at this in the local database folder
+5. identify all possible sources online to gather this data legally
+6. review data consumption limitations and api limits
+7. identify all options for data, sometimes the same data can be captured from multiple different federal government sites.
+
+Some phase suggestions
+1. Research request and application build out, to include a claude.md file and direction that the plan needs to be updated by the agents.  (I'll add agents shortly)
+2. create a set of files to build a MySQL database to hold the data we want to use.
+3. proof of concept gathering data (1 endpoint/source)
+4. proof of concept loading the first gathered data
+5. project direction plan build out (create all the remaining phases to gather data and import it)
+6. Run the phases created from step 5
+
+The goal is to have a complete solution that will make API calls, download calls, etc, to gather this data and load it into MySQL for future analysis.
+
+This project should use Python almost exclusively for gathering the data.  If there is ever a concern over loading speed note it and we can look into c# or other options later.
+
+The end goal of this is to be able to find contracts to bid on, specifically women owned small business or 8(a) program contracts.  But we need to be able to do this fast, efficiently, and accurately.  We may need to do things like analyze if the project cost will be worth the effort, or if we have sufficent time to put our proposal in, we also need to be able to eventually track things like the state of a prospect.  This will be a prospecting/sales/contract type database system and loading of data related to that.
+
+It needs to be able to record load dates or changes or differences perhap (Maybe overkill?).  It does need to eventually be able to track who is working a contract.
+
+The easier it is for us to find valid contracts for our NAICS code, and business abilities, the more we can make.
+
+There are some sights that exist also taht help but they cost money and are manual (govwin, sam.gov, etc).
+
+============================================================
+SESSION 3 -- 2026-02-22 20:24
+============================================================
+
+--- Prompt 1 ---
+project-manager update thesolution MD files, i moved all old attempts and resources into other folders so we don't polute the repo/project
+
+--- Prompt 2 ---
+Ok, so is the project stepup now in a way that I can just say
+
+project-manager get going on the next phase ?
+
+--- Prompt 3 ---
+create a quick start guide for me to get everything setup for this project in the same thesolution folder
+
+--- Prompt 4 ---
+updat the quickstart with whatever status i am in, I think I already have mysql and python installed not sure the versions, locations installed, or state
+
+--- Prompt 5 ---
+how do I get mysql updated
+
+--- Prompt 6 ---
+i do not have mysql installer i installed workbench separately
+
+--- Prompt 7 ---
+so what do I need to do
+
+--- Prompt 8 ---
+i want to be on the latest versions of mysql, mysql workbench, python, and pip first
+
+--- Prompt 9 ---
+python, mysql (d:\mysql), and workbench are  now up-to-date
+
+Validate
+
+--- Prompt 10 ---
+it is extracted
+
+--- Prompt 11 ---
+i installed the latest with the new launcher installer tool thing, it left 3.10 also
+
+--- Prompt 12 ---
+unintalled, check it again
+
+--- Prompt 13 ---
+i want this database to be easy for me to access later so store all users and passwords in a simple yaml or json or md file in "thesolution" folder.  This isn't secure but this data is open source and i'm just experimenting right now
+
+--- Prompt 14 ---
+I haven't started anything for mysql it's a fresh unzip
+
+--- Prompt 15 ---
+document all this in the QUICKSTART.MD
+
+and go ahead and run the commands for me
+
+--- Prompt 16 ---
+does the plan created depend only on sam.gov ?  I thought I had previoulsy found a site to download a huge file instead ?
+
+--- Prompt 17 ---
+created samgov.yml, are we good to start working on this ?
+
+============================================================
+SESSION 4 -- 2026-02-22 21:03
+============================================================
+
+--- Prompt 1 ---
+project-manager lets start with phase 1, I only have the free simple version of the sam.gov api key login, i'm not a business and I don't think they'd give me the higher one
+
+--- Prompt 2 ---
+A) get loaded and we can always have you patch the data structure later
+
+--- Prompt 3 ---
+Make sure all documents got updated first
+
+--- Prompt 4 ---
+why didn't these get updated before, i thought the agents are supposed to have that as part of their documentation in the claud.md or something?
+
+============================================================
+SESSION 5 -- 2026-02-22 22:24
+============================================================
+
+--- Prompt 1 ---
+project-manager get going figure out whats next and start that phase and kick off agents in parallel to work it
+
+============================================================
+SESSION 6 -- 2026-02-23 00:17
+============================================================
+
+--- Prompt 1 ---
+project-manager i'd like you to add another phase to thesolution project.
+
+making the lookup tables have more information.
+
+For instance, the entity_business_type doesn'tr have details, there is no country_code lookup table, no naics code details, etc.
+
+https://en.wikipedia.org/wiki/ISO_3166-1_alpha-3
+https://en.wikipedia.org/wiki/ISO_3166-1
+
+I did a lot of research previoulsy and created files to load, so i'd like a phase to create out the human readible lookup tables and make sure they're part of the solution for re-loading and updating in tghe future.
+
+C:\Users\jerem\OneDrive\Desktop\MSONE\pbdc\OLD_RESOURCES
+
+Also, make sure we are checking for data on FPDS if it's still a valid soap endpoint to use
+
+--- Prompt 2 ---
+now there are two 10 entries
+
+============================================================
+SESSION 7 -- 2026-02-23 00:34
+============================================================
+
+--- Prompt 1 ---
+project-manager before we continue analyze the database and make sure the structure is still good from the original plan.
+
+I see almost 3 million rows for naics codes? is that legit?
+
+--- Prompt 2 ---
+project-manager review the state of the project and kick off agents to continue thesolution
+
+--- Prompt 3 ---
+save us half the API calls, so do not use more than 5 for this part.
+
+also, document the other data sources you found, it may be important to look at the incombant (previous contract winner) to find details that help us win the renewal opportunity in the future.
+
+--- Prompt 4 ---
+project-manager kick off agents to keep the project going based on your next steps
+
+--- Prompt 5 ---
+are docs updated ?
+
+============================================================
+SESSION 8 -- 2026-02-23 00:37
+============================================================
+
+--- Prompt 1 ---
+validate no secrets will get checked in
+
+============================================================
+SESSION 9 -- 2026-02-28 16:41
+============================================================
+
+--- Prompt 1 ---
+project-manager where did we leave off ?
+
+--- Prompt 2 ---
+first can you test a 2nd key to see if it has more then 10?
+
+I've put it into SAM_API_KEY_2 with an empty limit of SAM_DIAILY_LIMIT_2
+
+can you kick off agents to identify if this is 10 or more ?  I don't know if there is anyway to test other than running out process and using up 11 calls for today to test this new key ?
+
+--- Prompt 3 ---
+we have a structure that manages how many calls we've used in a day, so, if you burned 1 already make sure that gets updated
+
+Go ahead and use 10 more attempts with this new token to see where it gets
+
+--- Prompt 4 ---
+esitmate how much space we'll use up in the DB with this
+
+--- Prompt 5 ---
+project-manager take all this and get going
+
+--- Prompt 6 ---
+then why did you change the table structure, vs converting the data in the ETL process ?
+
+--- Prompt 7 ---
+great, and i'm good to start the next phase or are mod doc updates needeed?
+
+--- Prompt 8 ---
+how many opportunities are still open from the ones you got info on ?
+
+============================================================
+SESSION 10 -- 2026-02-28 17:46
+============================================================
+
+--- Prompt 1 ---
+@.claude/agents/project-manager.md review the project and identify if we need future phases to make sure the database and ETL processes will have the appropriate data for this ask from the customer on what this database will need to be used for in the end.
+
+
+"History on an awarded work, how many people bid for it, did it require a security clearance (what type ) what is the burn rate (how much money has been used to far) and also find information about the incumbent (company performing the work right now). This is a case by case on solicitation I will be bidding for. What I am asking you to do is “ capture management “"
+
+============================================================
+SESSION 11 -- 2026-02-28 20:54
+============================================================
+
+--- Prompt 1 ---
+project-manager review the project, and get going kicking off mulitple agents to complete things in parallel, as usual making sure to update docs
+
+--- Prompt 2 ---
+i keep running into context compaction, how can we reduce what you are reading or doing in the main context window, are you not kicking off sub agents?
+
+--- Prompt 3 ---
+ok which document or file do you need to update so you don't keep using up my entire context window
+
+--- Prompt 4 ---
+i don't think MEMORY.md is the best place
+
+How large is the different "memory" files you have ?
+
+--- Prompt 5 ---
+ok now review all your memory files, can we do anything to reduce them ?
+
+--- Prompt 6 ---
+Review your remaining memory files for this project, can we reduce them any further ?
+
+============================================================
+SESSION 12 -- 2026-02-28 22:07
+============================================================
+
+--- Prompt 1 ---
+@.claude/agents/project-manager.md kick off agents to review the project and see where we are at.  Update any documents.
+
+--- Prompt 2 ---
+ok so where is the project at ?
+
+--- Prompt 3 ---
+Ok, and so how would I answer this question using the existing structure, don't write any new code, just tell me how I would be able to answer or do any of this with what you've built ?
+
+"History on an awarded work, how many people bid for it, did it require a security clearance (what type ) what is the burn rate (how much money has been used to far) and also find information about the incumbent (company performing the work right now). This is a case by case on solicitation I will be bidding for. What I am asking you to do is “ capture management “
+
+--- Prompt 4 ---
+So if the final purpose of this database and ETL process, is to be the backend for an eventual API and website.  Are there any missing things we need to add to this ?
+
+--- Prompt 5 ---
+Create any other phases need for building out the complete backend API system
+
+--- Prompt 6 ---
+Seems i'll need to create a ROOT folder, and move all files for the DB into a sub-folder , then create one for the API and one for the UI
+
+pbdc/fed_prospector (db)
+pbdc/api
+pbdc/ui
+pbdc/thesolution (documentation/plan/design)
+pbdc/workdir (ref and intermidiate documents)
+pbdc/OLD_ATTEMPTS (old information)
+pbdc/OLD_RESOURCES (old information)
+.github
+.claude
+claude.md
+
+thoughts?
+
+--- Prompt 7 ---
+Well would we move the existing .git folder down into the fed folder, and then create .git folders for each of the others parts (api/ui) ? or should we leave it at the root of everything ?
+
+--- Prompt 8 ---
+ok i agree with you
+
+--- Prompt 9 ---
+are we ready to start on the API ?
+
+--- Prompt 10 ---
+[Request interrupted by user for tool use]
+
+--- Prompt 11 ---
+wait
+
+--- Prompt 12 ---
+[Request interrupted by user]
+
+--- Prompt 13 ---
+you're contextg is almost full
+
+--- Prompt 14 ---
+[Request interrupted by user]
+
+--- Prompt 15 ---
+stop
+
+--- Prompt 16 ---
+[Request interrupted by user]
+
+============================================================
+SESSION 13 -- 2026-02-28 23:59
+============================================================
+
+--- Prompt 1 ---
+project-manager review the new phases and master plan validate them and kick off agents to update the docs if anything is missing, or any phases are missing
+
+--- Prompt 2 ---
+project-manager what do you need from me to fix those design gaps ?
+
+--- Prompt 3 ---
+Is there anything else we've missed that we need to think about?  have product-manger kick off the repo-analyst, coder, and qa to validate the plans
+
+--- Prompt 4 ---
+auto fix, try to keep the .NET libraries and packagers used at a minimum or must have, ask which ones
+
+--- Prompt 5 ---
+I looked up some things and asked my wife about some terms.
+
+Do any of these help you make the database, etl, api, or UI documents better?
+
+
+solicitation - this is the ask from the government
+scope of work - contained within the solicitation
+sources saught - government is looking to get a sense who's interested to do a set aside
+set aside - type of contract
+rfi (request for information) - 
+entity - the difference business that win the bids for the solicitation
+agency - the department within the government
+customer - subdepartment who needs the work done
+contract - details about how much to get paid, timeline, (who what when how much)
+contracting officer - the person who puts the solicitation out and decides on the winner
+cor (contracting officer representitive) - once the contract is won the entity and the COR work together to implement the contract
+NACIS code - North American Industry Classification System
+CAGE code - Commercial and Government Entity Code
+UEI - 
+
+
+
+
+
+what are all the types of identifiers for government contracts?
+
+Here’s a structured breakdown of the main identifiers used in U.S. federal government contracting.
+
+🏢 Entity Identifiers (Who You Are)
+1. UEI (Unique Entity ID)
+
+Issued in: SAM.gov
+
+Replaced the old DUNS number (in 2022)
+
+Required for all federal awards
+
+12-character alphanumeric
+
+Assigned when you register your entity in SAM
+
+2. CAGE Code (Commercial and Government Entity Code)
+
+Issued by: Defense Logistics Agency
+
+5-character alphanumeric
+
+Required for DoD contracts
+
+Automatically assigned after SAM registration (for U.S. entities)
+
+3. NCAGE Code
+
+Same as CAGE but for non-U.S. companies
+
+Issued through NATO systems before SAM registration
+
+4. EIN / TIN
+
+Issued by: Internal Revenue Service
+
+Employer Identification Number
+
+Used for tax reporting
+
+Required to complete SAM registration
+
+🏭 Business Classification Identifiers
+5. NAICS Code
+
+Issued by: U.S. Census Bureau
+
+Defines your industry
+
+Contracts are assigned a NAICS code
+
+Determines small business size standards
+
+6. PSC Code (Product Service Code)
+
+Describes what the government is buying
+
+Used for reporting and procurement classification
+
+7. SIC Code
+
+Older industry classification system
+
+Mostly replaced by NAICS but still appears occasionally
+
+🏷️ Small Business & Socioeconomic Certifications
+
+These are not numeric IDs but status identifiers tied to your SAM profile:
+
+Small Business (based on NAICS size standard)
+
+8(a) Program – U.S. Small Business Administration
+
+HUBZone
+
+WOSB / EDWOSB
+
+SDVOSB / VOSB
+
+(Some programs require additional certification beyond SAM.)
+
+📄 Contract & Award Identifiers
+8. Contract Number / Procurement Instrument Identifier (PIID)
+
+Unique number assigned to each contract
+
+Example: W912DY-24-C-0001
+
+9. Solicitation Number
+
+Identifies a specific Request for Proposal (RFP) or Invitation for Bid
+
+10. Task Order / Delivery Order Number
+
+Used under IDIQ contracts or GWACs
+
+🏛️ Agency & Location Identifiers
+11. DODAAC (Department of Defense Activity Address Code)
+
+Identifies DoD units and contracting offices
+
+12. SAM Registration Status
+
+Active / Inactive (must be Active to receive awards)
+
+💳 Payment & Financial Identifiers
+13. Bank Routing Number & Account Number
+
+Used in SAM for ACH payments
+
+14. TIN Matching / IRS Consent Status
+
+Must validate against IRS records
+
+🔎 Systems You’ll Encounter
+
+SAM.gov – Entity registration
+FPDS – Contract reporting
+USASpending.gov – Public award data
+beta.SAM.gov – Old portal name
+
+--- Prompt 6 ---
+i think the opportunity api's point of contact would be the CO right ?
+
+https://open.gsa.gov/api/get-opportunities-public-api/
+
+pointofContact	Point of Contact Information. It can have below fields if available:
+Fax
+Type
+Email
+Phone
+Title
+Full name
+
+--- Prompt 7 ---
+what api were we already using though in the python, we already were getting data ?
+
+--- Prompt 8 ---
+what do you think is next, more documentation updates? start a phase?  I did learn about
+
+https://api.usaspending.gov/
+
+The USAspending API provides detailed contract award and spending data aggregated across federal agencies. You can search and filter by agency, recipient, NAICS or PSC codes, and other fields. It’s ideal for award history, trends, and spending analyses — but not focused on live solicitation notices.
+
+API.data.gov
+
+This site is a gateway to multiple APIs used by federal agencies (hosted via api.data.gov). Some APIs relevant to contracting (e.g., labor category ceilings, PSC/NAICS metadata) may be accessible here — though the core solicitation data should come from SAM.gov or USAspending.
+
+
+And are we using all the data from sam.gov?
+https://sam.gov/data-services/Data%20Dictionary/Contract%20Awards/FPDS%20V1.5%20Specifications?privacy=Public
+https://open.gsa.gov/api/contract-awards/
+
+--- Prompt 9 ---
+can we run updates to pull in fresh data ?
+
+============================================================
+SESSION 14 -- 2026-03-01 00:08
+============================================================
+
+--- Prompt 1 ---
+project-manager review thesolution/sam_gov_api and make sure we reference them in any future fixes/database/raw loading/etl work
+
+--- Prompt 2 ---
+they should be there, i used the name from the websites folder path
+
+--- Prompt 3 ---
+DO it
+
+============================================================
+SESSION 15 -- 2026-03-01 11:30
+============================================================
+
+--- Prompt 1 ---
+project-manager using this solicitation number "RFIWOSB612999Staffing", do we have enough information in our database to answer these questions?  If not, is it just something we need to load dependant on a request from a user?  I know some data we don't want to load all because it's just too much, and so we'd need 1-off adhoc api calls only when the user wants more information on a specific contract/solicitation.
+
+Here are the questions:
+
+ 1. History on an awarded work?
+ 2. How many people bid for it?
+ 3. Did it require a security clearance (and what type )?
+ 4. What is the burn rate (how much money has been used to far)?
+ 5. Also find information about the incumbent (company performing the work right now)?
+
+--- Prompt 2 ---
+[Request interrupted by user for tool use]
+
+--- Prompt 3 ---
+what happened ?
+
+--- Prompt 4 ---
+1. Yes build the schema drift checker, per your recomendation
+2. So what did you change in all in that last commit and why ?  
+3. Did you update any source files and docs so we can recreate the DB if we need to wipe the database and start fresh?
+4. Is the user's QUICKSTART.md updated?
+5. are there any other refactoring, restructuring, etdc left?
+
+--- Prompt 5 ---
+Ok, lets do the folders, we don't need to worry about migrations yet because we haven't locked in on the final database structure though right?
+
+--- Prompt 6 ---
+commit the changes
+
+============================================================
+SESSION 16 -- 2026-03-01 13:38
+============================================================
+
+--- Prompt 1 ---
+project-manager  Kick off mulitple agents (even another project-manager) to do the following:
+
+1. Do a review of "thesolution" and make sure the project is defined well after all the refactoring.
+2. Reivew the database vs the database schema
+3. Fix any issues with context, instructions, etc, that cause you to waste context and cycles.
+4. Make sure the database structure, and ETL loading process is solid before we move into the API. Whateverr that might need for you to do.
+
+--- Prompt 2 ---
+Ask me questions that yuou need answers for so we can get all these fixed
+
+--- Prompt 3 ---
+Sounds great nice work, lets do it
+
+--- Prompt 4 ---
+do it
+
+--- Prompt 5 ---
+Ok what do we need to do next ?
+
+--- Prompt 6 ---
+project-manager kick off agents to start phase 9
+
+--- Prompt 7 ---
+is documentaion up to date after that, can I start th next session ?
+
+--- Prompt 8 ---
+project-manager review plan and kick off agents to start phase 10
+
+============================================================
+SESSION 17 -- 2026-03-01 13:40
+============================================================
+
+--- Prompt 1 ---
+Do we have a phase for writing unit tests, and regression tests, and end-to-end tests ?  If not, lets create a phase document for that for the ETL, the API, and the eventual UI.

@@ -2,11 +2,13 @@ using FedProspector.Core.DTOs.Entities;
 using FedProspector.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace FedProspector.Api.Controllers;
 
 [Route("api/v1/entities")]
 [Authorize]
+[EnableRateLimiting("search")]
 public class EntitiesController : ApiControllerBase
 {
     private readonly IEntityService _service;

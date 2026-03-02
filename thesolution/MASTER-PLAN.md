@@ -203,15 +203,16 @@ pbdc/
 - [x] Activity logging on all write operations
 
 ### Phase 13: Auth, Notifications & Production Readiness
-**Status**: PLANNING
+**Status**: [x] COMPLETE (2026-03-01)
 **Document**: [13-AUTH-AND-PRODUCTION.md](phases/13-AUTH-AND-PRODUCTION.md)
 
 **Scope**:
-- [ ] Auth endpoints: register, login, logout, change-password, profile
-- [ ] Notification system: deadline alerts, status change alerts, saved search results
-- [ ] Admin user management
-- [ ] Production hardening: rate limiting, input validation, security headers
-- [ ] API documentation (Swagger + Postman collection)
+- [x] Auth endpoints: register, login, logout, change-password, profile (GET + PATCH)
+- [x] Notification system: list, mark-read, mark-all-read + notification generation service
+- [x] Admin user management: list users, update user, reset password
+- [x] Production hardening: rate limiting (4 policies), security headers, enhanced error handling
+- [x] Enhanced health check with per-source ETL freshness
+- [x] Swagger/OpenAPI documentation improvements
 
 ### Phase 14: Testing Strategy — Unit, Integration, Regression & E2E
 **Status**: PLANNING

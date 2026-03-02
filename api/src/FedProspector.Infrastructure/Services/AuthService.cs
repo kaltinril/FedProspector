@@ -22,15 +22,18 @@ public class AuthService : IAuthService
     private readonly FedProspectorDbContext _db;
     private readonly JwtOptions _jwtOptions;
     private readonly ILogger<AuthService> _logger;
+    private readonly IActivityLogService _activityLogService;
 
     public AuthService(
         FedProspectorDbContext db,
         IOptions<JwtOptions> jwtOptions,
-        ILogger<AuthService> logger)
+        ILogger<AuthService> logger,
+        IActivityLogService activityLogService)
     {
         _db = db;
         _jwtOptions = jwtOptions.Value;
         _logger = logger;
+        _activityLogService = activityLogService;
     }
 
     public async Task<AuthResult> LoginAsync(string email, string password)
@@ -75,6 +78,8 @@ public class AuthService : IAuthService
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
+            await _activityLogService.LogAsync(null, "LOGIN_FAILED", "USER", null, new { Email = email });
+
             return new AuthResult { Success = false, Error = "Invalid email or password." };
         }
 
@@ -100,6 +105,8 @@ public class AuthService : IAuthService
 
         _db.AppSessions.Add(session);
         await _db.SaveChangesAsync();
+
+        await _activityLogService.LogAsync(user.UserId, "LOGIN_SUCCESS", "USER", user.UserId.ToString());
 
         _logger.LogInformation("User {UserId} logged in successfully", user.UserId);
 
@@ -155,6 +162,174 @@ public class AuthService : IAuthService
             _logger.LogError(ex, "Error verifying password hash");
             return false;
         }
+    }
+
+    public async Task<AuthResult> RegisterAsync(RegisterRequest request, bool isAdminRegistration = false)
+    {
+        // Check username uniqueness (case-insensitive)
+        var usernameExists = await _db.AppUsers
+            .AnyAsync(u => u.Username.ToLower() == request.Username.ToLower());
+
+        if (usernameExists)
+        {
+            return new AuthResult { Success = false, Error = "Username already taken" };
+        }
+
+        // Check email uniqueness (case-insensitive)
+        var emailExists = await _db.AppUsers
+            .AnyAsync(u => u.Email != null && u.Email.ToLower() == request.Email.ToLower());
+
+        if (emailExists)
+        {
+            return new AuthResult { Success = false, Error = "Email already registered" };
+        }
+
+        var user = new AppUser
+        {
+            Username = request.Username,
+            DisplayName = request.DisplayName,
+            Email = request.Email,
+            PasswordHash = HashPassword(request.Password),
+            Role = "USER",
+            IsActive = "Y",
+            IsAdmin = isAdminRegistration ? "Y" : "N",
+            MfaEnabled = "N",
+            FailedLoginAttempts = 0,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _db.AppUsers.Add(user);
+        await _db.SaveChangesAsync();
+
+        // Generate JWT token and create session (reuse login pattern)
+        var expiresAt = DateTime.UtcNow.AddHours(_jwtOptions.ExpirationHours);
+        var token = GenerateJwtToken(user, expiresAt);
+        var tokenHash = ComputeSha256Hash(token);
+
+        var session = new AppSession
+        {
+            UserId = user.UserId,
+            TokenHash = tokenHash,
+            IssuedAt = DateTime.UtcNow,
+            ExpiresAt = expiresAt
+        };
+
+        _db.AppSessions.Add(session);
+        await _db.SaveChangesAsync();
+
+        await _activityLogService.LogAsync(user.UserId, "REGISTER", "USER", user.UserId.ToString());
+
+        _logger.LogInformation("User {UserId} registered successfully with username {Username}",
+            user.UserId, user.Username);
+
+        return new AuthResult
+        {
+            Success = true,
+            Token = token,
+            UserId = user.UserId,
+            UserName = user.DisplayName,
+            ExpiresAt = expiresAt
+        };
+    }
+
+    public async Task ChangePasswordAsync(int userId, string currentPassword, string newPassword)
+    {
+        var user = await _db.AppUsers.FindAsync(userId);
+
+        if (user is null)
+        {
+            throw new KeyNotFoundException($"User {userId} not found.");
+        }
+
+        if (string.IsNullOrEmpty(user.PasswordHash) || !VerifyPassword(currentPassword, user.PasswordHash))
+        {
+            throw new InvalidOperationException("Current password is incorrect");
+        }
+
+        user.PasswordHash = HashPassword(newPassword);
+        user.UpdatedAt = DateTime.UtcNow;
+
+        // Revoke all active sessions
+        var activeSessions = await _db.AppSessions
+            .Where(s => s.UserId == userId && s.RevokedAt == null)
+            .ToListAsync();
+
+        foreach (var session in activeSessions)
+        {
+            session.RevokedAt = DateTime.UtcNow;
+        }
+
+        await _db.SaveChangesAsync();
+
+        await _activityLogService.LogAsync(userId, "CHANGE_PASSWORD", "USER", userId.ToString());
+
+        _logger.LogInformation("User {UserId} changed password, {SessionCount} sessions revoked",
+            userId, activeSessions.Count);
+    }
+
+    public async Task<UserProfileDto> GetProfileAsync(int userId)
+    {
+        var user = await _db.AppUsers
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.UserId == userId);
+
+        if (user is null)
+        {
+            throw new KeyNotFoundException($"User {userId} not found.");
+        }
+
+        return MapToProfileDto(user);
+    }
+
+    public async Task<UserProfileDto> UpdateProfileAsync(int userId, UpdateProfileRequest request)
+    {
+        var user = await _db.AppUsers.FindAsync(userId);
+
+        if (user is null)
+        {
+            throw new KeyNotFoundException($"User {userId} not found.");
+        }
+
+        if (request.DisplayName is not null)
+        {
+            user.DisplayName = request.DisplayName;
+        }
+
+        if (request.Email is not null)
+        {
+            // Check email uniqueness (exclude current user)
+            var emailExists = await _db.AppUsers
+                .AnyAsync(u => u.UserId != userId && u.Email != null && u.Email.ToLower() == request.Email.ToLower());
+
+            if (emailExists)
+            {
+                throw new InvalidOperationException("Email already registered");
+            }
+
+            user.Email = request.Email;
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} updated profile", userId);
+
+        return MapToProfileDto(user);
+    }
+
+    private static UserProfileDto MapToProfileDto(AppUser user)
+    {
+        return new UserProfileDto
+        {
+            UserId = user.UserId,
+            Username = user.Username,
+            DisplayName = user.DisplayName,
+            Email = user.Email,
+            Role = user.Role ?? "USER",
+            IsAdmin = user.IsAdmin == "Y",
+            LastLoginAt = user.LastLoginAt,
+            CreatedAt = user.CreatedAt
+        };
     }
 
     private string GenerateJwtToken(AppUser user, DateTime expiresAt)

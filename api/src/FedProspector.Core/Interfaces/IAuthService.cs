@@ -10,4 +10,8 @@ public interface IAuthService
     Task<AppUser?> GetUserByIdAsync(int userId);
     string HashPassword(string password);
     bool VerifyPassword(string password, string hashedPassword);
+    Task<AuthResult> RegisterAsync(RegisterRequest request, bool isAdminRegistration = false);
+    Task ChangePasswordAsync(int userId, string currentPassword, string newPassword);
+    Task<UserProfileDto> GetProfileAsync(int userId);
+    Task<UserProfileDto> UpdateProfileAsync(int userId, UpdateProfileRequest request);
 }

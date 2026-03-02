@@ -491,9 +491,14 @@ The API starts at `https://localhost:5001` (or `http://localhost:5000`).
 - Phase 11: 17 read-only endpoints — opportunities, awards, entities, subawards, dashboard, admin, saved searches
 - Phase 12: 14 capture management endpoints — prospect CRUD, proposal lifecycle, Go/No-Go scoring, activity logging
 
-### Phase 13: Auth, Notifications & Production (PLANNING)
+### Phase 13: Auth, Notifications & Production Readiness — COMPLETE (2026-03-01)
 
-Not yet implemented. Will add: user registration/login, notification system, rate limiting.
+- Auth: register, login, logout, change-password, profile management (GET + PATCH `/auth/me`)
+- Notifications: list, mark-read, mark-all-read, notification generation service
+- Admin: user list, update user, force password reset
+- Production: rate limiting (4 policies: auth/search/write/admin), security headers, enhanced error handling
+- Health: per-source ETL freshness monitoring in `GET /health`
+- Swagger: enhanced API documentation with request/response examples and auth flow
 
 ---
 
