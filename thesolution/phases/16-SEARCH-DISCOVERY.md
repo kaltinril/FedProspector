@@ -39,16 +39,17 @@ The primary discovery page. Users search for active solicitations and RFIs.
 - NAICS
 - Posted Date
 - Response Deadline (with "X days" countdown, red when < 7 days)
-- Estimated Value (currency)
+- Award Ceiling / Base+Options (currency)
+  > Displays `BaseAndAllOptions` from search DTO. Phase 14.5 adds `EstimatedContractValue` field; display whichever is available, preferring the solicitation estimate.
 - POP State
 - Prospect Status (if already tracked — chip or empty)
 
-> **Column visibility configurable by user.** Default shows: Title, Solicitation#, Department, Set-Aside, NAICS, Response Deadline, Estimated Value, POP State. Office, Posted Date, and Prospect Status are available as togglable columns.
+> **Column visibility configurable by user.** Default shows: Title, Solicitation#, Department, Set-Aside, NAICS, Response Deadline, Award Ceiling / Base+Options, POP State. Office, Posted Date, and Prospect Status are available as togglable columns.
 
 **Actions:**
 - Click row → Opportunity Detail (Phase 17)
 - "Track" button → Create prospect (Phase 18)
-- Export to CSV
+- Export to CSV (via `GET /api/v1/opportunities/export` -- server-side, accepts same filters)
 
 ### Target Opportunity Search (`/opportunities/targets`)
 Pre-filtered view showing opportunities most relevant to the user's company profile.
@@ -95,7 +96,7 @@ Find companies — competitors, teaming partners, or incumbents.
 - UEI
 - Primary NAICS
 - Registration Status (chip)
-- Entity URL
+- Entity URL (requires `EntityUrl` field added to `EntitySearchDto` in Phase 14.5)
 
 ### Teaming Partner Search (`/subawards/teaming`)
 Find potential teaming partners based on subaward history.
@@ -103,7 +104,7 @@ Find potential teaming partners based on subaward history.
 **Filters:**
 - Primary contractor UEI
 - NAICS code
-- Award amount range
+- Minimum subaward count (maps to `TeamingPartnerSearchRequest.MinSubawards`)
 
 **Grid columns** (matches `TeamingPartnerDto` — prime contractor aggregation):
 - Prime Contractor Name (link to entity detail)

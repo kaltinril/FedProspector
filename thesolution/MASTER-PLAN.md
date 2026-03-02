@@ -147,7 +147,7 @@ pbdc/
 - [x] Gap analysis complete — schema audit, missing tables, missing columns documented
 - [x] Add 14 new tables — completed in Phase 9
 - [x] Add ~15 new columns across 4 existing tables — completed in Phase 9
-- [x] Build C# API backend — 31 endpoints across 9 business controllers (Phases 10-12)
+- [x] Build C# API backend — 44 endpoints across 12 controllers (Phases 10-13)
 - [x] Replicate prospect status flow, Go/No-Go scoring in C# (Phase 12)
 
 **Impact**: Current 54 tables + 4 views (schema changes completed in Phase 9).
@@ -244,13 +244,13 @@ pbdc/
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
 **File**: [phases/15-UI-FOUNDATION.md](phases/15-UI-FOUNDATION.md)
-**Dependencies**: Phase 14.5 (Multi-Tenancy & Security)
+**Dependencies**: Phase 14 (Testing), Phase 14.5 (Multi-Tenancy & Security)
 
 - Vite + React 19 + TypeScript scaffold
 - MUI v6 component library, TanStack Query, Axios
 - JWT auth flow (login/register, token management, route guards)
 - App layout: collapsible sidebar, top bar, breadcrumbs, dark/light theme
-- Typed API client layer (all 31 endpoints)
+- Typed API client layer (all API endpoints (~54 after Phase 14.5))
 - Shared components: DataTable, SearchFilters, StatusChip, etc.
 - Service manager integration (fed_prospector.py UI commands)
 

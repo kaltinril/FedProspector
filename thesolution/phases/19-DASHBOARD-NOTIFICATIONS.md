@@ -31,7 +31,7 @@ Build the "home base" experience — the dashboard users see when they log in, t
 - Pipeline value — sum of estimated values from prospects (may need API addition or client-side computation from pipeline data)
 
 **Row 2: Pipeline Overview**
-- Prospect status funnel chart (LEAD → QUALIFIED → PURSUING → SUBMITTED)
+- Prospect status bar chart (NEW → REVIEWING → PURSUING → BID_SUBMITTED)
 - Click a stage → navigate to pipeline filtered by that status
 
 **Row 3: Two-column layout**
@@ -79,8 +79,10 @@ Build the "home base" experience — the dashboard users see when they log in, t
   - Prospect status changed
   - Score recalculated
 - Click notification → navigate to relevant entity. Routing is based on `EntityType` + `EntityId` (e.g., `EntityType: "opportunity"` + `EntityId: "ABC123"` navigates to `/opportunities/ABC123`)
+- **Canonical `EntityType` values** for notification routing: `opportunity` → `/opportunities/{EntityId}`, `award` → `/awards/{EntityId}`, `entity` → `/entities/{EntityId}`, `prospect` → `/prospects/{EntityId}`, `proposal` → `/prospects/{ProspectId}/proposals/{EntityId}`. Values are lowercase, matching route segments.
 - "Mark all as read" button
 - Filter: unread only, by type
+- **Canonical `NotificationType` values** (defined as constants in Phase 14.5): `new_match`, `deadline_approaching`, `status_changed`, `score_recalculated`. UI uses these for icon selection and type filtering.
 - Empty state: "You're all caught up!" message when zero notifications
 
 **Top Bar Integration:**
@@ -95,13 +97,13 @@ Build the "home base" experience — the dashboard users see when they log in, t
 ### 19.1 Dashboard Page
 - [ ] Build card-based dashboard layout
 - [ ] Key metrics stat cards (open prospects, due this week, win rate, pipeline value)
-- [ ] Pipeline funnel chart (Recharts)
+- [ ] Pipeline stage bar chart (@mui/x-charts horizontal bar chart) — @mui/x-charts does not support funnel charts; horizontal stacked bar effectively shows stage progression
 - [ ] Due this week table (sortable by deadline)
 - [ ] Workload by assignee bar chart
 - [ ] Win/loss metrics chart
 - [ ] Recent saved searches with result counts
 - [ ] Wire to `GET /api/v1/dashboard`
-- [ ] Auto-refresh on 5-minute interval (pauses when user is interacting — typing, scrolling — resumes on idle)
+- [ ] Auto-refresh via TanStack Query `refetchInterval: 300000` (5 minutes) with `refetchIntervalInBackground: false`. Pauses when browser tab is not visible.
 
 ### 19.2 Saved Search Management
 - [ ] Saved search list page

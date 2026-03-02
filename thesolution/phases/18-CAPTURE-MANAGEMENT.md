@@ -9,7 +9,7 @@
 
 ## Overview
 
-Build the capture management workflow — once a user finds an opportunity, they track it as a "prospect" and move it through a pipeline: LEAD → QUALIFIED → PURSUING → SUBMITTED → WON/LOST.
+Build the capture management workflow — once a user finds an opportunity, they track it as a "prospect" and move it through a pipeline: NEW → REVIEWING → PURSUING → BID_SUBMITTED → WON/LOST. DECLINED and NO_BID are terminal statuses — shown as a collapsible 'Archived' section below the Kanban board, or as a filter toggle.
 
 **Data scoping:** All prospect/proposal data is scoped to the user's organization. Users only see their company's pipeline.
 
@@ -27,7 +27,7 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 **Two views (toggle):**
 
 **Kanban View (default):**
-- Columns: LEAD → QUALIFIED → PURSUING → SUBMITTED → WON / LOST
+- Columns: NEW → REVIEWING → PURSUING → BID_SUBMITTED → WON / LOST
 - Cards show: opportunity title, deadline countdown, estimated value, assigned user avatar, priority flag, go/no-go score
 - Drag-and-drop to move between stages
 - Click card → Prospect Detail
@@ -48,7 +48,7 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 - Opportunity title (linked)
 - Status chip (with transition dropdown)
 - Priority flag (LOW / MEDIUM / HIGH / CRITICAL)
-- Go/No-Go score gauge (0-100)
+- Go/No-Go score gauge (0-40) (4 criteria x 0-10 each = 40 max)
 - Assigned user + capture manager
 - Reassign action (dropdown or button) — users can reassign without going to list view
 - Deadline countdown
@@ -56,9 +56,8 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 **Tab 1: Overview**
 - Linked opportunity summary card (key facts)
 - Score breakdown panel:
-  - Individual criteria scores (set-aside match, NAICS experience, clearance, value fit, etc.)
-  - Each criterion: name, score, weight, rationale
-  - Overall weighted score with visual gauge
+  - Named criteria (`SetAside`, `TimeRemaining`, `NaicsMatch`, `AwardValue`), each with `Score` (0-10), `Max`, and `Detail` (explanation text). No explicit weight field — all criteria weighted equally.
+  - Overall score with visual gauge (0-40)
   - "Recalculate Score" button
 - Win probability + estimated gross margin
 - Bid submitted date, outcome, outcome notes (if completed)
@@ -114,14 +113,14 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 
 ### 18.1 Prospect Pipeline — Kanban View
 - [ ] Build Kanban board with drag-and-drop (use `@dnd-kit/core` + `@dnd-kit/sortable` ONLY — `react-beautiful-dnd` is deprecated and incompatible with React 19)
-- [ ] Pipeline columns: LEAD, QUALIFIED, PURSUING, SUBMITTED, WON, LOST
+- [ ] Pipeline columns: NEW, REVIEWING, PURSUING, BID_SUBMITTED, WON, LOST (plus DECLINED and NO_BID as terminal/archived statuses)
 - [ ] Prospect cards: title, deadline, value, assignee, priority, score
 - [ ] Drag card between columns → calls `PATCH /prospects/{id}/status`
 - [ ] Color coding: red deadline (< 7 days), priority flags
 - [ ] Filter bar: my prospects, due this week, by NAICS
 - [ ] Empty state for new users with zero prospects: "Start by searching for opportunities and tracking them as prospects." with a link to /opportunities
 - [ ] Optimistic update: card moves immediately, reverts on API failure with error toast
-- [ ] Invalid status transitions: validate drop target against allowed transitions before calling API. Show toast if invalid (e.g., LEAD -> WON is not allowed)
+- [ ] Invalid status transitions: validate drop target against allowed transitions before calling API. Show toast if invalid (e.g., NEW -> WON is not allowed)
 - [ ] Loading state: brief dimming of dragged card during API call
 
 ### 18.2 Prospect Pipeline — List View
@@ -150,7 +149,7 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 - [ ] Wire to `POST /api/v1/prospects/{id}/notes`
 - [ ] Team member list: company name, UEI, role, proposed hourly rate, commitment %
 - [ ] Add team member: entity search by UEI or company name (not user search)
-- [ ] `AddTeamMemberRequest` has `UeiSam`, `Role`, `ProposedHourlyRate`, `CommitmentPct`
+- [ ] `AddTeamMemberRequest` has `UeiSam`, `Role`, `ProposedHourlyRate`, `CommitmentPct`, `Notes`
 - [ ] `ProspectTeamMemberDto` returns `UeiSam`, `EntityName`, `Role`, `ProposedHourlyRate`, `CommitmentPct`
 - [ ] Remove team member with confirmation dialog
 - [ ] Wire to `POST/DELETE /api/v1/prospects/{id}/team-members`
@@ -162,6 +161,7 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 - [ ] Create Milestone flow (Phase 14.5 adds the POST endpoint)
 - [ ] Milestone status update (inline toggle) — milestone display includes `AssignedTo` field
 - [ ] Document registry (metadata display) — includes `FileSizeBytes`
+  - MVP: Document registry displays metadata only. The backend `POST /proposals/{id}/documents` endpoint supports file upload but the UI upload component is deferred. Add file upload UI when storage infrastructure (filesystem/S3) is configured.
 - [ ] Wire to proposal API endpoints
 - [ ] Breadcrumb: Dashboard > Prospects > [Name] > Proposal #[X]
 

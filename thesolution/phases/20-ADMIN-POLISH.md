@@ -34,7 +34,7 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - System admin sees all users across all orgs. Org admin sees only their org's members.
 - User table: username, email, role, active status, last login, created date
 - Inline actions: toggle active, change role (user/admin), reset password
-- Reset password → display temporary password modal
+- Reset password → display temporary password modal. After reset, `force_password_change` flag is set (added in Phase 14.5). Temp password only usable for password change, not normal app access.
 - Cannot deactivate yourself (handled by API)
 
 ### User Profile (`/profile`)
@@ -49,7 +49,7 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - API error toasts (snackbar notifications for failed requests)
 - Session expired handling (401 → redirect to login with "session expired" message)
 - Rate limit handling (429 → toast with retry-after info; differentiate by policy type: auth vs search vs write)
-- 409 Conflict handling (concurrent edit detection — "This record was modified. Reload and try again?")
+- 409 Conflict handling (concurrent edit detection — "This record was modified. Reload and try again?"). Server-side: compare `UpdatedAt` timestamp in PATCH requests. If the record's `UpdatedAt` differs from what the client sent, return 409.
 - DOMPurify for any rich text/HTML rendering (notes, descriptions) to prevent stored XSS
 - External URLs (entity URLs from SAM.gov) rendered with `rel="noopener noreferrer"` and `target="_blank"`
 - Offline detection (banner when network is down)
@@ -104,13 +104,14 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - [ ] Image/asset optimization (if any)
 - [ ] Verify MUI bundle size — use tree shaking, only import used components
 - [ ] Bundle size analysis (vite-plugin-visualizer)
-- [ ] Verify initial load < 500KB gzipped
+- [ ] Verify initial route bundle < 500KB gzipped (measure after Phase 15 for baseline; MUI + Data Grid + Charts baseline is ~300-350KB). Total app size may exceed 500KB with code splitting.
 
 ### 20.7 Accessibility
 - [ ] Keyboard navigation for all interactive elements
 - [ ] ARIA labels on icon buttons and status indicators
 - [ ] Color contrast meets WCAG AA
 - [ ] Screen reader testing on key flows (search, detail, pipeline)
+- [ ] Install `eslint-plugin-jsx-a11y` for automated accessibility linting (configured in Phase 15)
 
 ### 20.8 Organization Admin Features
 - [ ] Org settings page (name, member list)
@@ -137,4 +138,4 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - [ ] Session expired redirects to login
 - [ ] Responsive design works at all breakpoints
 - [ ] Lighthouse score > 80 on performance
-- [ ] `npm run build` produces production bundle < 500KB gzipped
+- [ ] `npm run build` produces initial route bundle < 500KB gzipped (total app may exceed with code splitting)

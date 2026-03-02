@@ -73,6 +73,7 @@ These pages are the competitive intelligence engine — the core value propositi
 **Tab 3: Competition**
 - Related awards by same NAICS + set-aside (who's winning similar work?)
 - Top vendors in this NAICS (from entity data)
+  > Top vendors by NAICS: No dedicated endpoint exists. Use entity search filtered by NAICS code to approximate, or defer to future analytics phase.
 - USAspending summary (if linked) — display from `UsaspendingSummaryDto`:
   - `GeneratedUniqueAwardId`, `RecipientName`, `TotalObligation`, `BaseAndAllOptionsValue`, `StartDate`, `EndDate`
 
@@ -142,6 +143,7 @@ These pages are the competitive intelligence engine — the core value propositi
   - NAICS codes they compete in
   - Average contract size
   - Recent awards table
+- **Phase 14.5 DTO changes needed**: `CompetitorProfileDto` currently lacks `WinRate`, `AverageContractSize`, and `RecentAwards` fields. These are added in Phase 14.5 DTO changes. Until then, compute `AverageContractSize` client-side as `TotalObligated / PastContracts`.
 
 **Tab 3: Exclusion Check**
 - Exclusion status (prominent green "Clear" or red "EXCLUDED" badge)
@@ -166,7 +168,7 @@ These pages are the competitive intelligence engine — the core value propositi
 - [ ] Qualification checklist component (pass/fail visual indicators)
 - [ ] History tab: new vs re-compete detection
 - [ ] Incumbent info panel (name, exclusion check, award details)
-- [ ] Burn rate chart for previous contract (Recharts line chart)
+- [ ] Burn rate chart for previous contract (@mui/x-charts line chart)
 - [ ] Number of offers on previous solicitation
 - [ ] Competition tab: related awards, top vendors in NAICS
 - [ ] Prospect tab: show linked prospect or "Track" CTA
@@ -203,6 +205,7 @@ These pages are the competitive intelligence engine — the core value propositi
 - [ ] Tab lazy loading: only fetch tab data when tab is activated (TanStack Query `enabled` flag tied to active tab)
 - [ ] Registration expiration warning: highlight entities expiring within 60 days
 - [ ] Federal hierarchy tab: show "Not applicable -- commercial entity" for non-government entities
+- [ ] Handle null `NumberOfOffers` gracefully -- FPDS does not always populate this field. Display "N/A" when null.
 
 ---
 

@@ -23,7 +23,7 @@ Scaffold the Vite + React + TypeScript frontend application with MUI (Material U
 | HTTP client | Axios | Interceptors for auth, error handling |
 | Forms | React Hook Form + Zod | Lightweight validation, TypeScript-native schemas |
 | Charts | @mui/x-charts | Theme-consistent, part of MUI ecosystem, no extra design work |
-| Data grid | MUI X Data Grid (MIT free tier) | Server-side sort, filter, pagination — free tier sufficient |
+| Data grid | MUI X Data Grid (MIT free tier) | Server-side sort, pagination — free tier sufficient. **Note: MIT tier does not support server-side filtering via grid column menus. All filtering done via SearchFilters.tsx bar; grid column filter UI disabled.** |
 | Icons | MUI Icons (Material Symbols) | Consistent with MUI theme |
 | Date library | date-fns | Tree-shakeable, lightweight date formatting and countdowns |
 | Error boundary | react-error-boundary | Catches React render crashes, prevents white-screen |
@@ -37,6 +37,7 @@ ui/
 ├── package.json
 ├── tsconfig.json
 ├── vite.config.ts
+├── .env.development          # No VITE_* vars needed — proxy handles API routing
 ├── .env.production           # Production-specific overrides (if any)
 ├── src/
 │   ├── main.tsx              # App entry point
@@ -89,10 +90,10 @@ ui/
 │   │   │   ├── CurrencyDisplay.tsx # Formatted dollar amounts
 │   │   │   ├── ErrorBoundary.tsx   # react-error-boundary wrapper with fallback UI
 │   │   │   └── NotificationProvider.tsx # notistack provider for global toast notifications
-│   │   └── charts/
-│   │       ├── BurnRateChart.tsx   # Line chart for burn rate
-│   │       ├── PipelineChart.tsx   # Funnel/bar for prospect stages
-│   │       └── SpendChart.tsx      # Monthly spend bar chart
+│   │   └── charts/                 # Built in Phases 17/19 when consuming pages are developed
+│   │       ├── BurnRateChart.tsx   # Line chart for burn rate (Phase 17)
+│   │       ├── PipelineChart.tsx   # Funnel/bar for prospect stages (Phase 19)
+│   │       └── SpendChart.tsx      # Monthly spend bar chart (Phase 19)
 │   ├── hooks/
 │   │   ├── useDebounce.ts         # Debounce search inputs
 │   │   ├── usePagination.ts       # Page state management
@@ -119,26 +120,30 @@ ui/
 
 ### 15.1 Project Scaffolding
 - [ ] Create Vite + React + TypeScript project in `ui/`
-- [ ] Install dependencies: MUI, @mui/x-charts, @mui/x-data-grid, React Router, TanStack Query, Axios, React Hook Form, Zod, date-fns, react-error-boundary, notistack
+- [ ] Install dependencies: MUI, @emotion/react, @emotion/styled, @mui/x-charts, @mui/x-data-grid, React Router, TanStack Query, @tanstack/react-query-devtools, Axios, React Hook Form, Zod, date-fns, react-error-boundary, notistack, @dnd-kit/core, @dnd-kit/sortable
 - [ ] Configure `vite.config.ts` with path aliases (`@/` -> `src/`)
 - [ ] Add `tsconfig.json` with strict mode, path aliases (`@/` -> `src/`)
 - [ ] Update `.gitignore` with `node_modules/`, `ui/dist/`, `ui/.env.local`
+- [ ] Configure ESLint (`@typescript-eslint`, `eslint-plugin-jsx-a11y`) and Prettier for consistent code formatting
+- [ ] Enable `React.StrictMode` in `main.tsx`. Note: StrictMode double-invokes effects in development — this is expected and harmless (TanStack Query deduplicates requests).
+- [ ] **Important**: Exclude `ui/node_modules/` from OneDrive sync to avoid file-locking conflicts, path length issues, and sync thrashing during `npm install`.
 
 ### 15.2 API Client Layer
 - [ ] Create Axios instance with base URL `/api/v1` (relative, works with proxy in dev and reverse proxy in prod)
 - [ ] Set `withCredentials: true` on all Axios requests (browser sends httpOnly cookie automatically)
 - [ ] Add CSRF interceptor: read XSRF token from non-httpOnly cookie, attach as `X-XSRF-TOKEN` header
 - [ ] Add 401 interceptor: attempt silent refresh via `POST /auth/refresh`, redirect to login only if refresh fails
+  - Use refresh lock pattern: first 401 triggers refresh, concurrent 401s queue behind shared Promise. Prevents multiple competing refresh calls and infinite redirect loops.
 - [ ] Add 429 interceptor (rate limit toast notification via notistack)
 - [ ] Create typed API modules matching all endpoints
 - [ ] Create TypeScript types mirroring every C# DTO
 - [ ] Create TanStack Query hooks in `src/queries/` with centralized query key factory
+- [ ] Configure TanStack Query defaults: `staleTime` (2-5min searches, 30s notifications, 60s dashboard), `retry` (2 queries, 1 mutations, 0 auth), `refetchOnWindowFocus` per query type
+- [ ] Consider generating TypeScript types from the API's OpenAPI/Swagger spec using `openapi-typescript` to prevent manual DTO drift.
 
 ### 15.3 Authentication
 - [ ] Create AuthContext -- check session via `GET /auth/me` on app load
-- [ ] Axios: `withCredentials: true` on all requests (browser sends cookie automatically)
-- [ ] CSRF: Read XSRF token from non-httpOnly cookie, attach as `X-XSRF-TOKEN` header
-- [ ] 401 interceptor: attempt silent refresh via `POST /auth/refresh`, redirect to login only if refresh fails
+- [ ] Auth transport configured in 15.2 (withCredentials, CSRF, 401 interceptor)
 - [ ] Create login page (email + password form)
 - [ ] Create register page (invite-only, requires invite token)
 - [ ] Create AuthGuard -- relies on AuthContext session state, redirects unauthenticated users to /login

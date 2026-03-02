@@ -48,3 +48,10 @@ workdir/
 # sensitive config (e.g. API keys, DB credentials)
 thesolution/credentials.yml
 thesolution/samgov.yml
+
+# UI (Node.js / Vite + React)
+node_modules/
+ui/dist/
+ui/.env.local
+ui/.env.*.local
+*.tsbuildinfo
