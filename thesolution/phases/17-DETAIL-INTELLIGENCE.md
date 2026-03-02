@@ -32,17 +32,20 @@ These pages are the competitive intelligence engine — the core value propositi
 - Response deadline with countdown (days/hours, urgent coloring)
 - Estimated value (prominent)
 - Status chips: Set-aside type, NAICS code, active/inactive
-- Action buttons: "Track as Prospect", "Save Search Similar"
+- Action buttons: "Track as Prospect", "Save Search Similar" (pre-populates saved search create dialog with the opportunity's NAICS/set-aside values)
 
 **Tab 1: Overview**
 - Description (full text, collapsible if long)
 - Key facts grid:
   - Type (solicitation, RFI, sources sought, etc.)
+  - Base type (`BaseType`)
+  - Classification code (PSC)
   - Set-aside code + description + category
   - NAICS code + description + sector + size standard
   - Place of performance (city, state, ZIP, country → CONUS/OCONUS indicator)
   - Security clearance required (Yes/No + type if known)
   - Period of performance (start → end dates)
+  - Data freshness: `FirstLoadedAt` / `LastLoadedAt` (when record was first/last seen in our system)
   - Link to SAM.gov listing
   - Resource links (attachments from SAM.gov)
 - **Qualification checklist** (visual pass/fail indicators):
@@ -55,8 +58,8 @@ These pages are the competitive intelligence engine — the core value propositi
 **Tab 2: History & Incumbent Intel**
 - **New vs Re-compete indicator** (prominent badge)
 - If re-compete:
-  - Award number of previous contract
-  - Incumbent name + UEI (link to entity detail)
+  - Inline award fields from opportunity record: `AwardNumber`, `AwardDate`, `AwardAmount`, `AwardeeUei`, `AwardeeName`
+  - Incumbent name + UEI (link to entity detail, from `AwardeeName`/`AwardeeUei`)
   - Incumbent exclusion check (are they debarred?)
   - Award date and completion date of previous contract
   - Burn rate chart (monthly spend over contract life)
@@ -70,7 +73,8 @@ These pages are the competitive intelligence engine — the core value propositi
 **Tab 3: Competition**
 - Related awards by same NAICS + set-aside (who's winning similar work?)
 - Top vendors in this NAICS (from entity data)
-- USAspending summary (if linked)
+- USAspending summary (if linked) — display from `UsaspendingSummaryDto`:
+  - `GeneratedUniqueAwardId`, `RecipientName`, `TotalObligation`, `BaseAndAllOptionsValue`, `StartDate`, `EndDate`
 
 **Tab 4: Prospect (if tracked)**
 - Prospect status, priority, score
@@ -81,8 +85,10 @@ These pages are the competitive intelligence engine — the core value propositi
 
 **Header Section:**
 - Contract ID, solicitation number (linked to opportunity if exists)
+- `IdvPiid` (parent contract ID, if applicable)
 - Vendor name + UEI (link to entity detail)
 - Agency / contracting office
+- `FundingAgencyName` (when different from contracting agency — show both)
 - Total value (base-and-all-options)
 - Date signed → completion date timeline
 
@@ -92,8 +98,10 @@ These pages are the competitive intelligence engine — the core value propositi
   - NAICS, PSC code
   - Set-aside type
   - Extent competed, number of offers
+  - `SolicitationDate`
   - Description
   - Place of performance
+  - `CompletionDate` vs `UltimateCompletionDate` (show both when they differ, to indicate extensions)
 
 **Tab 2: Financials & Burn Rate**
 - **Burn rate chart** (monthly obligations over time)
@@ -112,15 +120,20 @@ These pages are the competitive intelligence engine — the core value propositi
 - Legal business name, DBA name
 - UEI
 - Registration status chip
+- `ExclusionStatusFlag` inline badge (quick visual without switching to exclusion tab)
 - Primary NAICS
 - Link to SAM.gov entity page
 
 **Tab 1: Company Profile**
 - Business types and certifications (WOSB, 8(a), HUBZone, etc.)
 - NAICS codes (primary + additional)
+- `PscCodes` (Product Service Codes)
+- `CageCode`
 - Physical address
 - Congressional district
 - Entity URL
+- `RegistrationExpirationDate` with "expiring soon" warning (highlight if within 60 days)
+- `PointsOfContact` — **critical for business development**: display POC list with name, title, type, location
 
 **Tab 2: Competitor Analysis**
 - Competitor profile data (from CompetitorProfileDto):
@@ -138,6 +151,7 @@ These pages are the competitive intelligence engine — the core value propositi
 **Tab 4: Federal Hierarchy**
 - Where this entity sits in the federal hierarchy (if government entity)
 - Parent/child relationships
+- **Note**: Federal hierarchy data displayed only if entity is a government organization. Otherwise show "Not applicable -- commercial entity."
 
 ---
 
@@ -182,6 +196,14 @@ These pages are the competitive intelligence engine — the core value propositi
 - [ ] Qualification checklist component (pass/fail visual)
 - [ ] "Back to search" navigation with preserved search state
 
+### 17.5 Edge Case Handling
+- [ ] Burn rate chart: handle zero transactions gracefully (show "No transaction data available" instead of empty chart)
+- [ ] CONUS/OCONUS detection: handle US territories (PR, GU, VI, AS, MP), APO/FPO addresses, and null country values
+- [ ] Cross-link integrity: if linked entity/award doesn't exist, show "Data not available" placeholder instead of 404
+- [ ] Tab lazy loading: only fetch tab data when tab is activated (TanStack Query `enabled` flag tied to active tab)
+- [ ] Registration expiration warning: highlight entities expiring within 60 days
+- [ ] Federal hierarchy tab: show "Not applicable -- commercial entity" for non-government entities
+
 ---
 
 ## Verification
@@ -192,3 +214,9 @@ These pages are the competitive intelligence engine — the core value propositi
 - [ ] Award detail shows burn rate chart and transaction history
 - [ ] Entity detail shows competitor analysis and exclusion status
 - [ ] All cross-links work (opportunity → award → entity → back)
+- [ ] Cross-link to missing data shows "Data not available" instead of 404
+- [ ] Burn rate chart handles zero transactions gracefully
+- [ ] CONUS/OCONUS correctly handles US territories (PR, GU, VI, AS, MP)
+- [ ] Entity detail shows POC list, CAGE code, PSC codes, and registration expiration warning
+- [ ] Federal hierarchy tab shows conditional message for commercial entities
+- [ ] "Save Search Similar" pre-populates saved search dialog with opportunity NAICS/set-aside

@@ -11,11 +11,17 @@
 
 Final phase — build the admin panel (user management, ETL monitoring), user profile management, and production polish (responsive design, performance, accessibility, error boundaries).
 
+**Two admin levels:** System admin has platform-wide visibility (all orgs, all users, ETL status). Org admin has company-level visibility (own org's members, settings, invites).
+
 ---
 
 ## Pages
 
 ### Admin Panel (`/admin` — admin role required)
+
+**Health Tab:**
+- Display data from `/health` endpoint — system health indicator with database connectivity, ETL freshness, uptime
+- Can also be shown as a small indicator in the top bar for admins
 
 **ETL Status Tab:**
 - Source status table: source name, last load time, staleness indicator, records loaded
@@ -25,6 +31,7 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - Alerts section: active warnings (stale data, rate limits, etc.)
 
 **User Management Tab:**
+- System admin sees all users across all orgs. Org admin sees only their org's members.
 - User table: username, email, role, active status, last login, created date
 - Inline actions: toggle active, change role (user/admin), reset password
 - Reset password → display temporary password modal
@@ -41,7 +48,10 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - Global error boundary (catches React render errors)
 - API error toasts (snackbar notifications for failed requests)
 - Session expired handling (401 → redirect to login with "session expired" message)
-- Rate limit handling (429 → toast with retry-after info)
+- Rate limit handling (429 → toast with retry-after info; differentiate by policy type: auth vs search vs write)
+- 409 Conflict handling (concurrent edit detection — "This record was modified. Reload and try again?")
+- DOMPurify for any rich text/HTML rendering (notes, descriptions) to prevent stored XSS
+- External URLs (entity URLs from SAM.gov) rendered with `rel="noopener noreferrer"` and `target="_blank"`
 - Offline detection (banner when network is down)
 
 ---
@@ -74,7 +84,10 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - [ ] 404 Not Found page
 - [ ] API error snackbar (MUI Snackbar + Alert)
 - [ ] Session expired redirect flow
-- [ ] Rate limit toast with backoff info
+- [ ] Rate limit toast with backoff info (differentiate by policy type: auth vs search vs write)
+- [ ] 409 Conflict handling — "This record was modified. Reload and try again?" dialog
+- [ ] DOMPurify for any rich text/HTML rendering (notes, descriptions) to prevent stored XSS
+- [ ] External URLs (entity URLs from SAM.gov) rendered with `rel="noopener noreferrer"` and `target="_blank"`
 - [ ] Offline detection banner
 
 ### 20.5 Responsive Design
@@ -89,6 +102,7 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - [ ] Route-based code splitting (React.lazy + Suspense)
 - [ ] TanStack Query cache configuration (staleTime, gcTime per query type)
 - [ ] Image/asset optimization (if any)
+- [ ] Verify MUI bundle size — use tree shaking, only import used components
 - [ ] Bundle size analysis (vite-plugin-visualizer)
 - [ ] Verify initial load < 500KB gzipped
 
@@ -98,15 +112,28 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 - [ ] Color contrast meets WCAG AA
 - [ ] Screen reader testing on key flows (search, detail, pipeline)
 
+### 20.8 Organization Admin Features
+- [ ] Org settings page (name, member list)
+- [ ] Invite members flow (email + role)
+- [ ] Remove members with confirmation
+- [ ] View pending invites
+- [ ] These are the org admin's view — separate from system admin
+
 ---
 
 ## Verification
 - [ ] Admin panel accessible only to admin users
+- [ ] `/health` data displayed in admin panel (Health tab)
 - [ ] ETL status shows real source data from API
 - [ ] User management CRUD works (create, toggle, reset password)
+- [ ] Org admin can manage members (invite, remove, view pending)
+- [ ] System admin sees all orgs; org admin sees only own org
 - [ ] Profile edit and password change work
 - [ ] 404 page renders for invalid routes
 - [ ] Error toasts appear on API failures
+- [ ] 409 conflict dialog works on concurrent edit
+- [ ] DOMPurify sanitizes rendered HTML in notes/descriptions
+- [ ] External links have `noopener noreferrer`
 - [ ] Session expired redirects to login
 - [ ] Responsive design works at all breakpoints
 - [ ] Lighthouse score > 80 on performance

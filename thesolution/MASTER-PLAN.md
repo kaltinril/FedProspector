@@ -227,9 +227,24 @@ pbdc/
 - [ ] CI/CD: GitHub Actions skipped (user preference for lean tooling)
 - [ ] Integration tests against test DB: deferred (unit tests with mocking cover current needs)
 
+### Phase 14.5: Multi-Tenancy & Security Hardening
+**Status**: [ ] NOT STARTED
+**Document**: [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md)
+**Dependencies**: Phase 13 (Auth), Phase 14 (Testing)
+
+**Scope**:
+- [ ] Organization-scoped data isolation: `organization` table, `organization_invite` table, `app_user` modifications (`org_role`, `organization_id`)
+- [ ] httpOnly cookie auth replacing localStorage, token refresh endpoint, `OnTokenValidated` session check
+- [ ] Invite-only registration flow
+- [ ] Org management endpoints: GET/PATCH `/org`, GET/POST/DELETE `/org/invites`, GET `/org/members`
+- [ ] Multi-tenant query scoping on all capture endpoints
+- [ ] Missing endpoints: PATCH `saved-searches`, POST `milestones`, GET `proposals`, POST `auth/refresh`
+- [ ] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
+
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
 **File**: [phases/15-UI-FOUNDATION.md](phases/15-UI-FOUNDATION.md)
+**Dependencies**: Phase 14.5 (Multi-Tenancy & Security)
 
 - Vite + React 19 + TypeScript scaffold
 - MUI v6 component library, TanStack Query, Axios

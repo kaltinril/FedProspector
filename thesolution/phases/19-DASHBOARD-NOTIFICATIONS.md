@@ -11,6 +11,8 @@
 
 Build the "home base" experience — the dashboard users see when they log in, the saved searches that automate discovery, and the notification system that surfaces new opportunities and deadlines.
 
+**Data scoping:** Dashboard data is scoped to the user's organization.
+
 **User workflow this enables:**
 > "I log in every morning, see my pipeline at a glance, check if any new NAICS 621111 opportunities appeared overnight, and review deadlines for the week."
 
@@ -23,10 +25,10 @@ Build the "home base" experience — the dashboard users see when they log in, t
 **Layout: Card-based grid**
 
 **Row 1: Key Metrics (4 stat cards)**
-- Total open prospects (count)
-- Due this week (count, red if overdue)
-- Win rate (% of WON vs total outcomes)
-- Pipeline value (sum of estimated values)
+- Total open prospects — `TotalOpenProspects` field from API
+- Due this week — computed client-side as `dueThisWeek.length` (count, red if overdue)
+- Win rate — computed as `WON / (WON + LOST)` from `winLossMetrics`; handle division-by-zero (show "N/A")
+- Pipeline value — sum of estimated values from prospects (may need API addition or client-side computation from pipeline data)
 
 **Row 2: Pipeline Overview**
 - Prospect status funnel chart (LEAD → QUALIFIED → PURSUING → SUBMITTED)
@@ -34,7 +36,7 @@ Build the "home base" experience — the dashboard users see when they log in, t
 
 **Row 3: Two-column layout**
 - **Left: Due This Week** (table of opportunities with deadlines in next 7 days)
-  - Title, deadline (countdown), assigned user, status
+  - Title, deadline (countdown), assigned user, status, priority (`Priority`), set-aside code (`SetAsideCode`)
   - Click → prospect detail
 - **Right: Workload by Assignee** (horizontal bar chart)
   - Team members and their prospect counts
@@ -49,16 +51,18 @@ Build the "home base" experience — the dashboard users see when they log in, t
 
 **List View:**
 - Table of saved searches: name, description, last run date, new results count, notification enabled toggle
-- Actions per row: Run, Edit, Delete
+- Actions per row: Run, Edit (uses `PATCH /api/v1/saved-searches/{id}`), Delete
 - "New Saved Search" button
 
 **Create/Edit Saved Search Dialog:**
 - Search name
 - Description
-- Filter criteria (same filter components as opportunity search):
-  - NAICS, set-aside, keyword, agency, state, days out
+- Filter criteria (matches `SavedSearchFilterCriteria` DTO):
+  - `SetAsideCodes` (list), `NaicsCodes` (list), `States` (list)
+  - `MinAwardAmount`, `MaxAwardAmount`
+  - `OpenOnly` (boolean), `Types` (list), `DaysBack` (number)
 - Enable notifications toggle
-- Save → `POST /api/v1/saved-searches`
+- Save → `POST /api/v1/saved-searches` (create) or `PATCH /api/v1/saved-searches/{id}` (edit)
 
 **Run Results:**
 - Click "Run" → modal/page shows matching opportunities
@@ -74,9 +78,10 @@ Build the "home base" experience — the dashboard users see when they log in, t
   - Prospect deadline approaching
   - Prospect status changed
   - Score recalculated
-- Click notification → navigate to relevant entity (opportunity, prospect, etc.)
+- Click notification → navigate to relevant entity. Routing is based on `EntityType` + `EntityId` (e.g., `EntityType: "opportunity"` + `EntityId: "ABC123"` navigates to `/opportunities/ABC123`)
 - "Mark all as read" button
 - Filter: unread only, by type
+- Empty state: "You're all caught up!" message when zero notifications
 
 **Top Bar Integration:**
 - Bell icon in top bar with unread count badge
@@ -96,7 +101,7 @@ Build the "home base" experience — the dashboard users see when they log in, t
 - [ ] Win/loss metrics chart
 - [ ] Recent saved searches with result counts
 - [ ] Wire to `GET /api/v1/dashboard`
-- [ ] Auto-refresh on 5-minute interval
+- [ ] Auto-refresh on 5-minute interval (pauses when user is interacting — typing, scrolling — resumes on idle)
 
 ### 19.2 Saved Search Management
 - [ ] Saved search list page
@@ -125,8 +130,12 @@ Build the "home base" experience — the dashboard users see when they log in, t
 
 ## Verification
 - [ ] Dashboard loads with real data from API
+- [ ] Dashboard stat card computations are correct (win rate handles zero division, pipeline value sums correctly)
 - [ ] Pipeline chart clickable → navigates to filtered pipeline
 - [ ] Saved search create/run/delete flow works end-to-end
+- [ ] Saved search filter criteria matches API DTO (`SetAsideCodes`, `NaicsCodes`, `States`, etc.)
 - [ ] Notifications display and mark-as-read works
+- [ ] Notification empty state shows "You're all caught up!" message
 - [ ] Notification bell shows correct unread count
+- [ ] Notification click routes to correct entity based on `EntityType` + `EntityId`
 - [ ] Due this week shows correct opportunities

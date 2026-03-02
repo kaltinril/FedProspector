@@ -1,7 +1,7 @@
 # Phase 16: Search & Discovery
 
 **Status**: NOT STARTED
-**Dependencies**: Phase 15 (UI Foundation)
+**Dependencies**: Phase 15 (UI Foundation), Phase 14.5 (Multi-Tenancy)
 **Deliverable**: Opportunity, award, and entity search pages with filtering, sorting, and pagination
 **Repository**: `ui/src/pages/`
 
@@ -34,12 +34,16 @@ The primary discovery page. Users search for active solicitations and RFIs.
 - Title (link to detail)
 - Solicitation #
 - Department
+- Office (sub-agency)
 - Set-Aside (color-coded chip)
 - NAICS
+- Posted Date
 - Response Deadline (with "X days" countdown, red when < 7 days)
 - Estimated Value (currency)
 - POP State
 - Prospect Status (if already tracked — chip or empty)
+
+> **Column visibility configurable by user.** Default shows: Title, Solicitation#, Department, Set-Aside, NAICS, Response Deadline, Estimated Value, POP State. Office, Posted Date, and Prospect Status are available as togglable columns.
 
 **Actions:**
 - Click row → Opportunity Detail (Phase 17)
@@ -101,12 +105,13 @@ Find potential teaming partners based on subaward history.
 - NAICS code
 - Award amount range
 
-**Grid columns:**
-- Company Name (link to entity detail)
-- UEI
-- Primary NAICS
-- Total Subaward Value
-- Number of Awards
+**Grid columns** (matches `TeamingPartnerDto` — prime contractor aggregation):
+- Prime Contractor Name (link to entity detail)
+- Prime UEI
+- Subaward Count
+- Total Sub Amount
+- Unique Subs
+- NAICS Codes
 
 ---
 
@@ -151,8 +156,12 @@ Find potential teaming partners based on subaward history.
 - [ ] Reusable filter bar component (consistent across all search pages)
 - [ ] URL ↔ filter state sync (React Router search params)
 - [ ] Saved filter presets (local storage)
-- [ ] "No results" empty state with suggestions
-- [ ] Loading skeletons for data grid
+
+### 16.7 Empty and Error States
+- [ ] "No results" empty state with filter suggestions for each search page (e.g., broaden NAICS, remove set-aside filter)
+- [ ] Loading skeletons for all grids (match column layout per page)
+- [ ] Stale/invalid URL param handling: validate filters on load, toast notification if invalid params are stripped
+- [ ] Graceful error states for API failures (retry button, error message)
 
 ---
 
@@ -163,3 +172,4 @@ Find potential teaming partners based on subaward history.
 - [ ] Sorting works on all columns
 - [ ] URL updates with filter state (copy URL → paste → same results)
 - [ ] Grid performance acceptable with 100+ rows
+- [ ] Teaming partner grid correctly displays prime contractor data (not sub-awardee)
