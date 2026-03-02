@@ -73,8 +73,8 @@ def start_db():
         return
     print("  [DB]  Starting MySQL ...")
     subprocess.Popen(
-        [str(MYSQL_BIN / MYSQL_EXE), "--console", "--secure-file-priv="],
-        creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.SW_HIDE,
+        f'start "MySQL" /MIN "{MYSQL_BIN / MYSQL_EXE}" --console --secure-file-priv=',
+        shell=True,
     )
     while mysql_admin("ping") != 0:
         time.sleep(1)
@@ -118,8 +118,8 @@ def start_api():
         return
     print("  [API] Starting .NET API (no build) ...")
     subprocess.Popen(
-        ["dotnet", "run", "--no-build", "--project", str(API_PROJECT)],
-        creationflags=subprocess.CREATE_NEW_CONSOLE | subprocess.SW_HIDE,
+        f'start "FedProspector API" /MIN dotnet run --no-build --project "{API_PROJECT}"',
+        shell=True,
     )
     while not url_reachable(f"{API_URL}/health"):
         time.sleep(1)
