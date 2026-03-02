@@ -94,7 +94,7 @@ public class HealthController : ControllerBase
     {
         var latestLoads = await _db.Database
             .SqlQueryRaw<SourceLoadResult>(
-                "SELECT source_system AS SourceSystem, MAX(completed_at) AS LastLoad FROM etl_load_log WHERE status = 'SUCCESS' GROUP BY source_system")
+                "SELECT source_system, MAX(completed_at) AS last_load FROM etl_load_log WHERE status = 'SUCCESS' GROUP BY source_system")
             .ToListAsync();
 
         var sources = new List<SourceHealthDto>();
