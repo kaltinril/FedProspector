@@ -46,6 +46,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
 - **API**: ASP.NET Core Web API with 44 endpoints across 12 controllers + auth + health (Phases 10-13 complete)
+- **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phases 15-20)
 - **Testing**: 920 tests total (568 Python pytest + 234 C# Core xUnit + 118 C# Api xUnit), all passing
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core will own application tables (app_user, prospect, saved_search, etc.) starting Phase 10. See Phase 10 plan for details.
 
@@ -72,7 +73,8 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 | C# Api tests | `api/tests/FedProspector.Api.Tests/` (11 test files: 2 middleware, 9 controller) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
 | Master plan | `thesolution/MASTER-PLAN.md` |
-| Phase plans | `thesolution/phases/` (01 through 14) |
+| UI application | `ui/` (Vite + React 19 + TypeScript, MUI v6, TanStack Query — Phases 15-20) |
+| Phase plans | `thesolution/phases/` (01 through 20) |
 | Reference docs | `thesolution/reference/` (01 through 09) |
 | Credentials (DB, API keys) | `thesolution/credentials.yml` |
 | Quick start | `thesolution/QUICKSTART.md` |

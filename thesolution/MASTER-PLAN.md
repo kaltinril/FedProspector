@@ -227,6 +227,70 @@ pbdc/
 - [ ] CI/CD: GitHub Actions skipped (user preference for lean tooling)
 - [ ] Integration tests against test DB: deferred (unit tests with mocking cover current needs)
 
+### Phase 15: UI Foundation & Layout
+**Status**: [ ] NOT STARTED
+**File**: [phases/15-UI-FOUNDATION.md](phases/15-UI-FOUNDATION.md)
+
+- Vite + React 19 + TypeScript scaffold
+- MUI v6 component library, TanStack Query, Axios
+- JWT auth flow (login/register, token management, route guards)
+- App layout: collapsible sidebar, top bar, breadcrumbs, dark/light theme
+- Typed API client layer (all 31 endpoints)
+- Shared components: DataTable, SearchFilters, StatusChip, etc.
+- Service manager integration (fed_prospector.py UI commands)
+
+### Phase 16: Search & Discovery
+**Status**: [ ] NOT STARTED
+**File**: [phases/16-SEARCH-DISCOVERY.md](phases/16-SEARCH-DISCOVERY.md)
+
+- Opportunity search with NAICS, set-aside, keyword, deadline filters
+- Target opportunity search (pre-filtered relevance)
+- Award search with vendor, NAICS, agency, value range filters
+- Entity search with SBA certification, business type filters
+- Teaming partner search from subaward data
+- Shared filter bar, URL state sync, CSV export
+- MUI X Data Grid with server-side pagination and sorting
+
+### Phase 17: Detail Views & Competitive Intelligence
+**Status**: [ ] NOT STARTED
+**File**: [phases/17-DETAIL-INTELLIGENCE.md](phases/17-DETAIL-INTELLIGENCE.md)
+
+- Opportunity detail: overview, qualification checklist, CONUS/OCONUS, clearance
+- History & incumbent intel: new vs re-compete, incumbent profile, burn rate, bid count
+- Award detail: contract facts, financials, burn rate chart, transaction history
+- Entity detail: company profile, competitor analysis, exclusion check
+- Cross-linking between opportunities ↔ awards ↔ entities
+
+### Phase 18: Capture Management & Pipeline
+**Status**: [ ] NOT STARTED
+**File**: [phases/18-CAPTURE-MANAGEMENT.md](phases/18-CAPTURE-MANAGEMENT.md)
+
+- Prospect pipeline: Kanban view (drag-and-drop) + list view
+- Prospect detail: Go/No-Go scoring, status transitions, priority
+- Notes & team collaboration (add notes, manage team members)
+- Proposal management: milestones, documents, status tracking
+- Create prospect flow from opportunity search/detail
+
+### Phase 19: Dashboard, Saved Searches & Notifications
+**Status**: [ ] NOT STARTED
+**File**: [phases/19-DASHBOARD-NOTIFICATIONS.md](phases/19-DASHBOARD-NOTIFICATIONS.md)
+
+- Executive dashboard: pipeline funnel, due this week, workload, win/loss metrics
+- Saved search management: create, run, enable notifications
+- Notification center: feed with mark-as-read, filtering
+- Top bar notification bell with unread count
+
+### Phase 20: Admin, Profile & Production Polish
+**Status**: [ ] NOT STARTED
+**File**: [phases/20-ADMIN-POLISH.md](phases/20-ADMIN-POLISH.md)
+
+- Admin panel: ETL status monitoring, user management
+- User profile: edit, change password
+- Error handling: 404 page, error boundaries, session expired flow
+- Responsive design: mobile, tablet, desktop
+- Performance: code splitting, bundle optimization
+- Accessibility: keyboard nav, ARIA, WCAG AA
+
 ## Success Criteria
 
 1. Can find all active WOSB/8(a) opportunities matching target NAICS codes within seconds
