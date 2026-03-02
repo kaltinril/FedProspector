@@ -1,10 +1,22 @@
 -- tables/60_prospecting.sql
--- Sales pipeline / prospecting tables (4 tables)
+-- Sales pipeline / prospecting tables (5 tables) + organization (multi-tenancy)
 
 USE fed_contracts;
 
+CREATE TABLE IF NOT EXISTS organization (
+    organization_id      INT AUTO_INCREMENT PRIMARY KEY,
+    name                 VARCHAR(200) NOT NULL,
+    slug                 VARCHAR(100) NOT NULL UNIQUE,
+    is_active            CHAR(1) NOT NULL DEFAULT 'Y',
+    max_users            INT NOT NULL DEFAULT 10,
+    subscription_tier    VARCHAR(50) DEFAULT 'trial',
+    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS app_user (
     user_id              INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
     username             VARCHAR(50) NOT NULL UNIQUE,
     display_name         VARCHAR(100) NOT NULL,
     email                VARCHAR(200),
@@ -14,14 +26,22 @@ CREATE TABLE IF NOT EXISTS app_user (
     is_active            CHAR(1) DEFAULT 'Y',
     is_admin             CHAR(1) NOT NULL DEFAULT 'N',
     mfa_enabled          CHAR(1) NOT NULL DEFAULT 'N',
+    org_role             VARCHAR(50) NOT NULL DEFAULT 'member',
+    invited_by           INT,
+    invite_accepted_at   DATETIME,
+    force_password_change CHAR(1) NOT NULL DEFAULT 'N',
     failed_login_attempts INT NOT NULL DEFAULT 0,
     locked_until         DATETIME,
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    CONSTRAINT fk_user_invited_by FOREIGN KEY (invited_by) REFERENCES app_user(user_id),
+    INDEX idx_user_org (organization_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS prospect (
     prospect_id          INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
     notice_id            VARCHAR(100) NOT NULL,
     assigned_to          INT,
     capture_manager_id   INT,
@@ -48,10 +68,12 @@ CREATE TABLE IF NOT EXISTS prospect (
     CONSTRAINT fk_prospect_opp FOREIGN KEY (notice_id) REFERENCES opportunity(notice_id),
     CONSTRAINT fk_prospect_user FOREIGN KEY (assigned_to) REFERENCES app_user(user_id),
     CONSTRAINT fk_prospect_capture_mgr FOREIGN KEY (capture_manager_id) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    CONSTRAINT fk_prospect_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
     INDEX idx_prospect_status (status),
     INDEX idx_prospect_user (assigned_to),
     INDEX idx_prospect_priority (priority),
-    INDEX idx_prospect_capture_mgr (capture_manager_id)
+    INDEX idx_prospect_capture_mgr (capture_manager_id),
+    INDEX idx_prospect_org (organization_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS prospect_note (
@@ -84,6 +106,7 @@ CREATE TABLE IF NOT EXISTS prospect_team_member (
 
 CREATE TABLE IF NOT EXISTS saved_search (
     search_id            INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
     user_id              INT NOT NULL,
     search_name          VARCHAR(100) NOT NULL,
     description          TEXT,
@@ -94,5 +117,7 @@ CREATE TABLE IF NOT EXISTS saved_search (
     last_new_results     INT,
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    CONSTRAINT fk_ss_user FOREIGN KEY (user_id) REFERENCES app_user(user_id)
+    CONSTRAINT fk_ss_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
+    CONSTRAINT fk_ss_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    INDEX idx_ss_org (organization_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

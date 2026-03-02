@@ -11,6 +11,9 @@ public class Prospect
     public int ProspectId { get; set; }
 
     [Required]
+    public int OrganizationId { get; set; }
+
+    [Required]
     [MaxLength(100)]
     public string NoticeId { get; set; } = string.Empty;
 
@@ -68,4 +71,8 @@ public class Prospect
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
+
+    // Navigation property
+    [ForeignKey("OrganizationId")]
+    public Organization? Organization { get; set; }
 }

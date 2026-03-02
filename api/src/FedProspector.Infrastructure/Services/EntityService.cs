@@ -79,6 +79,7 @@ public class EntityService : IEntityService
                     .Where(a => a.UeiSam == e.UeiSam && a.AddressType == "physical")
                     .Select(a => a.StateOrProvince)
                     .FirstOrDefault(),
+                EntityUrl = e.EntityUrl,
                 LastUpdateDate = e.LastUpdateDate,
                 RegistrationExpirationDate = e.RegistrationExpirationDate
             })

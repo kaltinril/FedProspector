@@ -11,6 +11,9 @@ public class SavedSearch
     public int SearchId { get; set; }
 
     [Required]
+    public int OrganizationId { get; set; }
+
+    [Required]
     public int UserId { get; set; }
 
     [Required]
@@ -36,4 +39,8 @@ public class SavedSearch
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
+
+    // Navigation property
+    [ForeignKey("OrganizationId")]
+    public Organization? Organization { get; set; }
 }

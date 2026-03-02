@@ -14,4 +14,15 @@ public class CompetitorProfileDto
     public int PastContracts { get; set; }
     public decimal? TotalObligated { get; set; }
     public DateOnly? MostRecentAward { get; set; }
+    public decimal? WinRate { get; set; }
+    public decimal? AverageContractSize { get; set; }
+    public List<RecentAwardDto> RecentAwards { get; set; } = [];
+}
+
+public class RecentAwardDto
+{
+    public string? ContractId { get; set; }
+    public string? VendorName { get; set; }
+    public DateOnly? DateSigned { get; set; }
+    public decimal? DollarsObligated { get; set; }
 }

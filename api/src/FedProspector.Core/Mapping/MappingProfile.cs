@@ -14,7 +14,10 @@ public class MappingProfile : Profile
     {
         // ----- View -> DTO mappings -----
         CreateMap<TargetOpportunityView, TargetOpportunityDto>();
-        CreateMap<CompetitorAnalysisView, CompetitorProfileDto>();
+        CreateMap<CompetitorAnalysisView, CompetitorProfileDto>()
+            .ForMember(d => d.WinRate, opt => opt.Ignore())
+            .ForMember(d => d.AverageContractSize, opt => opt.Ignore())
+            .ForMember(d => d.RecentAwards, opt => opt.Ignore());
 
         // ----- Entity child table -> nested DTO mappings -----
         CreateMap<EntityAddress, EntityAddressDto>();

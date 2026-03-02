@@ -1,3 +1,4 @@
+using System.Text;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -37,5 +38,16 @@ public class OpportunitiesController : ApiControllerBase
     {
         var result = await _service.GetDetailAsync(noticeId);
         return result != null ? Ok(result) : NotFound();
+    }
+
+    /// <summary>
+    /// Export opportunity search results as CSV.
+    /// </summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportCsv([FromQuery] OpportunitySearchRequest request)
+    {
+        var csv = await _service.ExportCsvAsync(request);
+        var bytes = Encoding.UTF8.GetBytes(csv);
+        return File(bytes, "text/csv", "opportunities_export.csv");
     }
 }

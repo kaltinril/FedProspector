@@ -12,7 +12,7 @@ This project targets federal contract prospecting as a paid SaaS product. The in
 
 A previous Salesforce CRM approach hit CPU/transaction limits when processing 1M+ entity records and required expensive licensing. This project replaces Salesforce with:
 - A Python ETL pipeline gathering data from 10+ federal government APIs
-- A MySQL database with 54 tables normalizing opportunities, awards, entities, and competitive intelligence
+- A MySQL database with 56 tables normalizing opportunities, awards, entities, and competitive intelligence
 - A C# ASP.NET Core Web API with multi-tenant organization isolation
 - A React web application for search, analysis, and capture management
 - Per-organization data isolation so each subscribing company's prospects, proposals, and searches are private
@@ -152,10 +152,10 @@ pbdc/
 - [x] Gap analysis complete — schema audit, missing tables, missing columns documented
 - [x] Add 14 new tables — completed in Phase 9
 - [x] Add ~15 new columns across 4 existing tables — completed in Phase 9
-- [x] Build C# API backend — 44 endpoints across 12 controllers (Phases 10-13)
+- [x] Build C# API backend — 57 endpoints across 14 controllers (Phases 10-14.5)
 - [x] Replicate prospect status flow, Go/No-Go scoring in C# (Phase 12)
 
-**Impact**: Current 54 tables + 4 views (schema changes completed in Phase 9).
+**Impact**: Current 56 tables + 4 views (schema changes completed in Phase 9, expanded in Phase 14.5).
 
 ### Phase 9: Schema Evolution
 **Status**: [x] COMPLETE (2026-03-01)
@@ -165,7 +165,7 @@ pbdc/
 - [x] Add 14 new tables (8 production: app_session, proposal, proposal_document, proposal_milestone, activity_log, notification, contracting_officer, opportunity_poc; plus 6 raw staging: `stg_*_raw`)
 - [x] ALTER 4 existing tables with ~15 new columns (app_user, opportunity, prospect, prospect_team_member)
 - [x] Update `build-database` CLI to include new schema file
-- [x] Result: 54 tables + 4 views (verified with `check-schema --verbose`: 54 OK, 0 DRIFT, 0 MISSING)
+- [x] Result: 54 tables + 4 views (verified with `check-schema --verbose`: 54 OK, 0 DRIFT, 0 MISSING; expanded to 56 tables in Phase 14.5)
 - **Existing data preserved**: 832K entities, 13K opportunities, 2.1K contracts, 110K labor rates
 
 ### Phase 10: C# API Foundation
@@ -177,7 +177,7 @@ pbdc/
 
 **Scope**:
 - [x] ASP.NET Core Web API project (.NET 10)
-- [x] MySQL connectivity via Pomelo EF Core + entity models for 54 tables (48 production + 6 staging). EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.
+- [x] MySQL connectivity via Pomelo EF Core + entity models for 56 tables (50 production + 6 staging). EF Core models needed for 50 production tables only; staging tables are managed by the Python ETL pipeline. (Phase 14.5 added `organization` and `organization_invite`.)
 - [x] JWT authentication middleware + BCrypt password hashing
 - [x] Swagger/OpenAPI documentation
 - [x] Repository pattern, pagination, DTOs, base controller
@@ -225,28 +225,29 @@ pbdc/
 
 **Scope**:
 - [x] Python ETL test suite: 568 tests across 23 test files (8 API client, 3 data quality, 11 loader/business/utility + conftest.py + 8 JSON fixtures)
-- [x] C# Core.Tests: 234 tests across 25 test files (22 validator, 1 mapping, 1 DTO, 1 paged response)
-- [x] C# Api.Tests: 118 tests across 11 test files (2 middleware, 9 controller)
-- [x] **Total: 920 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
+- [x] C# Core.Tests: 237 tests across 25+ test files (22 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions)
+- [x] C# Api.Tests: 223 tests across 11+ test files (2 middleware, 9 controller + Phase 14.5 additions)
+- [x] **Total: 1,028 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
 - [ ] UI test suite (future): deferred until UI exists
 - [ ] CI/CD: GitHub Actions skipped (user preference for lean tooling)
 - [ ] Integration tests against test DB: deferred (unit tests with mocking cover current needs)
 
 ### Phase 14.5: Multi-Tenancy & Security Hardening
-**Status**: [ ] NOT STARTED
+**Status**: [x] COMPLETE (2026-03-02)
 **Document**: [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md)
 **Dependencies**: Phase 13 (Auth), Phase 14 (Testing)
 
 **Scope**:
 > **BLOCKER**: Must complete before Phase 15. Multi-tenancy changes affect auth flow, JWT claims, cookie handling, and all capture endpoint signatures. The UI cannot be built against the pre-14.5 API.
 
-- [ ] Organization-scoped data isolation: `organization` table, `organization_invite` table, `app_user` modifications (`org_role`, `organization_id`)
-- [ ] httpOnly cookie auth replacing localStorage, token refresh endpoint, `OnTokenValidated` session check
-- [ ] Invite-only registration flow
-- [ ] Org management endpoints: GET/PATCH `/org`, GET/POST/DELETE `/org/invites`, GET `/org/members`
-- [ ] Multi-tenant query scoping on all capture endpoints
-- [ ] Missing endpoints: PATCH `saved-searches`, POST `milestones`, GET `proposals`, POST `auth/refresh`
-- [ ] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
+- [x] Organization-scoped data isolation: `organization` table, `organization_invite` table, `app_user` modifications (`org_role`, `organization_id`)
+- [x] httpOnly cookie auth replacing localStorage, token refresh endpoint, `OnTokenValidated` session check
+- [x] Invite-only registration flow
+- [x] Org management endpoints: GET/PATCH `/org`, GET/POST/DELETE `/org/invites`, GET `/org/members`
+- [x] Multi-tenant query scoping on all capture endpoints
+- [x] Missing endpoints: PATCH `saved-searches`, POST `milestones`, GET `proposals`, POST `auth/refresh`, GET `notifications/unread-count`, GET `opportunities/export`
+- [x] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
+- **Result**: 57 endpoints across 14 controllers, 14 services, 56 tables + 4 views, 1,028 tests passing
 
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
@@ -257,7 +258,7 @@ pbdc/
 - MUI v6 component library, TanStack Query, Axios
 - JWT auth flow (login/register, token management, route guards)
 - App layout: collapsible sidebar, top bar, breadcrumbs, dark/light theme
-- Typed API client layer (all API endpoints (~54 after Phase 14.5))
+- Typed API client layer (all 57 API endpoints from Phases 10-14.5)
 - Shared components: DataTable, SearchFilters, StatusChip, etc.
 - Service manager integration (fed_prospector.py UI commands)
 

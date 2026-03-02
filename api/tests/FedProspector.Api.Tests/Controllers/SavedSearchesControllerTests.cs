@@ -24,21 +24,22 @@ public class SavedSearchesControllerTests
         };
     }
 
-    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isAdmin = false)
+    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isAdmin = false, int orgId = 1)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(ClaimTypes.Role, role),
-            new("is_admin", isAdmin.ToString().ToLower())
+            new("is_admin", isAdmin.ToString().ToLower()),
+            new("org_id", orgId.ToString())
         };
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
     }
 
-    private void SetAuthenticatedUser(int userId = 1)
+    private void SetAuthenticatedUser(int userId = 1, int orgId = 1)
     {
-        _controller.ControllerContext.HttpContext.User = CreateUser(userId);
+        _controller.ControllerContext.HttpContext.User = CreateUser(userId, orgId: orgId);
     }
 
     // --- List ---
@@ -90,9 +91,9 @@ public class SavedSearchesControllerTests
     [Fact]
     public async Task Create_AuthenticatedUser_ReturnsCreatedAtAction()
     {
-        SetAuthenticatedUser(userId: 1);
+        SetAuthenticatedUser(userId: 1, orgId: 10);
         var request = new CreateSavedSearchRequest { SearchName = "My Search" };
-        _serviceMock.Setup(s => s.CreateAsync(1, request))
+        _serviceMock.Setup(s => s.CreateAsync(1, 10, request))
             .ReturnsAsync(new SavedSearchDto { SearchId = 10 });
 
         var result = await _controller.Create(request);
@@ -103,14 +104,14 @@ public class SavedSearchesControllerTests
     [Fact]
     public async Task Create_CallsServiceWithCorrectParameters()
     {
-        SetAuthenticatedUser(userId: 3);
+        SetAuthenticatedUser(userId: 3, orgId: 20);
         var request = new CreateSavedSearchRequest { SearchName = "Test Search" };
-        _serviceMock.Setup(s => s.CreateAsync(3, request))
+        _serviceMock.Setup(s => s.CreateAsync(3, 20, request))
             .ReturnsAsync(new SavedSearchDto());
 
         await _controller.Create(request);
 
-        _serviceMock.Verify(s => s.CreateAsync(3, request), Times.Once);
+        _serviceMock.Verify(s => s.CreateAsync(3, 20, request), Times.Once);
     }
 
     // --- Run ---
@@ -203,5 +204,69 @@ public class SavedSearchesControllerTests
         await _controller.Delete(8);
 
         _serviceMock.Verify(s => s.DeleteAsync(4, 8), Times.Once);
+    }
+
+    // --- Update ---
+
+    [Fact]
+    public async Task Update_NoUser_ReturnsUnauthorized()
+    {
+        var request = new UpdateSavedSearchRequest { Name = "Updated Name" };
+
+        var result = await _controller.Update(1, request);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task Update_ExistingSearch_ReturnsOk()
+    {
+        SetAuthenticatedUser(userId: 1);
+        var request = new UpdateSavedSearchRequest { Name = "Updated Name" };
+        _serviceMock.Setup(s => s.UpdateAsync(1, 10, request))
+            .ReturnsAsync(new SavedSearchDto { SearchId = 10, SearchName = "Updated Name" });
+
+        var result = await _controller.Update(10, request);
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task Update_NonExistingSearch_ReturnsNotFound()
+    {
+        SetAuthenticatedUser(userId: 1);
+        var request = new UpdateSavedSearchRequest { Name = "Test" };
+        _serviceMock.Setup(s => s.UpdateAsync(1, 999, request))
+            .ReturnsAsync((SavedSearchDto?)null);
+
+        var result = await _controller.Update(999, request);
+
+        result.Should().BeOfType<NotFoundResult>();
+    }
+
+    [Fact]
+    public async Task Update_CallsServiceWithCorrectParameters()
+    {
+        SetAuthenticatedUser(userId: 3);
+        var request = new UpdateSavedSearchRequest { Description = "New desc", NotificationsEnabled = true };
+        _serviceMock.Setup(s => s.UpdateAsync(3, 5, request))
+            .ReturnsAsync(new SavedSearchDto());
+
+        await _controller.Update(5, request);
+
+        _serviceMock.Verify(s => s.UpdateAsync(3, 5, request), Times.Once);
+    }
+
+    [Fact]
+    public async Task Update_ReturnsServiceResult()
+    {
+        SetAuthenticatedUser(userId: 1);
+        var request = new UpdateSavedSearchRequest { Name = "New Name" };
+        var expected = new SavedSearchDto { SearchId = 10, SearchName = "New Name" };
+        _serviceMock.Setup(s => s.UpdateAsync(1, 10, request)).ReturnsAsync(expected);
+
+        var result = await _controller.Update(10, request) as OkObjectResult;
+
+        result!.Value.Should().Be(expected);
     }
 }

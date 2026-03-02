@@ -29,6 +29,19 @@ public class NotificationsController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get unread notification count for the current user (lightweight endpoint for UI bell badge).
+    /// </summary>
+    [HttpGet("unread-count")]
+    public async Task<IActionResult> GetUnreadCount()
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var count = await _service.GetUnreadCountAsync(userId.Value);
+        return Ok(new { unreadCount = count });
+    }
+
+    /// <summary>
     /// Mark a single notification as read.
     /// </summary>
     [HttpPatch("{id:int}/read")]

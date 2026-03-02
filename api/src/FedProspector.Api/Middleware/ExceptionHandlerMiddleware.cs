@@ -24,10 +24,10 @@ public class ExceptionHandlerMiddleware
         {
             var (statusCode, message) = ex switch
             {
-                KeyNotFoundException => (404, ex.Message),
-                InvalidOperationException => (400, ex.Message),
-                UnauthorizedAccessException => (403, ex.Message),
-                ConflictException => (409, ex.Message),
+                KeyNotFoundException => (404, "The requested resource was not found."),
+                InvalidOperationException => (400, "The request could not be processed."),
+                UnauthorizedAccessException => (403, "Access denied."),
+                ConflictException => (409, "A conflict occurred with the current state of the resource."),
                 _ => (500, "An internal server error occurred")
             };
 

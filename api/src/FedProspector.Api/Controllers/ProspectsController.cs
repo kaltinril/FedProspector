@@ -23,10 +23,12 @@ public class ProspectsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.CreateAsync(userId.Value, request);
+            var result = await _service.CreateAsync(userId.Value, orgId.Value, request);
             return CreatedAtAction(nameof(GetDetail), new { id = result.Prospect.ProspectId }, result);
         }
         catch (InvalidOperationException ex)
@@ -42,7 +44,10 @@ public class ProspectsController : ApiControllerBase
     [EnableRateLimiting("search")]
     public async Task<IActionResult> Search([FromQuery] ProspectSearchRequest request)
     {
-        var result = await _service.SearchAsync(request);
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _service.SearchAsync(orgId.Value, request);
         return Ok(result);
     }
 
@@ -53,7 +58,10 @@ public class ProspectsController : ApiControllerBase
     [EnableRateLimiting("search")]
     public async Task<IActionResult> GetDetail(int id)
     {
-        var result = await _service.GetDetailAsync(id);
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _service.GetDetailAsync(orgId.Value, id);
         return result != null ? Ok(result) : NotFound();
     }
 
@@ -65,10 +73,12 @@ public class ProspectsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.UpdateStatusAsync(id, userId.Value, request);
+            var result = await _service.UpdateStatusAsync(orgId.Value, id, userId.Value, request);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -89,10 +99,12 @@ public class ProspectsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.ReassignAsync(id, userId.Value, request);
+            var result = await _service.ReassignAsync(orgId.Value, id, userId.Value, request);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -113,10 +125,12 @@ public class ProspectsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.AddNoteAsync(id, userId.Value, request);
+            var result = await _service.AddNoteAsync(orgId.Value, id, userId.Value, request);
             return StatusCode(201, result);
         }
         catch (KeyNotFoundException ex)
@@ -137,10 +151,12 @@ public class ProspectsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.AddTeamMemberAsync(id, userId.Value, request);
+            var result = await _service.AddTeamMemberAsync(orgId.Value, id, userId.Value, request);
             return StatusCode(201, result);
         }
         catch (KeyNotFoundException ex)
@@ -157,8 +173,10 @@ public class ProspectsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
-        var success = await _service.RemoveTeamMemberAsync(id, memberId, userId.Value);
+        var success = await _service.RemoveTeamMemberAsync(orgId.Value, id, memberId, userId.Value);
         return success ? NoContent() : NotFound();
     }
 
@@ -170,10 +188,12 @@ public class ProspectsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.RecalculateScoreAsync(id, userId.Value);
+            var result = await _service.RecalculateScoreAsync(orgId.Value, id, userId.Value);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

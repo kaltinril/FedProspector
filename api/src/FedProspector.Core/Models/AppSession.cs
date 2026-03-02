@@ -25,9 +25,16 @@ public class AppSession
 
     public DateTime? RevokedAt { get; set; }
 
+    [MaxLength(100)]
+    public string? RevokedReason { get; set; }
+
     [MaxLength(45)]
     public string? IpAddress { get; set; }
 
     [MaxLength(500)]
     public string? UserAgent { get; set; }
+
+    // Navigation property
+    [ForeignKey("UserId")]
+    public AppUser? User { get; set; }
 }

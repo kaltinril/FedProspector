@@ -12,6 +12,7 @@ public class AdminService : IAdminService
     private readonly FedProspectorDbContext _context;
     private readonly ILogger<AdminService> _logger;
     private readonly IAuthService _authService;
+    private readonly IActivityLogService _activityLogService;
 
     private static readonly Dictionary<string, (string Label, double ThresholdHours)> StalenessThresholds = new()
     {
@@ -25,11 +26,16 @@ public class AdminService : IAdminService
         ["SAM_SUBAWARD"] = ("Subaward Data", 336),
     };
 
-    public AdminService(FedProspectorDbContext context, ILogger<AdminService> logger, IAuthService authService)
+    public AdminService(
+        FedProspectorDbContext context,
+        ILogger<AdminService> logger,
+        IAuthService authService,
+        IActivityLogService activityLogService)
     {
         _context = context;
         _logger = logger;
         _authService = authService;
+        _activityLogService = activityLogService;
     }
 
     public async Task<EtlStatusDto> GetEtlStatusAsync()
@@ -131,6 +137,9 @@ public class AdminService : IAdminService
 
         _logger.LogInformation("Admin {AdminUserId} updated user {UserId}", adminUserId, userId);
 
+        await _activityLogService.LogAsync(adminUserId, "ADMIN_UPDATE_USER", "USER", userId.ToString(),
+            new { request.Role, request.IsAdmin, request.IsActive });
+
         return new UserListDto
         {
             UserId = user.UserId,
@@ -170,6 +179,9 @@ public class AdminService : IAdminService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Admin {AdminUserId} reset password for user {UserId}", adminUserId, userId);
+
+        await _activityLogService.LogAsync(adminUserId, "ADMIN_RESET_PASSWORD", "USER", userId.ToString(),
+            new { TargetUsername = user.Username, SessionsRevoked = activeSessions.Count });
 
         return new ResetPasswordResponse
         {

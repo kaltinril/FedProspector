@@ -123,4 +123,66 @@ public class OpportunitiesControllerTests
 
         _serviceMock.Verify(s => s.GetDetailAsync("ABC-123"), Times.Once);
     }
+
+    // --- ExportCsv ---
+
+    [Fact]
+    public async Task ExportCsv_ValidRequest_ReturnsFileResult()
+    {
+        var request = new OpportunitySearchRequest { SetAside = "WOSB" };
+        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+            .ReturnsAsync("header1,header2\nval1,val2\n");
+
+        var result = await _controller.ExportCsv(request);
+
+        result.Should().BeOfType<FileContentResult>();
+    }
+
+    [Fact]
+    public async Task ExportCsv_ReturnsCorrectContentType()
+    {
+        var request = new OpportunitySearchRequest();
+        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+            .ReturnsAsync("col1,col2\n");
+
+        var result = await _controller.ExportCsv(request) as FileContentResult;
+
+        result!.ContentType.Should().Be("text/csv");
+    }
+
+    [Fact]
+    public async Task ExportCsv_ReturnsCorrectFileName()
+    {
+        var request = new OpportunitySearchRequest();
+        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+            .ReturnsAsync("col1\n");
+
+        var result = await _controller.ExportCsv(request) as FileContentResult;
+
+        result!.FileDownloadName.Should().Be("opportunities_export.csv");
+    }
+
+    [Fact]
+    public async Task ExportCsv_CallsServiceWithCorrectParameters()
+    {
+        var request = new OpportunitySearchRequest { Naics = "541511", Keyword = "cyber" };
+        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+            .ReturnsAsync("data");
+
+        await _controller.ExportCsv(request);
+
+        _serviceMock.Verify(s => s.ExportCsvAsync(request), Times.Once);
+    }
+
+    [Fact]
+    public async Task ExportCsv_EmptyCsv_ReturnsFileResult()
+    {
+        var request = new OpportunitySearchRequest();
+        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+            .ReturnsAsync(string.Empty);
+
+        var result = await _controller.ExportCsv(request);
+
+        result.Should().BeOfType<FileContentResult>();
+    }
 }

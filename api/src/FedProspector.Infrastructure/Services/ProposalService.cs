@@ -1,3 +1,4 @@
+using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Proposals;
 using FedProspector.Core.Exceptions;
 using FedProspector.Core.Interfaces;
@@ -50,11 +51,11 @@ public class ProposalService : IProposalService
         _logger = logger;
     }
 
-    public async Task<ProposalDetailDto> CreateAsync(int userId, CreateProposalRequest request)
+    public async Task<ProposalDetailDto> CreateAsync(int userId, int organizationId, CreateProposalRequest request)
     {
-        // Validate prospect exists
+        // Validate prospect exists and belongs to org
         var prospect = await _context.Prospects
-            .FirstOrDefaultAsync(p => p.ProspectId == request.ProspectId);
+            .FirstOrDefaultAsync(p => p.ProspectId == request.ProspectId && p.OrganizationId == organizationId);
 
         if (prospect == null)
             throw new KeyNotFoundException($"Prospect {request.ProspectId} not found");
@@ -99,17 +100,22 @@ public class ProposalService : IProposalService
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "CREATE_PROPOSAL", "PROPOSAL",
+        await _activityLog.LogAsync(organizationId, userId, "CREATE_PROPOSAL", "PROPOSAL",
             proposal.ProposalId.ToString(),
             new { proposal.ProspectId, proposal.ProposalStatus });
 
         return await BuildDetailAsync(proposal.ProposalId);
     }
 
-    public async Task<ProposalDetailDto> UpdateAsync(int proposalId, int userId, UpdateProposalRequest request)
+    public async Task<ProposalDetailDto> UpdateAsync(int organizationId, int proposalId, int userId, UpdateProposalRequest request)
     {
-        var proposal = await _context.Proposals
-            .FirstOrDefaultAsync(p => p.ProposalId == proposalId);
+        // Verify the proposal belongs to a prospect in this org
+        var proposal = await (
+            from pr in _context.Proposals
+            join p in _context.Prospects on pr.ProspectId equals p.ProspectId
+            where pr.ProposalId == proposalId && p.OrganizationId == organizationId
+            select pr
+        ).FirstOrDefaultAsync();
 
         if (proposal == null)
             throw new KeyNotFoundException($"Proposal {proposalId} not found");
@@ -179,20 +185,30 @@ public class ProposalService : IProposalService
             proposal.WinProbabilityPct = request.WinProbabilityPct;
         }
 
+        if (request.LessonsLearned != null)
+        {
+            proposal.LessonsLearned = request.LessonsLearned;
+        }
+
         proposal.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "UPDATE_PROPOSAL", "PROPOSAL",
+        await _activityLog.LogAsync(organizationId, userId, "UPDATE_PROPOSAL", "PROPOSAL",
             proposalId.ToString(), details);
 
         return await BuildDetailAsync(proposalId);
     }
 
-    public async Task<ProposalDocumentDto> AddDocumentAsync(int proposalId, int userId, AddProposalDocumentRequest request)
+    public async Task<ProposalDocumentDto> AddDocumentAsync(int organizationId, int proposalId, int userId, AddProposalDocumentRequest request)
     {
-        var proposalExists = await _context.Proposals
-            .AnyAsync(p => p.ProposalId == proposalId);
+        // Verify the proposal belongs to a prospect in this org
+        var proposalExists = await (
+            from pr in _context.Proposals
+            join p in _context.Prospects on pr.ProspectId equals p.ProspectId
+            where pr.ProposalId == proposalId && p.OrganizationId == organizationId
+            select pr
+        ).AnyAsync();
 
         if (!proposalExists)
             throw new KeyNotFoundException($"Proposal {proposalId} not found");
@@ -213,7 +229,7 @@ public class ProposalService : IProposalService
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "UPLOAD_DOCUMENT", "PROPOSAL",
+        await _activityLog.LogAsync(organizationId, userId, "UPLOAD_DOCUMENT", "PROPOSAL",
             proposalId.ToString(),
             new { document.DocumentId, document.FileName, document.DocumentType });
 
@@ -229,10 +245,15 @@ public class ProposalService : IProposalService
         };
     }
 
-    public async Task<IEnumerable<ProposalMilestoneDto>> GetMilestonesAsync(int proposalId)
+    public async Task<IEnumerable<ProposalMilestoneDto>> GetMilestonesAsync(int organizationId, int proposalId)
     {
-        var proposalExists = await _context.Proposals
-            .AnyAsync(p => p.ProposalId == proposalId);
+        // Verify the proposal belongs to a prospect in this org
+        var proposalExists = await (
+            from pr in _context.Proposals
+            join p in _context.Prospects on pr.ProspectId equals p.ProspectId
+            where pr.ProposalId == proposalId && p.OrganizationId == organizationId
+            select pr
+        ).AnyAsync();
 
         if (!proposalExists)
             throw new KeyNotFoundException($"Proposal {proposalId} not found");
@@ -256,8 +277,19 @@ public class ProposalService : IProposalService
     }
 
     public async Task<ProposalMilestoneDto> UpdateMilestoneAsync(
-        int proposalId, int milestoneId, int userId, UpdateMilestoneRequest request)
+        int organizationId, int proposalId, int milestoneId, int userId, UpdateMilestoneRequest request)
     {
+        // Verify the proposal belongs to a prospect in this org
+        var proposalInOrg = await (
+            from pr in _context.Proposals
+            join p in _context.Prospects on pr.ProspectId equals p.ProspectId
+            where pr.ProposalId == proposalId && p.OrganizationId == organizationId
+            select pr
+        ).AnyAsync();
+
+        if (!proposalInOrg)
+            throw new KeyNotFoundException($"Proposal {proposalId} not found");
+
         var milestone = await _context.ProposalMilestones
             .FirstOrDefaultAsync(m => m.MilestoneId == milestoneId && m.ProposalId == proposalId);
 
@@ -276,7 +308,7 @@ public class ProposalService : IProposalService
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "UPDATE_MILESTONE", "PROPOSAL",
+        await _activityLog.LogAsync(organizationId, userId, "UPDATE_MILESTONE", "PROPOSAL",
             proposalId.ToString(),
             new { milestoneId, milestone.MilestoneName, milestone.Status });
 
@@ -290,6 +322,96 @@ public class ProposalService : IProposalService
             Status = milestone.Status,
             Notes = milestone.Notes,
             CreatedAt = milestone.CreatedAt
+        };
+    }
+
+    public async Task<ProposalMilestoneDto> CreateMilestoneAsync(
+        int organizationId, int proposalId, int userId, CreateMilestoneRequest request)
+    {
+        // Verify the proposal belongs to a prospect in this org
+        var proposalInOrg = await (
+            from pr in _context.Proposals
+            join p in _context.Prospects on pr.ProspectId equals p.ProspectId
+            where pr.ProposalId == proposalId && p.OrganizationId == organizationId
+            select pr
+        ).AnyAsync();
+
+        if (!proposalInOrg)
+            throw new KeyNotFoundException($"Proposal {proposalId} not found");
+
+        int? assignedToUserId = null;
+        if (!string.IsNullOrWhiteSpace(request.AssignedTo) && int.TryParse(request.AssignedTo, out var parsedId))
+        {
+            assignedToUserId = parsedId;
+        }
+
+        var milestone = new ProposalMilestone
+        {
+            ProposalId = proposalId,
+            MilestoneName = request.Title,
+            DueDate = DateOnly.FromDateTime(request.DueDate),
+            AssignedTo = assignedToUserId,
+            Status = "PENDING",
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.ProposalMilestones.Add(milestone);
+        await _context.SaveChangesAsync();
+
+        // Log activity
+        await _activityLog.LogAsync(organizationId, userId, "CREATE_MILESTONE", "PROPOSAL",
+            proposalId.ToString(),
+            new { milestone.MilestoneId, milestone.MilestoneName });
+
+        return new ProposalMilestoneDto
+        {
+            MilestoneId = milestone.MilestoneId,
+            MilestoneName = milestone.MilestoneName,
+            DueDate = milestone.DueDate,
+            CompletedDate = milestone.CompletedDate,
+            AssignedTo = milestone.AssignedTo,
+            Status = milestone.Status,
+            Notes = milestone.Notes,
+            CreatedAt = milestone.CreatedAt
+        };
+    }
+
+    public async Task<PagedResponse<ProposalDetailDto>> ListAsync(int organizationId, ProposalSearchRequest request)
+    {
+        var query = from pr in _context.Proposals.AsNoTracking()
+                    join p in _context.Prospects.AsNoTracking() on pr.ProspectId equals p.ProspectId
+                    where p.OrganizationId == organizationId
+                    select new { pr, p };
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+            query = query.Where(x => x.pr.ProposalStatus == request.Status);
+
+        if (request.ProspectId.HasValue)
+            query = query.Where(x => x.pr.ProspectId == request.ProspectId.Value);
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(x => x.pr.UpdatedAt)
+            .Skip((request.Page - 1) * request.PageSize)
+            .Take(request.PageSize)
+            .Select(x => new { x.pr.ProposalId, x.p.NoticeId })
+            .ToListAsync();
+
+        // Build detail DTOs (fetches milestones + documents for each)
+        var results = new List<ProposalDetailDto>();
+        foreach (var item in items)
+        {
+            var detail = await BuildDetailAsync(item.ProposalId);
+            results.Add(detail);
+        }
+
+        return new PagedResponse<ProposalDetailDto>
+        {
+            Items = results,
+            Page = request.Page,
+            PageSize = request.PageSize,
+            TotalCount = totalCount
         };
     }
 
@@ -399,6 +521,19 @@ public class ProposalService : IProposalService
         if (proposal == null)
             throw new KeyNotFoundException($"Proposal {proposalId} not found");
 
+        // Fetch prospect title and opportunity title
+        var prospect = await _context.Prospects.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.ProspectId == proposal.ProspectId);
+
+        string? opportunityTitle = null;
+        if (prospect != null)
+        {
+            opportunityTitle = await _context.Opportunities.AsNoTracking()
+                .Where(o => o.NoticeId == prospect.NoticeId)
+                .Select(o => o.Title)
+                .FirstOrDefaultAsync();
+        }
+
         var milestones = await _context.ProposalMilestones.AsNoTracking()
             .Where(m => m.ProposalId == proposalId)
             .OrderBy(m => m.DueDate)
@@ -436,6 +571,8 @@ public class ProposalService : IProposalService
             ProposalId = proposal.ProposalId,
             ProspectId = proposal.ProspectId,
             ProposalNumber = proposal.ProposalNumber,
+            ProspectTitle = prospect?.NoticeId,
+            OpportunityTitle = opportunityTitle,
             ProposalStatus = proposal.ProposalStatus,
             SubmissionDeadline = proposal.SubmissionDeadline,
             SubmittedAt = proposal.SubmittedAt,

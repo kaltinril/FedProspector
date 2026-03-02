@@ -36,7 +36,7 @@ public class UpdateProfileRequestValidatorTests
     [Fact]
     public void Validate_ValidEmail_ShouldPass()
     {
-        var request = new UpdateProfileRequest { Email = "user@example.com" };
+        var request = new UpdateProfileRequest { Email = "user@example.com", CurrentPassword = "pass" };
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveValidationErrorFor(x => x.Email);
     }
@@ -44,7 +44,7 @@ public class UpdateProfileRequestValidatorTests
     [Fact]
     public void Validate_InvalidEmailFormat_ShouldFail()
     {
-        var request = new UpdateProfileRequest { Email = "not-an-email" };
+        var request = new UpdateProfileRequest { Email = "not-an-email", CurrentPassword = "pass" };
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Email);
     }
@@ -52,8 +52,32 @@ public class UpdateProfileRequestValidatorTests
     [Fact]
     public void Validate_EmailTooLong_ShouldFail()
     {
-        var request = new UpdateProfileRequest { Email = new string('a', 192) + "@test.com" };
+        var request = new UpdateProfileRequest { Email = new string('a', 192) + "@test.com", CurrentPassword = "pass" };
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Email);
+    }
+
+    [Fact]
+    public void Validate_EmailWithoutCurrentPassword_ShouldFail()
+    {
+        var request = new UpdateProfileRequest { Email = "new@example.com" };
+        var result = _validator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.CurrentPassword);
+    }
+
+    [Fact]
+    public void Validate_EmailWithCurrentPassword_ShouldPass()
+    {
+        var request = new UpdateProfileRequest { Email = "new@example.com", CurrentPassword = "mypassword" };
+        var result = _validator.TestValidate(request);
+        result.ShouldNotHaveValidationErrorFor(x => x.CurrentPassword);
+    }
+
+    [Fact]
+    public void Validate_NoEmailChange_CurrentPasswordNotRequired()
+    {
+        var request = new UpdateProfileRequest { DisplayName = "New Name" };
+        var result = _validator.TestValidate(request);
+        result.ShouldNotHaveValidationErrorFor(x => x.CurrentPassword);
     }
 }

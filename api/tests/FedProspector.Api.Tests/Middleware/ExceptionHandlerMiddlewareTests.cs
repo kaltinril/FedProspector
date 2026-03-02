@@ -58,15 +58,15 @@ public class ExceptionHandlerMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_KeyNotFoundException_ReturnsCorrectMessage()
+    public async Task InvokeAsync_KeyNotFoundException_ReturnsGenericMessage()
     {
-        var middleware = CreateMiddleware(_ => throw new KeyNotFoundException("Resource not found"));
+        var middleware = CreateMiddleware(_ => throw new KeyNotFoundException("User 42 not found"));
         var context = CreateHttpContext();
 
         await middleware.InvokeAsync(context);
 
         var body = await ReadResponseBody(context);
-        body!.Message.Should().Be("Resource not found");
+        body!.Message.Should().Be("The requested resource was not found.");
     }
 
     [Fact]
@@ -81,15 +81,15 @@ public class ExceptionHandlerMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_InvalidOperationException_ReturnsCorrectMessage()
+    public async Task InvokeAsync_InvalidOperationException_ReturnsGenericMessage()
     {
-        var middleware = CreateMiddleware(_ => throw new InvalidOperationException("Invalid input"));
+        var middleware = CreateMiddleware(_ => throw new InvalidOperationException("Sensitive details about operation"));
         var context = CreateHttpContext();
 
         await middleware.InvokeAsync(context);
 
         var body = await ReadResponseBody(context);
-        body!.Message.Should().Be("Invalid input");
+        body!.Message.Should().Be("The request could not be processed.");
     }
 
     [Fact]
@@ -104,15 +104,15 @@ public class ExceptionHandlerMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_UnauthorizedAccessException_ReturnsCorrectMessage()
+    public async Task InvokeAsync_UnauthorizedAccessException_ReturnsGenericMessage()
     {
-        var middleware = CreateMiddleware(_ => throw new UnauthorizedAccessException("Access denied"));
+        var middleware = CreateMiddleware(_ => throw new UnauthorizedAccessException("User 42 tried to access resource 99"));
         var context = CreateHttpContext();
 
         await middleware.InvokeAsync(context);
 
         var body = await ReadResponseBody(context);
-        body!.Message.Should().Be("Access denied");
+        body!.Message.Should().Be("Access denied.");
     }
 
     [Fact]
@@ -127,15 +127,15 @@ public class ExceptionHandlerMiddlewareTests
     }
 
     [Fact]
-    public async Task InvokeAsync_ConflictException_ReturnsCorrectMessage()
+    public async Task InvokeAsync_ConflictException_ReturnsGenericMessage()
     {
-        var middleware = CreateMiddleware(_ => throw new ConflictException("Duplicate entry"));
+        var middleware = CreateMiddleware(_ => throw new ConflictException("Duplicate entry for email admin@test.com"));
         var context = CreateHttpContext();
 
         await middleware.InvokeAsync(context);
 
         var body = await ReadResponseBody(context);
-        body!.Message.Should().Be("Duplicate entry");
+        body!.Message.Should().Be("A conflict occurred with the current state of the resource.");
     }
 
     [Fact]

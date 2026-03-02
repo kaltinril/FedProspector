@@ -5,6 +5,8 @@ public class ProposalDetailDto
     public int ProposalId { get; set; }
     public int ProspectId { get; set; }
     public string? ProposalNumber { get; set; }
+    public string? ProspectTitle { get; set; }
+    public string? OpportunityTitle { get; set; }
     public string ProposalStatus { get; set; } = string.Empty;
     public DateTime? SubmissionDeadline { get; set; }
     public DateTime? SubmittedAt { get; set; }

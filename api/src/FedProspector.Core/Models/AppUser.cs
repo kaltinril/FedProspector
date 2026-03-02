@@ -11,6 +11,9 @@ public class AppUser
     public int UserId { get; set; }
 
     [Required]
+    public int OrganizationId { get; set; }
+
+    [Required]
     [MaxLength(50)]
     public string Username { get; set; } = string.Empty;
 
@@ -41,6 +44,18 @@ public class AppUser
     public string MfaEnabled { get; set; } = "N";
 
     [Required]
+    [MaxLength(50)]
+    public string OrgRole { get; set; } = "member";
+
+    public int? InvitedBy { get; set; }
+
+    public DateTime? InviteAcceptedAt { get; set; }
+
+    [Required]
+    [MaxLength(1)]
+    public string ForcePasswordChange { get; set; } = "N";
+
+    [Required]
     public int FailedLoginAttempts { get; set; } = 0;
 
     public DateTime? LockedUntil { get; set; }
@@ -48,4 +63,11 @@ public class AppUser
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
+
+    // Navigation properties
+    [ForeignKey("OrganizationId")]
+    public Organization? Organization { get; set; }
+
+    [ForeignKey("InvitedBy")]
+    public AppUser? InvitedByUser { get; set; }
 }

@@ -19,17 +19,18 @@ public class DashboardService : IDashboardService
         _logger = logger;
     }
 
-    public async Task<DashboardDto> GetDashboardAsync()
+    public async Task<DashboardDto> GetDashboardAsync(int organizationId)
     {
-        var statusCountsTask = GetProspectsByStatusAsync();
-        var dueThisWeekTask = GetDueThisWeekAsync();
-        var workloadTask = GetWorkloadByAssigneeAsync();
-        var winLossTask = GetWinLossMetricsAsync();
-        var savedSearchTask = GetRecentSavedSearchesAsync();
-        var totalOpenTask = GetTotalOpenProspectsAsync();
+        var statusCountsTask = GetProspectsByStatusAsync(organizationId);
+        var dueThisWeekTask = GetDueThisWeekAsync(organizationId);
+        var workloadTask = GetWorkloadByAssigneeAsync(organizationId);
+        var winLossTask = GetWinLossMetricsAsync(organizationId);
+        var savedSearchTask = GetRecentSavedSearchesAsync(organizationId);
+        var totalOpenTask = GetTotalOpenProspectsAsync(organizationId);
+        var pipelineValueTask = GetPipelineValueAsync(organizationId);
 
         await Task.WhenAll(statusCountsTask, dueThisWeekTask, workloadTask,
-            winLossTask, savedSearchTask, totalOpenTask);
+            winLossTask, savedSearchTask, totalOpenTask, pipelineValueTask);
 
         return new DashboardDto
         {
@@ -38,20 +39,22 @@ public class DashboardService : IDashboardService
             WorkloadByAssignee = await workloadTask,
             WinLossMetrics = await winLossTask,
             RecentSavedSearches = await savedSearchTask,
-            TotalOpenProspects = await totalOpenTask
+            TotalOpenProspects = await totalOpenTask,
+            PipelineValue = await pipelineValueTask
         };
     }
 
-    private async Task<List<StatusCountDto>> GetProspectsByStatusAsync()
+    private async Task<List<StatusCountDto>> GetProspectsByStatusAsync(int organizationId)
     {
         return await _context.Prospects.AsNoTracking()
+            .Where(p => p.OrganizationId == organizationId)
             .GroupBy(p => p.Status)
             .Select(g => new StatusCountDto { Status = g.Key, Count = g.Count() })
             .OrderBy(x => x.Status)
             .ToListAsync();
     }
 
-    private async Task<List<DueOpportunityDto>> GetDueThisWeekAsync()
+    private async Task<List<DueOpportunityDto>> GetDueThisWeekAsync(int organizationId)
     {
         var now = DateTime.UtcNow;
         var weekOut = now.AddDays(7);
@@ -61,7 +64,8 @@ public class DashboardService : IDashboardService
             join o in _context.Opportunities.AsNoTracking() on p.NoticeId equals o.NoticeId
             join u in _context.AppUsers.AsNoTracking() on p.AssignedTo equals u.UserId into uJoin
             from u in uJoin.DefaultIfEmpty()
-            where !TerminalStatuses.Contains(p.Status)
+            where p.OrganizationId == organizationId
+               && !TerminalStatuses.Contains(p.Status)
                && o.ResponseDeadline != null
                && o.ResponseDeadline >= now
                && o.ResponseDeadline <= weekOut
@@ -79,12 +83,13 @@ public class DashboardService : IDashboardService
         ).ToListAsync();
     }
 
-    private async Task<List<AssigneeWorkloadDto>> GetWorkloadByAssigneeAsync()
+    private async Task<List<AssigneeWorkloadDto>> GetWorkloadByAssigneeAsync(int organizationId)
     {
         return await (
             from p in _context.Prospects.AsNoTracking()
             join u in _context.AppUsers.AsNoTracking() on p.AssignedTo equals u.UserId
-            where !TerminalStatuses.Contains(p.Status)
+            where p.OrganizationId == organizationId
+               && !TerminalStatuses.Contains(p.Status)
             group p by new { u.Username, u.DisplayName } into g
             orderby g.Count() descending
             select new AssigneeWorkloadDto
@@ -96,22 +101,22 @@ public class DashboardService : IDashboardService
         ).ToListAsync();
     }
 
-    private async Task<List<OutcomeCountDto>> GetWinLossMetricsAsync()
+    private async Task<List<OutcomeCountDto>> GetWinLossMetricsAsync(int organizationId)
     {
         return await _context.Prospects.AsNoTracking()
-            .Where(p => p.Outcome != null)
+            .Where(p => p.OrganizationId == organizationId && p.Outcome != null)
             .GroupBy(p => p.Outcome!)
             .Select(g => new OutcomeCountDto { Outcome = g.Key, Count = g.Count() })
             .OrderBy(x => x.Outcome)
             .ToListAsync();
     }
 
-    private async Task<List<SavedSearchSummaryDto>> GetRecentSavedSearchesAsync()
+    private async Task<List<SavedSearchSummaryDto>> GetRecentSavedSearchesAsync(int organizationId)
     {
         return await (
             from s in _context.SavedSearches.AsNoTracking()
             join u in _context.AppUsers.AsNoTracking() on s.UserId equals u.UserId
-            where s.IsActive == "Y"
+            where s.OrganizationId == organizationId && s.IsActive == "Y"
             orderby s.SearchName
             select new SavedSearchSummaryDto
             {
@@ -124,9 +129,18 @@ public class DashboardService : IDashboardService
         ).ToListAsync();
     }
 
-    private async Task<int> GetTotalOpenProspectsAsync()
+    private async Task<int> GetTotalOpenProspectsAsync(int organizationId)
     {
         return await _context.Prospects.AsNoTracking()
-            .CountAsync(p => !TerminalStatuses.Contains(p.Status));
+            .CountAsync(p => p.OrganizationId == organizationId && !TerminalStatuses.Contains(p.Status));
+    }
+
+    private async Task<decimal> GetPipelineValueAsync(int organizationId)
+    {
+        return await _context.Prospects.AsNoTracking()
+            .Where(p => p.OrganizationId == organizationId
+                     && !TerminalStatuses.Contains(p.Status)
+                     && p.EstimatedValue.HasValue)
+            .SumAsync(p => p.EstimatedValue!.Value);
     }
 }

@@ -39,8 +39,25 @@ public class SavedSearchesController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
-        var result = await _service.CreateAsync(userId.Value, request);
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _service.CreateAsync(userId.Value, orgId.Value, request);
         return CreatedAtAction(nameof(List), result);
+    }
+
+    /// <summary>
+    /// Update a saved search.
+    /// </summary>
+    [HttpPatch("{id:int}")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateSavedSearchRequest request)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _service.UpdateAsync(userId.Value, id, request);
+        return result != null ? Ok(result) : NotFound();
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using FedProspector.Core.DTOs.Admin;
+using FedProspector.Core.DTOs.Organizations;
 using FedProspector.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +13,12 @@ namespace FedProspector.Api.Controllers;
 public class AdminController : ApiControllerBase
 {
     private readonly IAdminService _service;
+    private readonly IOrganizationService _orgService;
 
-    public AdminController(IAdminService service)
+    public AdminController(IAdminService service, IOrganizationService orgService)
     {
         _service = service;
+        _orgService = orgService;
     }
 
     /// <summary>
@@ -62,5 +65,25 @@ public class AdminController : ApiControllerBase
 
         var result = await _service.ResetPasswordAsync(id, adminUserId.Value);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Create a new organization. System Admin only.
+    /// </summary>
+    [HttpPost("organizations")]
+    public async Task<IActionResult> CreateOrganization([FromBody] CreateOrganizationRequest request)
+    {
+        var result = await _orgService.CreateOrganizationAsync(request.Name, request.Slug);
+        return StatusCode(201, result);
+    }
+
+    /// <summary>
+    /// Create the initial owner user for an organization. System Admin only.
+    /// </summary>
+    [HttpPost("organizations/{id:int}/owner")]
+    public async Task<IActionResult> CreateOwner(int id, [FromBody] CreateOwnerRequest request)
+    {
+        var result = await _orgService.CreateOwnerAsync(id, request.Email, request.Password, request.DisplayName);
+        return StatusCode(201, result);
     }
 }

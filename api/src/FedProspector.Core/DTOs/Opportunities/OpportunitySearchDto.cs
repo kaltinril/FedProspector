@@ -18,6 +18,7 @@ public class OpportunitySearchDto
     public string? NaicsSector { get; set; }
     public string? SizeStandard { get; set; }
     public decimal? BaseAndAllOptions { get; set; }
+    public decimal? EstimatedContractValue { get; set; }
     public string? PopState { get; set; }
     public string? PopCity { get; set; }
     public string? ProspectStatus { get; set; }

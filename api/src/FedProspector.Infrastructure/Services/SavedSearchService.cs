@@ -33,6 +33,7 @@ public class SavedSearchService : ISavedSearchService
 
     public async Task<IEnumerable<SavedSearchDto>> ListAsync(int userId)
     {
+        // Saved searches are user-scoped; org scoping is implicit via user ownership
         var searches = await _context.SavedSearches.AsNoTracking()
             .Where(s => s.UserId == userId && s.IsActive == "Y")
             .OrderBy(s => s.SearchName)
@@ -41,10 +42,11 @@ public class SavedSearchService : ISavedSearchService
         return _mapper.Map<IEnumerable<SavedSearchDto>>(searches);
     }
 
-    public async Task<SavedSearchDto> CreateAsync(int userId, CreateSavedSearchRequest request)
+    public async Task<SavedSearchDto> CreateAsync(int userId, int organizationId, CreateSavedSearchRequest request)
     {
         var search = new SavedSearch
         {
+            OrganizationId = organizationId,
             UserId = userId,
             SearchName = request.SearchName,
             Description = request.Description,
@@ -174,5 +176,30 @@ public class SavedSearchService : ISavedSearchService
         await _context.SaveChangesAsync();
 
         return true;
+    }
+
+    public async Task<SavedSearchDto?> UpdateAsync(int userId, int searchId, UpdateSavedSearchRequest request)
+    {
+        var search = await _context.SavedSearches
+            .FirstOrDefaultAsync(s => s.SearchId == searchId && s.UserId == userId && s.IsActive == "Y");
+
+        if (search == null) return null;
+
+        if (request.Name != null)
+            search.SearchName = request.Name;
+
+        if (request.Description != null)
+            search.Description = request.Description;
+
+        if (request.FilterCriteria != null)
+            search.FilterCriteria = request.FilterCriteria;
+
+        if (request.NotificationsEnabled.HasValue)
+            search.NotificationEnabled = request.NotificationsEnabled.Value ? "Y" : "N";
+
+        search.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return _mapper.Map<SavedSearchDto>(search);
     }
 }

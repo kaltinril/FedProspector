@@ -6,13 +6,14 @@ namespace FedProspector.Infrastructure.Data;
 
 /// <summary>
 /// Central data access context for the Federal Contract Prospecting database.
-/// Maps 47 entity models to the fed_contracts MySQL database.
+/// Maps 50 entity models to the fed_contracts MySQL database.
 ///
 /// Schema Ownership:
 ///   - Reference tables (ref_*), entity/ETL/federal data tables are owned by the
 ///     Python DDL and ETL pipeline. EF Core maps them as read-only (no migrations).
 ///   - Application tables (app_user, prospect, proposal, etc.) are owned by EF Core
 ///     and may have migrations generated for them in the future.
+///   - Multi-tenancy tables (organization, organization_invite) added in Phase 14.5.
 /// </summary>
 public class FedProspectorDbContext : DbContext
 {
@@ -104,9 +105,11 @@ public class FedProspectorDbContext : DbContext
     public DbSet<ProposalMilestone> ProposalMilestones { get; set; }
 
     // -----------------------------------------------------------------------
-    // Web API / App Tables (5)
+    // Web API / App Tables (7)
     // -----------------------------------------------------------------------
 
+    public DbSet<Organization> Organizations { get; set; }
+    public DbSet<OrganizationInvite> OrganizationInvites { get; set; }
     public DbSet<AppUser> AppUsers { get; set; }
     public DbSet<AppSession> AppSessions { get; set; }
     public DbSet<SavedSearch> SavedSearches { get; set; }
@@ -168,6 +171,14 @@ public class FedProspectorDbContext : DbContext
             .HasIndex(e => e.TokenHash)
             .IsUnique();
 
+        modelBuilder.Entity<Organization>()
+            .HasIndex(e => e.Slug)
+            .IsUnique();
+
+        modelBuilder.Entity<OrganizationInvite>()
+            .HasIndex(e => e.InviteCode)
+            .IsUnique();
+
         // ----- JSON Column Mappings -----
         // Pomelo handles [Column(TypeName = "json")] via data annotations on the
         // model properties. Explicit Fluent API calls here for clarity and to
@@ -206,6 +217,56 @@ public class FedProspectorDbContext : DbContext
         //   modelBuilder.Entity<Entity>()
         //       .Property(e => e.IsActive)
         //       .HasConversion(ynToBoolConverter);
+
+        // ----- Multi-Tenancy Relationships (Phase 14.5) -----
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.Users)
+            .WithOne(u => u.Organization)
+            .HasForeignKey(u => u.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.Invites)
+            .WithOne(i => i.Organization)
+            .HasForeignKey(i => i.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.Prospects)
+            .WithOne(p => p.Organization)
+            .HasForeignKey(p => p.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.SavedSearches)
+            .WithOne(s => s.Organization)
+            .HasForeignKey(s => s.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.ActivityLogs)
+            .WithOne(a => a.Organization)
+            .HasForeignKey(a => a.OrganizationId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AppUser>()
+            .HasOne(u => u.InvitedByUser)
+            .WithMany()
+            .HasForeignKey(u => u.InvitedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<AppSession>()
+            .HasOne(s => s.User)
+            .WithMany()
+            .HasForeignKey(s => s.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<OrganizationInvite>()
+            .HasOne(i => i.InvitedByUser)
+            .WithMany()
+            .HasForeignKey(i => i.InvitedBy)
+            .OnDelete(DeleteBehavior.Restrict);
 
         // ----- Database Views (keyless entity types) -----
         modelBuilder.Entity<TargetOpportunityView>()

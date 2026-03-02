@@ -1,5 +1,5 @@
 -- tables/90_web_api.sql
--- Web API production tables (8 tables) - Authentication, proposals, audit, notifications, contacts
+-- Web API production tables (9 tables) - Authentication, proposals, audit, notifications, contacts, invites
 
 USE fed_contracts;
 
@@ -10,12 +10,30 @@ CREATE TABLE IF NOT EXISTS app_session (
     issued_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at           DATETIME NOT NULL,
     revoked_at           DATETIME,
+    revoked_reason       VARCHAR(100),
     ip_address           VARCHAR(45),
     user_agent           VARCHAR(500),
     CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
     UNIQUE INDEX idx_session_token (token_hash),
     INDEX idx_session_user (user_id),
     INDEX idx_session_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organization_invite (
+    invite_id            INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    email                VARCHAR(255) NOT NULL,
+    invite_code          VARCHAR(64) NOT NULL UNIQUE,
+    org_role             VARCHAR(50) NOT NULL DEFAULT 'member',
+    invited_by           INT NOT NULL,
+    expires_at           DATETIME NOT NULL,
+    accepted_at          DATETIME,
+    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_invite_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    CONSTRAINT fk_invite_user FOREIGN KEY (invited_by) REFERENCES app_user(user_id),
+    INDEX idx_invite_org (organization_id),
+    INDEX idx_invite_email (email),
+    INDEX idx_invite_code (invite_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS contracting_officer (
@@ -96,6 +114,7 @@ CREATE TABLE IF NOT EXISTS proposal_milestone (
 
 CREATE TABLE IF NOT EXISTS activity_log (
     activity_id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
     user_id              INT,
     action               VARCHAR(50) NOT NULL,
     entity_type          VARCHAR(50) NOT NULL,
@@ -104,9 +123,11 @@ CREATE TABLE IF NOT EXISTS activity_log (
     ip_address           VARCHAR(45),
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_actlog_user FOREIGN KEY (user_id) REFERENCES app_user(user_id) ON DELETE SET NULL,
+    CONSTRAINT fk_actlog_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
     INDEX idx_activity_target (entity_type, entity_id),
     INDEX idx_activity_user_date (user_id, created_at),
-    INDEX idx_activity_date (created_at)
+    INDEX idx_activity_date (created_at),
+    INDEX idx_actlog_org (organization_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS notification (

@@ -4,5 +4,5 @@ namespace FedProspector.Core.Interfaces;
 
 public interface IDashboardService
 {
-    Task<DashboardDto> GetDashboardAsync();
+    Task<DashboardDto> GetDashboardAsync(int organizationId);
 }

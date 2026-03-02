@@ -9,6 +9,7 @@ public class EntitySearchDto
     public string? PrimaryNaics { get; set; }
     public string? EntityStructureCode { get; set; }
     public string? PopState { get; set; }
+    public string? EntityUrl { get; set; }
     public DateOnly? LastUpdateDate { get; set; }
     public DateOnly? RegistrationExpirationDate { get; set; }
 }

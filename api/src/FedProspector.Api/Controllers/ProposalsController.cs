@@ -17,6 +17,20 @@ public class ProposalsController : ApiControllerBase
     public ProposalsController(IProposalService service) => _service = service;
 
     /// <summary>
+    /// List/search proposals with pagination (org-wide, cross-prospect views).
+    /// </summary>
+    [HttpGet]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> List([FromQuery] ProposalSearchRequest request)
+    {
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _service.ListAsync(orgId.Value, request);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Create a new proposal linked to a prospect.
     /// </summary>
     [HttpPost]
@@ -24,23 +38,27 @@ public class ProposalsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
-        var result = await _service.CreateAsync(userId.Value, request);
+        var result = await _service.CreateAsync(userId.Value, orgId.Value, request);
         return StatusCode(201, result);
     }
 
     /// <summary>
-    /// Update a proposal (status, estimated value, win probability).
+    /// Update a proposal (status, estimated value, win probability, lessons learned).
     /// </summary>
     [HttpPatch("{id:int}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateProposalRequest request)
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.UpdateAsync(id, userId.Value, request);
+            var result = await _service.UpdateAsync(orgId.Value, id, userId.Value, request);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)
@@ -65,10 +83,12 @@ public class ProposalsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.AddDocumentAsync(id, userId.Value, request);
+            var result = await _service.AddDocumentAsync(orgId.Value, id, userId.Value, request);
             return StatusCode(201, result);
         }
         catch (KeyNotFoundException ex)
@@ -86,11 +106,35 @@ public class ProposalsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.GetMilestonesAsync(id);
+            var result = await _service.GetMilestonesAsync(orgId.Value, id);
             return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiError(404, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Create a milestone for a proposal.
+    /// </summary>
+    [HttpPost("{id:int}/milestones")]
+    public async Task<IActionResult> CreateMilestone(int id, [FromBody] CreateMilestoneRequest request)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        try
+        {
+            var result = await _service.CreateMilestoneAsync(orgId.Value, id, userId.Value, request);
+            return StatusCode(201, result);
         }
         catch (KeyNotFoundException ex)
         {
@@ -106,10 +150,12 @@ public class ProposalsController : ApiControllerBase
     {
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
 
         try
         {
-            var result = await _service.UpdateMilestoneAsync(id, milestoneId, userId.Value, request);
+            var result = await _service.UpdateMilestoneAsync(orgId.Value, id, milestoneId, userId.Value, request);
             return Ok(result);
         }
         catch (KeyNotFoundException ex)

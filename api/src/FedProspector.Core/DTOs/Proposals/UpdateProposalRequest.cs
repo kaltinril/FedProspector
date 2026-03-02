@@ -6,4 +6,5 @@ public class UpdateProposalRequest
     public decimal? EstimatedValue { get; set; }
     public decimal? WinProbabilityPct { get; set; }
     public string? Notes { get; set; }
+    public string? LessonsLearned { get; set; }
 }

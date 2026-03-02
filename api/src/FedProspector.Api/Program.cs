@@ -30,7 +30,10 @@ builder.Services.Configure<AppCorsOptions>(builder.Configuration.GetSection(AppC
 // --- Database ---
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// --- Authentication (JWT Bearer) ---
+// --- Memory Cache (for session validation) ---
+builder.Services.AddMemoryCache();
+
+// --- Authentication (JWT Bearer with cookie support) ---
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -43,10 +46,79 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtOptions.Issuer,
             ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.SecretKey)),
+            ClockSkew = TimeSpan.Zero
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            // Read token from cookie if no Authorization header is present
+            OnMessageReceived = context =>
+            {
+                var authHeader = context.Request.Headers.Authorization.ToString();
+                if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    var accessToken = context.Request.Cookies["access_token"];
+                    if (!string.IsNullOrEmpty(accessToken))
+                    {
+                        context.Token = accessToken;
+                    }
+                }
+                return Task.CompletedTask;
+            },
+
+            // Validate session exists and is not revoked on every authenticated request
+            OnTokenValidated = async context =>
+            {
+                var authService = context.HttpContext.RequestServices.GetRequiredService<IAuthService>();
+                var sub = context.Principal?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
+                       ?? context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+                if (sub == null || !int.TryParse(sub, out var userId))
+                {
+                    context.Fail("Invalid token claims.");
+                    return;
+                }
+
+                // Get the raw token to compute hash
+                var rawToken = context.Request.Headers.Authorization.ToString();
+                string? token = null;
+                if (!string.IsNullOrEmpty(rawToken) && rawToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                {
+                    token = rawToken["Bearer ".Length..].Trim();
+                }
+                else
+                {
+                    token = context.Request.Cookies["access_token"];
+                }
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    context.Fail("Token not found.");
+                    return;
+                }
+
+                var tokenHash = ComputeSha256Hash(token);
+                var isValid = await authService.ValidateSessionAsync(userId, tokenHash);
+
+                if (!isValid)
+                {
+                    context.Fail("Session has been revoked.");
+                }
+            }
         };
     });
-builder.Services.AddAuthorization();
+
+// --- Authorization with OrgAdmin policy ---
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("OrgAdmin", policy =>
+        policy.RequireAssertion(context =>
+        {
+            var orgRole = context.User.FindFirst("org_role")?.Value;
+            return orgRole is "owner" or "admin";
+        }));
+});
 
 // --- Application services ---
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -62,6 +134,7 @@ builder.Services.AddScoped<IGoNoGoScoringService, GoNoGoScoringService>();
 builder.Services.AddScoped<IProspectService, ProspectService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();
@@ -75,14 +148,15 @@ builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
     {
-        policy.WithOrigins(corsOptions?.AllowedOrigins ?? ["http://localhost:3000"])
-              .AllowAnyHeader()
-              .AllowAnyMethod()
+        policy.WithOrigins(corsOptions?.AllowedOrigins ?? ["http://localhost:5173"])
+              .WithHeaders("Authorization", "Content-Type", "Accept", "X-XSRF-TOKEN")
+              .WithMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
               .AllowCredentials();
     });
 });
 
 // --- Rate Limiting ---
+const int rateLimitRetryAfterSeconds = 60;
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -94,6 +168,17 @@ builder.Services.AddRateLimiter(options =>
             factory: _ => new FixedWindowRateLimiterOptions
             {
                 PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0
+            }));
+
+    // Global login rate limit: 100 total login attempts per minute (all IPs combined)
+    options.AddPolicy("login_global", _ =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: "global_login",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 100,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
@@ -142,8 +227,14 @@ builder.Services.AddRateLimiter(options =>
 
     options.OnRejected = async (context, cancellationToken) =>
     {
+        context.HttpContext.Response.Headers["Retry-After"] = rateLimitRetryAfterSeconds.ToString();
         context.HttpContext.Response.ContentType = "application/json";
-        var response = new { statusCode = 429, message = "Too many requests. Please try again later." };
+        var response = new
+        {
+            statusCode = 429,
+            message = "Too many requests. Please try again later.",
+            retryAfterSeconds = rateLimitRetryAfterSeconds
+        };
         await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken);
     };
 });
@@ -203,16 +294,22 @@ app.UseMiddleware<ExceptionHandlerMiddleware>();
 // 2. Security headers (early, applies to all responses)
 app.UseMiddleware<SecurityHeadersMiddleware>();
 
-// 3. Swagger UI (all environments for now)
-app.UseSwagger();
-app.UseSwaggerUI(options =>
+// 3. Swagger UI (development only)
+if (app.Environment.IsDevelopment())
 {
-    options.SwaggerEndpoint("/swagger/v1/swagger.json", "FedProspector API v1");
-    options.RoutePrefix = "swagger";
-});
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "FedProspector API v1");
+        options.RoutePrefix = "swagger";
+    });
+}
 
-// 4. HTTPS redirect
-app.UseHttpsRedirection();
+// 4. HTTPS redirect (skip in development — breaks Vite dev proxy targeting HTTP)
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // 5. CORS (before auth)
 app.UseCors();
@@ -221,10 +318,20 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 7. Rate limiting (after auth, before controllers)
+// 7. CSRF protection (after auth, before controllers)
+app.UseMiddleware<CsrfMiddleware>();
+
+// 8. Rate limiting (after auth, before controllers)
 app.UseRateLimiter();
 
-// 8. Map controllers
+// 9. Map controllers
 app.MapControllers();
 
 app.Run();
+
+// Local helper for SHA-256 hashing used in JWT events
+static string ComputeSha256Hash(string input)
+{
+    var bytes = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(input));
+    return Convert.ToHexStringLower(bytes);
+}

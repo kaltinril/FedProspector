@@ -100,6 +100,42 @@ public class SecurityHeadersMiddlewareTests
     }
 
     [Fact]
+    public async Task InvokeAsync_SetsContentSecurityPolicyHeader()
+    {
+        var middleware = CreateMiddleware();
+        var context = CreateHttpContext(isDevelopment: true);
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Headers["Content-Security-Policy"].ToString()
+            .Should().Contain("default-src 'self'");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SetsReferrerPolicyHeader()
+    {
+        var middleware = CreateMiddleware();
+        var context = CreateHttpContext(isDevelopment: true);
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Headers["Referrer-Policy"].ToString()
+            .Should().Be("strict-origin-when-cross-origin");
+    }
+
+    [Fact]
+    public async Task InvokeAsync_SetsPermissionsPolicyHeader()
+    {
+        var middleware = CreateMiddleware();
+        var context = CreateHttpContext(isDevelopment: true);
+
+        await middleware.InvokeAsync(context);
+
+        context.Response.Headers["Permissions-Policy"].ToString()
+            .Should().Be("camera=(), microphone=(), geolocation=()");
+    }
+
+    [Fact]
     public async Task InvokeAsync_CallsNextDelegate()
     {
         var wasCalled = false;

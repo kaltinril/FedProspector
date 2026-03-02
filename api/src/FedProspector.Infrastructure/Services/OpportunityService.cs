@@ -81,6 +81,7 @@ public class OpportunityService : IOpportunityService
                 NaicsSector = null,
                 SizeStandard = null,
                 BaseAndAllOptions = o.AwardAmount,
+                EstimatedContractValue = o.EstimatedContractValue,
                 PopState = o.PopState,
                 PopCity = o.PopCity,
                 ProspectStatus = p != null ? p.Status : null,
@@ -307,5 +308,72 @@ public class OpportunityService : IOpportunityService
             PageSize = request.PageSize,
             TotalCount = totalCount
         };
+    }
+
+    public async Task<string> ExportCsvAsync(OpportunitySearchRequest request)
+    {
+        // Build the same query as SearchAsync but without pagination
+        var query = _context.Opportunities.AsNoTracking().AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.SetAside))
+            query = query.Where(o => o.SetAsideCode == request.SetAside);
+
+        if (!string.IsNullOrWhiteSpace(request.Naics))
+            query = query.Where(o => o.NaicsCode == request.Naics);
+
+        if (!string.IsNullOrWhiteSpace(request.Keyword))
+            query = query.Where(o => o.Title != null && EF.Functions.Like(o.Title, $"%{request.Keyword}%"));
+
+        if (request.DaysOut.HasValue)
+        {
+            var deadline = DateTime.UtcNow.AddDays(request.DaysOut.Value);
+            query = query.Where(o => o.ResponseDeadline != null && o.ResponseDeadline <= deadline);
+        }
+
+        if (request.OpenOnly)
+            query = query.Where(o => o.Active == "Y" && o.ResponseDeadline != null && o.ResponseDeadline > DateTime.UtcNow);
+
+        if (!string.IsNullOrWhiteSpace(request.Department))
+            query = query.Where(o => o.DepartmentName != null && EF.Functions.Like(o.DepartmentName, $"%{request.Department}%"));
+
+        if (!string.IsNullOrWhiteSpace(request.State))
+            query = query.Where(o => o.PopState == request.State);
+
+        // Limit to 5000 rows for CSV export
+        var items = await query
+            .OrderBy(o => o.ResponseDeadline)
+            .Take(5000)
+            .Select(o => new
+            {
+                o.NoticeId,
+                o.Title,
+                o.SolicitationNumber,
+                o.DepartmentName,
+                o.Office,
+                o.PostedDate,
+                o.ResponseDeadline,
+                o.SetAsideCode,
+                o.NaicsCode,
+                o.PopState,
+                o.AwardAmount,
+                o.Active
+            })
+            .ToListAsync();
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("NoticeId,Title,SolicitationNumber,Department,Office,PostedDate,ResponseDeadline,SetAsideCode,NaicsCode,State,AwardAmount,Active");
+
+        foreach (var item in items)
+        {
+            sb.AppendLine($"\"{Escape(item.NoticeId)}\",\"{Escape(item.Title)}\",\"{Escape(item.SolicitationNumber)}\",\"{Escape(item.DepartmentName)}\",\"{Escape(item.Office)}\",{item.PostedDate},{item.ResponseDeadline},{item.SetAsideCode},{item.NaicsCode},{item.PopState},{item.AwardAmount},{item.Active}");
+        }
+
+        return sb.ToString();
+    }
+
+    private static string? Escape(string? value)
+    {
+        if (value == null) return null;
+        return value.Replace("\"", "\"\"");
     }
 }

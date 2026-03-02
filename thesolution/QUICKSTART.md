@@ -354,7 +354,7 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 54 tables + 4 views
+python main.py build-database        # Create/rebuild all 56 tables + 4 views
 python main.py load-lookups          # Load all 11 reference tables from CSVs
 python main.py status                # Show table counts, API status, recent loads
 python main.py check-api             # Test SAM.gov API key (uses 1 call)
@@ -482,9 +482,9 @@ dotnet run --project src/FedProspector.Api
 
 The API starts at `https://localhost:5001` (or `http://localhost:5000`).
 
-**Connection String**: Set in `api/src/FedProspector.Api/appsettings.json` — uses the same `fed_contracts` database as the Python ETL.
+**Connection String**: Set in `api/src/FedProspector.Api/appsettings.Development.json` (moved from `appsettings.json` in Phase 14.5 for security) — uses the same `fed_contracts` database as the Python ETL.
 
-**Swagger UI**: Navigate to `https://localhost:5001/swagger` for interactive API documentation.
+**Swagger UI**: Navigate to `https://localhost:5001/swagger` for interactive API documentation (Development environment only after Phase 14.5).
 
 **What's implemented**:
 - Phase 10: API foundation — .NET 10 project, EF Core models for 48 tables, JWT auth, Swagger
@@ -502,7 +502,7 @@ The API starts at `https://localhost:5001` (or `http://localhost:5000`).
 
 ### Phase 14: Testing — COMPLETE (2026-03-01)
 
-920 tests across Python and C#, all passing.
+1,028 tests across Python and C#, all passing.
 
 **Run Python tests** (568 tests):
 ```bash
@@ -511,12 +511,12 @@ source .venv/Scripts/activate        # Git Bash
 python -m pytest fed_prospector/tests/ -v
 ```
 
-**Run C# Core tests** (234 tests):
+**Run C# Core tests** (237 tests):
 ```bash
 dotnet test api/tests/FedProspector.Core.Tests/
 ```
 
-**Run C# Api tests** (118 tests):
+**Run C# Api tests** (223 tests):
 ```bash
 dotnet test api/tests/FedProspector.Api.Tests/
 ```
@@ -528,19 +528,22 @@ dotnet test api/tests/FedProspector.Core.Tests/ && dotnet test api/tests/FedPros
 
 See [14-TESTING.md](phases/14-TESTING.md) for full details.
 
-### Phase 14.5: Multi-Tenancy & Security Hardening — NOT STARTED
+### Phase 14.5: Multi-Tenancy & Security Hardening — COMPLETE (2026-03-02)
 
-> **BLOCKER for all UI phases.** Must complete before Phase 15.
-
-**What it delivers**:
+**What was delivered**:
 - Organization table + invite-only registration (companies control who joins)
-- httpOnly cookie auth replacing localStorage JWT (XSS protection)
-- Token refresh flow (30-min access + 7-day refresh tokens)
+- httpOnly cookie auth replacing localStorage JWT (XSS protection) with CSRF double-submit cookie
+- Token refresh flow with rotation and reuse detection (30-min access + 7-day refresh tokens)
 - Multi-tenant data isolation on all capture endpoints (prospects, proposals, searches, notifications)
-- 6 missing API endpoints needed by UI (saved search update, milestone create, proposal list, auth refresh, notification count, CSV export)
-- Security hardening: CSP headers, CORS tightening, CSRF protection, generic error messages
+- 13 new API endpoints: 8 organization management + 5 missing functionality (total: 57 endpoints across 14 controllers)
+- Security hardening: CSP headers, CORS tightening, CSRF protection, generic error messages, Swagger restricted to Development, progressive login delay, global login rate limit
 
-**New endpoints**: 8 organization management + 6 missing functionality = 14 new endpoints.
+**Auth changes from Phase 14.5** (important for API consumers):
+- Registration is now **invite-only** — requires an invite code from an org admin
+- Login returns tokens via **httpOnly cookies** (not in the JSON response body)
+- All mutation requests (`POST`, `PATCH`, `DELETE`) require `X-XSRF-TOKEN` header matching the `XSRF-TOKEN` cookie
+- Access token lifetime is 30 minutes; use `POST /api/v1/auth/refresh` for silent renewal
+- JWT claims now include `org_id` and `org_role`
 
 See [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md) for full details.
 
@@ -587,13 +590,14 @@ See individual phase docs in `thesolution/phases/` for full specifications.
 
 ---
 
-## Current Priority: Phase 14.5 (Multi-Tenancy)
+## Current Priority: Phase 15 (UI Foundation)
 
-The next step is **Phase 14.5: Multi-Tenancy & Security Hardening**. This blocks all UI work because it changes:
-- How authentication works (cookies instead of localStorage tokens)
-- What's in the JWT (adds `org_id` and `org_role` claims)
-- How every capture endpoint filters data (adds `organization_id` scoping)
+Phase 14.5 (Multi-Tenancy & Security Hardening) is COMPLETE. The API now has:
+- httpOnly cookie auth with CSRF protection (no more localStorage tokens)
+- JWT claims include `org_id` and `org_role`
+- All capture endpoints filter by `organization_id`
+- 57 endpoints across 14 controllers
 
-**After Phase 14.5**: Phase 15 (UI Foundation) → Phase 16 (Search) → and so on through Phase 20.
+**Next**: Phase 15 (UI Foundation) → Phase 16 (Search) → and so on through Phase 20.
 
 See [MASTER-PLAN.md](MASTER-PLAN.md) for the complete phase roadmap.

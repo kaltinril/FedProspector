@@ -14,4 +14,8 @@ public interface IAuthService
     Task ChangePasswordAsync(int userId, string currentPassword, string newPassword);
     Task<UserProfileDto> GetProfileAsync(int userId);
     Task<UserProfileDto> UpdateProfileAsync(int userId, UpdateProfileRequest request);
+    Task<AuthResult> RefreshTokenAsync(string refreshTokenHash);
+    Task<bool> ValidateSessionAsync(int userId, string tokenHash);
+    void RevokeSessionInMemory(int userId);
+    Task RevokeAllUserSessionsAsync(int userId, string reason);
 }

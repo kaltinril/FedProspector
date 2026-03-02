@@ -9,6 +9,8 @@ Services:  all (default) | db | api | ui
 """
 
 import argparse
+import os
+import shutil
 import subprocess
 import sys
 import time
@@ -16,7 +18,11 @@ import urllib.request
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-MYSQL_BIN = Path(r"D:\mysql\bin")
+MYSQL_BIN = Path(os.environ.get("MYSQL_BIN_DIR", ""))
+if not MYSQL_BIN.is_dir():
+    # Try to find mysqld on PATH
+    mysqld_path = shutil.which("mysqld")
+    MYSQL_BIN = Path(mysqld_path).parent if mysqld_path else Path("mysql/bin")
 API_PROJECT = SCRIPT_DIR / "api" / "src" / "FedProspector.Api"
 API_SLN = SCRIPT_DIR / "api" / "FedProspector.Api.slnx"
 API_EXE = "FedProspector.Api.exe"

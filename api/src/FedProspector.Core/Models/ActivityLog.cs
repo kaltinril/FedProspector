@@ -10,6 +10,9 @@ public class ActivityLog
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public long ActivityId { get; set; }
 
+    [Required]
+    public int OrganizationId { get; set; }
+
     public int? UserId { get; set; }
 
     [Required]
@@ -30,4 +33,8 @@ public class ActivityLog
     public string? IpAddress { get; set; }
 
     public DateTime? CreatedAt { get; set; }
+
+    // Navigation property
+    [ForeignKey("OrganizationId")]
+    public Organization? Organization { get; set; }
 }

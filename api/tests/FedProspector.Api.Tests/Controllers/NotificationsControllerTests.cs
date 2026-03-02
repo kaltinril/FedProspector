@@ -160,4 +160,50 @@ public class NotificationsControllerTests
 
         _serviceMock.Verify(s => s.MarkAllAsReadAsync(7), Times.Once);
     }
+
+    // --- GetUnreadCount ---
+
+    [Fact]
+    public async Task GetUnreadCount_NoUser_ReturnsUnauthorized()
+    {
+        var result = await _controller.GetUnreadCount();
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task GetUnreadCount_AuthenticatedUser_ReturnsOk()
+    {
+        SetAuthenticatedUser(userId: 1);
+        _serviceMock.Setup(s => s.GetUnreadCountAsync(1))
+            .ReturnsAsync(5);
+
+        var result = await _controller.GetUnreadCount();
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task GetUnreadCount_CallsServiceWithCorrectUserId()
+    {
+        SetAuthenticatedUser(userId: 4);
+        _serviceMock.Setup(s => s.GetUnreadCountAsync(4))
+            .ReturnsAsync(0);
+
+        await _controller.GetUnreadCount();
+
+        _serviceMock.Verify(s => s.GetUnreadCountAsync(4), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetUnreadCount_ZeroUnread_ReturnsZeroCount()
+    {
+        SetAuthenticatedUser(userId: 1);
+        _serviceMock.Setup(s => s.GetUnreadCountAsync(1))
+            .ReturnsAsync(0);
+
+        var result = await _controller.GetUnreadCount() as OkObjectResult;
+
+        result.Should().NotBeNull();
+    }
 }

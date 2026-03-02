@@ -16,5 +16,11 @@ public class UpdateProfileRequestValidator : AbstractValidator<UpdateProfileRequ
             .EmailAddress()
             .MaximumLength(200)
             .When(x => x.Email is not null);
+
+        // Current password is required when changing email
+        RuleFor(x => x.CurrentPassword)
+            .NotEmpty()
+            .WithMessage("Current password is required when changing email.")
+            .When(x => x.Email is not null);
     }
 }

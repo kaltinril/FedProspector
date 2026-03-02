@@ -8,4 +8,5 @@ public class DashboardDto
     public List<OutcomeCountDto> WinLossMetrics { get; set; } = [];
     public List<SavedSearchSummaryDto> RecentSavedSearches { get; set; } = [];
     public int TotalOpenProspects { get; set; }
+    public decimal PipelineValue { get; set; }
 }

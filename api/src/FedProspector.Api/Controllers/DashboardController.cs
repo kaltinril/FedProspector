@@ -23,7 +23,10 @@ public class DashboardController : ApiControllerBase
     [HttpGet]
     public async Task<IActionResult> GetDashboard()
     {
-        var result = await _service.GetDashboardAsync();
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _service.GetDashboardAsync(orgId.Value);
         return Ok(result);
     }
 }

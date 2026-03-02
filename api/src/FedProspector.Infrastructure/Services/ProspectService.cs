@@ -43,15 +43,15 @@ public class ProspectService : IProspectService
         _logger = logger;
     }
 
-    public async Task<ProspectDetailDto> CreateAsync(int userId, CreateProspectRequest request)
+    public async Task<ProspectDetailDto> CreateAsync(int userId, int organizationId, CreateProspectRequest request)
     {
         // Validate opportunity exists
         var oppExists = await _context.Opportunities.AnyAsync(o => o.NoticeId == request.NoticeId);
         if (!oppExists)
             throw new InvalidOperationException($"Opportunity with notice ID '{request.NoticeId}' not found");
 
-        // Check for existing prospect
-        var prospectExists = await _context.Prospects.AnyAsync(p => p.NoticeId == request.NoticeId);
+        // Check for existing prospect within this organization
+        var prospectExists = await _context.Prospects.AnyAsync(p => p.NoticeId == request.NoticeId && p.OrganizationId == organizationId);
         if (prospectExists)
             throw new InvalidOperationException($"A prospect already exists for opportunity '{request.NoticeId}'");
 
@@ -59,7 +59,7 @@ public class ProspectService : IProspectService
         if (request.AssignedTo.HasValue)
         {
             var assignee = await _context.AppUsers.AsNoTracking()
-                .FirstOrDefaultAsync(u => u.UserId == request.AssignedTo.Value);
+                .FirstOrDefaultAsync(u => u.UserId == request.AssignedTo.Value && u.OrganizationId == organizationId);
             if (assignee == null || assignee.IsActive != "Y")
                 throw new InvalidOperationException($"User {request.AssignedTo.Value} not found or not active");
         }
@@ -68,6 +68,7 @@ public class ProspectService : IProspectService
 
         var prospect = new Prospect
         {
+            OrganizationId = organizationId,
             NoticeId = request.NoticeId,
             AssignedTo = request.AssignedTo,
             CaptureManagerId = request.CaptureManagerId,
@@ -108,7 +109,7 @@ public class ProspectService : IProspectService
         }
 
         // Log activity
-        await _activityLog.LogAsync(userId, "CREATE_PROSPECT", "PROSPECT", prospect.ProspectId.ToString());
+        await _activityLog.LogAsync(organizationId, userId, "CREATE_PROSPECT", "PROSPECT", prospect.ProspectId.ToString());
 
         // Notify assigned user of new prospect
         if (prospect.AssignedTo.HasValue)
@@ -122,12 +123,13 @@ public class ProspectService : IProspectService
                 prospect.ProspectId.ToString());
         }
 
-        return (await GetDetailAsync(prospect.ProspectId))!;
+        return (await GetDetailAsync(organizationId, prospect.ProspectId))!;
     }
 
-    public async Task<PagedResponse<ProspectListDto>> SearchAsync(ProspectSearchRequest request)
+    public async Task<PagedResponse<ProspectListDto>> SearchAsync(int organizationId, ProspectSearchRequest request)
     {
-        var query = _context.Prospects.AsNoTracking().AsQueryable();
+        var query = _context.Prospects.AsNoTracking()
+            .Where(p => p.OrganizationId == organizationId);
 
         // Apply filters
         if (!string.IsNullOrWhiteSpace(request.Status))
@@ -229,10 +231,10 @@ public class ProspectService : IProspectService
         };
     }
 
-    public async Task<ProspectDetailDto?> GetDetailAsync(int prospectId)
+    public async Task<ProspectDetailDto?> GetDetailAsync(int organizationId, int prospectId)
     {
         var prospect = await _context.Prospects.AsNoTracking()
-            .FirstOrDefaultAsync(p => p.ProspectId == prospectId);
+            .FirstOrDefaultAsync(p => p.ProspectId == prospectId && p.OrganizationId == organizationId);
 
         if (prospect == null) return null;
 
@@ -360,10 +362,10 @@ public class ProspectService : IProspectService
         };
     }
 
-    public async Task<ProspectDetailDto> UpdateStatusAsync(int prospectId, int userId, UpdateProspectStatusRequest request)
+    public async Task<ProspectDetailDto> UpdateStatusAsync(int organizationId, int prospectId, int userId, UpdateProspectStatusRequest request)
     {
         var prospect = await _context.Prospects
-            .FirstOrDefaultAsync(p => p.ProspectId == prospectId)
+            .FirstOrDefaultAsync(p => p.ProspectId == prospectId && p.OrganizationId == organizationId)
             ?? throw new KeyNotFoundException($"Prospect {prospectId} not found");
 
         var currentStatus = prospect.Status;
@@ -420,7 +422,7 @@ public class ProspectService : IProspectService
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "UPDATE_STATUS", "PROSPECT", prospectId.ToString(),
+        await _activityLog.LogAsync(organizationId, userId, "UPDATE_STATUS", "PROSPECT", prospectId.ToString(),
             new { OldStatus = currentStatus, NewStatus = newStatus });
 
         // Notify assigned user of status change
@@ -435,18 +437,18 @@ public class ProspectService : IProspectService
                 prospect.ProspectId.ToString());
         }
 
-        return (await GetDetailAsync(prospectId))!;
+        return (await GetDetailAsync(organizationId, prospectId))!;
     }
 
-    public async Task<ProspectDetailDto> ReassignAsync(int prospectId, int userId, ReassignProspectRequest request)
+    public async Task<ProspectDetailDto> ReassignAsync(int organizationId, int prospectId, int userId, ReassignProspectRequest request)
     {
         var prospect = await _context.Prospects
-            .FirstOrDefaultAsync(p => p.ProspectId == prospectId)
+            .FirstOrDefaultAsync(p => p.ProspectId == prospectId && p.OrganizationId == organizationId)
             ?? throw new KeyNotFoundException($"Prospect {prospectId} not found");
 
-        // Validate new assignee
+        // Validate new assignee is in the same organization
         var newAssignee = await _context.AppUsers.AsNoTracking()
-            .FirstOrDefaultAsync(u => u.UserId == request.NewAssignedTo)
+            .FirstOrDefaultAsync(u => u.UserId == request.NewAssignedTo && u.OrganizationId == organizationId)
             ?? throw new InvalidOperationException($"User {request.NewAssignedTo} not found");
 
         if (newAssignee.IsActive != "Y")
@@ -486,7 +488,7 @@ public class ProspectService : IProspectService
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "REASSIGN_PROSPECT", "PROSPECT", prospectId.ToString(),
+        await _activityLog.LogAsync(organizationId, userId, "REASSIGN_PROSPECT", "PROSPECT", prospectId.ToString(),
             new { OldAssignedTo = oldAssigneeName, NewAssignedTo = newAssigneeName });
 
         // Notify new assignee
@@ -498,13 +500,13 @@ public class ProspectService : IProspectService
             "PROSPECT",
             prospect.ProspectId.ToString());
 
-        return (await GetDetailAsync(prospectId))!;
+        return (await GetDetailAsync(organizationId, prospectId))!;
     }
 
-    public async Task<ProspectNoteDto> AddNoteAsync(int prospectId, int userId, CreateProspectNoteRequest request)
+    public async Task<ProspectNoteDto> AddNoteAsync(int organizationId, int prospectId, int userId, CreateProspectNoteRequest request)
     {
-        // Validate prospect exists
-        var prospectExists = await _context.Prospects.AnyAsync(p => p.ProspectId == prospectId);
+        // Validate prospect exists and belongs to org
+        var prospectExists = await _context.Prospects.AnyAsync(p => p.ProspectId == prospectId && p.OrganizationId == organizationId);
         if (!prospectExists)
             throw new KeyNotFoundException($"Prospect {prospectId} not found");
 
@@ -525,7 +527,7 @@ public class ProspectService : IProspectService
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "ADD_NOTE", "PROSPECT", prospectId.ToString());
+        await _activityLog.LogAsync(organizationId, userId, "ADD_NOTE", "PROSPECT", prospectId.ToString());
 
         // Return with user info
         var user = await _context.AppUsers.AsNoTracking()
@@ -545,10 +547,10 @@ public class ProspectService : IProspectService
         };
     }
 
-    public async Task<ProspectTeamMemberDto> AddTeamMemberAsync(int prospectId, int userId, AddTeamMemberRequest request)
+    public async Task<ProspectTeamMemberDto> AddTeamMemberAsync(int organizationId, int prospectId, int userId, AddTeamMemberRequest request)
     {
-        // Validate prospect exists
-        var prospectExists = await _context.Prospects.AnyAsync(p => p.ProspectId == prospectId);
+        // Validate prospect exists and belongs to org
+        var prospectExists = await _context.Prospects.AnyAsync(p => p.ProspectId == prospectId && p.OrganizationId == organizationId);
         if (!prospectExists)
             throw new KeyNotFoundException($"Prospect {prospectId} not found");
 
@@ -582,7 +584,7 @@ public class ProspectService : IProspectService
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "ADD_TEAM_MEMBER", "PROSPECT", prospectId.ToString());
+        await _activityLog.LogAsync(organizationId, userId, "ADD_TEAM_MEMBER", "PROSPECT", prospectId.ToString());
 
         return new ProspectTeamMemberDto
         {
@@ -596,8 +598,13 @@ public class ProspectService : IProspectService
         };
     }
 
-    public async Task<bool> RemoveTeamMemberAsync(int prospectId, int memberId, int userId)
+    public async Task<bool> RemoveTeamMemberAsync(int organizationId, int prospectId, int memberId, int userId)
     {
+        // Verify prospect belongs to org
+        var prospectExists = await _context.Prospects.AnyAsync(p => p.ProspectId == prospectId && p.OrganizationId == organizationId);
+        if (!prospectExists)
+            return false;
+
         var member = await _context.ProspectTeamMembers
             .FirstOrDefaultAsync(tm => tm.Id == memberId && tm.ProspectId == prospectId);
 
@@ -608,22 +615,22 @@ public class ProspectService : IProspectService
         await _context.SaveChangesAsync();
 
         // Log activity
-        await _activityLog.LogAsync(userId, "REMOVE_TEAM_MEMBER", "PROSPECT", prospectId.ToString());
+        await _activityLog.LogAsync(organizationId, userId, "REMOVE_TEAM_MEMBER", "PROSPECT", prospectId.ToString());
 
         return true;
     }
 
-    public async Task<ScoreBreakdownDto> RecalculateScoreAsync(int prospectId, int userId)
+    public async Task<ScoreBreakdownDto> RecalculateScoreAsync(int organizationId, int prospectId, int userId)
     {
-        // Validate prospect exists
-        var prospectExists = await _context.Prospects.AnyAsync(p => p.ProspectId == prospectId);
+        // Validate prospect exists and belongs to org
+        var prospectExists = await _context.Prospects.AnyAsync(p => p.ProspectId == prospectId && p.OrganizationId == organizationId);
         if (!prospectExists)
             throw new KeyNotFoundException($"Prospect {prospectId} not found");
 
         var result = await _scoringService.CalculateScoreAsync(prospectId);
 
         // Log activity
-        await _activityLog.LogAsync(userId, "RECALCULATE_SCORE", "PROSPECT", prospectId.ToString());
+        await _activityLog.LogAsync(organizationId, userId, "RECALCULATE_SCORE", "PROSPECT", prospectId.ToString());
 
         return result;
     }
