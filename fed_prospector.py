@@ -76,9 +76,12 @@ def start_db():
         f'start "MySQL" /MIN "{MYSQL_BIN / MYSQL_EXE}" --console --secure-file-priv=',
         shell=True,
     )
-    while mysql_admin("ping") != 0:
+    for _ in range(30):
         time.sleep(1)
-    print("  [DB]  MySQL is ready.  (port 3306)")
+        if mysql_admin("ping") == 0:
+            print("  [DB]  MySQL is ready.  (port 3306)")
+            return
+    print("  [DB]  Started but not responding after 30s.")
 
 
 def stop_db():
