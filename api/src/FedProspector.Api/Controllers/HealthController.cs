@@ -58,7 +58,7 @@ public class HealthController : ControllerBase
         {
             var lastLoad = await _db.Database
                 .SqlQueryRaw<DateTime?>(
-                    "SELECT MAX(completed_at) AS Value FROM etl_load_log WHERE status = 'success'")
+                    "SELECT MAX(completed_at) AS Value FROM etl_load_log WHERE status = 'SUCCESS'")
                 .FirstOrDefaultAsync();
 
             result.LastEtlLoad = lastLoad?.ToString("o");

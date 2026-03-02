@@ -207,13 +207,13 @@ public class AwardService : IAwardService
         var awardId = usaAward.GeneratedUniqueAwardId;
         var monthlyData = await _context.Database
             .SqlQueryRaw<MonthlySpendDto>(
-                "SELECT DATE_FORMAT(action_date, '%Y-%m') AS YearMonth, " +
-                "SUM(federal_action_obligation) AS Amount, " +
-                "COUNT(*) AS TransactionCount " +
+                "SELECT DATE_FORMAT(action_date, '%Y-%m') AS year_month, " +
+                "SUM(federal_action_obligation) AS amount, " +
+                "COUNT(*) AS transaction_count " +
                 "FROM usaspending_transaction " +
                 "WHERE award_id = {0} AND federal_action_obligation IS NOT NULL " +
                 "GROUP BY DATE_FORMAT(action_date, '%Y-%m') " +
-                "ORDER BY YearMonth",
+                "ORDER BY year_month",
                 awardId)
             .ToListAsync();
 

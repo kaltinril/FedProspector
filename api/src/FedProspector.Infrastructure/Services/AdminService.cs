@@ -210,19 +210,35 @@ public class AdminService : IAdminService
 
     private async Task<List<EtlSourceStatusDto>> GetSourceStatusesAsync()
     {
-        // Get latest successful load per source
-        var latestLoads = await _context.EtlLoadLogs.AsNoTracking()
+        // Get latest successful load per source (two-step to avoid untranslatable LINQ)
+        // Step 1: Get the max CompletedAt per source
+        var latestBySource = await _context.EtlLoadLogs.AsNoTracking()
             .Where(l => l.Status == "SUCCESS")
             .GroupBy(l => l.SourceSystem)
             .Select(g => new
             {
                 SourceSystem = g.Key,
-                LastLoadAt = g.Max(l => l.CompletedAt),
-                RecordsProcessed = g.OrderByDescending(l => l.CompletedAt)
-                    .Select(l => l.RecordsInserted + l.RecordsUpdated)
-                    .FirstOrDefault()
+                LastLoadAt = g.Max(l => l.CompletedAt)
             })
             .ToListAsync();
+
+        // Step 2: For each source, fetch RecordsProcessed from the latest load row
+        var latestLoads = new List<LatestLoadInfo>();
+        foreach (var src in latestBySource)
+        {
+            var recordsProcessed = await _context.EtlLoadLogs.AsNoTracking()
+                .Where(l => l.SourceSystem == src.SourceSystem
+                         && l.CompletedAt == src.LastLoadAt
+                         && l.Status == "SUCCESS")
+                .Select(l => l.RecordsInserted + l.RecordsUpdated)
+                .FirstOrDefaultAsync();
+            latestLoads.Add(new LatestLoadInfo
+            {
+                SourceSystem = src.SourceSystem,
+                LastLoadAt = src.LastLoadAt,
+                RecordsProcessed = recordsProcessed
+            });
+        }
 
         var sources = new List<EtlSourceStatusDto>();
         var now = DateTime.UtcNow;
@@ -291,6 +307,13 @@ public class AdminService : IAdminService
             })
             .ToListAsync();
     }
+}
+
+internal class LatestLoadInfo
+{
+    public string SourceSystem { get; set; } = string.Empty;
+    public DateTime? LastLoadAt { get; set; }
+    public int RecordsProcessed { get; set; }
 }
 
 internal static class StringExtensions

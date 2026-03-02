@@ -32,6 +32,7 @@ public class NotificationsController : ApiControllerBase
     /// Mark a single notification as read.
     /// </summary>
     [HttpPatch("{id:int}/read")]
+    [EnableRateLimiting("write")]
     public async Task<IActionResult> MarkAsRead(int id)
     {
         var userId = GetCurrentUserId();
@@ -52,6 +53,7 @@ public class NotificationsController : ApiControllerBase
     /// Mark all notifications as read for the current user.
     /// </summary>
     [HttpPost("mark-all-read")]
+    [EnableRateLimiting("write")]
     public async Task<IActionResult> MarkAllAsRead()
     {
         var userId = GetCurrentUserId();

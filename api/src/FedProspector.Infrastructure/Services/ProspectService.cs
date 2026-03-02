@@ -145,24 +145,20 @@ public class ProspectService : IProspectService
         if (request.OpenOnly)
             query = query.Where(p => p.Status != "WON" && p.Status != "LOST" && p.Status != "DECLINED" && p.Status != "NO_BID");
 
-        // NAICS filter: join to opportunity
+        // NAICS filter: correlated subquery to avoid duplicate rows from joins
         if (!string.IsNullOrWhiteSpace(request.Naics))
         {
             var naicsFilter = request.Naics;
-            query = from p in query
-                    join o in _context.Opportunities on p.NoticeId equals o.NoticeId
-                    where o.NaicsCode != null && o.NaicsCode.StartsWith(naicsFilter)
-                    select p;
+            query = query.Where(p => _context.Opportunities.Any(o =>
+                o.NoticeId == p.NoticeId && o.NaicsCode != null && o.NaicsCode.StartsWith(naicsFilter)));
         }
 
-        // SetAside filter: join to opportunity
+        // SetAside filter: correlated subquery to avoid duplicate rows from joins
         if (!string.IsNullOrWhiteSpace(request.SetAside))
         {
             var setAsideFilter = request.SetAside;
-            query = from p in query
-                    join o in _context.Opportunities on p.NoticeId equals o.NoticeId
-                    where o.SetAsideCode == setAsideFilter
-                    select p;
+            query = query.Where(p => _context.Opportunities.Any(o =>
+                o.NoticeId == p.NoticeId && o.SetAsideCode == setAsideFilter));
         }
 
         var totalCount = await query.CountAsync();

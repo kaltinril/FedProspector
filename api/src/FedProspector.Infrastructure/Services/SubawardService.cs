@@ -79,9 +79,9 @@ public class SubawardService : ISubawardService
 
         // Execute both queries using raw ADO.NET for reliable parameterization
         var connection = _context.Database.GetDbConnection();
-        await _context.Database.OpenConnectionAsync();
         try
         {
+            await _context.Database.OpenConnectionAsync();
             // Count
             int totalCount;
             using (var countCmd = connection.CreateCommand())

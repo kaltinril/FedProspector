@@ -34,6 +34,7 @@ public class SavedSearchesController : ApiControllerBase
     /// Create a new saved search.
     /// </summary>
     [HttpPost]
+    [EnableRateLimiting("write")]
     public async Task<IActionResult> Create([FromBody] CreateSavedSearchRequest request)
     {
         var userId = GetCurrentUserId();
@@ -58,6 +59,7 @@ public class SavedSearchesController : ApiControllerBase
     /// Soft-delete a saved search (sets IsActive to N).
     /// </summary>
     [HttpDelete("{id:int}")]
+    [EnableRateLimiting("write")]
     public async Task<IActionResult> Delete(int id)
     {
         var userId = GetCurrentUserId();

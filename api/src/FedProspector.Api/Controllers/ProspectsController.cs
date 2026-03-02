@@ -39,6 +39,7 @@ public class ProspectsController : ApiControllerBase
     /// Search prospects with filters and pagination.
     /// </summary>
     [HttpGet]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> Search([FromQuery] ProspectSearchRequest request)
     {
         var result = await _service.SearchAsync(request);
@@ -49,6 +50,7 @@ public class ProspectsController : ApiControllerBase
     /// Get full prospect detail including opportunity, notes, team, proposal, and score.
     /// </summary>
     [HttpGet("{id:int}")]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetDetail(int id)
     {
         var result = await _service.GetDetailAsync(id);

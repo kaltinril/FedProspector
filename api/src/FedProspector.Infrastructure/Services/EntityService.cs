@@ -236,7 +236,7 @@ public class EntityService : IEntityService
         if (!string.IsNullOrWhiteSpace(entityName))
         {
             exclusionQuery = exclusionQuery.Where(ex => ex.Uei == uei
-                || (ex.EntityName != null && EF.Functions.Like(ex.EntityName, entityName)));
+                || (ex.EntityName != null && ex.EntityName.Contains(entityName)));
         }
         else
         {

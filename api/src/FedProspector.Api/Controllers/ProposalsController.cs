@@ -25,19 +25,8 @@ public class ProposalsController : ApiControllerBase
         var userId = GetCurrentUserId();
         if (userId == null) return Unauthorized();
 
-        try
-        {
-            var result = await _service.CreateAsync(userId.Value, request);
-            return CreatedAtAction(nameof(Create), new { id = result.ProposalId }, result);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return ApiError(404, ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return ApiError(400, ex.Message);
-        }
+        var result = await _service.CreateAsync(userId.Value, request);
+        return StatusCode(201, result);
     }
 
     /// <summary>
@@ -92,6 +81,7 @@ public class ProposalsController : ApiControllerBase
     /// List milestones for a proposal.
     /// </summary>
     [HttpGet("{id:int}/milestones")]
+    [EnableRateLimiting("search")]
     public async Task<IActionResult> GetMilestones(int id)
     {
         var userId = GetCurrentUserId();

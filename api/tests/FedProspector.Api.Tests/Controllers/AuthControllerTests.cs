@@ -206,16 +206,16 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task ChangePassword_WrongCurrentPassword_ReturnsBadRequest()
+    public async Task ChangePassword_WrongCurrentPassword_ThrowsInvalidOperation()
     {
         SetAuthenticatedUser(userId: 5);
         var request = new ChangePasswordRequest { CurrentPassword = "wrong", NewPassword = "new" };
         _authServiceMock.Setup(s => s.ChangePasswordAsync(5, "wrong", "new"))
             .ThrowsAsync(new InvalidOperationException("Current password is incorrect"));
 
-        var result = await _controller.ChangePassword(request);
+        var act = () => _controller.ChangePassword(request);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     // --- GetProfile ---
@@ -241,15 +241,15 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task GetProfile_UserNotFound_ReturnsNotFound()
+    public async Task GetProfile_UserNotFound_ThrowsKeyNotFound()
     {
         SetAuthenticatedUser(userId: 999);
         _authServiceMock.Setup(s => s.GetProfileAsync(999))
             .ThrowsAsync(new KeyNotFoundException("User not found"));
 
-        var result = await _controller.GetProfile();
+        var act = () => _controller.GetProfile();
 
-        result.Should().BeOfType<NotFoundObjectResult>();
+        await act.Should().ThrowAsync<KeyNotFoundException>();
     }
 
     // --- UpdateProfile ---
@@ -278,28 +278,28 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task UpdateProfile_InvalidOperation_ReturnsBadRequest()
+    public async Task UpdateProfile_InvalidOperation_ThrowsInvalidOperation()
     {
         SetAuthenticatedUser(userId: 2);
         var request = new UpdateProfileRequest { Email = "taken@test.com" };
         _authServiceMock.Setup(s => s.UpdateProfileAsync(2, request))
             .ThrowsAsync(new InvalidOperationException("Email taken"));
 
-        var result = await _controller.UpdateProfile(request);
+        var act = () => _controller.UpdateProfile(request);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
-    public async Task UpdateProfile_UserNotFound_ReturnsNotFound()
+    public async Task UpdateProfile_UserNotFound_ThrowsKeyNotFound()
     {
         SetAuthenticatedUser(userId: 999);
         var request = new UpdateProfileRequest { DisplayName = "test" };
         _authServiceMock.Setup(s => s.UpdateProfileAsync(999, request))
             .ThrowsAsync(new KeyNotFoundException());
 
-        var result = await _controller.UpdateProfile(request);
+        var act = () => _controller.UpdateProfile(request);
 
-        result.Should().BeOfType<NotFoundObjectResult>();
+        await act.Should().ThrowAsync<KeyNotFoundException>();
     }
 }

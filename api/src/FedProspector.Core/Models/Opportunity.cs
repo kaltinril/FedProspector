@@ -102,6 +102,7 @@ public class Opportunity
     [MaxLength(500)]
     public string? Link { get; set; }
 
+    [Column(TypeName = "json")]
     public string? ResourceLinks { get; set; }
 
     [MaxLength(20)]

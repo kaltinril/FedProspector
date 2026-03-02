@@ -139,29 +139,29 @@ public class AdminControllerTests
     }
 
     [Fact]
-    public async Task UpdateUser_InvalidOperation_ReturnsBadRequest()
+    public async Task UpdateUser_InvalidOperation_ThrowsInvalidOperation()
     {
         SetAuthenticatedAdmin(userId: 1);
         var request = new UpdateUserRequest { IsActive = false };
         _serviceMock.Setup(s => s.UpdateUserAsync(1, request, 1))
             .ThrowsAsync(new InvalidOperationException("Cannot deactivate yourself"));
 
-        var result = await _controller.UpdateUser(1, request);
+        var act = () => _controller.UpdateUser(1, request);
 
-        result.Should().BeOfType<BadRequestObjectResult>();
+        await act.Should().ThrowAsync<InvalidOperationException>();
     }
 
     [Fact]
-    public async Task UpdateUser_UserNotFound_ReturnsNotFound()
+    public async Task UpdateUser_UserNotFound_ThrowsKeyNotFound()
     {
         SetAuthenticatedAdmin(userId: 1);
         var request = new UpdateUserRequest { Role = "admin" };
         _serviceMock.Setup(s => s.UpdateUserAsync(999, request, 1))
             .ThrowsAsync(new KeyNotFoundException());
 
-        var result = await _controller.UpdateUser(999, request);
+        var act = () => _controller.UpdateUser(999, request);
 
-        result.Should().BeOfType<NotFoundResult>();
+        await act.Should().ThrowAsync<KeyNotFoundException>();
     }
 
     // --- ResetPassword ---
@@ -199,14 +199,14 @@ public class AdminControllerTests
     }
 
     [Fact]
-    public async Task ResetPassword_UserNotFound_ReturnsNotFound()
+    public async Task ResetPassword_UserNotFound_ThrowsKeyNotFound()
     {
         SetAuthenticatedAdmin(userId: 1);
         _serviceMock.Setup(s => s.ResetPasswordAsync(999, 1))
             .ThrowsAsync(new KeyNotFoundException());
 
-        var result = await _controller.ResetPassword(999);
+        var act = () => _controller.ResetPassword(999);
 
-        result.Should().BeOfType<NotFoundResult>();
+        await act.Should().ThrowAsync<KeyNotFoundException>();
     }
 }

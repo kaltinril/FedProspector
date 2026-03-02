@@ -189,6 +189,10 @@ public class FedProspectorDbContext : DbContext
             .Property(e => e.Details)
             .HasColumnType("json");
 
+        modelBuilder.Entity<Opportunity>()
+            .Property(e => e.ResourceLinks)
+            .HasColumnType("json");
+
         // ----- Y/N Boolean Value Converters -----
         // All CHAR(1) Y/N columns currently use string properties.
         // If we switch to bool properties in the future, add ValueConverters here:

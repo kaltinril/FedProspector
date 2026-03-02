@@ -47,19 +47,8 @@ public class AdminController : ApiControllerBase
         var adminUserId = GetCurrentUserId();
         if (adminUserId == null) return Unauthorized();
 
-        try
-        {
-            var result = await _service.UpdateUserAsync(id, request, adminUserId.Value);
-            return Ok(result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        var result = await _service.UpdateUserAsync(id, request, adminUserId.Value);
+        return Ok(result);
     }
 
     /// <summary>
@@ -71,14 +60,7 @@ public class AdminController : ApiControllerBase
         var adminUserId = GetCurrentUserId();
         if (adminUserId == null) return Unauthorized();
 
-        try
-        {
-            var result = await _service.ResetPasswordAsync(id, adminUserId.Value);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        var result = await _service.ResetPasswordAsync(id, adminUserId.Value);
+        return Ok(result);
     }
 }

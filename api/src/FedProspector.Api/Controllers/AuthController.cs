@@ -110,15 +110,8 @@ public class AuthController : ApiControllerBase
             return Unauthorized(new { error = "Invalid token." });
         }
 
-        try
-        {
-            await _authService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword);
-            return Ok(new { message = "Password changed successfully" });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        await _authService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword);
+        return Ok(new { message = "Password changed successfully" });
     }
 
     /// <summary>
@@ -134,15 +127,8 @@ public class AuthController : ApiControllerBase
             return Unauthorized(new { error = "Invalid token." });
         }
 
-        try
-        {
-            var profile = await _authService.GetProfileAsync(userId.Value);
-            return Ok(profile);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(new { error = "User not found." });
-        }
+        var profile = await _authService.GetProfileAsync(userId.Value);
+        return Ok(profile);
     }
 
     /// <summary>
@@ -158,19 +144,8 @@ public class AuthController : ApiControllerBase
             return Unauthorized(new { error = "Invalid token." });
         }
 
-        try
-        {
-            var profile = await _authService.UpdateProfileAsync(userId.Value, request);
-            return Ok(profile);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound(new { error = "User not found." });
-        }
+        var profile = await _authService.UpdateProfileAsync(userId.Value, request);
+        return Ok(profile);
     }
 
     private static string ComputeSha256Hash(string input)
