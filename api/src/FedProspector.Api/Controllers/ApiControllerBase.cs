@@ -10,7 +10,7 @@ public abstract class ApiControllerBase : ControllerBase
     protected int? GetCurrentUserId()
     {
         var claim = User.FindFirst(ClaimTypes.NameIdentifier);
-        return claim != null ? int.Parse(claim.Value) : null;
+        return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
     }
 
     protected string? GetCurrentUserEmail()

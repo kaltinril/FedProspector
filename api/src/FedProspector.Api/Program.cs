@@ -48,6 +48,17 @@ builder.Services.AddAuthorization();
 
 // --- Application services ---
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IOpportunityService, OpportunityService>();
+builder.Services.AddScoped<IAwardService, AwardService>();
+builder.Services.AddScoped<IEntityService, EntityService>();
+builder.Services.AddScoped<ISubawardService, SubawardService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<ISavedSearchService, SavedSearchService>();
+builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
+builder.Services.AddScoped<IGoNoGoScoringService, GoNoGoScoringService>();
+builder.Services.AddScoped<IProspectService, ProspectService>();
+builder.Services.AddScoped<IProposalService, ProposalService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

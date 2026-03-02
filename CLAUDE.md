@@ -11,7 +11,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 | `fed_prospector/` | **Main Python application** - CLI, API clients, ETL pipeline, DB schema |
 | `thesolution/` | Plan documents and implementation roadmap |
 | `workdir/` | Data conversion scripts and reference CSV/MD files |
-| `api/` | **C# ASP.NET Core Web API** - backend REST API (Phase 10+) |
+| `api/` | **C# ASP.NET Core Web API** - backend REST API, 31 endpoints + auth (Phases 10-12) |
 | `ui/` | **Frontend web application** - TBD framework (future) |
 | `OLD_ATTEMPTS/`, `OLD_RESOURCES/` | Archived. Do not modify or reference in new code. |
 
@@ -45,6 +45,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
+- **API**: ASP.NET Core Web API with 31 endpoints (17 read + 14 write) across 9 controllers + auth + health
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core will own application tables (app_user, prospect, saved_search, etc.) starting Phase 10. See Phase 10 plan for details.
 
 ### Known Data Quality Issues
@@ -63,13 +64,15 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 | CLI modules | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema) |
 | API clients | `fed_prospector/api_clients/` (sam_opportunity, sam_awards, sam_exclusions, sam_subaward, sam_fedhier, usaspending, calc) |
 | ETL loaders | `fed_prospector/etl/` (bulk_loader, dat_parser, opportunity_loader, awards_loader, usaspending_loader, calc_loader, fedhier_loader, exclusions_loader, subaward_loader, prospect_manager, scheduler, health_check, db_maintenance) |
+| API controllers | `api/src/FedProspector.Api/Controllers/` (12 controllers: ApiControllerBase, Auth, Health, Opportunities, Awards, Entities, Subawards, Dashboard, Admin, SavedSearches, Prospects, Proposals) |
+| API services | `api/src/FedProspector.Infrastructure/Services/` (12 services: Auth, Opportunity, Award, Entity, Subaward, Dashboard, Admin, SavedSearch, Prospect, Proposal, ActivityLog, GoNoGoScoring) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
 | Master plan | `thesolution/MASTER-PLAN.md` |
-| Phase plans | `thesolution/phases/` (01 through 13) |
+| Phase plans | `thesolution/phases/` (01 through 14) |
 | Reference docs | `thesolution/reference/` (01 through 09) |
 | Credentials (DB, API keys) | `thesolution/credentials.yml` |
 | Quick start | `thesolution/QUICKSTART.md` |
-| SAM.gov API specs | `thesolution/sam_gov_api/` (7 YAML OpenAPI specs) |
+| SAM.gov API specs | `thesolution/sam_gov_api/` (8 YAML/YML OpenAPI specs) |
 | Reference data CSVs | `workdir/converted/local database/` (NAICS, PSC, SBA size standards, FIPS, entity field mapping) |
 | Reference docs (legacy) | `workdir/converted/` (country_codes, state_codes, entity_api_relationship, proposed mysql solution) |
 | Data architecture | `thesolution/reference/07-DATA-ARCHITECTURE.md` |

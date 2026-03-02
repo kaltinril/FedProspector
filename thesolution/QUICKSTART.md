@@ -466,20 +466,34 @@ See [07-REFERENCE-ENRICHMENT.md](phases/07-REFERENCE-ENRICHMENT.md) for full det
 
 ---
 
-## Phases 10-13: Web API & Frontend (PLANNING)
+### Phases 10-12: C# Web API (COMPLETE)
 
-Phases 1-9 (Python CLI + MySQL ETL pipeline + schema evolution) are complete. Phases 10-13 build a **C# ASP.NET Core Web API** and a **frontend UI** on top of the existing `fed_contracts` database (54 tables + 4 views), turning the CLI-based system into a full web application.
+The C# ASP.NET Core Web API provides REST endpoints for the frontend.
 
-| Phase | Name | Status | Summary | Plan Document |
-|-------|------|--------|---------|---------------|
-| 8 | Web/API Readiness | COMPLETE | Gap analysis identifying what the existing schema needs before web consumption | [08-WEB-API-READINESS.md](phases/08-WEB-API-READINESS.md) |
-| 9 | Schema Evolution | COMPLETE (2026-03-01) | 14 new tables (8 production + 6 staging) + column additions (40 to 54 tables) for user auth, notifications, capture management, and API response preservation | [09-SCHEMA-EVOLUTION.md](phases/09-SCHEMA-EVOLUTION.md) |
-| 10 | API Foundation | PLANNING | .NET 10 project scaffolding, Entity Framework Core, JWT authentication | [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md) |
-| 11 | Read Endpoints | PLANNING | 11 GET endpoints for opportunities, awards, entities, and dashboard views | [11-READ-ENDPOINTS.md](phases/11-READ-ENDPOINTS.md) |
-| 12 | Capture Management API | PLANNING | 10 CRUD endpoints for prospects, proposals, notes, and workflow | [12-CAPTURE-MANAGEMENT-API.md](phases/12-CAPTURE-MANAGEMENT-API.md) |
-| 13 | Auth & Production | PLANNING | Authentication hardening, notifications, rate limiting, Docker deployment | [13-AUTH-AND-PRODUCTION.md](phases/13-AUTH-AND-PRODUCTION.md) |
+**Prerequisites**: [.NET 10 SDK](https://dotnet.microsoft.com/download)
 
-The `api/` folder contains the C# ASP.NET Core Web API project. The `ui/` folder will contain the frontend application (framework TBD).
+**Build & Run**:
+```bash
+cd api
+dotnet restore
+dotnet build FedProspector.Api.slnx
+dotnet run --project src/FedProspector.Api
+```
+
+The API starts at `https://localhost:5001` (or `http://localhost:5000`).
+
+**Connection String**: Set in `api/src/FedProspector.Api/appsettings.json` — uses the same `fed_contracts` database as the Python ETL.
+
+**Swagger UI**: Navigate to `https://localhost:5001/swagger` for interactive API documentation.
+
+**What's implemented**:
+- Phase 10: API foundation — .NET 10 project, EF Core models for 48 tables, JWT auth, Swagger
+- Phase 11: 17 read-only endpoints — opportunities, awards, entities, subawards, dashboard, admin, saved searches
+- Phase 12: 14 capture management endpoints — prospect CRUD, proposal lifecycle, Go/No-Go scoring, activity logging
+
+### Phase 13: Auth, Notifications & Production (PLANNING)
+
+Not yet implemented. Will add: user registration/login, notification system, rate limiting.
 
 ---
 

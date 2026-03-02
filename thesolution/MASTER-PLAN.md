@@ -147,8 +147,8 @@ pbdc/
 - [x] Gap analysis complete — schema audit, missing tables, missing columns documented
 - [x] Add 14 new tables — completed in Phase 9
 - [x] Add ~15 new columns across 4 existing tables — completed in Phase 9
-- [ ] Build C# API backend (21 endpoints documented)
-- [ ] Replicate prospect status flow, Go/No-Go scoring, burn rate logic in C#
+- [x] Build C# API backend — 31 endpoints across 9 business controllers (Phases 10-12)
+- [x] Replicate prospect status flow, Go/No-Go scoring in C# (Phase 12)
 
 **Impact**: Current 54 tables + 4 views (schema changes completed in Phase 9).
 
@@ -164,42 +164,43 @@ pbdc/
 - **Existing data preserved**: 832K entities, 13K opportunities, 2.1K contracts, 110K labor rates
 
 ### Phase 10: C# API Foundation
-**Status**: PLANNING
+**Status**: [x] COMPLETE (2026-03-01)
 **Document**: [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md)
 **Repository**: `api/` folder (monorepo -- same repo as Python ETL)
 
 **Schema ownership splits**: Python DDL owns ETL/data tables (~35), EF Core owns application tables (~5 existing + future). Both share the `fed_contracts` database. See [10-API-FOUNDATION.md](phases/10-API-FOUNDATION.md) "Schema Ownership" section for full details.
 
 **Scope**:
-- [ ] ASP.NET Core Web API project (.NET 10)
-- [ ] MySQL connectivity via Pomelo EF Core + entity models for 54 tables (48 production + 6 staging). EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.
-- [ ] JWT authentication middleware + BCrypt password hashing
-- [ ] Swagger/OpenAPI documentation
-- [ ] Repository pattern, pagination, DTOs, base controller
-- [ ] Serilog logging, CORS, error handling, health check
+- [x] ASP.NET Core Web API project (.NET 10)
+- [x] MySQL connectivity via Pomelo EF Core + entity models for 54 tables (48 production + 6 staging). EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.
+- [x] JWT authentication middleware + BCrypt password hashing
+- [x] Swagger/OpenAPI documentation
+- [x] Repository pattern, pagination, DTOs, base controller
+- [x] Serilog logging, CORS, error handling, health check
 
 ### Phase 11: Read-Only Query Endpoints
-**Status**: PLANNING
+**Status**: [x] COMPLETE (2026-03-01)
 **Document**: [11-READ-ENDPOINTS.md](phases/11-READ-ENDPOINTS.md)
 
 **Scope**:
-- [ ] 11 GET endpoints across 6 controllers
-- [ ] OpportunitiesController: search + detail + WOSB/8(a) targets
-- [ ] AwardsController: search + detail + burn-rate calculation
-- [ ] EntitiesController: search + detail + competitor profile + exclusion check
-- [ ] SubawardsController: teaming partners
-- [ ] DashboardController + AdminController (ETL status)
+- [x] 17 endpoints across 7 controllers (14 GET, 2 POST, 1 DELETE)
+- [x] OpportunitiesController: search + detail + WOSB/8(a) targets
+- [x] AwardsController: search + detail + burn-rate calculation
+- [x] EntitiesController: search + detail + competitor profile + exclusion check
+- [x] SubawardsController: teaming partners
+- [x] DashboardController + AdminController (ETL status)
+- [x] SavedSearchesController: list, create, run, delete
 
 ### Phase 12: Capture Management API (CRUD)
-**Status**: PLANNING
+**Status**: [x] COMPLETE (2026-03-01)
 **Document**: [12-CAPTURE-MANAGEMENT-API.md](phases/12-CAPTURE-MANAGEMENT-API.md)
 
 **Scope**:
-- [ ] 10 write endpoints for prospects, proposals, notes, team members
-- [ ] Prospect status flow validation (replicate Python STATUS_FLOW)
-- [ ] Go/No-Go scoring (4 criteria, 0-40 scale)
-- [ ] Proposal lifecycle (DRAFT → SUBMITTED → AWARDED/NOT_AWARDED)
-- [ ] Activity logging on all write operations
+- [x] 14 endpoints (11 write + 3 read) across 2 controllers for prospects, proposals, notes, team members
+- [x] Prospect status flow validation (replicate Python STATUS_FLOW)
+- [x] Go/No-Go scoring (4 criteria, 0-40 scale)
+- [x] Proposal lifecycle (DRAFT → SUBMITTED → AWARDED/NOT_AWARDED)
+- [x] Activity logging on all write operations
 
 ### Phase 13: Auth, Notifications & Production Readiness
 **Status**: PLANNING
@@ -210,8 +211,19 @@ pbdc/
 - [ ] Notification system: deadline alerts, status change alerts, saved search results
 - [ ] Admin user management
 - [ ] Production hardening: rate limiting, input validation, security headers
-- [ ] Docker containerization + CI/CD pipeline skeleton
 - [ ] API documentation (Swagger + Postman collection)
+
+### Phase 14: Testing Strategy — Unit, Integration, Regression & E2E
+**Status**: PLANNING
+**Document**: [14-TESTING.md](phases/14-TESTING.md)
+
+**Scope**:
+- [ ] Python ETL test suite: unit tests for all 10 API clients, data cleaners, loaders, scoring logic; integration tests against test DB
+- [ ] C# API test suite: unit tests for validators, controllers, business logic; integration tests via WebApplicationFactory
+- [ ] UI test suite (future): component unit tests + Playwright E2E for critical user journeys
+- [ ] Test infrastructure: test DB setup scripts, fixture generation, coverage reporting (70% target)
+- [ ] Regression tests: replay known-bad data through cleaners, snapshot API responses, hash stability checks
+- **Parallelizable**: Python ETL tests can start immediately; C# tests progress with Phases 10-13; UI tests after UI exists
 
 ## Success Criteria
 

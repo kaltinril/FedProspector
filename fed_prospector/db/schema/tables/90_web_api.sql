@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS contracting_officer (
 
 CREATE TABLE IF NOT EXISTS opportunity_poc (
     poc_id               INT AUTO_INCREMENT PRIMARY KEY,
-    notice_id            VARCHAR(50) NOT NULL,
+    notice_id            VARCHAR(100) NOT NULL,
     officer_id           INT NOT NULL,
     poc_type             VARCHAR(20) NOT NULL DEFAULT 'PRIMARY',
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,

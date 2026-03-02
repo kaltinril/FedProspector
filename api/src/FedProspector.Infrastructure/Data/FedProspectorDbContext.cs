@@ -1,4 +1,5 @@
 using FedProspector.Core.Models;
+using FedProspector.Core.Models.Views;
 using Microsoft.EntityFrameworkCore;
 
 namespace FedProspector.Infrastructure.Data;
@@ -113,6 +114,15 @@ public class FedProspectorDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; }
 
     // -----------------------------------------------------------------------
+    // Database Views (4 - keyless, read-only)
+    // -----------------------------------------------------------------------
+
+    public DbSet<TargetOpportunityView> TargetOpportunities { get; set; }
+    public DbSet<CompetitorAnalysisView> CompetitorAnalyses { get; set; }
+    public DbSet<ProcurementIntelligenceView> ProcurementIntelligence { get; set; }
+    public DbSet<IncumbentProfileView> IncumbentProfiles { get; set; }
+
+    // -----------------------------------------------------------------------
     // Fluent API Configuration
     // -----------------------------------------------------------------------
 
@@ -192,5 +202,22 @@ public class FedProspectorDbContext : DbContext
         //   modelBuilder.Entity<Entity>()
         //       .Property(e => e.IsActive)
         //       .HasConversion(ynToBoolConverter);
+
+        // ----- Database Views (keyless entity types) -----
+        modelBuilder.Entity<TargetOpportunityView>()
+            .HasNoKey()
+            .ToView("v_target_opportunities");
+
+        modelBuilder.Entity<CompetitorAnalysisView>()
+            .HasNoKey()
+            .ToView("v_competitor_analysis");
+
+        modelBuilder.Entity<ProcurementIntelligenceView>()
+            .HasNoKey()
+            .ToView("v_procurement_intelligence");
+
+        modelBuilder.Entity<IncumbentProfileView>()
+            .HasNoKey()
+            .ToView("v_incumbent_profile");
     }
 }

@@ -1,6 +1,6 @@
 # Phase 10: C# API Foundation
 
-**Status**: PLANNING
+**Status**: COMPLETE (2026-03-01)
 **Dependencies**: Phase 9 (Schema Evolution) complete
 **Deliverable**: ASP.NET Core Web API project with MySQL connectivity, auth middleware, Swagger docs, and base architecture
 **Repository**: `api/` (monorepo -- same repo as Python ETL)
@@ -49,8 +49,8 @@ Set up the foundational C# ASP.NET Core Web API project that will serve as the b
 ## Tasks
 
 ### 10.1 Project Structure
-- [ ] Create ASP.NET Core Web API project (.NET 10)
-- [ ] Solution structure:
+- [x] Create ASP.NET Core Web API project (.NET 10)
+- [x] Solution structure:
 
 ```
 api/
@@ -76,19 +76,18 @@ api/
 │   └── FedProspector.Core.Tests/
 ├── appsettings.json
 ├── appsettings.Development.json
-├── Dockerfile
 └── README.md
 ```
 
-- [ ] Create three class library projects: `FedProspector.Api`, `FedProspector.Core`, `FedProspector.Infrastructure`
-- [ ] Set up project references: Api -> Core + Infrastructure; Infrastructure -> Core
-- [ ] Add `.gitignore` for .NET, `.editorconfig` for code style
+- [x] Create three class library projects: `FedProspector.Api`, `FedProspector.Core`, `FedProspector.Infrastructure`
+- [x] Set up project references: Api -> Core + Infrastructure; Infrastructure -> Core
+- [x] Add `.gitignore` for .NET, `.editorconfig` for code style
 
 ### 10.2 MySQL Database Connection
-- [ ] Install NuGet packages:
+- [x] Install NuGet packages:
   - `Pomelo.EntityFrameworkCore.MySql` (EF Core MySQL provider)
   - `MySqlConnector` (underlying ADO.NET driver)
-- [ ] Configure connection string in `appsettings.json`:
+- [x] Configure connection string in `appsettings.json`:
 
 ```json
 {
@@ -98,12 +97,12 @@ api/
 }
 ```
 
-- [ ] Create `FedProspectorDbContext` with DbSet for each of the 48 production tables (54 tables total: 48 production + 6 staging. EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.)
-- [ ] Map entity models to existing MySQL tables (table names, column names, data types)
-- [ ] Handle the existing table naming convention (snake_case MySQL -> PascalCase C#)
+- [x] Create `FedProspectorDbContext` with DbSet for each of the 48 production tables (54 tables total: 48 production + 6 staging. EF Core models needed for 48 production tables only; staging tables are managed by the Python ETL pipeline.)
+- [x] Map entity models to existing MySQL tables (table names, column names, data types)
+- [x] Handle the existing table naming convention (snake_case MySQL -> PascalCase C#)
   > **Snake-case mapping**: Use `UseSnakeCaseNamingConvention()` from the `EFCore.NamingConventions` package to automatically map C# PascalCase properties to MySQL snake_case columns and tables. No manual mapping needed.
-- [ ] Configure read-only entities for ETL-managed tables (entity, opportunity, fpds_contract, etc.)
-- [ ] Register DbContext in DI container with Pomelo provider and `ServerVersion.AutoDetect`
+- [x] Configure read-only entities for ETL-managed tables (entity, opportunity, fpds_contract, etc.)
+- [x] Register DbContext in DI container with Pomelo provider and `ServerVersion.AutoDetect`
 
 #### Entity Model Categories
 
@@ -129,13 +128,13 @@ api/
 - `notification`
 
 ### 10.3 Authentication & Authorization
-- [ ] JWT Bearer token authentication
-- [ ] Token generation on login (symmetric key from appsettings, 24h expiry)
-- [ ] Password hashing with BCrypt (`BCrypt.Net-Next` NuGet)
-- [ ] Auth middleware validates JWT on all protected endpoints
-- [ ] Role-based authorization: `[Authorize]` attribute, roles: `user`, `admin`
-- [ ] Account lockout after 5 failed attempts (30 min lockout)
-- [ ] Session tracking in `app_session` table
+- [x] JWT Bearer token authentication
+- [x] Token generation on login (symmetric key from appsettings, 24h expiry)
+- [x] Password hashing with BCrypt (`BCrypt.Net-Next` NuGet)
+- [x] Auth middleware validates JWT on all protected endpoints
+- [x] Role-based authorization: `[Authorize]` attribute, roles: `user`, `admin`
+- [x] Account lockout after 5 failed attempts (30 min lockout)
+- [x] Session tracking in `app_session` table
 
 #### Token Payload
 
@@ -150,82 +149,82 @@ api/
 ```
 
 ### 10.4 Swagger / OpenAPI Documentation
-- [ ] Install `Swashbuckle.AspNetCore`
-- [ ] Configure Swagger UI at `/swagger`
-- [ ] Add XML documentation comments on all controllers/DTOs
-- [ ] JWT bearer auth in Swagger UI (authorize button)
-- [ ] Group endpoints by controller/tag (Opportunities, Awards, Entities, Prospects, Proposals, Auth, Admin)
+- [x] Install `Swashbuckle.AspNetCore`
+- [x] Configure Swagger UI at `/swagger`
+- [x] Add XML documentation comments on all controllers/DTOs
+- [x] JWT bearer auth in Swagger UI (authorize button)
+- [x] Group endpoints by controller/tag (Opportunities, Awards, Entities, Prospects, Proposals, Auth, Admin)
 
 ### 10.5 Base Architecture Patterns
 
 #### Repository Pattern
-- [ ] `IRepository<T>` generic interface (GetById, GetAll, Add, Update, Delete)
-- [ ] `IReadOnlyRepository<T>` for ETL-managed tables (no write methods)
-- [ ] Base implementations using EF Core DbContext
+- [x] `IRepository<T>` generic interface (GetById, GetAll, Add, Update, Delete)
+- [x] `IReadOnlyRepository<T>` for ETL-managed tables (no write methods)
+- [x] Base implementations using EF Core DbContext
 
 #### Pagination Model
-- [ ] Standard `PagedRequest` DTO: `page` (default 1), `pageSize` (default 25, max 100), `sortBy`, `sortDirection`
-- [ ] Standard `PagedResponse<T>` DTO: `items[]`, `totalCount`, `page`, `pageSize`, `totalPages`
-- [ ] Extension method on `IQueryable<T>` for pagination
+- [x] Standard `PagedRequest` DTO: `page` (default 1), `pageSize` (default 25, max 100), `sortBy`, `sortDirection`
+- [x] Standard `PagedResponse<T>` DTO: `items[]`, `totalCount`, `page`, `pageSize`, `totalPages`
+- [x] Extension method on `IQueryable<T>` for pagination
 
 #### DTOs
-- [ ] Separate request/response DTOs (never expose entity models directly)
-- [ ] AutoMapper for entity -> DTO mapping
-- [ ] Standard error response: `{ "error": "message", "code": "ERROR_CODE", "details": {} }`
+- [x] Separate request/response DTOs (never expose entity models directly)
+- [x] AutoMapper for entity -> DTO mapping
+- [x] Standard error response: `{ "error": "message", "code": "ERROR_CODE", "details": {} }`
 
 #### Base Controller
-- [ ] `ApiControllerBase` with common helper methods
-- [ ] Standard HTTP responses: `Ok()`, `Created()`, `NotFound()`, `BadRequest()`, `Unauthorized()`
-- [ ] Current user extraction from JWT claims
+- [x] `ApiControllerBase` with common helper methods
+- [x] Standard HTTP responses: `Ok()`, `Created()`, `NotFound()`, `BadRequest()`, `Unauthorized()`
+- [x] Current user extraction from JWT claims
 
 ### 10.6 Cross-Cutting Concerns
 
 #### Logging
-- [ ] Serilog with structured logging (`Serilog.AspNetCore` NuGet)
-- [ ] Log to console + file (rolling daily)
-- [ ] Request/response logging middleware (exclude sensitive data)
+- [x] Serilog with structured logging (`Serilog.AspNetCore` NuGet)
+- [x] Log to console + file (rolling daily)
+- [x] Request/response logging middleware (exclude sensitive data)
 
 #### CORS
-- [ ] Configure CORS for frontend origin (configurable per environment)
-- [ ] Allow common methods (GET, POST, PATCH, DELETE)
-- [ ] Allow Authorization header
+- [x] Configure CORS for frontend origin (configurable per environment)
+- [x] Allow common methods (GET, POST, PATCH, DELETE)
+- [x] Allow Authorization header
 
 #### Error Handling
-- [ ] Global exception handler middleware
-- [ ] Map exceptions to standard error response DTOs
-- [ ] Log unhandled exceptions with full stack trace
-- [ ] Return 500 with generic message in production (no stack trace leak)
+- [x] Global exception handler middleware
+- [x] Map exceptions to standard error response DTOs
+- [x] Log unhandled exceptions with full stack trace
+- [x] Return 500 with generic message in production (no stack trace leak)
 
 #### Health Check
-- [ ] `/health` endpoint (ASP.NET Core built-in health checks)
-- [ ] Check MySQL connectivity
-- [ ] Check ETL data freshness (last load time from `etl_load_log`)
+- [x] `/health` endpoint (ASP.NET Core built-in health checks)
+- [x] Check MySQL connectivity
+- [x] Check ETL data freshness (last load time from `etl_load_log`)
 
 ### 10.7 Configuration
-- [ ] `appsettings.json` -- default config
-- [ ] `appsettings.Development.json` -- local dev overrides
-- [ ] Environment variables for secrets (connection string password, JWT key)
-- [ ] Strongly-typed options pattern (`JwtOptions`, `DatabaseOptions`)
+- [x] `appsettings.json` -- default config
+- [x] `appsettings.Development.json` -- local dev overrides
+- [x] Environment variables for secrets (connection string password, JWT key)
+- [x] Strongly-typed options pattern (`JwtOptions`, `DatabaseOptions`)
 
 ### 10.8 Validation
-- [ ] Install `FluentValidation` and `FluentValidation.DependencyInjectionExtensions`
-- [ ] Create base validator classes for common patterns (pagination, IDs, date ranges)
-- [ ] Register validators in DI via assembly scanning
-- [ ] Validation errors return 400 with standard error response format
+- [x] Install `FluentValidation` and `FluentValidation.DependencyInjectionExtensions`
+- [x] Create base validator classes for common patterns (pagination, IDs, date ranges)
+- [x] Register validators in DI via assembly scanning
+- [x] Validation errors return 400 with standard error response format
 
 ---
 
 ## Acceptance Criteria
 
-1. [ ] `dotnet build` compiles without errors
-2. [ ] `dotnet run` starts the API on localhost:5000 (or configured port)
-3. [ ] Swagger UI accessible at `/swagger` with all endpoint groups
-4. [ ] MySQL connection established -- `/health` returns OK with DB status
-5. [ ] JWT auth works: login returns token, protected endpoints reject without token
-6. [ ] All 48 production table entity models mapped and queryable via EF Core (6 staging tables excluded -- Python ETL only)
-7. [ ] Pagination model works on a test endpoint
-8. [ ] Serilog logging visible in console and file
-9. [ ] CORS allows configured frontend origin
+1. [x] `dotnet build` compiles without errors
+2. [x] `dotnet run` starts the API on localhost:5000 (or configured port)
+3. [x] Swagger UI accessible at `/swagger` with all endpoint groups
+4. [x] MySQL connection established -- `/health` returns OK with DB status
+5. [x] JWT auth works: login returns token, protected endpoints reject without token
+6. [x] All 48 production table entity models mapped and queryable via EF Core (6 staging tables excluded -- Python ETL only)
+7. [x] Pagination model works on a test endpoint
+8. [x] Serilog logging visible in console and file
+9. [x] CORS allows configured frontend origin
 
 ---
 

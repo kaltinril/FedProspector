@@ -1,6 +1,6 @@
 # Phase 11: Read-Only Query Endpoints
 
-**Status**: PLANNING
+**Status**: COMPLETE (2026-03-01)
 **Dependencies**: Phase 10 (API Foundation) complete
 **Deliverable**: All GET/search endpoints implemented and tested
 **Repository**: `api/` (monorepo -- same repo as Python ETL)
@@ -17,10 +17,10 @@ Implement all read-only endpoints that query the MySQL database. These endpoints
 
 ### `GET /api/v1/opportunities` -- Search opportunities
 
-- [ ] Implement with filters: `setAside`, `naics`, `keyword` (title search), `daysOut` (deadline within N days), `openOnly` (default true), `department`, `state`
-- [ ] Pagination: `page`, `pageSize`, `sortBy` (posted_date, response_deadline, title), `sortDirection`
-- [ ] Source: `opportunity` table JOINed to `ref_naics_code`, `ref_set_aside_type`, `ref_sba_size_standard`
-- [ ] Include the existing Python search SQL as reference (copy from opportunities.py)
+- [x] Implement with filters: `setAside`, `naics`, `keyword` (title search), `daysOut` (deadline within N days), `openOnly` (default true), `department`, `state`
+- [x] Pagination: `page`, `pageSize`, `sortBy` (posted_date, response_deadline, title), `sortDirection`
+- [x] Source: `opportunity` table JOINed to `ref_naics_code`, `ref_set_aside_type`, `ref_sba_size_standard`
+- [x] Include the existing Python search SQL as reference (copy from opportunities.py)
 
 **Python SQL reference** (from `fed_prospector/cli/opportunities.py`):
 
@@ -76,10 +76,10 @@ Response DTO:
 
 ### `GET /api/v1/opportunities/{noticeId}` -- Opportunity detail
 
-- [ ] Full opportunity record with all fields
-- [ ] Include related awards from `fpds_contract` (JOIN on solicitation_number)
-- [ ] Include prospect status if tracked (LEFT JOIN to prospect)
-- [ ] Include USASpending award info if available (JOIN on solicitation_identifier)
+- [x] Full opportunity record with all fields
+- [x] Include related awards from `fpds_contract` (JOIN on solicitation_number)
+- [x] Include prospect status if tracked (LEFT JOIN to prospect)
+- [x] Include USASpending award info if available (JOIN on solicitation_identifier)
 
 Response includes nested objects:
 
@@ -94,9 +94,9 @@ Response includes nested objects:
 
 ### `GET /api/v1/opportunities/targets` -- WOSB/8(a) target opportunities
 
-- [ ] Backed by `v_target_opportunities` view (just SELECT with pagination)
-- [ ] Additional filters: `minValue`, `maxValue`, `naicsSector`
-- [ ] Include the full view SQL as a comment/reference in the code
+- [x] Backed by `v_target_opportunities` view (just SELECT with pagination)
+- [x] Additional filters: `minValue`, `maxValue`, `naicsSector`
+- [x] Include the full view SQL as a comment/reference in the code
 
 **View SQL reference** (from `fed_prospector/db/schema/views/10_target_opportunities.sql`):
 
@@ -149,9 +149,9 @@ WHERE o.active = 'Y'
 
 ### `GET /api/v1/awards` -- Search historical contract awards
 
-- [ ] Filters: `solicitation`, `naics`, `agency`, `vendorUei`, `vendorName`, `setAside`, `minValue`, `maxValue`, `dateFrom`, `dateTo`
-- [ ] Source: `fpds_contract` table
-- [ ] Pagination with sort by date_signed, dollars_obligated, vendor_name
+- [x] Filters: `solicitation`, `naics`, `agency`, `vendorUei`, `vendorName`, `setAside`, `minValue`, `maxValue`, `dateFrom`, `dateTo`
+- [x] Source: `fpds_contract` table
+- [x] Pagination with sort by date_signed, dollars_obligated, vendor_name
 
 Response DTO:
 
@@ -188,15 +188,15 @@ Response DTO:
 
 ### `GET /api/v1/awards/{contractId}` -- Award detail
 
-- [ ] Full fpds_contract record
-- [ ] Include USASpending transactions if available (JOIN on PIID)
-- [ ] Include vendor entity profile (JOIN on vendor_uei -> entity)
+- [x] Full fpds_contract record
+- [x] Include USASpending transactions if available (JOIN on PIID)
+- [x] Include vendor entity profile (JOIN on vendor_uei -> entity)
 
 ### `GET /api/v1/awards/{contractId}/burn-rate` -- Monthly spend analysis
 
-- [ ] Source: `usaspending_transaction` aggregated by month
-- [ ] Copy exact SQL from Python `calculate_burn_rate()` (include it in the doc)
-- [ ] Calculate: total_obligated, months_elapsed, monthly_rate, monthly_breakdown
+- [x] Source: `usaspending_transaction` aggregated by month
+- [x] Copy exact SQL from Python `calculate_burn_rate()` (include it in the doc)
+- [x] Calculate: total_obligated, months_elapsed, monthly_rate, monthly_breakdown
 
 **Burn rate SQL reference** (from `fed_prospector/etl/usaspending_loader.py`):
 
@@ -246,21 +246,21 @@ Response DTO:
 
 ### `GET /api/v1/entities` -- Search contractors
 
-- [ ] Filters: `name` (partial match), `uei`, `naics`, `state`, `businessType`, `sbaCertification`, `registrationStatus`
-- [ ] Source: `entity` JOINed to child tables
-- [ ] Pagination with sort by legal_business_name, last_update_date
+- [x] Filters: `name` (partial match), `uei`, `naics`, `state`, `businessType`, `sbaCertification`, `registrationStatus`
+- [x] Source: `entity` JOINed to child tables
+- [x] Pagination with sort by legal_business_name, last_update_date
 
 ### `GET /api/v1/entities/{uei}` -- Full entity profile
 
-- [ ] All entity fields
-- [ ] Nested child data: addresses[], naicsCodes[], pscCodes[], businessTypes[], sbaCertifications[], pointsOfContact[]
-- [ ] Source: `entity` + all 6 child tables (entity_address, entity_naics, entity_psc, entity_business_type, entity_sba_certification, entity_poc)
+- [x] All entity fields
+- [x] Nested child data: addresses[], naicsCodes[], pscCodes[], businessTypes[], sbaCertifications[], pointsOfContact[]
+- [x] Source: `entity` + all 6 child tables (entity_address, entity_naics, entity_psc, entity_business_type, entity_sba_certification, entity_poc)
 
 ### `GET /api/v1/entities/{uei}/competitor-profile` -- Aggregated intelligence
 
-- [ ] Backed by `v_competitor_analysis` view
-- [ ] Include the full view SQL as reference
-- [ ] Returns aggregated business types, SBA certs, past contract count, total obligated, most recent award
+- [x] Backed by `v_competitor_analysis` view
+- [x] Include the full view SQL as reference
+- [x] Returns aggregated business types, SBA certs, past contract count, total obligated, most recent award
 
 **View SQL reference** (from `fed_prospector/db/schema/views/20_competitor_analysis.sql`):
 
@@ -299,9 +299,9 @@ GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics,
 
 ### `GET /api/v1/entities/{uei}/exclusion-check` -- Debarment status
 
-- [ ] Source: `sam_exclusion` table
-- [ ] Query by UEI, also check by entity name (fuzzy match)
-- [ ] Return: is_excluded (boolean), active exclusions list with type, agency, dates
+- [x] Source: `sam_exclusion` table
+- [x] Query by UEI, also check by entity name (fuzzy match)
+- [x] Return: is_excluded (boolean), active exclusions list with type, agency, dates
 
 Response DTO:
 
@@ -329,10 +329,10 @@ Response DTO:
 
 ### `GET /api/v1/subawards/teaming-partners` -- Prime-sub relationships
 
-- [ ] Filters: `naics`, `minSubawards` (threshold), `primeUei`, `subUei`
-- [ ] Source: `sam_subaward` GROUP BY prime
-- [ ] Copy exact SQL from Python `find_teaming_partners()` (include in doc)
-- [ ] Returns: prime info, sub count, unique subs, total sub amount, NAICS codes
+- [x] Filters: `naics`, `minSubawards` (threshold), `primeUei`, `subUei`
+- [x] Source: `sam_subaward` GROUP BY prime
+- [x] Copy exact SQL from Python `find_teaming_partners()` (include in doc)
+- [x] Returns: prime info, sub count, unique subs, total sub amount, NAICS codes
 
 **Teaming partners SQL reference** (from `fed_prospector/etl/subaward_loader.py`):
 
@@ -374,14 +374,14 @@ LIMIT %s
 
 ### `GET /api/v1/dashboard` -- Pipeline overview
 
-- [ ] 6 sub-queries aggregated into one response:
+- [x] 6 sub-queries aggregated into one response:
   1. Open prospects by status (count per status)
   2. Opportunities due this week (deadline within 7 days)
   3. Workload by assigned user (count per user)
   4. Win/loss metrics (counts and amounts for WON/LOST)
   5. Recent saved search results (last run dates and new result counts)
   6. Total open prospects (count of non-terminal prospects)
-- [ ] Copy dashboard SQL from Python `get_dashboard_data()`
+- [x] Copy dashboard SQL from Python `get_dashboard_data()`
 
 **Dashboard SQL reference** (from `fed_prospector/etl/prospect_manager.py`):
 
@@ -438,11 +438,11 @@ WHERE status NOT IN ('WON', 'LOST', 'DECLINED', 'NO_BID');
 
 ### `GET /api/v1/admin/etl-status` -- ETL health check
 
-- [ ] Source: `etl_load_log` table
-- [ ] Show last successful load per source_system
-- [ ] Calculate hours since last load
-- [ ] Flag stale data (>6h for opportunities, >48h for entities, >14d for others)
-- [ ] Requires admin role
+- [x] Source: `etl_load_log` table
+- [x] Show last successful load per source_system
+- [x] Calculate hours since last load
+- [x] Flag stale data (>6h for opportunities, >48h for entities, >14d for others)
+- [x] Requires admin role
 
 **Staleness thresholds** (from `fed_prospector/etl/health_check.py`):
 
@@ -462,30 +462,30 @@ WHERE status NOT IN ('WON', 'LOST', 'DECLINED', 'NO_BID');
 ## 11.7 SavedSearchesController
 
 ### `GET /api/v1/saved-searches` -- List user's saved searches
-- [ ] Return all active saved searches for the authenticated user
+- [x] Return all active saved searches for the authenticated user
 
 ### `POST /api/v1/saved-searches` -- Create a saved search
-- [ ] Store search name and filter criteria (maps to Python `save-search` CLI command)
+- [x] Store search name and filter criteria (maps to Python `save-search` CLI command)
 
 ### `POST /api/v1/saved-searches/{id}/run` -- Execute a saved search and return results
-- [ ] Run the saved search filters and return matching opportunities (maps to Python `run-search` CLI command)
+- [x] Run the saved search filters and return matching opportunities (maps to Python `run-search` CLI command)
 
 ### `DELETE /api/v1/saved-searches/{id}` -- Delete a saved search
-- [ ] Soft-delete by setting `is_active = 'N'`
+- [x] Soft-delete by setting `is_active = 'N'`
 
 ---
 
 ## Acceptance Criteria
 
-1. [ ] All 17 endpoints return correct data from MySQL
-2. [ ] Pagination works on all list endpoints (page, pageSize, totalCount, totalPages)
-3. [ ] Filters applied correctly (verified with known test data)
-4. [ ] Swagger documentation shows all endpoints with request/response examples
-5. [ ] Burn rate calculation matches Python output for same contract
-6. [ ] Views (v_target_opportunities, v_competitor_analysis) queryable through endpoints
-7. [ ] All endpoints require JWT auth (except health check)
-8. [ ] Response times < 500ms for paginated queries on production data volumes
-9. [ ] Empty results return 200 with empty items array (not 404)
+1. [x] All 17 endpoints return correct data from MySQL
+2. [x] Pagination works on all list endpoints (page, pageSize, totalCount, totalPages)
+3. [x] Filters applied correctly (verified with known test data)
+4. [x] Swagger documentation shows all endpoints with request/response examples
+5. [x] Burn rate calculation matches Python output for same contract
+6. [x] Views (v_target_opportunities, v_competitor_analysis) queryable through endpoints
+7. [x] All endpoints require JWT auth (except health check)
+8. [x] Response times < 500ms for paginated queries on production data volumes
+9. [x] Empty results return 200 with empty items array (not 404)
 
 ---
 
@@ -502,3 +502,31 @@ All SQL in this document was copied from the Python codebase source files:
 | Teaming partners GROUP BY | `fed_prospector/etl/subaward_loader.py` |
 | Subaward search | `fed_prospector/cli/subaward.py` |
 | Dashboard sub-queries (6) | `fed_prospector/etl/prospect_manager.py` |
+
+---
+
+## Deliverables
+
+### New Files Created (~61)
+- 4 view models (`api/src/FedProspector.Core/Models/Views/`)
+- ~30 DTOs across 7 subdirectories (`api/src/FedProspector.Core/DTOs/`)
+- 6 validators (`api/src/FedProspector.Core/Validators/`)
+- 7 service interfaces (`api/src/FedProspector.Core/Interfaces/`)
+- 7 service implementations (`api/src/FedProspector.Infrastructure/Services/`)
+- 7 controllers (`api/src/FedProspector.Api/Controllers/`)
+
+### Modified Files
+- `FedProspectorDbContext.cs` -- 4 view DbSets + keyless entity configuration
+- `MappingProfile.cs` -- AutoMapper mappings for views + entity child tables
+- `Program.cs` -- 7 service DI registrations
+
+### Endpoints (17 total)
+| Controller | Route | Endpoints |
+|-----------|-------|-----------|
+| OpportunitiesController | `api/v1/opportunities` | GET / (search), GET /targets, GET /{noticeId} |
+| AwardsController | `api/v1/awards` | GET / (search), GET /{contractId}, GET /{contractId}/burn-rate |
+| EntitiesController | `api/v1/entities` | GET / (search), GET /{uei}, GET /{uei}/competitor-profile, GET /{uei}/exclusion-check |
+| SubawardsController | `api/v1/subawards` | GET /teaming-partners |
+| DashboardController | `api/v1/dashboard` | GET / |
+| AdminController | `api/v1/admin` | GET /etl-status |
+| SavedSearchesController | `api/v1/saved-searches` | GET /, POST /, POST /{id}/run, DELETE /{id} |

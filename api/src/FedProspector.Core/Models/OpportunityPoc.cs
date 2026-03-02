@@ -11,7 +11,7 @@ public class OpportunityPoc
     public int PocId { get; set; }
 
     [Required]
-    [MaxLength(50)]
+    [MaxLength(100)]
     public string NoticeId { get; set; } = string.Empty;
 
     [Required]
