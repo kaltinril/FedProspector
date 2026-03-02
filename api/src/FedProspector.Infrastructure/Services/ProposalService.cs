@@ -12,6 +12,7 @@ public class ProposalService : IProposalService
 {
     private readonly FedProspectorDbContext _context;
     private readonly IActivityLogService _activityLog;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<ProposalService> _logger;
 
     private static readonly Dictionary<string, string[]> ProposalStatusFlow = new()
@@ -40,10 +41,12 @@ public class ProposalService : IProposalService
     public ProposalService(
         FedProspectorDbContext context,
         IActivityLogService activityLog,
+        INotificationService notificationService,
         ILogger<ProposalService> logger)
     {
         _context = context;
         _activityLog = activityLog;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -329,6 +332,18 @@ public class ProposalService : IProposalService
                     NoteText = $"Status changed: {oldStatus} -> WON. Proposal awarded.",
                     CreatedAt = DateTime.UtcNow
                 });
+
+                // Notify prospect assignee of proposal outcome
+                if (prospect.AssignedTo.HasValue)
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        prospect.AssignedTo.Value,
+                        "STATUS_CHANGED",
+                        "Proposal awarded",
+                        $"The proposal for prospect {prospect.NoticeId} has been awarded",
+                        "PROPOSAL",
+                        prospectId.ToString());
+                }
                 break;
             }
             case "NOT_AWARDED":
@@ -349,6 +364,18 @@ public class ProposalService : IProposalService
                     NoteText = $"Status changed: {oldStatus} -> LOST. Proposal not awarded.",
                     CreatedAt = DateTime.UtcNow
                 });
+
+                // Notify prospect assignee of proposal outcome
+                if (prospect.AssignedTo.HasValue)
+                {
+                    await _notificationService.CreateNotificationAsync(
+                        prospect.AssignedTo.Value,
+                        "STATUS_CHANGED",
+                        "Proposal not awarded",
+                        $"The proposal for prospect {prospect.NoticeId} has been not awarded",
+                        "PROPOSAL",
+                        prospectId.ToString());
+                }
                 break;
             }
             case "CANCELLED":

@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FedProspector.Core.DTOs;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,8 @@ public abstract class ApiControllerBase : ControllerBase
 {
     protected int? GetCurrentUserId()
     {
-        var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+        var claim = User.FindFirst(JwtRegisteredClaimNames.Sub)
+                    ?? User.FindFirst(ClaimTypes.NameIdentifier);
         return claim != null && int.TryParse(claim.Value, out var id) ? id : null;
     }
 

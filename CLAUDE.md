@@ -11,7 +11,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 | `fed_prospector/` | **Main Python application** - CLI, API clients, ETL pipeline, DB schema |
 | `thesolution/` | Plan documents and implementation roadmap |
 | `workdir/` | Data conversion scripts and reference CSV/MD files |
-| `api/` | **C# ASP.NET Core Web API** - backend REST API, 44 endpoints across 13 controllers (Phases 10-13) |
+| `api/` | **C# ASP.NET Core Web API** - backend REST API, 44 endpoints across 12 controllers (Phases 10-13) |
 | `ui/` | **Frontend web application** - TBD framework (future) |
 | `OLD_ATTEMPTS/`, `OLD_RESOURCES/` | Archived. Do not modify or reference in new code. |
 
@@ -45,7 +45,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
-- **API**: ASP.NET Core Web API with 44 endpoints across 13 controllers + auth + health (Phases 10-13 complete)
+- **API**: ASP.NET Core Web API with 44 endpoints across 12 controllers + auth + health (Phases 10-13 complete)
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core will own application tables (app_user, prospect, saved_search, etc.) starting Phase 10. See Phase 10 plan for details.
 
 ### Known Data Quality Issues
@@ -64,7 +64,7 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 | CLI modules | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema) |
 | API clients | `fed_prospector/api_clients/` (sam_opportunity, sam_awards, sam_exclusions, sam_subaward, sam_fedhier, usaspending, calc) |
 | ETL loaders | `fed_prospector/etl/` (bulk_loader, dat_parser, opportunity_loader, awards_loader, usaspending_loader, calc_loader, fedhier_loader, exclusions_loader, subaward_loader, prospect_manager, scheduler, health_check, db_maintenance) |
-| API controllers | `api/src/FedProspector.Api/Controllers/` (13 controllers: ApiControllerBase, Auth, Health, Opportunities, Awards, Entities, Subawards, Dashboard, Admin, SavedSearches, Prospects, Proposals, Notifications) |
+| API controllers | `api/src/FedProspector.Api/Controllers/` (12 controllers: Auth, Health, Opportunities, Awards, Entities, Subawards, Dashboard, Admin, SavedSearches, Prospects, Proposals, Notifications) |
 | API services | `api/src/FedProspector.Infrastructure/Services/` (13 services: Auth, Opportunity, Award, Entity, Subaward, Dashboard, Admin, SavedSearch, Prospect, Proposal, ActivityLog, GoNoGoScoring, Notification) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
 | Master plan | `thesolution/MASTER-PLAN.md` |

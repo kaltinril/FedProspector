@@ -1,6 +1,7 @@
 using FedProspector.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FedProspector.Api.Controllers;
@@ -8,6 +9,7 @@ namespace FedProspector.Api.Controllers;
 [ApiController]
 [Route("health")]
 [AllowAnonymous]
+[EnableRateLimiting("search")]
 public class HealthController : ControllerBase
 {
     private readonly FedProspectorDbContext _db;

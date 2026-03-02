@@ -213,7 +213,7 @@ Response:
 
 After all 13 phases are complete, the system will be:
 - **Python ETL** (this repo): 54 tables (48 production + 6 staging) + 4 views, 39 CLI commands, 7+ API integrations, automated scheduling
-- **C# API** (`api/` folder, monorepo): 36+ endpoints, JWT auth, Swagger docs
+- **C# API** (`api/` folder, monorepo): 44 endpoints, JWT auth, Swagger docs
 - **Frontend** (TBD): Can now be built against the documented API
 
 Future work beyond Phase 13:

@@ -14,6 +14,7 @@ public class SavedSearchService : ISavedSearchService
 {
     private readonly FedProspectorDbContext _context;
     private readonly IMapper _mapper;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<SavedSearchService> _logger;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -22,10 +23,11 @@ public class SavedSearchService : ISavedSearchService
         WriteIndented = false
     };
 
-    public SavedSearchService(FedProspectorDbContext context, IMapper mapper, ILogger<SavedSearchService> logger)
+    public SavedSearchService(FedProspectorDbContext context, IMapper mapper, INotificationService notificationService, ILogger<SavedSearchService> logger)
     {
         _context = context;
         _mapper = mapper;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -136,6 +138,18 @@ public class SavedSearchService : ISavedSearchService
         search.LastNewResults = newCount;
         search.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
+
+        // Notify user of new search results
+        if (newCount > 0 && search.NotificationEnabled == "Y")
+        {
+            await _notificationService.CreateNotificationAsync(
+                search.UserId,
+                "SEARCH_RESULTS",
+                $"{newCount} new results for '{search.SearchName}'",
+                $"Your saved search '{search.SearchName}' found {newCount} new opportunities",
+                "SAVED_SEARCH",
+                search.SearchId.ToString());
+        }
 
         return new SavedSearchRunResultDto
         {

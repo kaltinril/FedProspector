@@ -9,7 +9,7 @@
 
 Implement all read-only endpoints that query the MySQL database. These endpoints expose the data that Python ETL has loaded. No data is modified -- pure query and response.
 
-**Total endpoints this phase: 17 endpoints (13 GET, 3 POST, 1 DELETE)**
+**Total endpoints this phase: 17 endpoints (14 GET, 2 POST, 1 DELETE)**
 
 ---
 

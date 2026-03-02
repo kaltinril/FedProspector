@@ -13,6 +13,7 @@ public class ProspectService : IProspectService
     private readonly FedProspectorDbContext _context;
     private readonly IGoNoGoScoringService _scoringService;
     private readonly IActivityLogService _activityLog;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<ProspectService> _logger;
 
     private static readonly Dictionary<string, string[]> StatusFlow = new()
@@ -32,11 +33,13 @@ public class ProspectService : IProspectService
         FedProspectorDbContext context,
         IGoNoGoScoringService scoringService,
         IActivityLogService activityLog,
+        INotificationService notificationService,
         ILogger<ProspectService> logger)
     {
         _context = context;
         _scoringService = scoringService;
         _activityLog = activityLog;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -106,6 +109,18 @@ public class ProspectService : IProspectService
 
         // Log activity
         await _activityLog.LogAsync(userId, "CREATE_PROSPECT", "PROSPECT", prospect.ProspectId.ToString());
+
+        // Notify assigned user of new prospect
+        if (prospect.AssignedTo.HasValue)
+        {
+            await _notificationService.CreateNotificationAsync(
+                prospect.AssignedTo.Value,
+                "PROSPECT_ASSIGNED",
+                "New prospect assigned to you",
+                $"A new prospect for opportunity {request.NoticeId} has been assigned to you",
+                "PROSPECT",
+                prospect.ProspectId.ToString());
+        }
 
         return (await GetDetailAsync(prospect.ProspectId))!;
     }
@@ -412,6 +427,18 @@ public class ProspectService : IProspectService
         await _activityLog.LogAsync(userId, "UPDATE_STATUS", "PROSPECT", prospectId.ToString(),
             new { OldStatus = currentStatus, NewStatus = newStatus });
 
+        // Notify assigned user of status change
+        if (prospect.AssignedTo.HasValue)
+        {
+            await _notificationService.CreateNotificationAsync(
+                prospect.AssignedTo.Value,
+                "STATUS_CHANGED",
+                $"Prospect status changed to {newStatus}",
+                $"Prospect for {prospect.NoticeId} changed from {currentStatus} to {newStatus}",
+                "PROSPECT",
+                prospect.ProspectId.ToString());
+        }
+
         return (await GetDetailAsync(prospectId))!;
     }
 
@@ -465,6 +492,15 @@ public class ProspectService : IProspectService
         // Log activity
         await _activityLog.LogAsync(userId, "REASSIGN_PROSPECT", "PROSPECT", prospectId.ToString(),
             new { OldAssignedTo = oldAssigneeName, NewAssignedTo = newAssigneeName });
+
+        // Notify new assignee
+        await _notificationService.CreateNotificationAsync(
+            request.NewAssignedTo,
+            "PROSPECT_ASSIGNED",
+            "Prospect assigned to you",
+            $"Prospect for opportunity {prospect.NoticeId} has been assigned to you",
+            "PROSPECT",
+            prospect.ProspectId.ToString());
 
         return (await GetDetailAsync(prospectId))!;
     }

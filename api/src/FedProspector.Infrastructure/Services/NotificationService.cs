@@ -81,17 +81,11 @@ public class NotificationService : INotificationService
 
     public async Task MarkAllAsReadAsync(int userId)
     {
-        var unread = await _context.Notifications
+        await _context.Notifications
             .Where(n => n.UserId == userId && n.IsRead == "N")
-            .ToListAsync();
-
-        foreach (var notification in unread)
-        {
-            notification.IsRead = "Y";
-            notification.ReadAt = DateTime.UtcNow;
-        }
-
-        await _context.SaveChangesAsync();
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(n => n.IsRead, "Y")
+                .SetProperty(n => n.ReadAt, DateTime.UtcNow));
     }
 
     public async Task<int> GetUnreadCountAsync(int userId)

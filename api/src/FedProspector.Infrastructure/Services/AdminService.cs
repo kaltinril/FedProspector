@@ -114,6 +114,15 @@ public class AdminService : IAdminService
             {
                 user.LockedUntil = null;
                 user.FailedLoginAttempts = 0;
+
+                // Revoke all active sessions for deactivated user
+                var activeSessions = await _context.AppSessions
+                    .Where(s => s.UserId == userId && s.RevokedAt == null)
+                    .ToListAsync();
+                foreach (var session in activeSessions)
+                {
+                    session.RevokedAt = DateTime.UtcNow;
+                }
             }
         }
 
@@ -140,6 +149,9 @@ public class AdminService : IAdminService
     {
         var user = await _context.AppUsers.FindAsync(userId)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
+
+        if (userId == adminUserId)
+            throw new InvalidOperationException("Cannot reset your own password. Use change-password instead.");
 
         var tempPassword = GenerateTemporaryPassword(12);
         user.PasswordHash = _authService.HashPassword(tempPassword);
