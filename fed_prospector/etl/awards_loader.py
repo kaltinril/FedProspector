@@ -8,15 +8,14 @@ The fpds_contract table has a composite PK of (contract_id, modification_number)
 Change detection uses a concatenated key for hash lookups.
 """
 
-import hashlib
 import json
 import logging
-from datetime import datetime, date
-from decimal import Decimal, InvalidOperation
 
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
+from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal
 from etl.load_manager import LoadManager
+from etl.staging_mixin import StagingMixin
 
 
 logger = logging.getLogger("fed_prospector.etl.awards_loader")
@@ -60,7 +59,7 @@ def _make_composite_key(contract_id, modification_number):
     return f"{contract_id}|{mod}"
 
 
-class AwardsLoader:
+class AwardsLoader(StagingMixin):
     """Load SAM.gov Contract Awards API data into fpds_contract table.
 
     Usage:
@@ -69,6 +68,9 @@ class AwardsLoader:
         stats = loader.load_awards(awards_data, load_id)
         loader.load_manager.complete_load(load_id, **stats)
     """
+
+    _STG_TABLE = "stg_fpds_award_raw"
+    _STG_KEY_COLS = ["contract_id", "modification_number"]
 
     BATCH_SIZE = 500
 
@@ -121,9 +123,7 @@ class AwardsLoader:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        stg_conn = get_connection()
-        stg_conn.autocommit = True
-        stg_cursor = stg_conn.cursor()
+        stg_conn, stg_cursor = self._open_stg_conn()
 
         try:
             batch_count = 0
@@ -321,22 +321,22 @@ class AwardsLoader:
             "vendor_uei":               _s(uei_info.get("uniqueEntityId")),
             "vendor_name":              _s(awardee_header.get("awardeeName")),
             "vendor_duns":              None,
-            "date_signed":              self._parse_date(
+            "date_signed":              parse_date(
                                             award_dates.get("dateSigned")
                                         ),
-            "effective_date":           self._parse_date(
+            "effective_date":           parse_date(
                                             award_dates.get("periodOfPerformanceStartDate")
                                         ),
-            "completion_date":          self._parse_date(
+            "completion_date":          parse_date(
                                             award_dates.get("currentCompletionDate")
                                         ),
-            "last_modified_date":       self._parse_date(
+            "last_modified_date":       parse_date(
                                             transaction_data.get("lastModifiedDate")
                                         ),
-            "dollars_obligated":        self._parse_decimal(
+            "dollars_obligated":        parse_decimal(
                                             total_dollars.get("totalActionObligation")
                                         ),
-            "base_and_all_options":     self._parse_decimal(
+            "base_and_all_options":     parse_decimal(
                                             total_dollars.get("totalBaseAndAllOptionsValue")
                                         ),
             "naics_code":               _s(naics_code),
@@ -355,10 +355,10 @@ class AwardsLoader:
             "far1102_exception_name":   None,
             "reason_for_modification":  _s(reason_mod.get("code")),
             "solicitation_number":      _s(core_data.get("solicitationId")),
-            "solicitation_date":        self._parse_date(
+            "solicitation_date":        parse_date(
                                             core_data.get("solicitationDate")
                                         ),
-            "ultimate_completion_date": self._parse_date(
+            "ultimate_completion_date": parse_date(
                                             award_dates.get("ultimateCompletionDate")
                                         ),
             "type_of_contract_pricing": _s(contract_pricing.get("code")),
@@ -368,6 +368,16 @@ class AwardsLoader:
     # =================================================================
     # Staging helpers
     # =================================================================
+
+    def _open_stg_conn(self):
+        """Open a dedicated autocommit connection for staging writes.
+
+        Overrides StagingMixin._open_stg_conn to use the module-local
+        get_connection binding so test patches apply correctly.
+        """
+        conn = get_connection()
+        conn.autocommit = True
+        return conn, conn.cursor()
 
     def _extract_staging_key(self, raw):
         """Extract the business key fields from a raw award dict.
@@ -380,48 +390,6 @@ class AwardsLoader:
             "contract_id": contract_id_block.get("piid", ""),
             "modification_number": contract_id_block.get("modificationNumber", "0"),
         }
-
-    def _insert_staging(self, stg_cursor, load_id, key_vals, raw):
-        """Insert a raw record into stg_fpds_award_raw before normalization.
-
-        Args:
-            stg_cursor: Cursor on the autocommit staging connection.
-            load_id: Current ETL load ID.
-            key_vals: dict from _extract_staging_key.
-            raw: Original raw dict from the API.
-
-        Returns:
-            int: The inserted row ID (used to mark processed/errored later).
-        """
-        raw_str = json.dumps(raw, sort_keys=True, default=str)
-        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
-        stg_cursor.execute(
-            "INSERT INTO stg_fpds_award_raw "
-            "(load_id, contract_id, modification_number, raw_json, raw_record_hash) "
-            "VALUES (%s, %s, %s, %s, %s)",
-            (
-                load_id,
-                key_vals["contract_id"],
-                key_vals.get("modification_number"),
-                raw_str,
-                raw_hash,
-            ),
-        )
-        return stg_cursor.lastrowid
-
-    def _mark_staging(self, stg_cursor, staging_id, processed, error_msg=None):
-        """Update the processed flag on a stg_fpds_award_raw row.
-
-        Args:
-            stg_cursor: Cursor on the autocommit staging connection.
-            staging_id: Row ID returned by _insert_staging.
-            processed: 'Y' for success, 'E' for error.
-            error_msg: Optional error message string (truncated to 500 chars).
-        """
-        stg_cursor.execute(
-            "UPDATE stg_fpds_award_raw SET processed=%s, error_message=%s WHERE id=%s",
-            (processed, error_msg[:500] if error_msg else None, staging_id),
-        )
 
     # =================================================================
     # Database operations
@@ -503,46 +471,12 @@ class AwardsLoader:
     # =================================================================
 
     def _parse_date(self, date_str):
-        """Parse date string to YYYY-MM-DD format.
-
-        Handles: MM/DD/YYYY (SAM Awards API format), YYYY-MM-DD, None/empty.
-
-        Returns:
-            str in YYYY-MM-DD format, or None.
-        """
-        if not date_str:
-            return None
-        s = str(date_str).strip()
-        if not s:
-            return None
-
-        # Already ISO YYYY-MM-DD
-        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
-            return s[:10]
-
-        # MM/DD/YYYY
-        if len(s) == 10 and s[2] == "/" and s[5] == "/":
-            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-
-        # Fallback
-        return s
+        """Parse date string to YYYY-MM-DD format. Delegates to etl_utils.parse_date."""
+        return parse_date(date_str)
 
     def _parse_decimal(self, value):
-        """Parse a value to Decimal-compatible string.
-
-        Award amounts can be negative (de-obligations) -- stored as-is.
-
-        Returns:
-            String representation of the decimal, or None.
-        """
-        if value is None:
-            return None
-        try:
-            d = Decimal(str(value))
-            return str(d)
-        except (InvalidOperation, ValueError):
-            self.logger.warning("Could not parse amount: %r", value)
-            return None
+        """Parse a value to Decimal-compatible string. Delegates to etl_utils.parse_decimal."""
+        return parse_decimal(value)
 
     # =================================================================
     # Hash fields accessor

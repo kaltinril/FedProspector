@@ -81,7 +81,9 @@ def mock_db_connection():
 
     with patch("db.connection.get_connection", mock_get_conn), \
          patch("api_clients.base_client.get_connection", mock_get_conn), \
-         patch("etl.data_cleaner.get_connection", mock_get_conn):
+         patch("etl.data_cleaner.get_connection", mock_get_conn), \
+         patch("etl.staging_mixin.get_connection", mock_get_conn), \
+         patch("etl.etl_utils.get_connection", mock_get_conn):
         yield mock_get_conn
 
 

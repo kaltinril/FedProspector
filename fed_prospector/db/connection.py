@@ -1,6 +1,7 @@
 """MySQL connection pool using mysql-connector-python."""
 
 import logging
+from contextlib import contextmanager
 from mysql.connector import pooling
 from config import settings
 
@@ -32,6 +33,22 @@ def get_pool():
 def get_connection():
     """Get a connection from the pool."""
     return get_pool().get_connection()
+
+
+@contextmanager
+def get_cursor(dictionary=False):
+    """
+    Context manager that yields an open cursor and closes both cursor and
+    connection on exit. For read-only or single-statement operations only.
+    Do NOT use where batch commits or explicit transaction control is needed.
+    """
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=dictionary)
+    try:
+        yield cursor
+    finally:
+        cursor.close()
+        conn.close()
 
 
 def execute_sql_file(file_path):

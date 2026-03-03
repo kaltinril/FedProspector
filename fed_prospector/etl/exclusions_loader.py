@@ -9,14 +9,14 @@ Change detection uses a composite of uei + activation_date + exclusion_type
 as the logical key for hash lookups.
 """
 
-import hashlib
 import json
 import logging
-from datetime import datetime, date
 
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
+from etl.etl_utils import fetch_existing_hashes, parse_date
 from etl.load_manager import LoadManager
+from etl.staging_mixin import StagingMixin
 
 
 logger = logging.getLogger("fed_prospector.etl.exclusions_loader")
@@ -56,7 +56,7 @@ def _make_exclusion_key(record):
     return f"{identifier}|{act_date}|{exc_type}"
 
 
-class ExclusionsLoader:
+class ExclusionsLoader(StagingMixin):
     """Load SAM.gov Exclusions API data into sam_exclusion table.
 
     Usage:
@@ -65,6 +65,9 @@ class ExclusionsLoader:
         stats = loader.load_exclusions(exclusions_data, load_id)
         loader.load_manager.complete_load(load_id, **stats)
     """
+
+    _STG_TABLE = "stg_exclusion_raw"
+    _STG_KEY_COLS = ["record_id"]
 
     BATCH_SIZE = 500
 
@@ -111,14 +114,12 @@ class ExclusionsLoader:
         }
 
         # Pre-fetch existing hashes for change detection.
-        existing_hashes = self._get_existing_hashes()
+        existing_hashes = fetch_existing_hashes("sam_exclusion", "uei")
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        stg_conn = get_connection()
-        stg_conn.autocommit = True
-        stg_cursor = stg_conn.cursor()
+        stg_conn, stg_cursor = self._open_stg_conn()
 
         try:
             batch_count = 0
@@ -337,44 +338,14 @@ class ExclusionsLoader:
             "exclusion_program":      details.get("exclusionProgram"),
             "excluding_agency_code":  details.get("excludingAgencyCode"),
             "excluding_agency_name":  details.get("excludingAgencyName"),
-            "activation_date":        self._parse_date(first_action.get("activateDate")),
-            "termination_date":       self._parse_date(first_action.get("terminationDate")),
+            "activation_date":        parse_date(first_action.get("activateDate")),
+            "termination_date":       parse_date(first_action.get("terminationDate")),
             "additional_comments":    other_info.get("additionalComments"),
         }
 
     # =================================================================
     # Database operations
     # =================================================================
-
-    def _get_existing_hashes(self):
-        """Fetch existing exclusion-key -> hash mappings from sam_exclusion.
-
-        Builds composite keys from uei/entity_name + activation_date + exclusion_type.
-
-        Returns:
-            dict of {"key": hash_string}
-        """
-        conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
-        try:
-            cursor.execute(
-                "SELECT uei, entity_name, activation_date, exclusion_type, record_hash "
-                "FROM sam_exclusion WHERE record_hash IS NOT NULL"
-            )
-            result = {}
-            for row in cursor.fetchall():
-                record = {
-                    "uei": row["uei"],
-                    "entity_name": row["entity_name"],
-                    "activation_date": str(row["activation_date"]) if row["activation_date"] else "",
-                    "exclusion_type": row["exclusion_type"],
-                }
-                key = _make_exclusion_key(record)
-                result[key] = row["record_hash"]
-            return result
-        finally:
-            cursor.close()
-            conn.close()
 
     def _upsert_exclusion(self, cursor, exclusion_data, load_id):
         """INSERT or UPDATE for sam_exclusion.
@@ -462,74 +433,6 @@ class ExclusionsLoader:
         exclusion_type = raw.get("exclusionType", "")
         record_id = f"{uei}|{activation_date}|{exclusion_type}"[:100]
         return {"record_id": record_id}
-
-    def _insert_staging(self, stg_cursor, load_id, key_vals, raw):
-        """Insert a raw record into stg_exclusion_raw before normalization.
-
-        Args:
-            stg_cursor: Cursor on the autocommit staging connection.
-            load_id: Current ETL load ID.
-            key_vals: dict from _extract_staging_key.
-            raw: Original raw dict from the API.
-
-        Returns:
-            int: The inserted row ID (used to mark processed/errored later).
-        """
-        raw_str = json.dumps(raw, sort_keys=True, default=str)
-        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
-        stg_cursor.execute(
-            "INSERT INTO stg_exclusion_raw (load_id, record_id, raw_json, raw_record_hash) "
-            "VALUES (%s, %s, %s, %s)",
-            (load_id, key_vals["record_id"], raw_str, raw_hash),
-        )
-        return stg_cursor.lastrowid
-
-    def _mark_staging(self, stg_cursor, staging_id, processed, error_msg=None):
-        """Update the processed flag on a stg_exclusion_raw row.
-
-        Args:
-            stg_cursor: Cursor on the autocommit staging connection.
-            staging_id: Row ID returned by _insert_staging.
-            processed: 'Y' for success, 'E' for error.
-            error_msg: Optional error message string (truncated to 500 chars).
-        """
-        stg_cursor.execute(
-            "UPDATE stg_exclusion_raw SET processed=%s, error_message=%s WHERE id=%s",
-            (processed, error_msg[:500] if error_msg else None, staging_id),
-        )
-
-    # =================================================================
-    # Parsing helpers
-    # =================================================================
-
-    def _parse_date(self, date_str):
-        """Parse date string to YYYY-MM-DD format.
-
-        Handles: MM/DD/YYYY, MM-DD-YYYY, YYYY-MM-DD, ISO 8601 datetime, None/empty.
-
-        Returns:
-            str in YYYY-MM-DD format, or None.
-        """
-        if not date_str:
-            return None
-        s = str(date_str).strip()
-        if not s:
-            return None
-
-        # Already ISO YYYY-MM-DD (possibly with time)
-        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
-            return s[:10]
-
-        # MM/DD/YYYY
-        if len(s) == 10 and s[2] == "/" and s[5] == "/":
-            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-
-        # MM-DD-YYYY (SAM Exclusions API format)
-        if len(s) == 10 and s[2] == "-" and s[5] == "-":
-            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-
-        # Fallback
-        return s
 
     # =================================================================
     # Hash fields accessor

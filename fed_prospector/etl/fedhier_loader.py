@@ -8,14 +8,14 @@ The federal_organization table has a single PK of fh_org_id (INT).
 Parent-child relationships are tracked via parent_org_id (self-referencing FK).
 """
 
-import hashlib
 import json
-import json as _json
 import logging
 
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
+from etl.etl_utils import fetch_existing_hashes, parse_date
 from etl.load_manager import LoadManager
+from etl.staging_mixin import StagingMixin
 
 
 logger = logging.getLogger("fed_prospector.etl.fedhier_loader")
@@ -44,7 +44,7 @@ _ORG_TYPE_LEVELS = {
 }
 
 
-class FedHierLoader:
+class FedHierLoader(StagingMixin):
     """Load SAM.gov Federal Hierarchy API data into federal_organization table.
 
     Usage:
@@ -55,6 +55,8 @@ class FedHierLoader:
     """
 
     BATCH_SIZE = 500
+    _STG_TABLE = "stg_fedhier_raw"
+    _STG_KEY_COLS = ["fh_org_id"]
 
     def __init__(self, db_connection=None, change_detector=None, load_manager=None):
         """Initialize with optional DB connection, change detector, load manager.
@@ -101,14 +103,12 @@ class FedHierLoader:
         }
 
         # Pre-fetch existing hashes for change detection
-        existing_hashes = self._get_existing_hashes()
+        existing_hashes = fetch_existing_hashes("federal_organization", "fh_org_id")
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
-        stg_conn = get_connection()
-        stg_conn.autocommit = True
-        stg_cursor = stg_conn.cursor()
+        stg_conn, stg_cursor = self._open_stg_conn()
         try:
             batch_count = 0
             for raw in orgs_data:
@@ -289,8 +289,8 @@ class FedHierLoader:
             "cgac":                 cgac,
             "parent_org_id":        parent_org_id,
             "level":                level,
-            "created_date":         self._parse_date(raw.get("createddate")),
-            "last_modified_date":   self._parse_date(raw.get("lastupdateddate")),
+            "created_date":         parse_date(raw.get("createddate")),
+            "last_modified_date":   parse_date(raw.get("lastupdateddate")),
         }
 
     def _extract_parent_org_id(self, raw):
@@ -341,45 +341,9 @@ class FedHierLoader:
         """Extract the natural key for stg_fedhier_raw from a raw API record."""
         return {"fh_org_id": int(raw.get("fhorgid", 0))}
 
-    def _insert_staging(self, stg_cursor, load_id, key_vals: dict, raw: dict) -> int:
-        """Insert a raw record into stg_fedhier_raw and return the new row id."""
-        raw_str = _json.dumps(raw, sort_keys=True, default=str)
-        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
-        stg_cursor.execute(
-            "INSERT INTO stg_fedhier_raw (load_id, fh_org_id, raw_json, raw_record_hash) "
-            "VALUES (%s, %s, %s, %s)",
-            (load_id, key_vals["fh_org_id"], raw_str, raw_hash),
-        )
-        return stg_cursor.lastrowid
-
-    def _mark_staging(self, stg_cursor, staging_id, processed: str, error_msg=None):
-        """Update the processed flag (and optional error message) on a staging row."""
-        stg_cursor.execute(
-            "UPDATE stg_fedhier_raw SET processed=%s, error_message=%s WHERE id=%s",
-            (processed, error_msg[:500] if error_msg else None, staging_id),
-        )
-
     # =================================================================
     # Database operations
     # =================================================================
-
-    def _get_existing_hashes(self):
-        """Fetch existing fh_org_id -> hash mappings from federal_organization.
-
-        Returns:
-            dict of {fh_org_id (int): hash_string}
-        """
-        conn = get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "SELECT fh_org_id, record_hash "
-                "FROM federal_organization WHERE record_hash IS NOT NULL"
-            )
-            return {row[0]: row[1] for row in cursor.fetchall()}
-        finally:
-            cursor.close()
-            conn.close()
 
     def _upsert_org(self, cursor, org_data, load_id):
         """INSERT ... ON DUPLICATE KEY UPDATE for federal_organization.
@@ -426,30 +390,6 @@ class FedHierLoader:
         elif rc == 2:
             return "updated"
         return "unchanged"
-
-    # =================================================================
-    # Parsing helpers
-    # =================================================================
-
-    def _parse_date(self, date_str):
-        """Parse date string to YYYY-MM-DD format.
-
-        Handles: YYYY-MM-DD (API format), None/empty.
-
-        Returns:
-            str in YYYY-MM-DD format, or None.
-        """
-        if not date_str:
-            return None
-        s = str(date_str).strip()
-        if not s:
-            return None
-
-        # Already ISO YYYY-MM-DD (possibly with time component)
-        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
-            return s[:10]
-
-        return s
 
     # =================================================================
     # Hash fields accessor

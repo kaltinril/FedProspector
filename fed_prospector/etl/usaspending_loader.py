@@ -8,16 +8,16 @@ USASpending has no rate limits, so this loader can be called with large
 result sets without concern for API quotas.
 """
 
-import hashlib
 import json
-import json as _json
 import logging
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
 
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
+from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal
 from etl.load_manager import LoadManager
+from etl.staging_mixin import StagingMixin
 
 
 logger = logging.getLogger("fed_prospector.etl.usaspending_loader")
@@ -38,7 +38,7 @@ _AWARD_HASH_FIELDS = [
 ]
 
 
-class USASpendingLoader:
+class USASpendingLoader(StagingMixin):
     """Load USASpending.gov award data into usaspending_award table.
 
     Usage:
@@ -47,6 +47,9 @@ class USASpendingLoader:
         stats = loader.load_awards(awards_data, load_id)
         loader.load_manager.complete_load(load_id, **stats)
     """
+
+    _STG_TABLE = "stg_usaspending_raw"
+    _STG_KEY_COLS = ["award_id"]
 
     BATCH_SIZE = 500
 
@@ -93,18 +96,14 @@ class USASpendingLoader:
         }
 
         # Pre-fetch existing hashes for change detection
-        existing_hashes = self.change_detector.get_existing_hashes(
-            "usaspending_award", "generated_unique_award_id", "record_hash"
-        )
+        existing_hashes = fetch_existing_hashes("usaspending_award", "generated_unique_award_id")
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
         # Staging connection: autocommit=True so each row is committed
         # immediately, independent of the main batch transaction.
-        stg_conn = get_connection()
-        stg_conn.autocommit = True
-        stg_cursor = stg_conn.cursor()
+        stg_conn, stg_cursor = self._open_stg_conn()
 
         try:
             batch_count = 0
@@ -251,11 +250,11 @@ class USASpendingLoader:
             "recipient_uei":             raw.get("Recipient UEI"),
             "recipient_parent_name":     None,  # Only available from detail endpoint
             "recipient_parent_uei":      None,  # Only available from detail endpoint
-            "total_obligation":          self._parse_decimal(raw.get("Award Amount")),
-            "base_and_all_options_value": self._parse_decimal(raw.get("Base and All Options Value")),
-            "start_date":                self._parse_date(raw.get("Start Date")),
-            "end_date":                  self._parse_date(raw.get("End Date")),
-            "last_modified_date":        self._parse_date(raw.get("Last Date to Order")),
+            "total_obligation":          parse_decimal(raw.get("Award Amount")),
+            "base_and_all_options_value": parse_decimal(raw.get("Base and All Options Value")),
+            "start_date":                parse_date(raw.get("Start Date")),
+            "end_date":                  parse_date(raw.get("End Date")),
+            "last_modified_date":        parse_date(raw.get("Last Date to Order")),
             "awarding_agency_name":      raw.get("Awarding Agency"),
             "awarding_sub_agency_name":  raw.get("Awarding Sub Agency"),
             "funding_agency_name":       raw.get("Funding Agency"),
@@ -339,7 +338,7 @@ class USASpendingLoader:
         # Period of performance dates
         period = detail.get("period_of_performance") or {}
         if period.get("last_modified_date"):
-            award_data["last_modified_date"] = self._parse_date(period["last_modified_date"])
+            award_data["last_modified_date"] = parse_date(period["last_modified_date"])
 
         # Award type code from detail (more precise than description)
         if detail.get("type"):
@@ -518,11 +517,11 @@ class USASpendingLoader:
                     )
                     values = (
                         award_id,
-                        self._parse_date(txn.get("action_date")),
+                        parse_date(txn.get("action_date")),
                         txn.get("modification_number"),
                         txn.get("action_type"),
                         txn.get("action_type_description"),
-                        self._parse_decimal(txn.get("federal_action_obligation")),
+                        parse_decimal(txn.get("federal_action_obligation")),
                         txn.get("description"),
                         load_id,
                     )
@@ -618,47 +617,13 @@ class USASpendingLoader:
     # Parsing helpers
     # =================================================================
 
-    def _parse_date(self, date_str):
-        """Parse date string to YYYY-MM-DD format.
-
-        Handles: YYYY-MM-DD, MM/DD/YYYY, None/empty.
-
-        Returns:
-            str in YYYY-MM-DD format, or None.
-        """
-        if not date_str:
-            return None
-        s = str(date_str).strip()
-        if not s:
-            return None
-
-        # Already ISO YYYY-MM-DD
-        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
-            return s[:10]
-
-        # MM/DD/YYYY
-        if len(s) == 10 and s[2] == "/" and s[5] == "/":
-            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-
-        # Fallback
-        return s
+    def _parse_date(self, value):
+        """Delegate to shared etl_utils.parse_date."""
+        return parse_date(value)
 
     def _parse_decimal(self, value):
-        """Parse a value to Decimal-compatible string.
-
-        Award amounts can be negative (de-obligations) -- stored as-is.
-
-        Returns:
-            String representation of the decimal, or None.
-        """
-        if value is None:
-            return None
-        try:
-            d = Decimal(str(value))
-            return str(d)
-        except (InvalidOperation, ValueError):
-            self.logger.warning("Could not parse amount: %r", value)
-            return None
+        """Delegate to shared etl_utils.parse_decimal."""
+        return parse_decimal(value)
 
     # =================================================================
     # Raw staging helpers
@@ -672,28 +637,6 @@ class USASpendingLoader:
         """
         award_id = raw.get("generated_unique_award_id") or raw.get("generated_internal_id") or ""
         return {"award_id": award_id}
-
-    def _insert_staging(self, stg_cursor, load_id, key_vals: dict, raw: dict) -> int:
-        """Insert one raw record into stg_usaspending_raw and return its id.
-
-        stg_cursor must belong to a connection with autocommit=True so the
-        row is immediately visible regardless of the main batch transaction.
-        """
-        raw_str = _json.dumps(raw, sort_keys=True, default=str)
-        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
-        stg_cursor.execute(
-            "INSERT INTO stg_usaspending_raw (load_id, award_id, raw_json, raw_record_hash) "
-            "VALUES (%s, %s, %s, %s)",
-            (load_id, key_vals["award_id"], raw_str, raw_hash),
-        )
-        return stg_cursor.lastrowid
-
-    def _mark_staging(self, stg_cursor, staging_id, processed: str, error_msg=None):
-        """Update the processed flag (and optional error message) on a staging row."""
-        stg_cursor.execute(
-            "UPDATE stg_usaspending_raw SET processed=%s, error_message=%s WHERE id=%s",
-            (processed, error_msg[:500] if error_msg else None, staging_id),
-        )
 
     # =================================================================
     # Hash fields accessor

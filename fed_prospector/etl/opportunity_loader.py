@@ -5,7 +5,6 @@ change detection via SHA-256 hashing and field-level history tracking.
 Follows the same patterns as entity_loader.py.
 """
 
-import hashlib
 import json
 import logging
 from datetime import datetime, date
@@ -13,7 +12,9 @@ from decimal import Decimal, InvalidOperation
 
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
+from etl.etl_utils import parse_date, parse_decimal
 from etl.load_manager import LoadManager
+from etl.staging_mixin import StagingMixin
 from utils.hashing import compute_record_hash
 
 # ---------------------------------------------------------------------------
@@ -32,10 +33,13 @@ _OPPORTUNITY_HASH_FIELDS = [
 ]
 
 
-class OpportunityLoader:
+class OpportunityLoader(StagingMixin):
     """Transform and load SAM.gov opportunity data into MySQL."""
 
     BATCH_SIZE = 500  # Smaller than entity since fewer records expected
+
+    _STG_TABLE = "stg_opportunity_raw"
+    _STG_KEY_COLS = ["notice_id"]
 
     # -----------------------------------------------------------------
     # Construction
@@ -90,9 +94,7 @@ class OpportunityLoader:
 
         # Staging connection: autocommit=True so each raw row is persisted
         # immediately, independent of the production batch commit/rollback cycle.
-        stg_conn = get_connection()
-        stg_conn.autocommit = True
-        stg_cursor = stg_conn.cursor()
+        stg_conn, stg_cursor = self._open_stg_conn()
 
         try:
             batch_count = 0
@@ -405,33 +407,6 @@ class OpportunityLoader:
         """Extract natural key fields from a raw API record."""
         return {"notice_id": raw.get("noticeId", "")}
 
-    def _insert_staging(self, stg_cursor, load_id, key_vals: dict, raw: dict) -> int:
-        """Write raw record to stg_opportunity_raw before normalization.
-
-        Returns:
-            The auto-increment id of the inserted staging row.
-        """
-        raw_str = json.dumps(raw, sort_keys=True, default=str)
-        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
-        stg_cursor.execute(
-            "INSERT INTO stg_opportunity_raw (load_id, notice_id, raw_json, raw_record_hash) "
-            "VALUES (%s, %s, %s, %s)",
-            (load_id, key_vals["notice_id"], raw_str, raw_hash),
-        )
-        return stg_cursor.lastrowid
-
-    def _mark_staging(self, stg_cursor, staging_id: int, processed: str, error_msg=None):
-        """Update processed status on a staging row.
-
-        Args:
-            processed: 'Y' for success, 'E' for error.
-            error_msg: Optional error message string (truncated to 500 chars).
-        """
-        stg_cursor.execute(
-            "UPDATE stg_opportunity_raw SET processed=%s, error_message=%s WHERE id=%s",
-            (processed, error_msg[:500] if error_msg else None, staging_id),
-        )
-
     # =================================================================
     # Parsing helpers
     # =================================================================
@@ -439,38 +414,13 @@ class OpportunityLoader:
     def _parse_date(self, date_str):
         """Parse various date formats from API response.
 
-        Handles: YYYY-MM-DD, MM/dd/yyyy, ISO 8601 with time, None/empty.
+        Delegates to etl_utils.parse_date which handles all common SAM.gov
+        date formats: YYYY-MM-DD, YYYYMMDD, MM/DD/YYYY, ISO 8601 with time.
 
         Returns:
             date string in YYYY-MM-DD format or None.
         """
-        if not date_str:
-            return None
-        s = str(date_str).strip()
-        if not s:
-            return None
-
-        # Already ISO YYYY-MM-DD
-        if len(s) == 10 and s[4] == "-" and s[7] == "-":
-            return s
-
-        # YYYYMMDD (compact)
-        if len(s) == 8 and s.isdigit():
-            return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
-
-        # MM/DD/YYYY
-        if len(s) == 10 and s[2] == "/" and s[5] == "/":
-            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-
-        # ISO 8601 with time component (e.g., "2026-01-15T14:30:00-05:00")
-        # Take just the date portion
-        if "T" in s and len(s) >= 10:
-            date_part = s[:10]
-            if len(date_part) == 10 and date_part[4] == "-" and date_part[7] == "-":
-                return date_part
-
-        # Fallback: return as-is and let MySQL handle it
-        return s
+        return parse_date(date_str)
 
     def _parse_datetime(self, dt_str):
         """Parse datetime from API response (e.g., response_deadline).
@@ -513,17 +463,12 @@ class OpportunityLoader:
     def _parse_decimal(self, value):
         """Parse a value to Decimal-compatible string.
 
+        Delegates to etl_utils.parse_decimal.
+
         Returns:
             String representation of the decimal, or None.
         """
-        if value is None:
-            return None
-        try:
-            d = Decimal(str(value))
-            return str(d)
-        except (InvalidOperation, ValueError):
-            self.logger.warning("Could not parse award amount: %r", value)
-            return None
+        return parse_decimal(value)
 
     def _safe_get(self, data, *keys, default=None):
         """Safely navigate nested dicts.

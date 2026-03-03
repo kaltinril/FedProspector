@@ -15,10 +15,10 @@ import logging
 import os
 import tempfile
 import time
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from db.connection import get_connection
+from etl.etl_utils import escape_tsv_value, parse_date, parse_decimal
 from etl.load_manager import LoadManager
 
 
@@ -55,25 +55,6 @@ _API_FIELD_MAP = {
     "contract_start": "contract_start",
     "contract_end": "contract_end",
 }
-
-
-def _escape_tsv_value(value):
-    """Escape a value for MySQL LOAD DATA INFILE TSV format.
-
-    - None becomes the literal string ``\\N`` (MySQL NULL).
-    - Backslashes are doubled.
-    - Tab characters are escaped to ``\\t``.
-    - Newline characters are escaped to ``\\n``.
-    - Carriage returns are escaped to ``\\r``.
-    """
-    if value is None:
-        return "\\N"
-    s = str(value)
-    s = s.replace("\\", "\\\\")
-    s = s.replace("\t", "\\t")
-    s = s.replace("\n", "\\n")
-    s = s.replace("\r", "\\r")
-    return s
 
 
 class CalcLoader:
@@ -262,24 +243,24 @@ class CalcLoader:
         normalized["min_years_experience"] = self._parse_int(
             normalized.get("min_years_experience")
         )
-        normalized["hourly_rate_year1"] = self._parse_decimal(
+        normalized["hourly_rate_year1"] = parse_decimal(
             normalized.get("hourly_rate_year1")
         )
-        normalized["current_price"] = self._parse_decimal(
+        normalized["current_price"] = parse_decimal(
             normalized.get("current_price")
         )
-        normalized["next_year_price"] = self._parse_decimal(
+        normalized["next_year_price"] = parse_decimal(
             normalized.get("next_year_price")
         )
-        normalized["second_year_price"] = self._parse_decimal(
+        normalized["second_year_price"] = parse_decimal(
             normalized.get("second_year_price")
         )
 
         # Parse date fields
-        normalized["contract_start"] = self._parse_date(
+        normalized["contract_start"] = parse_date(
             normalized.get("contract_start")
         )
-        normalized["contract_end"] = self._parse_date(
+        normalized["contract_end"] = parse_date(
             normalized.get("contract_end")
         )
 
@@ -396,7 +377,7 @@ class CalcLoader:
                             normalized = self._normalize_rate(row)
                             normalized["last_load_id"] = load_id
                             values = [
-                                _escape_tsv_value(normalized.get(col))
+                                escape_tsv_value(normalized.get(col))
                                 for col in _RATE_COLUMNS
                             ]
                             tsv_file.write("\t".join(values) + "\n")
@@ -471,22 +452,6 @@ class CalcLoader:
     # =================================================================
 
     @staticmethod
-    def _parse_decimal(value):
-        """Parse a value to Decimal-compatible string, or None."""
-        if value is None:
-            return None
-        s = str(value).strip()
-        if not s or s.lower() in ("none", "null", "n/a", ""):
-            return None
-        # Strip currency symbols and commas
-        s = s.replace("$", "").replace(",", "").strip()
-        try:
-            d = Decimal(s)
-            return str(d)
-        except (InvalidOperation, ValueError):
-            return None
-
-    @staticmethod
     def _parse_int(value):
         """Parse a value to int, or None."""
         if value is None:
@@ -498,35 +463,3 @@ class CalcLoader:
             return int(float(s))
         except (ValueError, TypeError):
             return None
-
-    @staticmethod
-    def _parse_date(value):
-        """Parse a date value to YYYY-MM-DD string, or None.
-
-        Handles: YYYY-MM-DD, MM/DD/YYYY, YYYYMMDD, ISO 8601 with time.
-        """
-        if value is None:
-            return None
-        s = str(value).strip()
-        if not s or s.lower() in ("none", "null", "n/a", ""):
-            return None
-
-        # Already ISO YYYY-MM-DD
-        if len(s) == 10 and s[4:5] == "-" and s[7:8] == "-":
-            return s
-
-        # YYYYMMDD (compact)
-        if len(s) == 8 and s.isdigit():
-            return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
-
-        # MM/DD/YYYY
-        if len(s) == 10 and s[2:3] == "/" and s[5:6] == "/":
-            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-
-        # ISO 8601 with time component
-        if "T" in s and len(s) >= 10:
-            date_part = s[:10]
-            if len(date_part) == 10 and date_part[4:5] == "-" and date_part[7:8] == "-":
-                return date_part
-
-        return s

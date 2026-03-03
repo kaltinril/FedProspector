@@ -282,6 +282,12 @@ Restructured 52 flat commands into 7 discoverable groups. Commands now follow `p
 
 All 7 ETL loaders now write raw API JSON to staging tables before normalization. A second `autocommit=True` connection ensures staging rows persist even when normalization raises an error. `db_maintenance.purge_staging` extended to cover all 7 tables (`stg_entity_raw`, `stg_opportunity_raw`, `stg_fpds_award_raw`, `stg_usaspending_raw`, `stg_exclusion_raw`, `stg_subaward_raw`, `stg_fedhier_raw`).
 
+### Phase 14.10: ETL Loader DRY Refactor
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.10-ETL-REFACTOR-DRY.md](phases/14.10-ETL-REFACTOR-DRY.md)
+
+| 14.10 | ETL Loader DRY Refactor | COMPLETE | StagingMixin, etl_utils.py (parse_date/parse_decimal/fetch_existing_hashes/escape_tsv_value), get_cursor context manager; ~560 lines removed across 8 loaders |
+
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
 **File**: [phases/15-UI-FOUNDATION.md](phases/15-UI-FOUNDATION.md)

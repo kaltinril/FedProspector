@@ -5,11 +5,9 @@ sam_subaward table. Follows the same patterns as exclusions_loader.py:
 batch upserts with change detection via SHA-256 hashing.
 
 The sam_subaward table has a single-column auto-increment PK (id).
-Change detection uses a composite of prime_piid|sub_uei|sub_date
-as the logical key for hash lookups.
+Change detection uses prime_piid as the logical key for hash lookups.
 """
 
-import hashlib
 import json
 import logging
 from datetime import datetime, date
@@ -17,6 +15,8 @@ from datetime import datetime, date
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
 from etl.load_manager import LoadManager
+from etl.etl_utils import parse_date, parse_decimal, fetch_existing_hashes
+from etl.staging_mixin import StagingMixin
 
 
 logger = logging.getLogger("fed_prospector.etl.subaward_loader")
@@ -57,7 +57,7 @@ def _make_subaward_key(record):
     return f"{piid}|{sub_uei}|{sub_date}"
 
 
-class SubawardLoader:
+class SubawardLoader(StagingMixin):
     """Load SAM.gov Subaward API data into sam_subaward table.
 
     Usage:
@@ -68,6 +68,8 @@ class SubawardLoader:
     """
 
     BATCH_SIZE = 500
+    _STG_TABLE = "stg_subaward_raw"
+    _STG_KEY_COLS = ["prime_piid", "sub_uei"]
 
     def __init__(self, db_connection=None, change_detector=None, load_manager=None):
         """Initialize with optional DB connection, change detector, load manager.
@@ -112,13 +114,11 @@ class SubawardLoader:
         }
 
         # Pre-fetch existing hashes for change detection.
-        existing_hashes = self._get_existing_hashes()
+        existing_hashes = fetch_existing_hashes("sam_subaward", "prime_piid")
 
         # Staging connection: autocommit=True so each staging row is committed
         # immediately and independently of the main batch-commit connection.
-        stg_conn = get_connection()
-        stg_conn.autocommit = True
-        stg_cursor = stg_conn.cursor()
+        stg_conn, stg_cursor = self._open_stg_conn()
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -135,7 +135,7 @@ class SubawardLoader:
 
                     # --- normalise ----------------------------------------
                     subaward_data = self._normalize_subaward(raw)
-                    record_key = _make_subaward_key(subaward_data)
+                    record_key = subaward_data.get("prime_piid") or ""
 
                     # --- change detection ---------------------------------
                     new_hash = self.change_detector.compute_hash(
@@ -319,48 +319,6 @@ class SubawardLoader:
             "sub_uei": raw.get("subEntityUei", "") or "",
         }
 
-    def _insert_staging(self, stg_cursor, load_id, key_vals, raw):
-        """Insert a raw record into stg_subaward_raw before normalization.
-
-        Args:
-            stg_cursor: Cursor on the autocommit staging connection.
-            load_id: Current etl_load_log ID.
-            key_vals: dict with prime_piid and sub_uei.
-            raw: Original raw API response dict.
-
-        Returns:
-            int: The new stg_subaward_raw.id (lastrowid).
-        """
-        raw_str = json.dumps(raw, sort_keys=True, default=str)
-        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
-        stg_cursor.execute(
-            "INSERT INTO stg_subaward_raw "
-            "(load_id, prime_piid, sub_uei, raw_json, raw_record_hash) "
-            "VALUES (%s, %s, %s, %s, %s)",
-            (
-                load_id,
-                key_vals["prime_piid"],
-                key_vals["sub_uei"],
-                raw_str,
-                raw_hash,
-            ),
-        )
-        return stg_cursor.lastrowid
-
-    def _mark_staging(self, stg_cursor, staging_id, processed, error_msg=None):
-        """Update processed flag and optional error_message on a staging row.
-
-        Args:
-            stg_cursor: Cursor on the autocommit staging connection.
-            staging_id: stg_subaward_raw.id to update.
-            processed: 'Y' for success, 'E' for error.
-            error_msg: Optional error message string (truncated to 500 chars).
-        """
-        stg_cursor.execute(
-            "UPDATE stg_subaward_raw SET processed=%s, error_message=%s WHERE id=%s",
-            (processed, error_msg[:500] if error_msg else None, staging_id),
-        )
-
     # =================================================================
     # Normalisation
     # =================================================================
@@ -399,8 +357,8 @@ class SubawardLoader:
             "prime_name":         raw.get("primeEntityName"),
             "sub_uei":            raw.get("subEntityUei"),
             "sub_name":           raw.get("subEntityLegalBusinessName"),
-            "sub_amount":         self._parse_amount(raw.get("subAwardAmount")),
-            "sub_date":           self._parse_date(raw.get("subAwardDate")),
+            "sub_amount":         parse_decimal(raw.get("subAwardAmount")),
+            "sub_date":           parse_date(raw.get("subAwardDate")),
             "sub_description":    raw.get("subAwardDescription"),
             "naics_code":         raw.get("primeNaics"),
             "psc_code":           None,  # Not in API response
@@ -415,35 +373,6 @@ class SubawardLoader:
     # =================================================================
     # Database operations
     # =================================================================
-
-    def _get_existing_hashes(self):
-        """Fetch existing subaward-key -> hash mappings from sam_subaward.
-
-        Builds composite keys from prime_piid + sub_uei + sub_date.
-
-        Returns:
-            dict of {"key": hash_string}
-        """
-        conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
-        try:
-            cursor.execute(
-                "SELECT prime_piid, sub_uei, sub_date, record_hash "
-                "FROM sam_subaward WHERE record_hash IS NOT NULL"
-            )
-            result = {}
-            for row in cursor.fetchall():
-                record = {
-                    "prime_piid": row["prime_piid"],
-                    "sub_uei": row["sub_uei"],
-                    "sub_date": str(row["sub_date"]) if row["sub_date"] else "",
-                }
-                key = _make_subaward_key(record)
-                result[key] = row["record_hash"]
-            return result
-        finally:
-            cursor.close()
-            conn.close()
 
     def _upsert_subaward(self, cursor, subaward_data, load_id):
         """INSERT or UPDATE for sam_subaward.
@@ -499,57 +428,6 @@ class SubawardLoader:
                       for c in _UPSERT_COLS]
             cursor.execute(sql, values)
             return "inserted"
-
-    # =================================================================
-    # Parsing helpers
-    # =================================================================
-
-    def _parse_date(self, date_str):
-        """Parse date string to YYYY-MM-DD format.
-
-        Handles: MM/DD/YYYY, YYYY-MM-DD, ISO 8601 datetime, None/empty.
-
-        Returns:
-            str in YYYY-MM-DD format, or None.
-        """
-        if not date_str:
-            return None
-        s = str(date_str).strip()
-        if not s:
-            return None
-
-        # Already ISO YYYY-MM-DD (possibly with time)
-        if len(s) >= 10 and s[4] == "-" and s[7] == "-":
-            return s[:10]
-
-        # MM/DD/YYYY
-        if len(s) == 10 and s[2] == "/" and s[5] == "/":
-            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-
-        # Fallback
-        return s
-
-    @staticmethod
-    def _parse_amount(amount_str):
-        """Parse dollar amount string to Decimal-safe float.
-
-        The API returns amounts as strings. Strips currency symbols and commas.
-
-        Args:
-            amount_str: Dollar amount string (e.g. "150000.00" or "$150,000.00").
-
-        Returns:
-            float or None.
-        """
-        if not amount_str:
-            return None
-        s = str(amount_str).strip().replace("$", "").replace(",", "")
-        if not s:
-            return None
-        try:
-            return float(s)
-        except (ValueError, TypeError):
-            return None
 
     # =================================================================
     # Hash fields accessor

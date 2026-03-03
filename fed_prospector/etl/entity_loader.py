@@ -13,6 +13,7 @@ from datetime import datetime
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
 from etl.data_cleaner import DataCleaner
+from etl.etl_utils import parse_date
 from etl.load_manager import LoadManager
 from utils.hashing import compute_record_hash
 
@@ -384,16 +385,16 @@ class EntityLoader:
             "dodaac":                      reg.get("dodaac"),
             "registration_status":         status_code,
             "purpose_of_registration":     reg.get("purposeOfRegistrationCode"),
-            "initial_registration_date":   _norm_date(reg.get("registrationDate")),
-            "registration_expiration_date": _norm_date(reg.get("expirationDate")),
-            "last_update_date":            _norm_date(reg.get("lastUpdateDate")),
-            "activation_date":             _norm_date(reg.get("activationDate")),
+            "initial_registration_date":   parse_date(reg.get("registrationDate")),
+            "registration_expiration_date": parse_date(reg.get("expirationDate")),
+            "last_update_date":            parse_date(reg.get("lastUpdateDate")),
+            "activation_date":             parse_date(reg.get("activationDate")),
             "legal_business_name":         reg.get("legalBusinessName"),
             "dba_name":                    reg.get("dbaName"),
             "entity_division":             info.get("entityDivisionName"),
             "entity_division_number":      info.get("entityDivisionNumber"),
             "dnb_open_data_flag":          reg.get("dnbOpenData"),
-            "entity_start_date":           _norm_date(info.get("entityStartDate")),
+            "entity_start_date":           parse_date(info.get("entityStartDate")),
             "fiscal_year_end_close":       info.get("fiscalYearEndCloseDate"),
             "entity_url":                  info.get("entityURL"),
             "entity_structure_code":       gen.get("entityStructureCode"),
@@ -485,8 +486,8 @@ class EntityLoader:
                     "uei_sam":                   uei_sam,
                     "sba_type_code":             code,
                     "sba_type_desc":             sba.get("sbaBusinessTypeDescription"),
-                    "certification_entry_date":  _norm_date(sba.get("certificationEntryDate")),
-                    "certification_exit_date":   _norm_date(sba.get("certificationExitDate")),
+                    "certification_entry_date":  parse_date(sba.get("certificationEntryDate")),
+                    "certification_exit_date":   parse_date(sba.get("certificationExitDate")),
                 })
         children["entity_sba_certification"] = sba_rows
 
@@ -706,37 +707,6 @@ def _safe_get(d, key):
     if isinstance(d, dict):
         return d.get(key)
     return None
-
-
-def _norm_date(value):
-    """Normalise a date value from the JSON to YYYY-MM-DD string or None.
-
-    Handles:
-    - None / empty string -> None
-    - "YYYY-MM-DD" (already correct)
-    - "YYYYMMDD" (SAM DAT extract format)
-    - "MM/DD/YYYY"
-    """
-    if not value:
-        return None
-    s = str(value).strip()
-    if not s:
-        return None
-
-    # Already ISO
-    if len(s) == 10 and s[4] == "-" and s[7] == "-":
-        return s
-
-    # YYYYMMDD
-    if len(s) == 8 and s.isdigit():
-        return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
-
-    # MM/DD/YYYY
-    if len(s) == 10 and s[2] == "/" and s[5] == "/":
-        return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-
-    # Fallback: return as-is and let MySQL handle it (or reject it)
-    return s
 
 
 def _str_or_none(val):
