@@ -5,6 +5,7 @@ Normalizes nested JSON into 1 parent table (entity) and 8 child tables, with
 change detection via SHA-256 hashing and field-level history tracking.
 """
 
+import hashlib
 import json
 import logging
 from datetime import datetime
@@ -137,7 +138,7 @@ class EntityLoader:
         )
 
         try:
-            stats = self._process_entities(iter(entity_data_list), load_id)
+            stats = self._process_entities(iter(entity_data_list), load_id, write_staging=True)
             self.load_manager.complete_load(load_id, **stats)
             self.logger.info("Load %d complete: %s", load_id, stats)
             return stats
@@ -150,11 +151,17 @@ class EntityLoader:
     # Core processing pipeline
     # =================================================================
 
-    def _process_entities(self, entity_iter, load_id):
+    def _process_entities(self, entity_iter, load_id, write_staging=False):
         """Iterate over raw entities, normalise, clean, detect changes, upsert.
 
         Processes in batches of BATCH_SIZE and commits after each batch.
         Returns a stats dict compatible with LoadManager.complete_load().
+
+        Args:
+            entity_iter: Iterator of raw entity dicts.
+            load_id: Current load identifier.
+            write_staging: When True, writes each raw record to stg_entity_raw
+                           before processing (used by load_from_api_response).
         """
         stats = {
             "records_read": 0,
@@ -169,6 +176,15 @@ class EntityLoader:
             "entity", "uei_sam", "record_hash"
         )
 
+        # Open a dedicated autocommit connection for staging writes (API path only)
+        if write_staging:
+            stg_conn = get_connection()
+            stg_conn.autocommit = True
+            stg_cursor = stg_conn.cursor()
+        else:
+            stg_conn = None
+            stg_cursor = None
+
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
@@ -176,7 +192,13 @@ class EntityLoader:
             for raw_json in entity_iter:
                 stats["records_read"] += 1
                 uei_sam = None
+                key_vals = None
                 try:
+                    # --- staging write (API path only) ----------------------------
+                    if write_staging:
+                        key_vals = self._extract_staging_key(raw_json)
+                        self._insert_staging_entity(stg_cursor, load_id, key_vals, raw_json)
+
                     # --- clean (before normalisation, needs nested JSON) ----------
                     self.data_cleaner.clean_entity_record(raw_json)
 
@@ -195,6 +217,8 @@ class EntityLoader:
                     old_hash = existing_hashes.get(uei_sam)
                     if old_hash and old_hash == new_hash:
                         stats["records_unchanged"] += 1
+                        if write_staging:
+                            self._mark_staging_entity(stg_cursor, load_id, key_vals["uei_sam"], 'Y')
                         batch_count += 1
                         if batch_count >= self.BATCH_SIZE:
                             conn.commit()
@@ -235,6 +259,10 @@ class EntityLoader:
                     # Update in-memory hash cache
                     existing_hashes[uei_sam] = new_hash
 
+                    # --- mark staging success (API path only) ----------------------
+                    if write_staging:
+                        self._mark_staging_entity(stg_cursor, load_id, key_vals["uei_sam"], 'Y')
+
                 except Exception as rec_exc:
                     stats["records_errored"] += 1
                     identifier = uei_sam or f"record#{stats['records_read']}"
@@ -248,6 +276,10 @@ class EntityLoader:
                         error_message=str(rec_exc),
                         raw_data=json.dumps(raw_json) if isinstance(raw_json, dict) else str(raw_json),
                     )
+                    # --- mark staging error (API path only) ------------------------
+                    if write_staging and key_vals is not None:
+                        stg_uei = key_vals.get("uei_sam", "")
+                        self._mark_staging_entity(stg_cursor, load_id, stg_uei, 'E', str(rec_exc))
                     # Rollback the failed record, then keep going
                     conn.rollback()
                     batch_count = 0
@@ -275,6 +307,9 @@ class EntityLoader:
         finally:
             cursor.close()
             conn.close()
+            if write_staging:
+                stg_cursor.close()
+                stg_conn.close()
 
         return stats
 
@@ -493,6 +528,33 @@ class EntityLoader:
         children["entity_disaster_response"] = dr_rows
 
         return children
+
+    # =================================================================
+    # Staging helpers (API path only)
+    # =================================================================
+
+    def _extract_staging_key(self, raw: dict) -> dict:
+        """Return the natural key dict for a raw entity record."""
+        return {"uei_sam": raw.get("entityRegistration", {}).get("ueiSAM", "")}
+
+    def _insert_staging_entity(self, stg_cursor, load_id, key_vals: dict, raw: dict):
+        """Insert a raw entity record into stg_entity_raw before processing."""
+        raw_str = json.dumps(raw, sort_keys=True, default=str)
+        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
+        stg_cursor.execute(
+            "INSERT INTO stg_entity_raw (load_id, uei_sam, raw_json, raw_record_hash) "
+            "VALUES (%s, %s, %s, %s)",
+            (load_id, key_vals["uei_sam"], raw_str, raw_hash),
+        )
+        # No lastrowid — tracking is done via uei_sam + load_id
+
+    def _mark_staging_entity(self, stg_cursor, load_id, uei_sam, processed: str, error_msg=None):
+        """Update the stg_entity_raw row with processing outcome."""
+        stg_cursor.execute(
+            "UPDATE stg_entity_raw SET processed=%s, processed_at=NOW(), error_message=%s "
+            "WHERE load_id=%s AND uei_sam=%s",
+            (processed, error_msg[:500] if error_msg else None, load_id, uei_sam),
+        )
 
     # =================================================================
     # Database operations

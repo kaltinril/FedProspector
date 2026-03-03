@@ -71,23 +71,35 @@ class DatabaseMaintenance:
         )
 
     def purge_staging(self, days=30, dry_run=False):
-        """Delete old stg_entity_raw records.
+        """Delete old raw staging records from all 7 stg_*_raw tables.
 
         Args:
             days: Records older than this many days will be deleted.
             dry_run: If True, count only without deleting.
 
         Returns:
-            int: Number of records deleted (or would-be-deleted if dry_run).
+            dict: Per-table counts of records deleted (or would-be-deleted if dry_run).
         """
+        staging_tables = [
+            "stg_entity_raw",
+            "stg_opportunity_raw",
+            "stg_fpds_award_raw",
+            "stg_usaspending_raw",
+            "stg_exclusion_raw",
+            "stg_subaward_raw",
+            "stg_fedhier_raw",
+        ]
         cutoff = datetime.now() - timedelta(days=days)
-        return self._batch_delete(
-            table="stg_entity_raw",
-            where_clause="created_at < %s",
-            params=(cutoff,),
-            dry_run=dry_run,
-            description=f"stg_entity_raw older than {days} days",
-        )
+        counts = {}
+        for table in staging_tables:
+            counts[table] = self._batch_delete(
+                table=table,
+                where_clause="created_at < %s",
+                params=(cutoff,),
+                dry_run=dry_run,
+                description=f"{table} older than {days} days",
+            )
+        return counts
 
     def purge_load_errors(self, days=90, dry_run=False):
         """Delete old etl_load_error records.

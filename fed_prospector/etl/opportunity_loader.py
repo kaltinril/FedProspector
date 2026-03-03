@@ -5,6 +5,7 @@ change detection via SHA-256 hashing and field-level history tracking.
 Follows the same patterns as entity_loader.py.
 """
 
+import hashlib
 import json
 import logging
 from datetime import datetime, date
@@ -86,12 +87,24 @@ class OpportunityLoader:
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
+
+        # Staging connection: autocommit=True so each raw row is persisted
+        # immediately, independent of the production batch commit/rollback cycle.
+        stg_conn = get_connection()
+        stg_conn.autocommit = True
+        stg_cursor = stg_conn.cursor()
+
         try:
             batch_count = 0
             for raw in opportunities_data:
                 stats["records_read"] += 1
                 notice_id = None
+                staging_id = None
                 try:
+                    # --- write raw record to staging BEFORE normalization ---
+                    key_vals = self._extract_staging_key(raw)
+                    staging_id = self._insert_staging(stg_cursor, load_id, key_vals, raw)
+
                     # --- normalise ----------------------------------------
                     opp_data = self._normalize_opportunity(raw)
                     notice_id = opp_data.get("notice_id")
@@ -107,6 +120,7 @@ class OpportunityLoader:
                     old_hash = existing_hashes.get(notice_id)
                     if old_hash and old_hash == new_hash:
                         stats["records_unchanged"] += 1
+                        self._mark_staging(stg_cursor, staging_id, 'Y')
                         batch_count += 1
                         if batch_count >= self.BATCH_SIZE:
                             conn.commit()
@@ -139,6 +153,9 @@ class OpportunityLoader:
                     # Update in-memory hash cache
                     existing_hashes[notice_id] = new_hash
 
+                    # --- mark staging processed ----------------------------
+                    self._mark_staging(stg_cursor, staging_id, 'Y')
+
                 except Exception as rec_exc:
                     stats["records_errored"] += 1
                     identifier = notice_id or f"record#{stats['records_read']}"
@@ -152,6 +169,8 @@ class OpportunityLoader:
                         error_message=str(rec_exc),
                         raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
                     )
+                    if staging_id:
+                        self._mark_staging(stg_cursor, staging_id, 'E', str(rec_exc))
                     # Rollback the failed record, then keep going
                     conn.rollback()
                     batch_count = 0
@@ -179,6 +198,8 @@ class OpportunityLoader:
         finally:
             cursor.close()
             conn.close()
+            stg_cursor.close()
+            stg_conn.close()
 
         self.logger.info(
             "Opportunity load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
@@ -375,6 +396,41 @@ class OpportunityLoader:
             for field, old_val, new_val in diffs
         ]
         cursor.executemany(sql, rows)
+
+    # =================================================================
+    # Raw staging helpers
+    # =================================================================
+
+    def _extract_staging_key(self, raw: dict) -> dict:
+        """Extract natural key fields from a raw API record."""
+        return {"notice_id": raw.get("noticeId", "")}
+
+    def _insert_staging(self, stg_cursor, load_id, key_vals: dict, raw: dict) -> int:
+        """Write raw record to stg_opportunity_raw before normalization.
+
+        Returns:
+            The auto-increment id of the inserted staging row.
+        """
+        raw_str = json.dumps(raw, sort_keys=True, default=str)
+        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
+        stg_cursor.execute(
+            "INSERT INTO stg_opportunity_raw (load_id, notice_id, raw_json, raw_record_hash) "
+            "VALUES (%s, %s, %s, %s)",
+            (load_id, key_vals["notice_id"], raw_str, raw_hash),
+        )
+        return stg_cursor.lastrowid
+
+    def _mark_staging(self, stg_cursor, staging_id: int, processed: str, error_msg=None):
+        """Update processed status on a staging row.
+
+        Args:
+            processed: 'Y' for success, 'E' for error.
+            error_msg: Optional error message string (truncated to 500 chars).
+        """
+        stg_cursor.execute(
+            "UPDATE stg_opportunity_raw SET processed=%s, error_message=%s WHERE id=%s",
+            (processed, error_msg[:500] if error_msg else None, staging_id),
+        )
 
     # =================================================================
     # Parsing helpers

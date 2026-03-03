@@ -276,6 +276,12 @@ Restructured 52 flat commands into 7 discoverable groups. Commands now follow `p
 - [x] Auto-seed quality rules in `build-database`
 - **Result**: 52 CLI commands across 15 modules, 12 new commands, 1 new table
 
+### Phase 14.9: Raw Staging for All ETL Loaders
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.9-RAW-STAGING.md](phases/14.9-RAW-STAGING.md)
+
+All 7 ETL loaders now write raw API JSON to staging tables before normalization. A second `autocommit=True` connection ensures staging rows persist even when normalization raises an error. `db_maintenance.purge_staging` extended to cover all 7 tables (`stg_entity_raw`, `stg_opportunity_raw`, `stg_fpds_award_raw`, `stg_usaspending_raw`, `stg_exclusion_raw`, `stg_subaward_raw`, `stg_fedhier_raw`).
+
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
 **File**: [phases/15-UI-FOUNDATION.md](phases/15-UI-FOUNDATION.md)

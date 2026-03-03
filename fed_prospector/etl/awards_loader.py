@@ -8,6 +8,7 @@ The fpds_contract table has a composite PK of (contract_id, modification_number)
 Change detection uses a concatenated key for hash lookups.
 """
 
+import hashlib
 import json
 import logging
 from datetime import datetime, date
@@ -119,12 +120,22 @@ class AwardsLoader:
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
+
+        stg_conn = get_connection()
+        stg_conn.autocommit = True
+        stg_cursor = stg_conn.cursor()
+
         try:
             batch_count = 0
             for raw in awards_data:
                 stats["records_read"] += 1
                 record_key = None
+                staging_id = None
                 try:
+                    # --- staging write (before normalization) --------------
+                    key_vals = self._extract_staging_key(raw)
+                    staging_id = self._insert_staging(stg_cursor, load_id, key_vals, raw)
+
                     # --- normalise ----------------------------------------
                     award_data = self._normalize_award(raw)
                     contract_id = award_data.get("contract_id")
@@ -143,6 +154,7 @@ class AwardsLoader:
                     old_hash = existing_hashes.get(record_key)
                     if old_hash and old_hash == new_hash:
                         stats["records_unchanged"] += 1
+                        self._mark_staging(stg_cursor, staging_id, 'Y')
                         batch_count += 1
                         if batch_count >= self.BATCH_SIZE:
                             conn.commit()
@@ -161,6 +173,8 @@ class AwardsLoader:
                     # Update in-memory hash cache
                     existing_hashes[record_key] = new_hash
 
+                    self._mark_staging(stg_cursor, staging_id, 'Y')
+
                 except Exception as rec_exc:
                     stats["records_errored"] += 1
                     identifier = record_key or f"record#{stats['records_read']}"
@@ -174,6 +188,8 @@ class AwardsLoader:
                         error_message=str(rec_exc),
                         raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
                     )
+                    if staging_id:
+                        self._mark_staging(stg_cursor, staging_id, 'E', str(rec_exc))
                     conn.rollback()
                     batch_count = 0
                     continue
@@ -200,6 +216,8 @@ class AwardsLoader:
         finally:
             cursor.close()
             conn.close()
+            stg_cursor.close()
+            stg_conn.close()
 
         self.logger.info(
             "SAM Awards load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
@@ -346,6 +364,64 @@ class AwardsLoader:
             "type_of_contract_pricing": _s(contract_pricing.get("code")),
             "co_bus_size_determination": _s(co_biz_size),
         }
+
+    # =================================================================
+    # Staging helpers
+    # =================================================================
+
+    def _extract_staging_key(self, raw):
+        """Extract the business key fields from a raw award dict.
+
+        Returns:
+            dict with contract_id and modification_number.
+        """
+        contract_id_block = raw.get("contractId") or {}
+        return {
+            "contract_id": contract_id_block.get("piid", ""),
+            "modification_number": contract_id_block.get("modificationNumber", "0"),
+        }
+
+    def _insert_staging(self, stg_cursor, load_id, key_vals, raw):
+        """Insert a raw record into stg_fpds_award_raw before normalization.
+
+        Args:
+            stg_cursor: Cursor on the autocommit staging connection.
+            load_id: Current ETL load ID.
+            key_vals: dict from _extract_staging_key.
+            raw: Original raw dict from the API.
+
+        Returns:
+            int: The inserted row ID (used to mark processed/errored later).
+        """
+        raw_str = json.dumps(raw, sort_keys=True, default=str)
+        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
+        stg_cursor.execute(
+            "INSERT INTO stg_fpds_award_raw "
+            "(load_id, contract_id, modification_number, raw_json, raw_record_hash) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (
+                load_id,
+                key_vals["contract_id"],
+                key_vals.get("modification_number"),
+                raw_str,
+                raw_hash,
+            ),
+        )
+        return stg_cursor.lastrowid
+
+    def _mark_staging(self, stg_cursor, staging_id, processed, error_msg=None):
+        """Update the processed flag on a stg_fpds_award_raw row.
+
+        Args:
+            stg_cursor: Cursor on the autocommit staging connection.
+            staging_id: Row ID returned by _insert_staging.
+            processed: 'Y' for success, 'E' for error.
+            error_msg: Optional error message string (truncated to 500 chars).
+        """
+        stg_cursor.execute(
+            "UPDATE stg_fpds_award_raw SET processed=%s, error_message=%s WHERE id=%s",
+            (processed, error_msg[:500] if error_msg else None, staging_id),
+        )
 
     # =================================================================
     # Database operations

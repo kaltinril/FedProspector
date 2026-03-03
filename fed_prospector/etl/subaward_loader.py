@@ -9,6 +9,7 @@ Change detection uses a composite of prime_piid|sub_uei|sub_date
 as the logical key for hash lookups.
 """
 
+import hashlib
 import json
 import logging
 from datetime import datetime, date
@@ -113,6 +114,12 @@ class SubawardLoader:
         # Pre-fetch existing hashes for change detection.
         existing_hashes = self._get_existing_hashes()
 
+        # Staging connection: autocommit=True so each staging row is committed
+        # immediately and independently of the main batch-commit connection.
+        stg_conn = get_connection()
+        stg_conn.autocommit = True
+        stg_cursor = stg_conn.cursor()
+
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
@@ -120,7 +127,12 @@ class SubawardLoader:
             for raw in subawards_data:
                 stats["records_read"] += 1
                 record_key = None
+                staging_id = None
                 try:
+                    # --- staging write (before normalization) --------------
+                    key_vals = self._extract_staging_key(raw)
+                    staging_id = self._insert_staging(stg_cursor, load_id, key_vals, raw)
+
                     # --- normalise ----------------------------------------
                     subaward_data = self._normalize_subaward(raw)
                     record_key = _make_subaward_key(subaward_data)
@@ -134,6 +146,7 @@ class SubawardLoader:
                     old_hash = existing_hashes.get(record_key)
                     if old_hash and old_hash == new_hash:
                         stats["records_unchanged"] += 1
+                        self._mark_staging(stg_cursor, staging_id, "Y")
                         batch_count += 1
                         if batch_count >= self.BATCH_SIZE:
                             conn.commit()
@@ -152,6 +165,8 @@ class SubawardLoader:
                     # Update in-memory hash cache
                     existing_hashes[record_key] = new_hash
 
+                    self._mark_staging(stg_cursor, staging_id, "Y")
+
                 except Exception as rec_exc:
                     stats["records_errored"] += 1
                     identifier = record_key or f"record#{stats['records_read']}"
@@ -165,6 +180,8 @@ class SubawardLoader:
                         error_message=str(rec_exc),
                         raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
                     )
+                    if staging_id:
+                        self._mark_staging(stg_cursor, staging_id, "E", str(rec_exc))
                     conn.rollback()
                     batch_count = 0
                     continue
@@ -191,6 +208,8 @@ class SubawardLoader:
         finally:
             cursor.close()
             conn.close()
+            stg_cursor.close()
+            stg_conn.close()
 
         self.logger.info(
             "SAM Subaward load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
@@ -281,6 +300,66 @@ class SubawardLoader:
         finally:
             cursor.close()
             conn.close()
+
+    # =================================================================
+    # Raw staging helpers
+    # =================================================================
+
+    def _extract_staging_key(self, raw):
+        """Return natural key fields for stg_subaward_raw from a raw API record.
+
+        Args:
+            raw: Single raw subaward dict from SAM Subaward API.
+
+        Returns:
+            dict with prime_piid and sub_uei.
+        """
+        return {
+            "prime_piid": raw.get("piid", "") or "",
+            "sub_uei": raw.get("subEntityUei", "") or "",
+        }
+
+    def _insert_staging(self, stg_cursor, load_id, key_vals, raw):
+        """Insert a raw record into stg_subaward_raw before normalization.
+
+        Args:
+            stg_cursor: Cursor on the autocommit staging connection.
+            load_id: Current etl_load_log ID.
+            key_vals: dict with prime_piid and sub_uei.
+            raw: Original raw API response dict.
+
+        Returns:
+            int: The new stg_subaward_raw.id (lastrowid).
+        """
+        raw_str = json.dumps(raw, sort_keys=True, default=str)
+        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
+        stg_cursor.execute(
+            "INSERT INTO stg_subaward_raw "
+            "(load_id, prime_piid, sub_uei, raw_json, raw_record_hash) "
+            "VALUES (%s, %s, %s, %s, %s)",
+            (
+                load_id,
+                key_vals["prime_piid"],
+                key_vals["sub_uei"],
+                raw_str,
+                raw_hash,
+            ),
+        )
+        return stg_cursor.lastrowid
+
+    def _mark_staging(self, stg_cursor, staging_id, processed, error_msg=None):
+        """Update processed flag and optional error_message on a staging row.
+
+        Args:
+            stg_cursor: Cursor on the autocommit staging connection.
+            staging_id: stg_subaward_raw.id to update.
+            processed: 'Y' for success, 'E' for error.
+            error_msg: Optional error message string (truncated to 500 chars).
+        """
+        stg_cursor.execute(
+            "UPDATE stg_subaward_raw SET processed=%s, error_message=%s WHERE id=%s",
+            (processed, error_msg[:500] if error_msg else None, staging_id),
+        )
 
     # =================================================================
     # Normalisation

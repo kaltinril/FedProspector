@@ -8,7 +8,9 @@ USASpending has no rate limits, so this loader can be called with large
 result sets without concern for API quotas.
 """
 
+import hashlib
 import json
+import json as _json
 import logging
 from datetime import datetime, date
 from decimal import Decimal, InvalidOperation
@@ -97,12 +99,24 @@ class USASpendingLoader:
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
+
+        # Staging connection: autocommit=True so each row is committed
+        # immediately, independent of the main batch transaction.
+        stg_conn = get_connection()
+        stg_conn.autocommit = True
+        stg_cursor = stg_conn.cursor()
+
         try:
             batch_count = 0
             for raw in awards_data:
                 stats["records_read"] += 1
                 award_id = None
+                staging_id = None
                 try:
+                    # --- staging write (before normalization) -------------
+                    key_vals = self._extract_staging_key(raw)
+                    staging_id = self._insert_staging(stg_cursor, load_id, key_vals, raw)
+
                     # --- normalise ----------------------------------------
                     award_data = self._normalize_award(raw)
                     award_id = award_data.get("generated_unique_award_id")
@@ -118,6 +132,7 @@ class USASpendingLoader:
                     old_hash = existing_hashes.get(award_id)
                     if old_hash and old_hash == new_hash:
                         stats["records_unchanged"] += 1
+                        self._mark_staging(stg_cursor, staging_id, "Y")
                         batch_count += 1
                         if batch_count >= self.BATCH_SIZE:
                             conn.commit()
@@ -136,6 +151,9 @@ class USASpendingLoader:
                     # Update in-memory hash cache
                     existing_hashes[award_id] = new_hash
 
+                    # --- mark staging processed ---------------------------
+                    self._mark_staging(stg_cursor, staging_id, "Y")
+
                 except Exception as rec_exc:
                     stats["records_errored"] += 1
                     identifier = award_id or f"record#{stats['records_read']}"
@@ -149,6 +167,8 @@ class USASpendingLoader:
                         error_message=str(rec_exc),
                         raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
                     )
+                    if staging_id:
+                        self._mark_staging(stg_cursor, staging_id, "E", str(rec_exc))
                     conn.rollback()
                     batch_count = 0
                     continue
@@ -175,6 +195,8 @@ class USASpendingLoader:
         finally:
             cursor.close()
             conn.close()
+            stg_cursor.close()
+            stg_conn.close()
 
         self.logger.info(
             "USASpending load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
@@ -637,6 +659,41 @@ class USASpendingLoader:
         except (InvalidOperation, ValueError):
             self.logger.warning("Could not parse amount: %r", value)
             return None
+
+    # =================================================================
+    # Raw staging helpers
+    # =================================================================
+
+    def _extract_staging_key(self, raw: dict) -> dict:
+        """Extract the natural key from a raw API record for staging.
+
+        Mirrors the fallback logic in _normalize_award: prefer
+        generated_unique_award_id, fall back to generated_internal_id.
+        """
+        award_id = raw.get("generated_unique_award_id") or raw.get("generated_internal_id") or ""
+        return {"award_id": award_id}
+
+    def _insert_staging(self, stg_cursor, load_id, key_vals: dict, raw: dict) -> int:
+        """Insert one raw record into stg_usaspending_raw and return its id.
+
+        stg_cursor must belong to a connection with autocommit=True so the
+        row is immediately visible regardless of the main batch transaction.
+        """
+        raw_str = _json.dumps(raw, sort_keys=True, default=str)
+        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
+        stg_cursor.execute(
+            "INSERT INTO stg_usaspending_raw (load_id, award_id, raw_json, raw_record_hash) "
+            "VALUES (%s, %s, %s, %s)",
+            (load_id, key_vals["award_id"], raw_str, raw_hash),
+        )
+        return stg_cursor.lastrowid
+
+    def _mark_staging(self, stg_cursor, staging_id, processed: str, error_msg=None):
+        """Update the processed flag (and optional error message) on a staging row."""
+        stg_cursor.execute(
+            "UPDATE stg_usaspending_raw SET processed=%s, error_message=%s WHERE id=%s",
+            (processed, error_msg[:500] if error_msg else None, staging_id),
+        )
 
     # =================================================================
     # Hash fields accessor

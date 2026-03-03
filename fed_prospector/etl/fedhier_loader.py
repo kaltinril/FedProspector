@@ -8,7 +8,9 @@ The federal_organization table has a single PK of fh_org_id (INT).
 Parent-child relationships are tracked via parent_org_id (self-referencing FK).
 """
 
+import hashlib
 import json
+import json as _json
 import logging
 
 from db.connection import get_connection
@@ -103,12 +105,21 @@ class FedHierLoader:
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
+
+        stg_conn = get_connection()
+        stg_conn.autocommit = True
+        stg_cursor = stg_conn.cursor()
         try:
             batch_count = 0
             for raw in orgs_data:
                 stats["records_read"] += 1
                 record_key = None
+                staging_id = None
                 try:
+                    # --- staging write ------------------------------------
+                    key_vals = self._extract_staging_key(raw)
+                    staging_id = self._insert_staging(stg_cursor, load_id, key_vals, raw)
+
                     # --- normalise ----------------------------------------
                     org_data = self._normalize_org(raw)
                     fh_org_id = org_data.get("fh_org_id")
@@ -126,6 +137,7 @@ class FedHierLoader:
                     old_hash = existing_hashes.get(fh_org_id)
                     if old_hash and old_hash == new_hash:
                         stats["records_unchanged"] += 1
+                        self._mark_staging(stg_cursor, staging_id, "Y")
                         batch_count += 1
                         if batch_count >= self.BATCH_SIZE:
                             conn.commit()
@@ -144,6 +156,8 @@ class FedHierLoader:
                     # Update in-memory hash cache
                     existing_hashes[fh_org_id] = new_hash
 
+                    self._mark_staging(stg_cursor, staging_id, "Y")
+
                 except Exception as rec_exc:
                     stats["records_errored"] += 1
                     identifier = record_key or f"record#{stats['records_read']}"
@@ -157,6 +171,8 @@ class FedHierLoader:
                         error_message=str(rec_exc),
                         raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
                     )
+                    if staging_id:
+                        self._mark_staging(stg_cursor, staging_id, "E", str(rec_exc))
                     conn.rollback()
                     batch_count = 0
                     continue
@@ -181,6 +197,8 @@ class FedHierLoader:
             conn.commit()
 
         finally:
+            stg_cursor.close()
+            stg_conn.close()
             cursor.close()
             conn.close()
 
@@ -314,6 +332,32 @@ class FedHierLoader:
             return dept_id
 
         return None
+
+    # =================================================================
+    # Staging helpers
+    # =================================================================
+
+    def _extract_staging_key(self, raw: dict) -> dict:
+        """Extract the natural key for stg_fedhier_raw from a raw API record."""
+        return {"fh_org_id": int(raw.get("fhorgid", 0))}
+
+    def _insert_staging(self, stg_cursor, load_id, key_vals: dict, raw: dict) -> int:
+        """Insert a raw record into stg_fedhier_raw and return the new row id."""
+        raw_str = _json.dumps(raw, sort_keys=True, default=str)
+        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
+        stg_cursor.execute(
+            "INSERT INTO stg_fedhier_raw (load_id, fh_org_id, raw_json, raw_record_hash) "
+            "VALUES (%s, %s, %s, %s)",
+            (load_id, key_vals["fh_org_id"], raw_str, raw_hash),
+        )
+        return stg_cursor.lastrowid
+
+    def _mark_staging(self, stg_cursor, staging_id, processed: str, error_msg=None):
+        """Update the processed flag (and optional error message) on a staging row."""
+        stg_cursor.execute(
+            "UPDATE stg_fedhier_raw SET processed=%s, error_message=%s WHERE id=%s",
+            (processed, error_msg[:500] if error_msg else None, staging_id),
+        )
 
     # =================================================================
     # Database operations
