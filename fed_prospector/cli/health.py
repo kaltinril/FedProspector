@@ -1,4 +1,7 @@
-"""CLI commands for system health, monitoring, and maintenance (Phase 6)."""
+"""CLI commands for system health, monitoring, and maintenance (Phase 6).
+
+Commands: check-health, load-history, catchup-datasets, run-job, maintain-db, run-all-searches
+"""
 
 import click
 from config.logging_config import setup_logging
@@ -64,7 +67,16 @@ def check_health(as_json):
     click.echo("\n=== API Key Status ===")
     for item in results["api_key_status"]:
         status = "configured" if item["configured"] else "NOT CONFIGURED"
-        click.echo(f"  {item['key_name']:20s} {status} (limit: {item['daily_limit']}/day)")
+        expiry = ""
+        if item.get("days_remaining") is not None:
+            days = item["days_remaining"]
+            if days < 14:
+                expiry = f"  ** EXPIRES in {days} days! **"
+            else:
+                expiry = f"  (expires in {days} days)"
+        elif item.get("created_date") is None and item["configured"]:
+            expiry = "  (set SAM_API_KEY_CREATED in .env for expiry tracking)"
+        click.echo(f"  {item['key_name']:20s} {status} (limit: {item['daily_limit']}/day){expiry}")
 
     # Section: Alerts
     click.echo("\n=== Alerts ===")
@@ -85,6 +97,257 @@ def check_health(as_json):
             click.echo(
                 f"  {err['started_at']} | {err['source_system']:20s} | {msg}"
             )
+
+
+@click.command("load-history")
+@click.option("--source", default=None,
+              help="Filter by source_system (e.g., SAM_OPPORTUNITY, SAM_ENTITY)")
+@click.option("--days", default=None, type=int,
+              help="Number of days to look back")
+@click.option("--status", default=None,
+              help="Filter by status (e.g., SUCCESS, FAILED, RUNNING)")
+@click.option("--limit", default=20, type=int,
+              help="Max rows to return (default: 20)")
+def load_history(source, days, status, limit):
+    """Show ETL load history from etl_load_log.
+
+    Displays recent ETL load runs with timing, record counts, and errors.
+
+    Examples:
+        python main.py load-history
+        python main.py load-history --source SAM_OPPORTUNITY
+        python main.py load-history --days 7
+        python main.py load-history --status FAILED
+        python main.py load-history --limit 50
+    """
+    setup_logging()
+    from datetime import datetime, timedelta
+    from db.connection import get_connection
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        query = (
+            "SELECT started_at, source_system, status, "
+            "TIMESTAMPDIFF(SECOND, started_at, completed_at) as duration_secs, "
+            "records_read, records_inserted, records_updated, records_errored, "
+            "error_message "
+            "FROM etl_load_log "
+            "WHERE 1=1"
+        )
+        params = []
+
+        if source:
+            query += " AND source_system = %s"
+            params.append(source)
+
+        if days:
+            cutoff = datetime.now() - timedelta(days=days)
+            query += " AND started_at >= %s"
+            params.append(cutoff)
+
+        if status:
+            query += " AND status = %s"
+            params.append(status)
+
+        query += " ORDER BY started_at DESC LIMIT %s"
+        params.append(limit)
+
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+        if not rows:
+            click.echo("No load history found matching the given filters.")
+            return
+
+        # Format duration
+        def fmt_duration(secs):
+            if secs is None:
+                return "-"
+            if secs < 60:
+                return f"{secs}s"
+            minutes = secs // 60
+            remainder = secs % 60
+            return f"{minutes}m {remainder}s"
+
+        # Format number with commas or dash if None
+        def fmt_num(val):
+            if val is None:
+                return "-"
+            return f"{val:,d}"
+
+        click.echo("ETL Load History")
+        click.echo("================")
+        click.echo(
+            f"  {'Started':<21s}{'Source':<20s}{'Status':<10s}"
+            f"{'Duration':<11s}{'Read':>7s}  {'Insert':>7s}  "
+            f"{'Update':>7s}  {'Errors':>6s}"
+        )
+        click.echo(
+            f"  {'-------------------':<21s}{'------------------':<20s}"
+            f"{'--------':<10s}{'----------':<11s}{'-' * 7:>7s}  "
+            f"{'-' * 7:>7s}  {'-' * 7:>7s}  {'-' * 6:>6s}"
+        )
+
+        for row in rows:
+            started = row["started_at"]
+            if isinstance(started, datetime):
+                started_str = started.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                started_str = str(started)
+
+            duration_str = fmt_duration(row["duration_secs"])
+            err_msg = row.get("error_message") or ""
+
+            click.echo(
+                f"  {started_str:<21s}{row['source_system']:<20s}"
+                f"{row['status']:<10s}{duration_str:<11s}"
+                f"{fmt_num(row['records_read']):>7s}  "
+                f"{fmt_num(row['records_inserted']):>7s}  "
+                f"{fmt_num(row['records_updated']):>7s}  "
+                f"{fmt_num(row['records_errored']):>6s}"
+            )
+
+            if err_msg:
+                truncated = err_msg[:50] + "..." if len(err_msg) > 50 else err_msg
+                click.echo(
+                    f"  {'':21s}Error: {truncated}"
+                )
+
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# Manual instructions for sources that can't be auto-caught-up
+MANUAL_INSTRUCTIONS = {
+    "usaspending": [
+        "python main.py load-transactions  (requires --award-id)",
+    ],
+}
+
+# Hints for sources that have no scheduled job at all
+NO_JOB_HINTS = {
+    "SAM_SUBAWARD": "python main.py load-subawards --key 2",
+}
+
+
+@click.command("catchup-datasets")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Show what would be done without actually running")
+@click.option("--include-all", is_flag=True, default=False,
+              help="Include unsafe jobs that normally require manual steps")
+def catchup_datasets(dry_run, include_all):
+    """Check which data sources are stale or never-loaded and refresh the safe ones.
+
+    Automatically runs catchup-safe jobs (opportunities, hierarchy, awards,
+    calc_rates, exclusions). Skips jobs that require manual multi-step processes
+    (entity_daily, usaspending) unless --include-all is used.
+
+    Examples:
+        python main.py catchup-datasets
+        python main.py catchup-datasets --dry-run
+        python main.py catchup-datasets --include-all
+    """
+    logger = setup_logging()
+    from etl.health_check import HealthCheck
+    from etl.scheduler import JobRunner, JOBS
+
+    click.echo("Checking data freshness...\n")
+
+    hc = HealthCheck()
+    freshness = hc.check_data_freshness()
+
+    # Build a reverse map: source_system -> job_name
+    source_to_job = {}
+    for job_name, job_def in JOBS.items():
+        if job_def.get("source_system"):
+            source_to_job[job_def["source_system"]] = job_name
+
+    runner = JobRunner()
+
+    count_refreshed = 0
+    count_skipped = 0
+    count_healthy = 0
+    count_no_job = 0
+    total_estimated = 0
+
+    for item in freshness:
+        source = item["source"]
+        label = item["label"]
+        status = item["status"]
+
+        # Format the status line
+        if status == "OK":
+            click.echo(f"  {label:25s} healthy")
+            count_healthy += 1
+            continue
+
+        # Build status detail
+        if item["hours_ago"] is not None:
+            detail = f"{item['hours_ago']:.1f}h ago, threshold {item['threshold_hours']}h"
+        else:
+            detail = "never loaded"
+        click.echo(f"  {label:25s} {status} ({detail})")
+
+        # Find the matching job
+        job_name = source_to_job.get(source)
+
+        if not job_name:
+            # No job defined for this source
+            hint = NO_JOB_HINTS.get(source)
+            if hint:
+                click.echo(f"    -> No auto-catchup job defined. Run manually:")
+                click.echo(f"       {hint}")
+            else:
+                click.echo(f"    -> No auto-catchup job defined for {source}")
+            count_no_job += 1
+            continue
+
+        job_def = JOBS[job_name]
+        is_safe = job_def.get("catchup_safe", False)
+
+        if not is_safe and not include_all:
+            # Unsafe job -- show skip message with manual instructions
+            instructions = MANUAL_INSTRUCTIONS.get(job_name)
+            if instructions:
+                click.echo(f"    -> SKIPPED: Requires manual steps. Run manually:")
+                for cmd in instructions:
+                    click.echo(f"       {cmd}")
+            else:
+                click.echo(f"    -> SKIPPED: Not safe for auto-catchup")
+            count_skipped += 1
+            continue
+
+        # Safe to run (or --include-all was given)
+        est = job_def.get("estimated_api_calls", "?")
+        if isinstance(est, int):
+            total_estimated += est
+
+        if dry_run:
+            click.echo(f"    -> DRY RUN: Would run job '{job_name}' (~{est} API calls)")
+            count_refreshed += 1
+        else:
+            click.echo(f"    -> Running job '{job_name}'...")
+            success, output = runner.run_job_streaming(job_name)
+            if success:
+                click.echo(f"    -> Job '{job_name}' completed OK")
+            else:
+                click.echo(f"    -> Job '{job_name}' FAILED")
+                if output:
+                    first_line = output.strip().split("\n")[0][:120]
+                    click.echo(f"       Error: {first_line}")
+            count_refreshed += 1
+
+    # Summary
+    prefix = "[DRY RUN] " if dry_run else ""
+    click.echo(
+        f"\n{prefix}Summary: {count_refreshed} refreshed, {count_skipped} skipped, "
+        f"{count_healthy} healthy, {count_no_job} no job defined"
+    )
+    if dry_run and total_estimated > 0:
+        click.echo(f"\nEstimated total SAM.gov API calls: ~{total_estimated}")
 
 
 @click.command("run-job")

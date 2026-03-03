@@ -45,6 +45,53 @@ def _split_sql_statements(sql: str) -> list[str]:
     return statements
 
 
+def _seed_quality_rules_impl(conn):
+    """Insert quality rules into etl_data_quality_rule. Truncates first.
+
+    Does NOT commit -- caller is responsible for commit.
+
+    Returns the number of rules inserted.
+    """
+    rules = [
+        ("clean_zip_city_state", "Remove city/state/country contamination from ZIP fields",
+         "entity_address", "zip_code", "CLEAN", '{"pattern": "city_state_in_zip"}'),
+        ("clean_zip_po_box", "Remove PO BOX data from ZIP fields",
+         "entity_address", "zip_code", "CLEAN", '{"pattern": "po_box_in_zip"}'),
+        ("clean_state_date", "Remove date values from state fields",
+         "entity_address", "state_or_province", "CLEAN", '{"pattern": "date_in_state"}'),
+        ("flag_foreign_province", "Flag non-US addresses with province names > 2 chars",
+         "entity_address", "state_or_province", "VALIDATE", '{"max_length_us": 2}'),
+        ("normalize_country_chars", "Normalize non-ASCII characters in country names",
+         "ref_country_code", "country_name", "TRANSFORM", '{"normalize": "nfkd"}'),
+        ("map_special_countries", "Handle XKS/XWB/XGZ country codes",
+         "entity_address", "country_code", "TRANSFORM", '{"codes": ["XKS","XWB","XGZ"]}'),
+        ("split_cage_codes", "Split comma-separated CAGE codes, keep first",
+         "entity", "cage_code", "CLEAN", '{"separator": ", "}'),
+        ("flag_retired_naics", "Flag NAICS codes not in current lookup table",
+         "entity_naics", "naics_code", "VALIDATE", '{"check_ref_table": true}'),
+        ("fix_pipe_escapes", "Fix escaped pipe characters in DAT file lines",
+         None, None, "CLEAN", '{"source_format": "dat"}'),
+        ("normalize_dates", "Convert YYYYMMDD and other formats to DATE type",
+         "entity", None, "TRANSFORM", '{"formats": ["YYYYMMDD","YYYY-MM-DD","MM/dd/yyyy"]}'),
+    ]
+
+    cursor = conn.cursor()
+    try:
+        cursor.execute("TRUNCATE TABLE etl_data_quality_rule")
+        sql = (
+            "INSERT INTO etl_data_quality_rule "
+            "(rule_name, description, target_table, target_column, rule_type, rule_definition, is_active, priority) "
+            "VALUES (%s, %s, %s, %s, %s, %s, 'Y', %s)"
+        )
+        rows = [(name, desc, table, col, rtype, rdef, (i + 1) * 10)
+                for i, (name, desc, table, col, rtype, rdef) in enumerate(rules)]
+        cursor.executemany(sql, rows)
+    finally:
+        cursor.close()
+
+    return len(rules)
+
+
 @click.command("build-database")
 @click.option("--drop-first", is_flag=True, default=False,
               help="Drop and recreate all tables (DESTROYS DATA)")
@@ -131,6 +178,16 @@ def build_database(drop_first):
         view_count = cursor.fetchone()[0]
 
         click.echo(f"\nDatabase ready: {table_count} tables, {view_count} views")
+
+        # Auto-seed data quality rules
+        click.echo("\nSeeding data quality rules...")
+        try:
+            rule_count = _seed_quality_rules_impl(conn)
+            conn.commit()
+            click.echo(f"  Quality rules seeded: {rule_count} rules")
+        except Exception as e:
+            logger.warning("Quality rules seeding failed (non-fatal): %s", e)
+            click.echo(f"  WARNING: Quality rules seeding failed: {e}")
 
     except Exception as e:
         conn.rollback()
@@ -437,47 +494,14 @@ def seed_quality_rules():
     logger = setup_logging()
     from db.connection import get_connection
 
-    rules = [
-        ("clean_zip_city_state", "Remove city/state/country contamination from ZIP fields",
-         "entity_address", "zip_code", "CLEAN", '{"pattern": "city_state_in_zip"}'),
-        ("clean_zip_po_box", "Remove PO BOX data from ZIP fields",
-         "entity_address", "zip_code", "CLEAN", '{"pattern": "po_box_in_zip"}'),
-        ("clean_state_date", "Remove date values from state fields",
-         "entity_address", "state_or_province", "CLEAN", '{"pattern": "date_in_state"}'),
-        ("flag_foreign_province", "Flag non-US addresses with province names > 2 chars",
-         "entity_address", "state_or_province", "VALIDATE", '{"max_length_us": 2}'),
-        ("normalize_country_chars", "Normalize non-ASCII characters in country names",
-         "ref_country_code", "country_name", "TRANSFORM", '{"normalize": "nfkd"}'),
-        ("map_special_countries", "Handle XKS/XWB/XGZ country codes",
-         "entity_address", "country_code", "TRANSFORM", '{"codes": ["XKS","XWB","XGZ"]}'),
-        ("split_cage_codes", "Split comma-separated CAGE codes, keep first",
-         "entity", "cage_code", "CLEAN", '{"separator": ", "}'),
-        ("flag_retired_naics", "Flag NAICS codes not in current lookup table",
-         "entity_naics", "naics_code", "VALIDATE", '{"check_ref_table": true}'),
-        ("fix_pipe_escapes", "Fix escaped pipe characters in DAT file lines",
-         None, None, "CLEAN", '{"source_format": "dat"}'),
-        ("normalize_dates", "Convert YYYYMMDD and other formats to DATE type",
-         "entity", None, "TRANSFORM", '{"formats": ["YYYYMMDD","YYYY-MM-DD","MM/dd/yyyy"]}'),
-    ]
-
     conn = get_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("TRUNCATE TABLE etl_data_quality_rule")
-        sql = (
-            "INSERT INTO etl_data_quality_rule "
-            "(rule_name, description, target_table, target_column, rule_type, rule_definition, is_active, priority) "
-            "VALUES (%s, %s, %s, %s, %s, %s, 'Y', %s)"
-        )
-        rows = [(name, desc, table, col, rtype, rdef, (i + 1) * 10)
-                for i, (name, desc, table, col, rtype, rdef) in enumerate(rules)]
-        cursor.executemany(sql, rows)
+        count = _seed_quality_rules_impl(conn)
         conn.commit()
-        click.echo(f"Seeded {len(rules)} data quality rules into etl_data_quality_rule")
+        click.echo(f"Seeded {count} data quality rules into etl_data_quality_rule")
     except Exception as e:
         conn.rollback()
         click.echo(f"ERROR: {e}")
         sys.exit(1)
     finally:
-        cursor.close()
         conn.close()

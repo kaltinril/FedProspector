@@ -73,6 +73,7 @@ def load_exclusions(exclusion_type, agency, max_calls, api_key_number):
         calls_made = 0
         page = 0
         page_size = 10  # SAM API max
+        total = 0
 
         while calls_made < max_calls:
             data = client.search_exclusions(
@@ -92,6 +93,14 @@ def load_exclusions(exclusion_type, agency, max_calls, api_key_number):
             if not records or (page + 1) * page_size >= total:
                 break
             page += 1
+
+        # Check if budget was exhausted before all data was fetched
+        if calls_made >= max_calls and total > 0 and len(all_exclusions) < total:
+            remaining_records = total - len(all_exclusions)
+            remaining_calls = (remaining_records + page_size - 1) // page_size
+            click.echo(f"\n  ** BUDGET EXHAUSTED: Retrieved {len(all_exclusions):,d} of {total:,d} available records.")
+            click.echo(f"     {remaining_records:,d} records remain ({remaining_calls} more API calls needed).")
+            click.echo(f"     To get all data, re-run with: --max-calls {calls_made + remaining_calls}")
 
         click.echo(f"\nFetched {len(all_exclusions):,d} exclusion records in {calls_made} API calls")
 

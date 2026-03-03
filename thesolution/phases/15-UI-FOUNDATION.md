@@ -126,7 +126,7 @@ ui/
 - [ ] Update `.gitignore` with `node_modules/`, `ui/dist/`, `ui/.env.local`
 - [ ] Configure ESLint (`@typescript-eslint`, `eslint-plugin-jsx-a11y`) and Prettier for consistent code formatting
 - [ ] Enable `React.StrictMode` in `main.tsx`. Note: StrictMode double-invokes effects in development — this is expected and harmless (TanStack Query deduplicates requests).
-- [ ] **Important**: Exclude `ui/node_modules/` from OneDrive sync to avoid file-locking conflicts, path length issues, and sync thrashing during `npm install`.
+- [ ] ~~**Important**: Exclude `ui/node_modules/` from OneDrive sync~~ **Resolved**: Project moved to `C:\git\fedProspect` (off OneDrive) to avoid sync issues. No exclusion needed.
 
 ### 15.2 API Client Layer
 - [ ] Create Axios instance with base URL `/api/v1` (relative, works with proxy in dev and reverse proxy in prod)

@@ -208,10 +208,10 @@ With 10 calls/day, our daily opportunity refresh uses 4-5 calls (one per priorit
 
 ## Step 4: Set Up the Python Project
 
-From the project root (`pbdc/`), create the Python project directory and virtual environment:
+From the project root (`fedProspect/`), create the Python project directory and virtual environment:
 
 ```bash
-# Create the project directory (from pbdc/ root)
+# Create the project directory (from fedProspect/ root)
 mkdir fed_prospector
 cd fed_prospector
 
@@ -354,7 +354,7 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 56 tables + 4 views
+python main.py build-database        # Create/rebuild all 57 tables + 4 views
 python main.py load-lookups          # Load all 11 reference tables from CSVs
 python main.py status                # Show table counts, API status, recent loads
 python main.py check-api             # Test SAM.gov API key (uses 1 call)
@@ -462,7 +462,7 @@ python main.py check-schema --verbose       # Show details for each table
 
 See [07-REFERENCE-ENRICHMENT.md](phases/07-REFERENCE-ENRICHMENT.md) for full details.
 
-> **Note**: CLI has 39 commands across 12 modules in `cli/`. Run `python main.py --help` for the full list.
+> **Note**: CLI has 52 commands across 15 modules in `cli/`. Run `python main.py --help` for the full list.
 
 ---
 
@@ -547,6 +547,50 @@ See [14-TESTING.md](phases/14-TESTING.md) for full details.
 
 See [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md) for full details.
 
+### Phase 14.6: Admin Operability & CLI Hardening — COMPLETE (2026-03-02)
+
+**What was delivered**:
+- First-time setup wizard, automated entity loading, schedule installer, admin CLI commands, job history, service manager hardening, API key tracking, health check persistence
+- 12 new CLI commands (52 total across 15 modules)
+- 1 new table (`etl_health_snapshot`, total: 57 tables + 4 views)
+
+**New commands**:
+```bash
+# First-time setup — run this first to check all prerequisites
+python main.py verify-setup
+
+# One-step entity refresh (replaces manual download-extract + load-entities)
+python main.py refresh-entities --type daily
+python main.py refresh-entities --type monthly
+
+# Auto-refresh stale data sources
+python main.py catchup-datasets                  # Refresh all stale datasets
+python main.py catchup-datasets --dry-run        # Preview what would run
+
+# View ETL load history
+python main.py load-history                      # Last 20 loads, all sources
+python main.py load-history --source SAM_OPPORTUNITY --days 7
+python main.py load-history --status FAILED
+
+# Auto-create scheduled tasks (Windows Task Scheduler or Linux cron)
+python main.py setup-schedule                    # Auto-detect OS, create tasks
+python main.py setup-schedule --dry-run          # Show what would be created
+python main.py setup-schedule --remove           # Remove all scheduled tasks
+
+# Organization management
+python main.py create-org --name "Acme Corp" --slug acme-corp
+python main.py list-orgs
+
+# User management
+python main.py invite-user --email user@acme.com --org-id 2 --role member
+python main.py list-org-members --org-id 2
+python main.py disable-user --user-id 5
+python main.py enable-user --user-id 5
+python main.py reset-password --user-id 5        # Prints temp password
+```
+
+See [14.6-ADMIN-OPERABILITY.md](phases/14.6-ADMIN-OPERABILITY.md) for full details.
+
 ### Phases 15-20: UI Roadmap — NOT STARTED
 
 **Tech Stack**: Vite 6 + React 19 + TypeScript + MUI v6 (Material UI) + TanStack Query + Axios
@@ -592,11 +636,13 @@ See individual phase docs in `thesolution/phases/` for full specifications.
 
 ## Current Priority: Phase 15 (UI Foundation)
 
-Phase 14.5 (Multi-Tenancy & Security Hardening) is COMPLETE. The API now has:
-- httpOnly cookie auth with CSRF protection (no more localStorage tokens)
-- JWT claims include `org_id` and `org_role`
-- All capture endpoints filter by `organization_id`
-- 57 endpoints across 14 controllers
+Phase 14.6 (Admin Operability & CLI Hardening) is COMPLETE. The system now has:
+- 52 CLI commands across 15 modules (self-service admin without AI or raw SQL)
+- `verify-setup` for first-time prerequisite checking
+- `setup-schedule` for automated task creation
+- `refresh-entities` for one-step entity loading
+- Admin CLI commands for org/user management before UI exists
+- 57 endpoints across 14 controllers, 57 tables + 4 views
 
 **Next**: Phase 15 (UI Foundation) → Phase 16 (Search) → and so on through Phase 20.
 

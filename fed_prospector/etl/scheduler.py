@@ -6,7 +6,7 @@ This is NOT a daemon - each invocation runs one job and exits.
 
 Windows Task Scheduler setup commands:
   schtasks /create /tn "FedContract_Opportunities" /tr "python main.py load-opportunities --key 2" /sc HOURLY /mo 4
-  schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py download-extract --type daily" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
+  schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py refresh-entities --type daily" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
   schtasks /create /tn "FedContract_Hierarchy" /tr "python main.py load-hierarchy --full-refresh --key 2" /sc WEEKLY /d SUN /st 02:00
   schtasks /create /tn "FedContract_Awards" /tr "python main.py load-awards --key 2" /sc WEEKLY /d SAT /st 03:00
   schtasks /create /tn "FedContract_CalcRates" /tr "python main.py load-calc" /sc MONTHLY /d 1 /st 04:00
@@ -33,18 +33,22 @@ JOBS = {
     "opportunities": {
         "description": "Refresh contract opportunities from SAM.gov",
         "command": ["python", "main.py", "load-opportunities", "--key", "2"],
-        "source_system": "SAM_OPPORTUNITY_KEY2",
+        "source_system": "SAM_OPPORTUNITY",
         "schedule": "Every 4 hours",
         "staleness_hours": 6,
         "priority": "Critical",
+        "catchup_safe": True,
+        "estimated_api_calls": 5,   # 4 set-aside types, ~1 page each
     },
     "entity_daily": {
         "description": "Download and load daily entity extract",
-        "command": ["python", "main.py", "download-extract", "--type", "daily"],
+        "command": ["python", "main.py", "refresh-entities", "--type", "daily"],
         "source_system": "SAM_ENTITY",
         "schedule": "Tue-Sat 06:00",
         "staleness_hours": 48,  # 2 days (skip weekends)
         "priority": "High",
+        "catchup_safe": True,
+        "estimated_api_calls": 1,   # Single file download
     },
     "hierarchy": {
         "description": "Refresh federal org hierarchy",
@@ -53,6 +57,8 @@ JOBS = {
         "schedule": "Sunday 02:00",
         "staleness_hours": 336,  # 14 days
         "priority": "Medium",
+        "catchup_safe": True,
+        "estimated_api_calls": 50,  # ~5K orgs at 100/page
     },
     "awards": {
         "description": "Refresh contract awards data",
@@ -61,6 +67,8 @@ JOBS = {
         "schedule": "Saturday 03:00",
         "staleness_hours": 336,  # 14 days
         "priority": "Medium",
+        "catchup_safe": True,
+        "estimated_api_calls": 10,  # Default --max-calls
     },
     "calc_rates": {
         "description": "Refresh GSA CALC+ labor rates",
@@ -69,6 +77,8 @@ JOBS = {
         "schedule": "1st of month 04:00",
         "staleness_hours": 1080,  # 45 days
         "priority": "Low",
+        "catchup_safe": True,
+        "estimated_api_calls": 0,   # GSA API, no SAM key
     },
     "usaspending": {
         "description": "Refresh USASpending data",
@@ -77,6 +87,8 @@ JOBS = {
         "schedule": "1st of month 05:00",
         "staleness_hours": 1080,  # 45 days
         "priority": "Medium",
+        "catchup_safe": False,
+        "estimated_api_calls": 0,   # Separate API, no SAM key
     },
     "exclusions": {
         "description": "Refresh SAM.gov exclusions data",
@@ -85,6 +97,8 @@ JOBS = {
         "schedule": "Monday 06:00",
         "staleness_hours": 336,  # 14 days
         "priority": "High",
+        "catchup_safe": True,
+        "estimated_api_calls": 20,  # Default --max-calls
     },
     "saved_searches": {
         "description": "Run all active saved searches",
@@ -93,6 +107,8 @@ JOBS = {
         "schedule": "Daily 07:00",
         "staleness_hours": None,
         "priority": "Medium",
+        "catchup_safe": False,
+        "estimated_api_calls": 0,   # Local DB queries only
     },
 }
 
@@ -152,6 +168,44 @@ class JobRunner:
 
             return success, output.strip()
 
+        except subprocess.TimeoutExpired:
+            msg = f"Job '{job_name}' timed out after 3600 seconds"
+            self.logger.error(msg)
+            return False, msg
+        except Exception as e:
+            msg = f"Job '{job_name}' failed to execute: {e}"
+            self.logger.error(msg)
+            return False, msg
+
+    def run_job_streaming(self, job_name):
+        """Run a single named job with output streamed to console in real-time."""
+        if job_name not in JOBS:
+            return False, f"Unknown job: {job_name}"
+
+        job = JOBS[job_name]
+        self.logger.info("Starting job: %s (%s)", job_name, job["description"])
+
+        command = list(job["command"])
+        if "main.py" in command:
+            idx = command.index("main.py")
+            command[idx] = str(self.main_py)
+        if command[0] == "python":
+            command[0] = sys.executable
+
+        working_dir = self.main_py.parent
+
+        try:
+            result = subprocess.run(
+                command,
+                cwd=str(working_dir),
+                timeout=3600,
+            )
+            success = result.returncode == 0
+            if success:
+                self.logger.info("Job '%s' completed successfully", job_name)
+            else:
+                self.logger.error("Job '%s' failed (exit code %d)", job_name, result.returncode)
+            return success, ""
         except subprocess.TimeoutExpired:
             msg = f"Job '{job_name}' timed out after 3600 seconds"
             self.logger.error(msg)

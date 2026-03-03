@@ -70,6 +70,7 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
         all_orgs = []
         calls_made = 0
         offset = 0
+        total = 0
 
         while calls_made < max_calls:
             data = client.search_organizations(
@@ -86,6 +87,14 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
             if not records or offset + 100 >= total:
                 break
             offset += 100
+
+        # Check if budget was exhausted before all data was fetched
+        if calls_made >= max_calls and total > 0 and len(all_orgs) < total:
+            remaining_records = total - len(all_orgs)
+            remaining_calls = (remaining_records + 100 - 1) // 100
+            click.echo(f"\n  ** BUDGET EXHAUSTED: Retrieved {len(all_orgs):,d} of {total:,d} available records.")
+            click.echo(f"     {remaining_records:,d} records remain ({remaining_calls} more API calls needed).")
+            click.echo(f"     To get all data, re-run with: --max-calls {calls_made + remaining_calls}")
 
         click.echo(f"\nFetched {len(all_orgs):,d} organization records in {calls_made} API calls")
 

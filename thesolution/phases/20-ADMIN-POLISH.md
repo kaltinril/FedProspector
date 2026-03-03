@@ -44,6 +44,37 @@ Final phase — build the admin panel (user management, ETL monitoring), user pr
 
 These thresholds are sourced from Phase 6 (`etl/health_check.py`). The ETL Status tab displays a color-coded table using these values, with last refresh timestamp and row count for each source.
 
+#### ETL Load History Sub-Tab
+- Paginated table: started_at, source, status, duration, records read/inserted/updated/errored
+- Filter controls: source dropdown, status dropdown, date range picker
+- Error details expand inline on click
+- **New API endpoint needed**: `GET /api/v1/admin/load-history?source=&status=&days=&limit=&offset=`
+  - Returns paginated ETL load log entries with the same filters as the CLI `load-history` command
+  - Query params: source_system, status, days, limit (default 20), offset (default 0)
+
+#### API Key Status Panel
+- Display configured API keys with daily limits and remaining calls
+- Show expiration countdown for each key (data from `SAM_API_KEY_CREATED` dates)
+- Color-coded: green (>14d), yellow (<14d), red (<3d)
+- **New API endpoint needed**: `GET /api/v1/admin/api-keys`
+  - Returns key name, configured status, daily limit, created date, expires date, days remaining
+  - Reads from Python ETL config (or mirror in DB for API access)
+
+#### Health Trends Panel
+- Line chart showing system health status over time (last 30 days)
+- Data from `etl_health_snapshot` table (populated by `check-health` CLI)
+- Shows: overall status transitions, alert count trend, stale source count
+- **New API endpoint needed**: `GET /api/v1/admin/health-snapshots?days=30`
+  - Returns list of health snapshots with checked_at, overall_status, alert_count, error_count, stale_source_count
+
+#### Job Schedule Tab
+- Read-only table showing all ETL jobs and their schedules
+- Columns: job name, description, schedule, priority, last run time, last status, next estimated run
+- Color-coded status: green (healthy), yellow (approaching staleness), red (stale)
+- **New API endpoint needed**: `GET /api/v1/admin/jobs`
+  - Returns job definitions merged with last-run status from `etl_load_log`
+  - Mirrors the Python scheduler's JOBS dict + `JobRunner.get_job_status()` data
+
 **User Management Tab:**
 - System admin sees all users across all orgs. Org admin sees only their org's members.
 - User table: username, email, role, active status, last login, created date
@@ -120,6 +151,15 @@ Accessible to users with system `is_admin = true`. Manages the platform across a
 - [ ] Recent errors table
 - [ ] Active alerts display
 - [ ] Wire to `GET /api/v1/admin/etl-status`
+- [ ] ETL Load History sub-tab with paginated table and filters (source, status, date range)
+- [ ] Inline error detail expansion on load history rows
+- [ ] Implement `GET /api/v1/admin/load-history` backend endpoint
+- [ ] API Key Status panel with expiration countdown and color coding
+- [ ] Implement `GET /api/v1/admin/api-keys` backend endpoint
+- [ ] Health Trends panel with line chart (last 30 days from `etl_health_snapshot`)
+- [ ] Implement `GET /api/v1/admin/health-snapshots` backend endpoint
+- [ ] Job Schedule tab with read-only job list, schedules, and last-run status
+- [ ] Implement `GET /api/v1/admin/jobs` backend endpoint
 
 ### 20.2 Admin — User Management
 - [ ] User management table
@@ -177,10 +217,32 @@ Accessible to users with system `is_admin = true`. Manages the platform across a
 
 ---
 
+### New API Endpoints Required (Phase 20 Backend Work)
+
+These endpoints support the admin UI features added above. They complement the existing
+`GET /api/v1/admin/etl-status` and `GET /health` endpoints.
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/admin/load-history` | GET | Paginated ETL load history with filters |
+| `/api/v1/admin/health-snapshots` | GET | Historical health check snapshots |
+| `/api/v1/admin/api-keys` | GET | API key status with expiration info |
+| `/api/v1/admin/jobs` | GET | Scheduled job definitions with last-run status |
+
+All require `[Authorize(Roles = "admin")]`. Implementation should query the same MySQL
+tables the Python CLI already uses (etl_load_log, etl_health_snapshot, etl_rate_limit).
+
+---
+
 ## Verification
 - [ ] Admin panel accessible only to admin users
 - [ ] `/health` data displayed in admin panel (Health tab)
 - [ ] ETL status shows real source data from API
+- [ ] ETL Load History sub-tab shows paginated history with working filters
+- [ ] API Key Status panel shows key expiration with correct color coding
+- [ ] Health Trends panel renders line chart from `etl_health_snapshot` data
+- [ ] Job Schedule tab displays all ETL jobs with last-run status
+- [ ] All 4 new admin API endpoints return correct data and require admin role
 - [ ] User management CRUD works (create, toggle, reset password)
 - [ ] Org admin can manage members (invite, remove, view pending)
 - [ ] System admin sees all orgs; org admin sees only own org

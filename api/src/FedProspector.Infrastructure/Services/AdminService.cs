@@ -16,7 +16,7 @@ public class AdminService : IAdminService
 
     private static readonly Dictionary<string, (string Label, double ThresholdHours)> StalenessThresholds = new()
     {
-        ["SAM_OPPORTUNITY_KEY2"] = ("Opportunities", 6),
+        ["SAM_OPPORTUNITY"] = ("Opportunities", 6),
         ["SAM_ENTITY"] = ("Entity Data", 48),
         ["SAM_FEDHIER"] = ("Federal Hierarchy", 336),
         ["SAM_AWARDS"] = ("Contract Awards", 336),
@@ -253,7 +253,8 @@ public class AdminService : IAdminService
         }
 
         var sources = new List<EtlSourceStatusDto>();
-        var now = DateTime.UtcNow;
+        // Python ETL stores timestamps in local time, so compare with local time
+        var now = DateTime.Now;
 
         foreach (var (key, (label, threshold)) in StalenessThresholds)
         {

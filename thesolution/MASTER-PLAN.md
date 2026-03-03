@@ -12,7 +12,7 @@ This project targets federal contract prospecting as a paid SaaS product. The in
 
 A previous Salesforce CRM approach hit CPU/transaction limits when processing 1M+ entity records and required expensive licensing. This project replaces Salesforce with:
 - A Python ETL pipeline gathering data from 10+ federal government APIs
-- A MySQL database with 56 tables normalizing opportunities, awards, entities, and competitive intelligence
+- A MySQL database with 57 tables normalizing opportunities, awards, entities, and competitive intelligence
 - A C# ASP.NET Core Web API with multi-tenant organization isolation
 - A React web application for search, analysis, and capture management
 - Per-organization data isolation so each subscribing company's prospects, proposals, and searches are private
@@ -20,7 +20,7 @@ A previous Salesforce CRM approach hit CPU/transaction limits when processing 1M
 ## Project Organization
 
 ```
-pbdc/
+fedProspect/
 ├── fed_prospector/    Main Python application (CLI, API clients, ETL, DB schema)
 ├── api/               C# ASP.NET Core Web API (Phase 10+)
 ├── ui/                Frontend web application (future)
@@ -58,7 +58,7 @@ pbdc/
 - ~~Load reference data from CSVs~~ ~13,001 rows across 11 tables (originally 12,988 in Phase 1; Phase 7 added ref_sba_type + ref_entity_structure)
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
-- ~~CLI entry point~~ `python main.py` (39 commands across 12 `cli/` modules)
+- ~~CLI entry point~~ `python main.py` (52 commands across 15 `cli/` modules)
 - **Deliverable**: DONE
 
 ### Phase 2: Entity Data Pipeline (Proof of Concept - 1 Source)
@@ -110,7 +110,7 @@ pbdc/
 - ~~SAM.gov Exclusions API~~ `sam_exclusions_client.py` + `exclusions_loader.py` (v4 API, check UEI/name, prospect team member cross-check, loads to `sam_exclusion`)
 - ~~SAM.gov Subaward Reporting API~~ `sam_subaward_client.py` + `subaward_loader.py` (v1 subcontracts API, teaming partner analysis, loads to `sam_subaward`)
 - **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](reference/01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
-- **CLI refactored**: `main.py` (1752 -> 170 lines) with 39 commands split into 12 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema)
+- **CLI refactored**: `main.py` (1752 -> 170 lines) with 52 commands split into 15 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule)
 - **New CLI commands**: `load-awards`, `load-hierarchy`, `search-agencies`, `load-exclusions`, `check-exclusion`, `check-prospects`, `load-transactions`, `burn-rate`, `load-subawards`, `search-subawards`, `teaming-partners`
 - **Deliverable**: DONE
 
@@ -155,7 +155,7 @@ pbdc/
 - [x] Build C# API backend — 57 endpoints across 14 controllers (Phases 10-14.5)
 - [x] Replicate prospect status flow, Go/No-Go scoring in C# (Phase 12)
 
-**Impact**: Current 56 tables + 4 views (schema changes completed in Phase 9, expanded in Phase 14.5).
+**Impact**: Current 57 tables + 4 views (schema changes completed in Phase 9, expanded in Phase 14.5, +1 table in Phase 14.6).
 
 ### Phase 9: Schema Evolution
 **Status**: [x] COMPLETE (2026-03-01)
@@ -247,7 +247,27 @@ pbdc/
 - [x] Multi-tenant query scoping on all capture endpoints
 - [x] Missing endpoints: PATCH `saved-searches`, POST `milestones`, GET `proposals`, POST `auth/refresh`, GET `notifications/unread-count`, GET `opportunities/export`
 - [x] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
-- **Result**: 57 endpoints across 14 controllers, 14 services, 56 tables + 4 views, 1,028 tests passing
+- **Result**: 57 endpoints across 14 controllers, 14 services, 57 tables + 4 views, 1,028 tests passing
+
+### Phase 14.6: Admin Operability & CLI Hardening
+**Status**: [x] COMPLETE (2026-03-02)
+**Document**: [14.6-ADMIN-OPERABILITY.md](phases/14.6-ADMIN-OPERABILITY.md)
+**Dependencies**: Phase 14.5 (Multi-Tenancy), Phase 6 (Automation)
+
+**Scope**:
+> **BLOCKER FOR UI PHASES**: Ensures an admin can stand up, operate, and troubleshoot the system without AI assistance or raw SQL.
+
+- [x] Entity auto-load wrapper: `refresh-entities` command (download + load in one step)
+- [x] First-time setup wizard: `verify-setup` command (checks all prerequisites with pass/fail)
+- [x] Schedule installer: `setup-schedule` command (auto-creates Windows/Linux scheduled tasks)
+- [x] Log rotation: RotatingFileHandler (50 MB per file, 10 backups)
+- [x] Admin CLI commands: `create-org`, `list-orgs`, `invite-user`, `list-org-members`, `disable-user`, `enable-user`, `reset-password` (7 new commands in `cli/admin.py`)
+- [x] Job/load history: `load-history` command with source/days/status filters
+- [x] Service manager hardening: pre-flight port/binary checks, diagnostic messages
+- [x] API key expiration tracking: warns at <14 days, errors at <3 days
+- [x] Health check persistence: `etl_health_snapshot` table (1 new table, total: 57 tables + 4 views)
+- [x] Auto-seed quality rules in `build-database`
+- **Result**: 52 CLI commands across 15 modules, 12 new commands, 1 new table
 
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED

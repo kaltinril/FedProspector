@@ -20,14 +20,14 @@ class TestStalenessThresholds:
 
     def test_known_sources_present(self):
         expected = {
-            "SAM_OPPORTUNITY_KEY2", "SAM_ENTITY", "SAM_FEDHIER",
+            "SAM_OPPORTUNITY", "SAM_ENTITY", "SAM_FEDHIER",
             "SAM_AWARDS", "GSA_CALC", "USASPENDING",
             "SAM_EXCLUSIONS", "SAM_SUBAWARD",
         }
         assert expected == set(STALENESS_THRESHOLDS.keys())
 
     def test_opportunity_threshold_is_6_hours(self):
-        _, hours = STALENESS_THRESHOLDS["SAM_OPPORTUNITY_KEY2"]
+        _, hours = STALENESS_THRESHOLDS["SAM_OPPORTUNITY"]
         assert hours == 6
 
     def test_entity_threshold_is_48_hours(self):
@@ -76,7 +76,7 @@ class TestCheckDataFreshness:
             results = hc.check_data_freshness()
 
         # At least the 6-hour threshold source should be STALE
-        opportunity_result = [r for r in results if r["source"] == "SAM_OPPORTUNITY_KEY2"][0]
+        opportunity_result = [r for r in results if r["source"] == "SAM_OPPORTUNITY"][0]
         assert opportunity_result["status"] == "STALE"
 
     def test_warning_status_near_threshold(self):
@@ -95,7 +95,7 @@ class TestCheckDataFreshness:
             hc = HealthCheck()
             results = hc.check_data_freshness()
 
-        opp_result = [r for r in results if r["source"] == "SAM_OPPORTUNITY_KEY2"][0]
+        opp_result = [r for r in results if r["source"] == "SAM_OPPORTUNITY"][0]
         assert opp_result["status"] == "WARNING"
 
     def test_never_status_when_no_loads(self):
@@ -156,7 +156,7 @@ class TestGetAlerts:
     @patch.object(HealthCheck, "get_api_usage_today")
     def test_all_healthy_returns_ok(self, mock_usage, mock_errors, mock_keys, mock_freshness):
         mock_freshness.return_value = [
-            {"source": "SAM_OPPORTUNITY_KEY2", "label": "Opportunities",
+            {"source": "SAM_OPPORTUNITY", "label": "Opportunities",
              "status": "OK", "hours_ago": 1, "threshold_hours": 6},
         ]
         mock_keys.return_value = [
@@ -179,7 +179,7 @@ class TestGetAlerts:
     @patch.object(HealthCheck, "get_api_usage_today")
     def test_stale_data_generates_error_alert(self, mock_usage, mock_errors, mock_keys, mock_freshness):
         mock_freshness.return_value = [
-            {"source": "SAM_OPPORTUNITY_KEY2", "label": "Opportunities",
+            {"source": "SAM_OPPORTUNITY", "label": "Opportunities",
              "status": "STALE", "hours_ago": 100, "threshold_hours": 6},
         ]
         mock_keys.return_value = []

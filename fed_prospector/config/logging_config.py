@@ -1,6 +1,7 @@
 """Structured logging setup."""
 
 import logging
+from logging.handlers import RotatingFileHandler
 import sys
 from config import settings
 
@@ -23,8 +24,11 @@ def setup_logging(name="fed_prospector"):
     logger.addHandler(console)
 
     # File handler
-    file_handler = logging.FileHandler(
-        settings.LOG_DIR / "fed_prospector.log", encoding="utf-8"
+    file_handler = RotatingFileHandler(
+        settings.LOG_DIR / "fed_prospector.log",
+        maxBytes=50 * 1024 * 1024,
+        backupCount=10,
+        encoding="utf-8",
     )
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(fmt)

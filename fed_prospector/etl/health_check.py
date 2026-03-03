@@ -20,7 +20,7 @@ logger = logging.getLogger("fed_prospector.health")
 
 # Staleness thresholds (hours) - matches JOBS definitions
 STALENESS_THRESHOLDS = {
-    "SAM_OPPORTUNITY_KEY2": ("Opportunities", 6),
+    "SAM_OPPORTUNITY": ("Opportunities", 6),
     "SAM_ENTITY": ("Entity Data", 48),
     "SAM_FEDHIER": ("Federal Hierarchy", 336),
     "SAM_AWARDS": ("Contract Awards", 336),
@@ -36,7 +36,7 @@ class HealthCheck:
 
     def check_all(self):
         """Run all health checks. Returns dict with sections."""
-        return {
+        results = {
             "data_freshness": self.check_data_freshness(),
             "table_stats": self.get_table_stats(),
             "api_usage": self.get_api_usage_today(),
@@ -44,6 +44,59 @@ class HealthCheck:
             "recent_errors": self.get_recent_errors(),
             "alerts": self.get_alerts(),
         }
+        # Persist snapshot (best-effort, don't fail if table doesn't exist)
+        try:
+            self.save_snapshot(results)
+        except Exception:
+            pass
+        return results
+
+    def save_snapshot(self, results=None):
+        """Save health check results to etl_health_snapshot for historical tracking.
+
+        If results is None, runs check_all() first.
+        """
+        import json
+
+        if results is None:
+            results = self.check_all()
+
+        alerts = results.get("alerts", [])
+        alert_count = len(alerts)
+        error_count = sum(1 for a in alerts if a["level"] == "ERROR")
+
+        freshness = results.get("data_freshness", [])
+        stale_count = sum(1 for f in freshness if f["status"] in ("STALE", "NEVER"))
+
+        # Determine overall status
+        if error_count > 0:
+            overall = "unhealthy"
+        elif stale_count > 0:
+            overall = "degraded"
+        elif alert_count > 1 or (alert_count == 1 and alerts[0]["level"] != "OK"):
+            overall = "warning"
+        else:
+            overall = "healthy"
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO etl_health_snapshot "
+                "(overall_status, results_json, alert_count, error_count, stale_source_count) "
+                "VALUES (%s, %s, %s, %s, %s)",
+                (overall, json.dumps(results, default=str), alert_count, error_count, stale_count),
+            )
+            conn.commit()
+            logger.info("Health snapshot saved: %s (%d alerts, %d errors)", overall, alert_count, error_count)
+            return cursor.lastrowid
+        except Exception as e:
+            logger.warning("Failed to save health snapshot: %s", e)
+            conn.rollback()
+            return None
+        finally:
+            cursor.close()
+            conn.close()
 
     def check_data_freshness(self):
         """Check each source's last successful load against threshold.
@@ -201,23 +254,41 @@ class HealthCheck:
         """
         results = []
 
-        # Check SAM_API_KEY
-        key1_configured = bool(
-            settings.SAM_API_KEY and settings.SAM_API_KEY != "your_api_key_here"
-        )
-        results.append({
-            "key_name": "SAM API Key 1",
-            "configured": key1_configured,
-            "daily_limit": settings.SAM_DAILY_LIMIT,
-        })
+        keys_config = [
+            ("SAM API Key 1", settings.SAM_API_KEY, settings.SAM_DAILY_LIMIT,
+             settings.SAM_API_KEY_CREATED),
+            ("SAM API Key 2", settings.SAM_API_KEY_2, settings.SAM_DAILY_LIMIT_2,
+             settings.SAM_API_KEY_2_CREATED),
+        ]
 
-        # Check SAM_API_KEY_2
-        key2_configured = bool(settings.SAM_API_KEY_2)
-        results.append({
-            "key_name": "SAM API Key 2",
-            "configured": key2_configured,
-            "daily_limit": settings.SAM_DAILY_LIMIT_2,
-        })
+        for key_name, key_value, daily_limit, created_str in keys_config:
+            configured = bool(
+                key_value and key_value != "your_api_key_here"
+            )
+            result = {
+                "key_name": key_name,
+                "configured": configured,
+                "daily_limit": daily_limit,
+            }
+
+            if created_str:
+                try:
+                    created = date.fromisoformat(created_str)
+                    expires = created + timedelta(days=settings.SAM_KEY_EXPIRY_DAYS)
+                    days_remaining = (expires - date.today()).days
+                    result["created_date"] = created_str
+                    result["expires_date"] = expires.isoformat()
+                    result["days_remaining"] = days_remaining
+                except ValueError:
+                    result["created_date"] = created_str
+                    result["expires_date"] = "invalid date"
+                    result["days_remaining"] = None
+            else:
+                result["created_date"] = None
+                result["expires_date"] = "unknown"
+                result["days_remaining"] = None
+
+            results.append(result)
 
         return results
 
@@ -279,6 +350,25 @@ class HealthCheck:
                     "level": "WARN",
                     "message": f"{key['key_name']} is not configured",
                 })
+
+            # Check key expiration
+            if key.get("days_remaining") is not None:
+                if key["days_remaining"] < 3:
+                    alerts.append({
+                        "level": "ERROR",
+                        "message": (
+                            f"{key['key_name']} expires in {key['days_remaining']} days! "
+                            f"Renew at sam.gov immediately."
+                        ),
+                    })
+                elif key["days_remaining"] < 14:
+                    alerts.append({
+                        "level": "WARN",
+                        "message": (
+                            f"{key['key_name']} expires in {key['days_remaining']} days. "
+                            f"Plan to renew soon."
+                        ),
+                    })
 
         # Check recent failures
         errors = self.get_recent_errors(days=1)

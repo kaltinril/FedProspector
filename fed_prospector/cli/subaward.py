@@ -76,6 +76,7 @@ def load_subawards(naics, agency, prime_uei, max_calls, api_key_number):
         all_subawards = []
         calls_made = 0
         page_number = 0
+        total = 0
 
         while calls_made < max_calls:
             data = client.search_subcontracts(
@@ -98,6 +99,15 @@ def load_subawards(naics, agency, prime_uei, max_calls, api_key_number):
             if not records or page_number + 1 >= total_pages:
                 break
             page_number += 1
+
+        # Check if budget was exhausted before all data was fetched
+        if calls_made >= max_calls and total > 0 and len(all_subawards) < total:
+            remaining_records = total - len(all_subawards)
+            page_size = 1000
+            remaining_calls = (remaining_records + page_size - 1) // page_size
+            click.echo(f"\n  ** BUDGET EXHAUSTED: Retrieved {len(all_subawards):,d} of {total:,d} available records.")
+            click.echo(f"     {remaining_records:,d} records remain ({remaining_calls} more API calls needed).")
+            click.echo(f"     To get all data, re-run with: --max-calls {calls_made + remaining_calls}")
 
         click.echo(f"\nFetched {len(all_subawards):,d} subaward records in {calls_made} API calls")
 

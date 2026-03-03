@@ -3,7 +3,7 @@
 **Status**: COMPLETE (2026-03-01)
 **Dependencies**: Phase 8 (Gap Analysis) complete
 **Deliverable**: SQL migration scripts `fed_prospector/db/schema/tables/80_raw_staging.sql` (staging) + `fed_prospector/db/schema/tables/90_web_api.sql` (production) + updated `build-database` CLI
-**Repository**: `pbdc` (this repo -- these are MySQL schema changes)
+**Repository**: `fedProspect` (this repo -- these are MySQL schema changes)
 
 ---
 

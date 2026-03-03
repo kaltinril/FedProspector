@@ -20,6 +20,11 @@ SAM_API_BASE_URL = "https://api.sam.gov"
 SAM_DAILY_LIMIT = int(os.getenv("SAM_DAILY_LIMIT", "10"))
 SAM_DAILY_LIMIT_2 = int(os.getenv("SAM_DAILY_LIMIT_2", "1000"))
 
+# SAM.gov API key creation dates (for expiration tracking, ISO format YYYY-MM-DD)
+SAM_API_KEY_CREATED = os.getenv("SAM_API_KEY_CREATED", "")
+SAM_API_KEY_2_CREATED = os.getenv("SAM_API_KEY_2_CREATED", "")
+SAM_KEY_EXPIRY_DAYS = 90
+
 # SAM.gov Federal Hierarchy API
 SAM_FED_HIERARCHY_URL = "https://api.sam.gov/prod/federalorganizations/v1/orgs"
 
@@ -48,11 +53,11 @@ DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))
 DOWNLOAD_DIR = DATA_DIR / "downloads"
 LOG_DIR = DATA_DIR / "logs"
 
-# Reference data paths (relative to project root's parent = pbdc/)
-PBDC_ROOT = PROJECT_ROOT.parent
-WORKDIR = PBDC_ROOT / "workdir" / "converted"
+# Reference data paths (relative to project root's parent = fedProspect/)
+REPO_ROOT = PROJECT_ROOT.parent
+WORKDIR = REPO_ROOT / "workdir" / "converted"
 REF_DATA_DIR = WORKDIR / "local database" / "data_to_import"
-OLD_RESOURCES = PBDC_ROOT / "OLD_RESOURCES"
+OLD_RESOURCES = REPO_ROOT / "OLD_RESOURCES"
 
 # Logging
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

@@ -56,3 +56,14 @@ CREATE TABLE IF NOT EXISTS etl_rate_limit (
     last_request_at      DATETIME,
     UNIQUE KEY uk_rate_limit (source_system, request_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS etl_health_snapshot (
+    snapshot_id          INT AUTO_INCREMENT PRIMARY KEY,
+    checked_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    overall_status       VARCHAR(20) NOT NULL,
+    results_json         JSON NOT NULL,
+    alert_count          INT NOT NULL DEFAULT 0,
+    error_count          INT NOT NULL DEFAULT 0,
+    stale_source_count   INT NOT NULL DEFAULT 0,
+    INDEX idx_health_date (checked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
