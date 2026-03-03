@@ -407,7 +407,7 @@ def search_entities(uei, name, naics, state, cert, active_only, limit):
         where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
 
         sql = (
-            "SELECT e.uei_sam, e.legal_business_name, e.cage_code, e.primary_naics, "
+            "SELECT /*+ NO_INDEX(e idx_entity_name) */ e.uei_sam, e.legal_business_name, e.cage_code, e.primary_naics, "
             "  e.registration_status, e.registration_expiration_date, "
             "  ea.state_or_province "
             "FROM entity e "

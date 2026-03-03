@@ -10,7 +10,7 @@ from config import settings
 
 
 @click.command("load-awards")
-@click.option("--naics", default=None, help="NAICS code to search (e.g., 541512)")
+@click.option("--naics", default=None, help="NAICS code(s) to search — comma-separated for multiple: 541512,541511,561110")
 @click.option("--set-aside", "set_aside", default=None, help="Set-aside type (WOSB, 8A, etc.)")
 @click.option("--agency", default=None, help="Contracting department CGAC code")
 @click.option("--awardee-uei", default=None, help="Awardee UEI to search")
@@ -36,12 +36,16 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
 
     Examples:
         python main.py load-awards --naics 541512 --years-back 5
+        python main.py load-awards --naics 541512,541511,561110 --years-back 5
         python main.py load-awards --set-aside WOSB --years-back 3
         python main.py load-awards --awardee-uei ABC123DEF456
         python main.py load-awards --piid W911NF25C0001
         python main.py load-awards --naics 541512 --set-aside WOSB --key 2
     """
     logger = setup_logging()
+
+    # Parse comma-separated NAICS into a list
+    naics_codes = [c.strip() for c in naics.split(',') if c.strip()] if naics else []
 
     if not any([naics, set_aside, agency, awardee_uei, piid, fiscal_year]):
         click.echo("ERROR: At least one filter is required (--naics, --set-aside, --agency, --awardee-uei, --piid, or --fiscal-year)")
@@ -70,8 +74,8 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
     click.echo("SAM.gov Contract Awards Load")
     click.echo(f"  API key:     #{api_key_number} (limit: {client.max_daily_requests}/day)")
     click.echo(f"  Date range:  {date_from} to {date_to}")
-    if naics:
-        click.echo(f"  NAICS:       {naics}")
+    if naics_codes:
+        click.echo(f"  NAICS:       {', '.join(naics_codes)} ({len(naics_codes)} code{'s' if len(naics_codes) != 1 else ''})")
     if set_aside:
         click.echo(f"  Set-aside:   {set_aside}")
     if agency:
@@ -99,45 +103,61 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
     t_start = time.time()
 
     try:
-        # Collect awards with pagination (respecting max_calls)
+        # Collect awards with pagination (respecting max_calls budget across all NAICS codes).
         # NOTE: The SAM Awards API 'offset' is a PAGE INDEX, not record offset.
         # offset=0 is page 0, offset=1 is page 1, etc.
         all_awards = []
         calls_made = 0
-        page = 0
         page_size = 100
-        total = 0
 
-        while calls_made < max_calls:
-            # Don't send dateSigned range when fiscalYear is set — they're
-            # redundant and combining them causes pagination issues.
-            data = client.search_awards(
-                naics_code=naics, set_aside=set_aside, agency_code=agency,
-                awardee_uei=awardee_uei, piid=piid,
-                date_signed_from=date_from if not fiscal_year else None,
-                date_signed_to=date_to if not fiscal_year else None,
-                fiscal_year=fiscal_year,
-                limit=page_size, offset=page,
-            )
-            calls_made += 1
+        # Loop over each NAICS code; fall back to [None] for non-NAICS searches
+        # (set-aside-only, agency-only, PIID, etc.)
+        codes_to_load = naics_codes if naics_codes else [None]
+        budget_exhausted = False
 
-            records = data.get("awardSummary", [])
-            total = int(data.get("totalRecords", 0))
-            all_awards.extend(records)
-
-            click.echo(f"  Page {calls_made}: {len(records)} records (total available: {total:,d}, fetched so far: {len(all_awards):,d})")
-
-            if not records or (page + 1) * page_size >= total:
+        for naics_code in codes_to_load:
+            if budget_exhausted:
                 break
-            page += 1
+            if naics_code and len(naics_codes) > 1:
+                click.echo(f"\n  NAICS {naics_code}:")
 
-        # Check if budget was exhausted before all data was fetched
-        if calls_made >= max_calls and total > 0 and len(all_awards) < total:
-            remaining_records = total - len(all_awards)
-            remaining_calls = (remaining_records + page_size - 1) // page_size
-            click.echo(f"\n  ** BUDGET EXHAUSTED: Retrieved {len(all_awards):,d} of {total:,d} available records.")
-            click.echo(f"     {remaining_records:,d} records remain ({remaining_calls} more API calls needed).")
-            click.echo(f"     To get all data, re-run with: --max-calls {calls_made + remaining_calls}")
+            page = 0
+            code_total = 0
+            while calls_made < max_calls:
+                # Don't send dateSigned range when fiscalYear is set — they're
+                # redundant and combining them causes pagination issues.
+                data = client.search_awards(
+                    naics_code=naics_code, set_aside=set_aside, agency_code=agency,
+                    awardee_uei=awardee_uei, piid=piid,
+                    date_signed_from=date_from if not fiscal_year else None,
+                    date_signed_to=date_to if not fiscal_year else None,
+                    fiscal_year=fiscal_year,
+                    limit=page_size, offset=page,
+                )
+                calls_made += 1
+
+                records = data.get("awardSummary", [])
+                code_total = int(data.get("totalRecords", 0))
+                all_awards.extend(records)
+
+                click.echo(f"  Page {page + 1}: {len(records)} records (total available: {code_total:,d}, fetched so far: {len(all_awards):,d})")
+
+                if not records or (page + 1) * page_size >= code_total:
+                    break
+                page += 1
+
+            # Check if budget was exhausted mid-NAICS
+            if calls_made >= max_calls and code_total > 0 and (page + 1) * page_size < code_total:
+                fetched_this_code = (page + 1) * page_size
+                remaining_records = code_total - fetched_this_code
+                remaining_calls = (remaining_records + page_size - 1) // page_size
+                remaining_codes = len(naics_codes) - naics_codes.index(naics_code) - 1 if naics_code else 0
+                click.echo(f"\n  ** BUDGET EXHAUSTED mid-load.")
+                click.echo(f"     {remaining_records:,d} records remain for NAICS {naics_code} ({remaining_calls} more calls).")
+                if remaining_codes:
+                    click.echo(f"     {remaining_codes} NAICS code(s) not yet loaded.")
+                click.echo(f"     To get all data, re-run with: --max-calls {calls_made + remaining_calls + remaining_codes}")
+                budget_exhausted = True
 
         click.echo(f"\nFetched {len(all_awards):,d} award records in {calls_made} API calls")
 

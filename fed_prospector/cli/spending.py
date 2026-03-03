@@ -117,8 +117,8 @@ def burn_rate(award_id, solicitation, piid, load_if_missing):
     Shows monthly obligation amounts, total spending, and monthly
     burn rate from transaction history in usaspending_transaction.
 
-    If transactions haven't been loaded yet, use --load-if-missing to
-    auto-fetch from USASpending API, or run load-transactions first.
+    If the award or its transactions aren't in the local DB yet, use
+    --load-if-missing to auto-fetch both from USASpending API.
 
     Examples:
         python main.py burn-rate --award-id CONT_AWD_W911NF25C0001_9700_-NONE-_-NONE-
@@ -158,8 +158,59 @@ def burn_rate(award_id, solicitation, piid, load_if_missing):
                 )
             row = cursor.fetchone()
             if not row:
-                click.echo(f"ERROR: Award not found in local database.")
-                sys.exit(1)
+                if not load_if_missing:
+                    click.echo("ERROR: Award not found in local database.")
+                    click.echo("Tip: re-run with --load-if-missing to fetch from USASpending API.")
+                    sys.exit(1)
+
+                # Award missing — search USASpending API and load it
+                keyword = solicitation or piid
+                click.echo(f"Award not in local DB. Searching USASpending API for '{keyword}'...")
+                from api_clients.usaspending_client import USASpendingClient
+                from etl.load_manager import LoadManager
+
+                client = USASpendingClient()
+                lm = LoadManager()
+                response = client.search_awards(keyword=keyword, limit=5)
+                awards = response.get("results", [])
+
+                if not awards:
+                    click.echo(f"ERROR: No award found on USASpending for '{keyword}'.")
+                    sys.exit(1)
+
+                aw_load_id = lm.start_load(
+                    "USASPENDING_AWARD", "INCREMENTAL", parameters={"keyword": keyword}
+                )
+                try:
+                    stats = loader.load_awards(awards, aw_load_id)
+                    lm.complete_load(
+                        aw_load_id,
+                        records_read=stats["records_read"],
+                        records_inserted=stats["records_inserted"],
+                    )
+                    click.echo(f"  Loaded {stats['records_inserted']} award(s) from API.")
+                except Exception as e:
+                    lm.fail_load(aw_load_id, str(e))
+                    click.echo(f"ERROR loading award: {e}")
+                    sys.exit(1)
+
+                # Build row from API data — avoids re-querying and any
+                # DB snapshot / piid-format mismatch issues.
+                top = awards[0]
+                row = {
+                    "generated_unique_award_id": (
+                        top.get("generated_unique_award_id")
+                        or top.get("generated_internal_id")
+                    ),
+                    "recipient_name": top.get("Recipient Name"),
+                    "total_obligation": top.get("Award Amount"),
+                    "start_date": top.get("Start Date"),
+                    "end_date": top.get("End Date"),
+                }
+                if not row["generated_unique_award_id"]:
+                    click.echo("ERROR: API returned award with no unique ID.")
+                    sys.exit(1)
+
             award_id = row["generated_unique_award_id"]
             click.echo(f"Award: {award_id}")
             click.echo(f"  Recipient:    {row.get('recipient_name', 'N/A')}")

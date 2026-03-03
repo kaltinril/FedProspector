@@ -555,13 +555,13 @@ class USASpendingLoader:
         try:
             # Get monthly breakdown
             cursor.execute(
-                "SELECT DATE_FORMAT(action_date, '%%Y-%%m') AS year_month, "
+                "SELECT LEFT(action_date, 7) AS yr_month, "
                 "SUM(federal_action_obligation) AS monthly_total, "
                 "COUNT(*) AS txn_count "
                 "FROM usaspending_transaction "
                 "WHERE award_id = %s AND federal_action_obligation IS NOT NULL "
-                "GROUP BY year_month "
-                "ORDER BY year_month",
+                "GROUP BY yr_month "
+                "ORDER BY yr_month",
                 (award_id,),
             )
             rows = cursor.fetchall()
@@ -569,13 +569,13 @@ class USASpendingLoader:
             if not rows:
                 return None
 
-            monthly = [(r["year_month"], float(r["monthly_total"])) for r in rows]
+            monthly = [(r["yr_month"], float(r["monthly_total"])) for r in rows]
             total = sum(amt for _, amt in monthly)
             txn_count = sum(r["txn_count"] for r in rows)
 
             # Calculate months elapsed
-            first_month = rows[0]["year_month"]
-            last_month = rows[-1]["year_month"]
+            first_month = rows[0]["yr_month"]
+            last_month = rows[-1]["yr_month"]
             fy, fm = int(first_month[:4]), int(first_month[5:7])
             ly, lm = int(last_month[:4]), int(last_month[5:7])
             months = (ly - fy) * 12 + (lm - fm) + 1  # inclusive
