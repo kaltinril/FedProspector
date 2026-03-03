@@ -11,7 +11,7 @@
 
 Execute the Tier 1 database changes identified in Phase 8's gap analysis. Add 14 new tables (8 production + 6 raw staging) and ~15 new columns to 4 existing tables to support the C# API backend and raw data replay. All changes are additive -- the Python ETL pipeline is unaffected.
 
-**Result**: 40 tables -> 54 tables + 4 views
+**Result**: 40 tables -> 54 tables + 4 views (expanded to 57 tables in Phase 14.6 with etl_health_snapshot)
 
 ---
 

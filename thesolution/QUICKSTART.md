@@ -535,7 +535,7 @@ See [14-TESTING.md](phases/14-TESTING.md) for full details.
 - httpOnly cookie auth replacing localStorage JWT (XSS protection) with CSRF double-submit cookie
 - Token refresh flow with rotation and reuse detection (30-min access + 7-day refresh tokens)
 - Multi-tenant data isolation on all capture endpoints (prospects, proposals, searches, notifications)
-- 13 new API endpoints: 8 organization management + 5 missing functionality (total: 57 endpoints across 14 controllers)
+- 13 new API endpoints: 8 organization management + 5 missing functionality (total: 58 endpoints across 13 controllers)
 - Security hardening: CSP headers, CORS tightening, CSRF protection, generic error messages, Swagger restricted to Development, progressive login delay, global login rate limit
 
 **Auth changes from Phase 14.5** (important for API consumers):
@@ -642,7 +642,7 @@ Phase 14.6 (Admin Operability & CLI Hardening) is COMPLETE. The system now has:
 - `setup-schedule` for automated task creation
 - `refresh-entities` for one-step entity loading
 - Admin CLI commands for org/user management before UI exists
-- 57 endpoints across 14 controllers, 57 tables + 4 views
+- 58 endpoints across 13 controllers, 57 tables + 4 views
 
 **Next**: Phase 15 (UI Foundation) → Phase 16 (Search) → and so on through Phase 20.
 
