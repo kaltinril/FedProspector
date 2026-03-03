@@ -58,7 +58,7 @@ fedProspect/
 - ~~Load reference data from CSVs~~ ~13,001 rows across 11 tables (originally 12,988 in Phase 1; Phase 7 added ref_sba_type + ref_entity_structure)
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
-- ~~CLI entry point~~ `python main.py` (52 commands across 15 `cli/` modules)
+- ~~CLI entry point~~ `python main.py` (54 commands across 15 `cli/` modules)
 - **Deliverable**: DONE
 
 ### Phase 2: Entity Data Pipeline (Proof of Concept - 1 Source)
@@ -110,7 +110,7 @@ fedProspect/
 - ~~SAM.gov Exclusions API~~ `sam_exclusions_client.py` + `exclusions_loader.py` (v4 API, check UEI/name, prospect team member cross-check, loads to `sam_exclusion`)
 - ~~SAM.gov Subaward Reporting API~~ `sam_subaward_client.py` + `subaward_loader.py` (v1 subcontracts API, teaming partner analysis, loads to `sam_subaward`)
 - **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](reference/01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
-- **CLI refactored**: `main.py` (1752 -> 170 lines) with 52 commands split into 15 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule)
+- **CLI refactored**: `main.py` (1752 -> 170 lines) with 54 commands split into 15 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule)
 - **New CLI commands**: `load-awards`, `load-hierarchy`, `search-agencies`, `load-exclusions`, `check-exclusion`, `check-prospects`, `load-transactions`, `burn-rate`, `load-subawards`, `search-subawards`, `teaming-partners`
 - **Deliverable**: DONE
 
@@ -224,7 +224,7 @@ fedProspect/
 **Document**: [14-TESTING.md](phases/14-TESTING.md)
 
 **Scope**:
-- [x] Python ETL test suite: 568 tests across 23 test files (8 API client, 3 data quality, 11 loader/business/utility + conftest.py + 8 JSON fixtures)
+- [x] Python ETL test suite: ~508 Python tests (verify with: pytest --collect-only -q | tail -5) across 23 test files (8 API client, 3 data quality, 11 loader/business/utility + conftest.py + 8 JSON fixtures)
 - [x] C# Core.Tests: 237 tests across 25+ test files (22 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions)
 - [x] C# Api.Tests: 223 tests across 11+ test files (2 middleware, 9 controller + Phase 14.5 additions)
 - [x] **Total: 1,028 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
@@ -252,9 +252,9 @@ fedProspect/
 ### Phase 14.7: CLI Command Hierarchy
 **Status**: [x] COMPLETE (2026-03-02)
 **Document**: [14.7-CLI-HIERARCHY.md](phases/14.7-CLI-HIERARCHY.md)
-**Dependencies**: Phase 14.6 (Admin Operability — all 52 commands must exist before renaming)
+**Dependencies**: Phase 14.6 (Admin Operability — all 54 commands must exist before renaming)
 
-Restructured 52 flat commands into 7 discoverable groups. Commands now follow `python main.py GROUP COMMAND` pattern. The 7 groups are: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`. See [phases/14.7-CLI-HIERARCHY.md](phases/14.7-CLI-HIERARCHY.md).
+Restructured 54 flat commands into 7 discoverable groups. Commands now follow `python main.py GROUP COMMAND` pattern. The 7 groups are: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`. See [phases/14.7-CLI-HIERARCHY.md](phases/14.7-CLI-HIERARCHY.md).
 
 ### Phase 14.6: Admin Operability & CLI Hardening
 **Status**: [x] COMPLETE (2026-03-02)
@@ -274,7 +274,7 @@ Restructured 52 flat commands into 7 discoverable groups. Commands now follow `p
 - [x] API key expiration tracking: warns at <14 days, errors at <3 days
 - [x] Health check persistence: `etl_health_snapshot` table (1 new table, total: 57 tables + 4 views)
 - [x] Auto-seed quality rules in `build-database`
-- **Result**: 52 CLI commands across 15 modules, 12 new commands, 1 new table
+- **Result**: 54 CLI commands across 15 modules, 12 new commands, 1 new table
 
 ### Phase 14.9: Raw Staging for All ETL Loaders
 **Status**: [x] COMPLETE (2026-03-03)
@@ -287,6 +287,48 @@ All 7 ETL loaders now write raw API JSON to staging tables before normalization.
 **Document**: [14.10-ETL-REFACTOR-DRY.md](phases/14.10-ETL-REFACTOR-DRY.md)
 
 | 14.10 | ETL Loader DRY Refactor | COMPLETE | StagingMixin, etl_utils.py (parse_date/parse_decimal/fetch_existing_hashes/escape_tsv_value), get_cursor context manager; ~560 lines removed across 8 loaders |
+
+### Phase 14.11: CLI Bug Fixes
+**Status**: [ ] NOT STARTED
+**Document**: [14.11-CLI-BUG-FIXES.md](phases/14.11-CLI-BUG-FIXES.md)
+
+Fix CLI bugs identified in code review: wrong CLI group for `run_all_searches`, stale schedule commands, `--help` example commands, admin slug/invited_by bugs, connection leaks. Also includes: CLI bug fixes from code review (wrong CLI group for run_all_searches, stale schedule commands, --help example commands, admin slug/invited_by bugs, connection leaks)
+
+### Phase 14.12: API Client Bug Fixes
+**Status**: [ ] NOT STARTED
+**Document**: [14.12-API-CLIENT-BUG-FIXES.md](phases/14.12-API-CLIENT-BUG-FIXES.md)
+
+Fix API client bugs identified in code review: rate counter on retries, `paginate()` params mutation, date format crash, budget enforcement gap. Also includes: API client bug fixes (rate counter on retries, paginate() params mutation, date format crash, budget enforcement gap)
+
+### Phase 14.13: ETL Loader Bug Fixes
+**Status**: [ ] NOT STARTED
+**Document**: [14.13-ETL-LOADER-BUG-FIXES.md](phases/14.13-ETL-LOADER-BUG-FIXES.md)
+
+Fix critical data-integrity bugs: exclusions/subaward change detection broken, entity stg_conn leak, len() on generator crash, fedhier full_refresh atomicity, bulk_loader FK checks, opportunity timezone, usaspending wrong field, dat_parser silent NULL dates
+
+### Phase 14.14: Schema Fixes
+**Status**: [ ] NOT STARTED
+**Document**: [14.14-SCHEMA-FIXES.md](phases/14.14-SCHEMA-FIXES.md)
+
+Fix prospect UNIQUE KEY for multi-tenancy, add missing indexes (entity_disaster_response, usaspending last_modified_date, fpds ultimate_completion_date, idv_piid), sync opportunity baseline DDL with Phase 9 migration, sam_exclusion UNIQUE constraint, record_hash type consistency
+
+### Phase 14.15: C# API Bug Fixes
+**Status**: [ ] NOT STARTED
+**Document**: [14.15-CSHARP-API-BUG-FIXES.md](phases/14.15-CSHARP-API-BUG-FIXES.md)
+
+Fix admin privilege escalation, refresh token column misuse, ChangePassword error handling, cross-tenant prospect leak in opportunity search, CSV injection, N+1 queries in Proposal/Prospect services, missing validators, CSRF PUT method gap
+
+### Phase 14.16: Test Coverage Gaps
+**Status**: [ ] NOT STARTED
+**Document**: [14.16-TEST-COVERAGE-GAPS.md](phases/14.16-TEST-COVERAGE-GAPS.md)
+
+Add test files for entity_loader, reference_loader, etl_utils, staging_mixin, load_manager, db_maintenance, calc_loader, fedhier_loader, exclusions_loader, subaward_loader; add get_cursor() tests; C# validator tests and GoNoGoScoringService tests
+
+### Phase 14.17: Security Hardening
+**Status**: [ ] DEFERRED (pre-production)
+**Document**: [14.17-SECURITY-HARDENING.md](phases/14.17-SECURITY-HARDENING.md)
+
+AllowedHosts specific domain, JWT secret startup assertion, JWT expiry wired to config, SameSite=Strict cookies, MySQL TLS, email masking in logs, distributed rate limiting
 
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
