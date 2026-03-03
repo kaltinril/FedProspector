@@ -484,7 +484,7 @@ The API starts at `https://localhost:5001` (or `http://localhost:5000`).
 
 **Connection String**: Set in `api/src/FedProspector.Api/appsettings.Development.json` (moved from `appsettings.json` in Phase 14.5 for security) — uses the same `fed_contracts` database as the Python ETL.
 
-**Swagger UI**: Navigate to `https://localhost:5001/swagger` for interactive API documentation (Development environment only after Phase 14.5).
+**Swagger UI**: Navigate to `https://localhost:5001/swagger` for interactive documentation of the App API endpoints (Development environment only after Phase 14.5).
 
 **What's implemented**:
 - Phase 10: API foundation — .NET 10 project, EF Core models for 48 tables, JWT auth, Swagger

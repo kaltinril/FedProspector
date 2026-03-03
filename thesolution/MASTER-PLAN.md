@@ -42,7 +42,7 @@ fedProspect/
 | Data Gathering | Python 3.14 | Rich ecosystem for REST/SOAP/CSV/JSON. requests, lxml, openpyxl. |
 | Bulk Loads | DAT + LOAD DATA INFILE preferred | Fastest MySQL loading path. JSON streaming used for incremental/API loads. |
 | Change Detection | SHA-256 record hashing | Compare one hash instead of 100+ fields. Log field-level diffs only when hash differs. |
-| Rate Limit Strategy | Bulk extracts first, API for incremental | Monthly extract = 1 API call for all entities. Daily API = targeted updates only. |
+| Rate Limit Strategy | Bulk extracts first, Vendor API for incremental | Monthly extract = 1 Vendor API call for all entities. Daily Vendor API = targeted updates only. |
 | Credentials | `.env` + python-dotenv | Never hardcode. Prior work had keys visible in SQL definition files. |
 | Web API | ASP.NET Core (.NET 10) | Type-safe, high-perf backend. EF Core for MySQL. Separate from Python ETL. |
 | Frontend | Vite + React 19 + TypeScript + MUI v6 | Modern stack, enterprise component library, fast dev server. |

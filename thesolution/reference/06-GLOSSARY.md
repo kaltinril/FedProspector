@@ -95,3 +95,18 @@ Stored in `ref_set_aside_type` and `ref_business_type` / `entity_business_type`.
 | **USASpending.gov** | https://usaspending.gov | Public transparency site for all federal spending. Richer award and transaction detail. | USASpending Transactions API |
 | **GSA CALC+** | https://buy.gsa.gov/pricing | GSA labor rate benchmarks (formerly CALC -- Contract-Awarded Labor Category tool). | GSA CALC+ API |
 | **beta.SAM.gov** | N/A | Legacy portal name for SAM.gov. Retired. Same system. | N/A |
+
+---
+
+## API Types in This System
+
+Two distinct uses of "API" appear throughout the project documentation. Always use the qualified terms below to avoid confusion.
+
+| Term | What It Is | Technology | Rate Limited? | Called By |
+|------|-----------|-----------|---|---|
+| **Vendor API** | External government data sources: SAM.gov (v1–v4), USASpending.gov, GSA CALC+ | REST (various auth methods) | Yes — SAM.gov key 1: 10/day, key 2: 1,000/day | Python `load` commands only |
+| **App API** | FedProspect's own C# backend REST API | ASP.NET Core (.NET 10), 57 endpoints, 14 controllers | No (local deployment) | React frontend UI (Phases 15–20) |
+
+**The architectural rule**: Vendor APIs populate the local MySQL database via the Python ETL pipeline. The App API reads from that local database and exposes data to the UI. The App API never calls Vendor APIs.
+
+**Data flow**: `Vendor APIs → Python ETL → MySQL → App API → React UI`
