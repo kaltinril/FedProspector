@@ -133,20 +133,15 @@ def load_exclusions(exclusion_type, agency, max_calls, api_key_number):
 @click.command("check-exclusion")
 @click.option("--uei", default=None, help="UEI to check for exclusions")
 @click.option("--name", default=None, help="Entity or individual name to search")
-@click.option("--key", "api_key_number", default=2, type=click.IntRange(1, 2),
-              help="Which SAM API key to use (1 or 2, default: 2)")
-def check_exclusion(uei, name, api_key_number):
+def check_exclusion(uei, name):
     """Check a specific UEI or entity name for exclusions.
 
-    Searches the SAM.gov Exclusions API for the given UEI or name and
-    displays any matching exclusion records.
-
-    Uses 1 API call per search. Results are also checked against the
-    local sam_exclusion table if available.
+    Queries the local sam_exclusion table (no API calls). Run
+    'python main.py load exclusions' to refresh data.
 
     Examples:
-        python main.py check-exclusion --uei ABC123DEF456
-        python main.py check-exclusion --name "Acme Corp"
+        python main.py search exclusions --uei ABC123DEF456
+        python main.py search exclusions --name "Acme Corp"
     """
     logger = setup_logging()
 
@@ -154,56 +149,8 @@ def check_exclusion(uei, name, api_key_number):
         click.echo("ERROR: Either --uei or --name is required")
         sys.exit(1)
 
-    from api_clients.sam_exclusions_client import SAMExclusionsClient
-
-    client = SAMExclusionsClient(api_key_number=api_key_number)
-
-    remaining = client._get_remaining_requests()
-    click.echo(f"SAM.gov Exclusion Check (API calls remaining: {remaining})")
-
-    if remaining < 1:
-        click.echo("\nERROR: No API calls remaining today. Checking local DB only...")
-        _check_local_only(uei, name)
-        return
-
-    try:
-        if uei:
-            click.echo(f"  Checking UEI: {uei}")
-            exclusions = client.check_entity(uei)
-        else:
-            click.echo(f"  Searching name: {name}")
-            exclusions = client.search_by_name(name)
-
-        if not exclusions:
-            click.echo("\n  CLEAN - No exclusions found.")
-            return
-
-        click.echo(f"\n  WARNING: {len(exclusions)} exclusion(s) found!")
-        click.echo(f"  {'='*60}")
-
-        for i, exc in enumerate(exclusions, 1):
-            click.echo(f"\n  --- Exclusion #{i} ---")
-            click.echo(f"  UEI:              {exc.get('ueiSAM', 'N/A')}")
-            click.echo(f"  Entity Name:      {exc.get('entityName', 'N/A')}")
-            if exc.get("firstName"):
-                click.echo(f"  Individual:       {exc.get('firstName', '')} "
-                          f"{exc.get('middleName', '')} {exc.get('lastName', '')}")
-            click.echo(f"  CAGE Code:        {exc.get('cageCode', 'N/A')}")
-            click.echo(f"  Type:             {exc.get('exclusionType', 'N/A')}")
-            click.echo(f"  Program:          {exc.get('exclusionProgram', 'N/A')}")
-            click.echo(f"  Excluding Agency: {exc.get('excludingAgencyName', 'N/A')}")
-            click.echo(f"  Activation Date:  {exc.get('activationDate', 'N/A')}")
-            click.echo(f"  Termination Date: {exc.get('terminationDate', 'N/A')}")
-            if exc.get("additionalComments"):
-                comments = exc["additionalComments"]
-                if len(comments) > 200:
-                    comments = comments[:200] + "..."
-                click.echo(f"  Comments:         {comments}")
-
-    except Exception as e:
-        logger.exception("Exclusion check failed")
-        click.echo(f"\nERROR: {e}")
-        sys.exit(1)
+    click.echo("Exclusion Check (local sam_exclusion table)")
+    _check_local_only(uei, name)
 
 
 @click.command("check-prospects")
@@ -276,12 +223,12 @@ def _check_local_only(uei, name):
         results = cursor.fetchall()
 
         if not results:
-            click.echo("\n  CLEAN (local DB) - No exclusions found.")
+            click.echo("\n  CLEAN - No exclusions found.")
             click.echo("  Note: Local data may be stale. Load fresh data with: "
-                      "python main.py load-exclusions")
+                      "python main.py load exclusions")
             return
 
-        click.echo(f"\n  WARNING (local DB): {len(results)} exclusion(s) found!")
+        click.echo(f"\n  WARNING: {len(results)} exclusion(s) found!")
         for row in results:
             click.echo(f"\n  UEI:              {row.get('uei', 'N/A')}")
             click.echo(f"  Entity Name:      {row.get('entity_name', 'N/A')}")

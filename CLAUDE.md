@@ -62,7 +62,7 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 
 | What | Location |
 |------|----------|
-| Python application | `fed_prospector/` (CLI: `python main.py --help`, 52 commands in 7 groups: setup, load, search, prospect, analyze, admin, health) |
+| Python application | `fed_prospector/` (CLI: `python main.py --help`, 54 commands in 7 groups: setup, load, search, prospect, analyze, admin, health) |
 | CLI modules | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule) |
 | API clients | `fed_prospector/api_clients/` (sam_opportunity, sam_awards, sam_exclusions, sam_subaward, sam_fedhier, usaspending, calc) |
 | ETL loaders | `fed_prospector/etl/` (bulk_loader, dat_parser, opportunity_loader, awards_loader, usaspending_loader, calc_loader, fedhier_loader, exclusions_loader, subaward_loader, prospect_manager, scheduler, health_check, db_maintenance) |

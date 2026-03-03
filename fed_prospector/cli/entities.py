@@ -339,3 +339,143 @@ def refresh_entities(extract_type, year, month, extract_date, batch_size):
                 sys.exit(1)
 
     click.echo(f"\nRefresh complete! ({len(paths)} file(s) processed)")
+
+
+@click.command("search-entities")
+@click.option("--uei", default=None, help="Filter by UEI (exact match)")
+@click.option("--name", default=None, help="Filter by entity name (partial match)")
+@click.option("--naics", default=None, help="Filter by NAICS code")
+@click.option("--state", default=None, help="Filter by state code (e.g. VA, MD)")
+@click.option("--cert", default=None, help="Filter by SBA certification type (WOSB, 8A, HUBZone, SDVOSB)")
+@click.option("--active-only", is_flag=True, default=False, help="Only show active registrations")
+@click.option("--limit", default=25, type=int, help="Max results to show (default: 25)")
+def search_entities(uei, name, naics, state, cert, active_only, limit):
+    """Search loaded entities in the local database.
+
+    Queries the entity table (no API calls). Results are ordered by
+    entity name.
+
+    Examples:
+        python main.py search entities --name "Acme"
+        python main.py search entities --naics 541512 --state VA
+        python main.py search entities --cert WOSB --active-only
+        python main.py search entities --uei ABC123DEF456
+    """
+    logger = setup_logging()
+    from db.connection import get_connection
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        where_clauses = []
+        params = []
+
+        if uei:
+            where_clauses.append("e.uei_sam = %s")
+            params.append(uei)
+
+        if name:
+            where_clauses.append("e.legal_business_name LIKE %s")
+            params.append(f"%{name}%")
+
+        if naics:
+            where_clauses.append(
+                "EXISTS (SELECT 1 FROM entity_naics en "
+                "WHERE en.uei_sam = e.uei_sam AND en.naics_code = %s)"
+            )
+            params.append(naics)
+
+        if state:
+            where_clauses.append(
+                "EXISTS (SELECT 1 FROM entity_address ea2 "
+                "WHERE ea2.uei_sam = e.uei_sam AND ea2.state_or_province = %s)"
+            )
+            params.append(state)
+
+        if cert:
+            where_clauses.append(
+                "EXISTS (SELECT 1 FROM entity_sba_certification ec "
+                "WHERE ec.uei_sam = e.uei_sam AND ec.sba_type_code = %s "
+                "AND (ec.certification_exit_date IS NULL OR ec.certification_exit_date > CURDATE()))"
+            )
+            params.append(cert)
+
+        if active_only:
+            where_clauses.append("e.registration_status = 'A'")
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        sql = (
+            "SELECT e.uei_sam, e.legal_business_name, e.cage_code, e.primary_naics, "
+            "  e.registration_status, e.registration_expiration_date, "
+            "  ea.state_or_province "
+            "FROM entity e "
+            "LEFT JOIN entity_address ea ON e.uei_sam = ea.uei_sam "
+            "  AND ea.address_type = 'physical' "
+            f"{where_sql} "
+            "ORDER BY e.legal_business_name "
+            "LIMIT %s"
+        )
+        params.append(limit)
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+        if not rows:
+            click.echo("No entities found matching the criteria.")
+            filter_parts = []
+            if uei:
+                filter_parts.append(f"uei={uei}")
+            if name:
+                filter_parts.append(f"name={name}")
+            if naics:
+                filter_parts.append(f"naics={naics}")
+            if state:
+                filter_parts.append(f"state={state}")
+            if cert:
+                filter_parts.append(f"cert={cert}")
+            if active_only:
+                filter_parts.append("active-only")
+            click.echo(f"  Filters: {', '.join(filter_parts) if filter_parts else 'none'}")
+            return
+
+        click.echo(f"\nFound {len(rows)} entities"
+                   + (f" (showing top {limit})" if len(rows) == limit else ""))
+        click.echo("")
+
+        header = (
+            f"{'UEI':<12s}  {'Name':<40s}  {'CAGE':<5s}  {'State':<5s}  "
+            f"{'NAICS':<6s}  {'Expires':<10s}"
+        )
+        click.echo(header)
+        click.echo("-" * len(header))
+
+        for row in rows:
+            uei_val, biz_name, cage, primary_naics, reg_status, reg_exp, state_val = row
+
+            uei_str = f"{(uei_val or ''):<12s}"
+            name_trunc = (biz_name[:37] + "...") if biz_name and len(biz_name) > 40 else (biz_name or "")
+            name_str = f"{name_trunc:<40s}"
+            cage_str = f"{(cage or ''):<5s}"
+            state_str = f"{(state_val or ''):<5s}"
+            naics_str = f"{(primary_naics or ''):<6s}"
+
+            if reg_exp:
+                exp_str = str(reg_exp)[:10]
+            else:
+                exp_str = "N/A"
+            exp_str = f"{exp_str:<10s}"
+
+            click.echo(f"{uei_str}  {name_str}  {cage_str}  {state_str}  {naics_str}  {exp_str}")
+
+        click.echo("")
+        click.echo("Note: Run 'python main.py load entities' to refresh local data.")
+
+    except Exception as e:
+        logger.exception("Entity search failed")
+        click.echo(f"ERROR: {e}")
+        sys.exit(1)
+    finally:
+        cursor.close()
+        conn.close()

@@ -165,3 +165,160 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
         logger.exception("Awards load failed")
         click.echo(f"\nERROR: {e}")
         sys.exit(1)
+
+
+@click.command("search-awards")
+@click.option("--naics", default=None, help="Filter by NAICS code")
+@click.option("--set-aside", "set_aside", default=None, help="Filter by set-aside type (WOSB, 8A, etc.)")
+@click.option("--agency", default=None, help="Filter by agency ID or name (partial match)")
+@click.option("--vendor", default=None, help="Filter by vendor UEI or name (partial match)")
+@click.option("--piid", default=None, help="Filter by contract PIID (exact match)")
+@click.option("--from-date", default=None, help="Award date from (YYYY-MM-DD)")
+@click.option("--to-date", default=None, help="Award date to (YYYY-MM-DD)")
+@click.option("--limit", default=25, type=int, help="Max results to show (default: 25)")
+def search_awards(naics, set_aside, agency, vendor, piid, from_date, to_date, limit):
+    """Search loaded contract awards in the local database.
+
+    Queries the fpds_contract table (no API calls). Results are ordered by
+    award date descending. By default shows only base awards (mod 0).
+
+    Examples:
+        python main.py search awards --naics 541512
+        python main.py search awards --vendor "Acme" --set-aside WOSB
+        python main.py search awards --agency "Army" --from-date 2025-01-01
+        python main.py search awards --piid W911NF25C0001
+    """
+    logger = setup_logging()
+    from db.connection import get_connection
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        where_clauses = []
+        params = []
+
+        # Default: base awards only (mod 0), unless searching by PIID
+        if not piid:
+            where_clauses.append("modification_number = '0'")
+
+        if naics:
+            where_clauses.append("naics_code = %s")
+            params.append(naics)
+
+        if set_aside:
+            where_clauses.append("set_aside_type = %s")
+            params.append(set_aside)
+
+        if agency:
+            where_clauses.append("(agency_id = %s OR agency_name LIKE %s)")
+            params.append(agency)
+            params.append(f"%{agency}%")
+
+        if vendor:
+            where_clauses.append("(vendor_uei = %s OR vendor_name LIKE %s)")
+            params.append(vendor)
+            params.append(f"%{vendor}%")
+
+        if piid:
+            where_clauses.append("contract_id = %s")
+            params.append(piid)
+
+        if from_date:
+            where_clauses.append("date_signed >= %s")
+            params.append(from_date)
+
+        if to_date:
+            where_clauses.append("date_signed <= %s")
+            params.append(to_date)
+
+        where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+
+        sql = (
+            "SELECT contract_id, vendor_name, vendor_uei, dollars_obligated, "
+            "  naics_code, set_aside_type, agency_name, date_signed, number_of_offers "
+            "FROM fpds_contract "
+            f"{where_sql} "
+            "ORDER BY date_signed DESC "
+            "LIMIT %s"
+        )
+        params.append(limit)
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+        if not rows:
+            click.echo("No awards found matching the criteria.")
+            filter_parts = []
+            if naics:
+                filter_parts.append(f"naics={naics}")
+            if set_aside:
+                filter_parts.append(f"set-aside={set_aside}")
+            if agency:
+                filter_parts.append(f"agency={agency}")
+            if vendor:
+                filter_parts.append(f"vendor={vendor}")
+            if piid:
+                filter_parts.append(f"piid={piid}")
+            if from_date:
+                filter_parts.append(f"from={from_date}")
+            if to_date:
+                filter_parts.append(f"to={to_date}")
+            click.echo(f"  Filters: {', '.join(filter_parts) if filter_parts else 'none'}")
+            return
+
+        click.echo(f"\nFound {len(rows)} award(s)"
+                   + (f" (showing top {limit})" if len(rows) == limit else ""))
+        click.echo("")
+
+        header = (
+            f"{'PIID':<17s}  {'Vendor':<35s}  {'$Amount':>15s}  "
+            f"{'NAICS':<6s}  {'Set-Aside':<10s}  {'Agency':<25s}  "
+            f"{'Date Signed':<12s}  {'Offers':<6s}"
+        )
+        click.echo(header)
+        click.echo("-" * len(header))
+
+        for row in rows:
+            contract_id, vendor_name, vendor_uei, dollars_obligated, \
+                naics_code, set_aside_type, agency_name, date_signed, num_offers = row
+
+            piid_str = f"{(contract_id or ''):<17s}"
+            vendor_trunc = (vendor_name[:32] + "...") if vendor_name and len(vendor_name) > 35 else (vendor_name or "")
+            vendor_str = f"{vendor_trunc:<35s}"
+
+            if dollars_obligated is not None:
+                amount_str = f"${dollars_obligated:>13,.0f}"
+            else:
+                amount_str = f"{'N/A':>15s}"
+            amount_str = f"{amount_str:>15s}"
+
+            naics_str = f"{(naics_code or ''):<6s}"
+            sa_str = f"{(set_aside_type or ''):<10s}"
+            agency_trunc = (agency_name[:22] + "...") if agency_name and len(agency_name) > 25 else (agency_name or "")
+            agency_str = f"{agency_trunc:<25s}"
+
+            if date_signed:
+                date_str = str(date_signed)[:10]
+            else:
+                date_str = "N/A"
+            date_str = f"{date_str:<12s}"
+
+            offers_str = f"{(str(num_offers) if num_offers is not None else 'N/A'):<6s}"
+
+            click.echo(
+                f"{piid_str}  {vendor_str}  {amount_str}  "
+                f"{naics_str}  {sa_str}  {agency_str}  "
+                f"{date_str}  {offers_str}"
+            )
+
+        click.echo("")
+        click.echo("Note: Run 'python main.py load awards' to refresh local data.")
+
+    except Exception as e:
+        logger.exception("Award search failed")
+        click.echo(f"ERROR: {e}")
+        sys.exit(1)
+    finally:
+        cursor.close()
+        conn.close()
