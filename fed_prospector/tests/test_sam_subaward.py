@@ -32,24 +32,30 @@ def _make_client(api_key_number=1):
 # ---------------------------------------------------------------------------
 
 class TestFormatDate:
+    # _format_date is now an instance method inherited from BaseAPIClient.
+    # The base class converts date/datetime objects to YYYY-MM-DD (default fmt).
+    # Strings are returned as-is (str(value)). The old client-level special
+    # MM/DD/YYYY → YYYY-MM-DD string conversion has been removed; callers are
+    # expected to pass date/datetime objects or ISO strings.
+
     def test_format_date_from_date_object(self):
-        result = SAMSubawardClient._format_date(date(2025, 11, 1))
+        client = _make_client()
+        result = client._format_date(date(2025, 11, 1))
         assert result == "2025-11-01"
 
     def test_format_date_from_datetime_object(self):
-        result = SAMSubawardClient._format_date(datetime(2025, 11, 1, 12, 0))
+        client = _make_client()
+        result = client._format_date(datetime(2025, 11, 1, 12, 0))
         assert result == "2025-11-01"
 
     def test_format_date_from_iso_string_passthrough(self):
-        result = SAMSubawardClient._format_date("2025-11-01")
-        assert result == "2025-11-01"
-
-    def test_format_date_from_mmddyyyy_string(self):
-        result = SAMSubawardClient._format_date("11/01/2025")
+        client = _make_client()
+        result = client._format_date("2025-11-01")
         assert result == "2025-11-01"
 
     def test_format_date_from_other_string_passthrough(self):
-        result = SAMSubawardClient._format_date("Nov 1 2025")
+        client = _make_client()
+        result = client._format_date("Nov 1 2025")
         assert result == "Nov 1 2025"
 
 

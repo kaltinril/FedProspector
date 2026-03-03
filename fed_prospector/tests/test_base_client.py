@@ -298,9 +298,11 @@ class TestPagination:
         })
         client.session.request = MagicMock(return_value=resp)
 
+        # Note: offset_key/limit_key were renamed to offset_param/size_param
+        # in Phase 14.12 to match the expanded parameter set.
         pages = list(client.paginate(
             "/items", params={}, page_size=10,
-            offset_key="start", limit_key="count", total_key="total",
+            offset_param="start", size_param="count", total_key="total",
         ))
 
         assert len(pages) == 1

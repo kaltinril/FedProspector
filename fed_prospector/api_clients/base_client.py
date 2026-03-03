@@ -32,6 +32,34 @@ class BaseAPIClient:
         self.session = requests.Session()
         self.logger = logging.getLogger(f"fed_prospector.api.{source_name}")
 
+    @classmethod
+    def _sam_init_kwargs(cls, source_name, api_key_number=1):
+        """Return kwargs dict for super().__init__() using SAM's dual-key config.
+
+        Centralizes the SAM_API_KEY / SAM_API_KEY_2 selection logic shared by
+        all four SAM search clients (Awards, Exclusions, FedHier, Subaward).
+
+        Args:
+            source_name: Source system name for rate tracking (e.g. "SAM_AWARDS").
+            api_key_number: 1 (default, 10/day) or 2 (1000/day).
+
+        Returns:
+            dict: kwargs suitable for BaseAPIClient.__init__().
+        """
+        from config import settings
+        if api_key_number == 2:
+            api_key = settings.SAM_API_KEY_2
+            limit = settings.SAM_DAILY_LIMIT_2
+        else:
+            api_key = settings.SAM_API_KEY
+            limit = settings.SAM_DAILY_LIMIT
+        return dict(
+            base_url=settings.SAM_API_BASE_URL,
+            api_key=api_key,
+            source_name=source_name,
+            max_daily_requests=limit,
+        )
+
     def _check_rate_limit(self):
         """Query etl_rate_limit for today's count. Return True if under limit."""
         conn = get_connection()
@@ -90,7 +118,8 @@ class BaseAPIClient:
             conn.close()
 
     def _request_with_retry(self, method, url, params=None, json_body=None,
-                            max_retries=3, backoff_factor=2, timeout=30):
+                            max_retries=3, backoff_factor=2, timeout=30,
+                            stream=False):
         """Make HTTP request with rate limit check, retry, and exponential backoff.
 
         Args:
@@ -101,6 +130,8 @@ class BaseAPIClient:
             max_retries: Number of retries after the initial attempt.
             backoff_factor: Exponential backoff multiplier.
             timeout: Request timeout in seconds.
+            stream: If True, response body is not downloaded immediately.
+                    Caller is responsible for reading and closing the response.
 
         Raises RateLimitExceeded if daily limit reached.
         Retries on 429 (rate limited) and 5xx (server error) responses.
@@ -120,13 +151,23 @@ class BaseAPIClient:
                 )
                 response = self.session.request(
                     method, url, params=params, json=json_body, timeout=timeout,
+                    stream=stream,
                 )
 
-                # Count this request
-                self._increment_rate_counter()
-
                 if response.status_code == 200:
-                    self.logger.debug("Response: %d (%d bytes)", response.status_code, len(response.content))
+                    # Count this as one logical request on success only.
+                    # Retried attempts do not consume additional quota so that
+                    # transient 429/5xx errors do not silently drain the daily
+                    # budget (CRITICAL bug fix).
+                    self._increment_rate_counter()
+                    # Only log content length for non-streaming responses to
+                    # avoid consuming the stream body before the caller reads it.
+                    if not stream:
+                        self.logger.debug(
+                            "Response: %d (%d bytes)", response.status_code, len(response.content)
+                        )
+                    else:
+                        self.logger.debug("Response: %d (streaming)", response.status_code)
                     # Throttle between successful requests to avoid rate limiting
                     if self.request_delay > 0:
                         time.sleep(self.request_delay)
@@ -181,7 +222,8 @@ class BaseAPIClient:
         url = f"{self.base_url}{endpoint}"
         if params is None:
             params = {}
-        params["api_key"] = self.api_key
+        if self.api_key:  # Only add if non-empty string (Win 4 fix)
+            params["api_key"] = self.api_key
         return self._request_with_retry("GET", url, params=params, **kwargs)
 
     def post(self, endpoint, json_body=None, params=None, **kwargs):
@@ -190,31 +232,132 @@ class BaseAPIClient:
         return self._request_with_retry("POST", url, params=params,
                                         json_body=json_body, **kwargs)
 
-    def paginate(self, endpoint, params, page_size=1000,
-                 offset_key="offset", limit_key="limit",
-                 total_key="totalRecords"):
-        """Generator that yields pages of results.
+    def get_binary(self, endpoint, params=None, stream=True, **kwargs):
+        """Like get() but returns the raw Response for binary/streaming downloads.
 
-        Handles pagination math and stops when all records retrieved.
-        Each yield returns the parsed JSON response for that page.
+        Handles rate-limit checking and retry via _request_with_retry().
+        The caller is responsible for reading and closing the response.
+
+        Args:
+            endpoint: URL path relative to base_url.
+            params: Query parameters dict. api_key is added automatically if set.
+            stream: If True, the response body is not downloaded immediately
+                    (use response.iter_content() to stream). Default True.
+
+        Returns:
+            requests.Response: Raw response object.
+
+        Raises:
+            RateLimitExceeded: If daily limit has been reached.
+            requests.HTTPError: On non-200 HTTP responses after all retries.
         """
-        offset = 0
+        url = f"{self.base_url}{endpoint}"
         if params is None:
             params = {}
-        params[limit_key] = page_size
+        if self.api_key:
+            params["api_key"] = self.api_key
+        return self._request_with_retry("GET", url, params=params, stream=stream, **kwargs)
+
+    def _format_date(self, value, fmt="%Y-%m-%d"):
+        """Convert date, datetime, or string to formatted string.
+
+        Args:
+            value: A date, datetime, or string. None returns None.
+            fmt: strftime format string. Default: '%Y-%m-%d'.
+
+        Returns:
+            str: Formatted date string, or None if value is None.
+        """
+        if value is None:
+            return None
+        if isinstance(value, (date, datetime)):
+            return value.strftime(fmt)
+        return str(value)
+
+    def paginate(self, endpoint, params, page_size=1000,
+                 pagination_style="offset",    # "offset" | "page"
+                 offset_param="offset",        # query param name for offset
+                 page_param="page",            # query param name for page number
+                 size_param="limit",           # query param name for page size
+                 page_start=0,                 # first page index (0 or 1)
+                 total_key="totalRecords",     # response key for total count
+                 results_key=None,             # response key for record list (None = yield full response)
+                 has_next_key=None,            # if set, use response[has_next_key] to stop
+                 total_pages_key=None):        # if set, use response[total_pages_key] to stop
+        """Generic paginator — parameterize instead of reimplementing.
+
+        Supports three end-of-page detection strategies:
+          1. has_next_key  — stop when response[has_next_key] is falsy (USASpending)
+          2. total_pages_key — stop when page >= response[total_pages_key] (Subaward)
+          3. total_key — stop when offset/page*size >= response[total_key] (SAM default)
+
+        When results_key is None (legacy behavior), yields the full parsed response
+        dict for each page. When results_key is set, yields the results list for
+        each page.
+
+        Backward-compatible with existing callers: the original 3-param signature
+        (endpoint, params, page_size) still works because all new params have defaults.
+        Existing SAMEntityClient callers that pass positional args continue to work
+        and receive full response dicts (results_key=None).
+        """
+        # Copy params to avoid mutating the caller's dict (HIGH bug fix)
+        params = dict(params or {})
+        params[size_param] = page_size
+
+        page = page_start
+        offset = 0
 
         while True:
-            params[offset_key] = offset
+            if pagination_style == "page":
+                params[page_param] = page
+            else:  # offset
+                params[offset_param] = offset
+
             response = self.get(endpoint, params=params)
             data = response.json()
 
-            total = data.get(total_key, 0)
-            self.logger.info(
-                "Page at offset %d: total=%d", offset, total
-            )
+            if results_key is not None:
+                results = data.get(results_key, [])
+                self.logger.info(
+                    "Page %s: %d results",
+                    page if pagination_style == "page" else f"offset={offset}",
+                    len(results),
+                )
+                yield results
+            else:
+                # Legacy behavior: yield full response dict
+                total = data.get(total_key, 0)
+                self.logger.info(
+                    "Page at offset %d: total=%d", offset, total
+                )
+                yield data
 
-            yield data
+            # Determine whether to stop
+            if results_key is not None:
+                results_for_check = data.get(results_key, [])
+            else:
+                results_for_check = None  # legacy path uses offset math below
 
-            offset += page_size
-            if offset >= total:
+            if results_key is not None and not results_for_check:
                 break
+
+            # End-of-page detection
+            if has_next_key is not None:
+                if not data.get(has_next_key, False):
+                    break
+                page += 1
+            elif total_pages_key is not None:
+                total_pages = data.get(total_pages_key, 0)
+                page += 1
+                if page >= total_pages:
+                    break
+            else:
+                total = data.get(total_key, 0)
+                if pagination_style == "page":
+                    page += 1
+                    if page * page_size >= total:
+                        break
+                else:
+                    offset += page_size
+                    if offset >= total:
+                        break

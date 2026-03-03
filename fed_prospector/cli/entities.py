@@ -30,8 +30,8 @@ def download_extract(extract_type, year, month, extract_date):
     WARNING: Each download uses 1 API call (10/day limit on free tier).
 
     Examples:
-        python main.py download-extract --type=monthly --year=2026 --month=2
-        python main.py download-extract --type=daily --date=2026-02-21
+        python main.py load entities-download --type=monthly --year=2026 --month=2
+        python main.py load entities-download --type=daily --date=2026-02-21
     """
     logger = setup_logging()
     from datetime import date as date_cls, datetime as dt_cls
@@ -54,7 +54,7 @@ def download_extract(extract_type, year, month, extract_date):
             click.echo(f"\nExtracted files:")
             for p in paths:
                 click.echo(f"  {p}")
-            click.echo("\nUse 'python main.py load-entities --file=<path>' to load.")
+            click.echo("\nUse 'python main.py load entities --file=<path>' to load.")
         except Exception as e:
             click.echo(f"ERROR: {e}")
             sys.exit(1)
@@ -75,7 +75,7 @@ def download_extract(extract_type, year, month, extract_date):
             click.echo(f"\nExtracted files:")
             for p in paths:
                 click.echo(f"  {p}")
-            click.echo("\nUse 'python main.py load-entities --file=<path>' to load.")
+            click.echo("\nUse 'python main.py load entities --file=<path>' to load.")
         except Exception as e:
             click.echo(f"ERROR: {e}")
             sys.exit(1)
@@ -98,14 +98,14 @@ def load_entities(mode, file_path, load_date, batch_size):
       .json -> Streaming load with change detection (for JSON extracts/daily)
 
     Examples:
-        python main.py load-entities --mode=full --file=data/downloads/SAM_PUBLIC_MONTHLY_V2_20260201.dat
-        python main.py load-entities --mode=daily --file=data/downloads/daily.json
+        python main.py load entities --mode=full --file=data/downloads/SAM_PUBLIC_MONTHLY_V2_20260201.dat
+        python main.py load entities --mode=daily --file=data/downloads/daily.json
     """
     logger = setup_logging()
 
     if not file_path:
         click.echo("ERROR: --file is required. Download an extract first:")
-        click.echo("  python main.py download-extract --type=monthly")
+        click.echo("  python main.py load entities-download --type=monthly")
         sys.exit(1)
 
     from pathlib import Path as P
@@ -207,9 +207,9 @@ def refresh_entities(extract_type, year, month, extract_date, batch_size):
     Downloads the extract, then loads each extracted file automatically.
 
     Examples:
-        python main.py refresh-entities --type=daily
-        python main.py refresh-entities --type=daily --date=2026-02-21
-        python main.py refresh-entities --type=monthly --year=2026 --month=2
+        python main.py load entities-refresh --type=daily
+        python main.py load entities-refresh --type=daily --date=2026-02-21
+        python main.py load entities-refresh --type=monthly --year=2026 --month=2
     """
     logger = setup_logging()
     from datetime import date as date_cls

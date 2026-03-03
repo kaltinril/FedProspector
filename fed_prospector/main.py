@@ -19,14 +19,13 @@ Modules:
     cli/opportunities.py  load-opportunities, search
     cli/prospecting.py    add-user, list-users, create-prospect, update-prospect,
                           reassign-prospect, list-prospects, show-prospect, add-note,
-                          add-team-member, save-search, run-search, list-searches, dashboard,
-                          run-all-searches
+                          add-team-member, save-search, run-search, list-searches, dashboard
     cli/calc.py           load-calc
     cli/awards.py         load-awards, search-awards
     cli/fedhier.py        load-hierarchy, search-agencies
     cli/exclusions.py     load-exclusions, check-exclusion, check-prospects
     cli/spending.py       load-transactions, burn-rate
-    cli/health.py         check-health, load-history, catchup-datasets, run-job, maintain-db
+    cli/health.py         check-health, load-history, catchup-datasets, run-job, maintain-db, run-all-searches
     cli/subaward.py       load-subawards, search-subawards, teaming-partners
     cli/admin.py          create-sysadmin, create-org, list-orgs, invite-user,
                           list-org-members, disable-user, enable-user, reset-password
@@ -185,7 +184,6 @@ prospect.add_command(list_users, name="list-users")
 prospect.add_command(list_searches, name="list-searches")
 prospect.add_command(run_search, name="run-search")
 prospect.add_command(save_search, name="save-search")
-prospect.add_command(run_all_searches, name="refresh-searches")
 
 # ---------------------------------------------------------------------------
 # analyze group commands
@@ -218,6 +216,7 @@ health.add_command(load_history, name="load-history")
 health.add_command(catchup_datasets, name="catchup")
 health.add_command(maintain_db, name="maintain-db")
 health.add_command(run_job, name="run-job")
+health.add_command(run_all_searches, name="run-all-searches")
 health.add_command(check_schema, name="check-schema")
 
 

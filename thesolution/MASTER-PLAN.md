@@ -224,7 +224,7 @@ fedProspect/
 **Document**: [14-TESTING.md](phases/14-TESTING.md)
 
 **Scope**:
-- [x] Python ETL test suite: ~508 Python tests (verify with: pytest --collect-only -q | tail -5) across 23 test files (8 API client, 3 data quality, 11 loader/business/utility + conftest.py + 8 JSON fixtures)
+- [x] Python ETL test suite: ~568 Python tests (verify with: pytest --collect-only -q | tail -5) across 24 test files (8 API client, 3 data quality, 11 loader/business/utility + conftest.py + 8 JSON fixtures)
 - [x] C# Core.Tests: 237 tests across 25+ test files (22 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions)
 - [x] C# Api.Tests: 223 tests across 11+ test files (2 middleware, 9 controller + Phase 14.5 additions)
 - [x] **Total: 1,028 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
@@ -247,7 +247,7 @@ fedProspect/
 - [x] Multi-tenant query scoping on all capture endpoints
 - [x] Missing endpoints: PATCH `saved-searches`, POST `milestones`, GET `proposals`, POST `auth/refresh`, GET `notifications/unread-count`, GET `opportunities/export`
 - [x] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
-- **Result**: 57 endpoints across 14 controllers, 14 services, 57 tables + 4 views, 1,028 tests passing
+- **Result**: 57 endpoints across 13 controllers, 14 services, 57 tables + 4 views, 1,028 tests passing
 
 ### Phase 14.7: CLI Command Hierarchy
 **Status**: [x] COMPLETE (2026-03-02)
@@ -288,17 +288,17 @@ All 7 ETL loaders now write raw API JSON to staging tables before normalization.
 
 | 14.10 | ETL Loader DRY Refactor | COMPLETE | StagingMixin, etl_utils.py (parse_date/parse_decimal/fetch_existing_hashes/escape_tsv_value), get_cursor context manager; ~560 lines removed across 8 loaders |
 
-### Phase 14.11: CLI Bug Fixes
-**Status**: [ ] NOT STARTED
-**Document**: [14.11-CLI-BUG-FIXES.md](phases/14.11-CLI-BUG-FIXES.md)
+### Phase 14.11: CLI DRY Refactor + Bug Fixes
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.11-CLI-REFACTOR-DRY.md](phases/14.11-CLI-REFACTOR-DRY.md)
 
-Fix CLI bugs identified in code review: wrong CLI group for `run_all_searches`, stale schedule commands, `--help` example commands, admin slug/invited_by bugs, connection leaks. Also includes: CLI bug fixes from code review (wrong CLI group for run_all_searches, stale schedule commands, --help example commands, admin slug/invited_by bugs, connection leaks)
+CLI DRY refactor (cli_utils.py with print_table, echo_load_stats, QueryBuilder) + critical bug fixes: wrong CLI group for run_all_searches, stale schedule commands, --help example commands, admin slug/invited_by/utcnow bugs, connection leak in load_history, search_agencies missing try/except, dry-run counter bug, stale runtime output strings. Docs: test count (568→508), command count (52→54), controller count (14→13).
 
-### Phase 14.12: API Client Bug Fixes
-**Status**: [ ] NOT STARTED
-**Document**: [14.12-API-CLIENT-BUG-FIXES.md](phases/14.12-API-CLIENT-BUG-FIXES.md)
+### Phase 14.12: API Client DRY Refactor + Bug Fixes
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.12-API-CLIENTS-REFACTOR-DRY.md](phases/14.12-API-CLIENTS-REFACTOR-DRY.md)
 
-Fix API client bugs identified in code review: rate counter on retries, `paginate()` params mutation, date format crash, budget enforcement gap. Also includes: API client bug fixes (rate counter on retries, paginate() params mutation, date format crash, budget enforcement gap)
+DRY refactor: parameterized `paginate()` (Win 1, ~170 lines removed across 4 SAM clients); `_format_date()` instance method in BaseAPIClient (Win 2, ~100 lines); `_sam_init_kwargs()` classmethod (Win 3, ~72 lines); `get()` skips empty api_key removing 2 overrides (Win 4); `get_binary()` for SAMExtractClient (Win 5, ~40 lines). Bug fixes: CRITICAL rate counter incremented on retries (now only on success); HIGH `paginate()` mutated caller's params dict; HIGH `_parse_date` crashed on YYYY-MM-DD; MEDIUM budget enforcement ignored pagination calls. ~320 net lines removed across 10 client files. 7 test files updated.
 
 ### Phase 14.13: ETL Loader Bug Fixes
 **Status**: [ ] NOT STARTED

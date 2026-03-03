@@ -13,10 +13,8 @@ Rate limit: Shares daily quota with other SAM.gov APIs
 # OpenAPI spec: thesolution/sam_gov_api/fh-public-hierarchy.yml, fh-public-org.yml
 
 import logging
-from datetime import date, datetime
 
 from api_clients.base_client import BaseAPIClient, RateLimitExceeded
-from config import settings
 
 
 logger = logging.getLogger("fed_prospector.api.sam_fedhier")
@@ -46,28 +44,8 @@ class SAMFedHierClient(BaseAPIClient):
     SEARCH_ENDPOINT = "/prod/federalorganizations/v1/orgs"
 
     def __init__(self, api_key_number=1):
-        """Initialize SAM Federal Hierarchy client.
-
-        Args:
-            api_key_number: Which API key to use (1 or 2). Key 2 has
-                1000/day limit vs 10/day for key 1.
-        """
-        if api_key_number == 2:
-            api_key = settings.SAM_API_KEY_2
-            daily_limit = settings.SAM_DAILY_LIMIT_2
-        else:
-            api_key = settings.SAM_API_KEY
-            daily_limit = settings.SAM_DAILY_LIMIT
-
-        # Separate source_name for independent rate tracking
-        source_name = "SAM_FEDHIER"
-
-        super().__init__(
-            base_url=settings.SAM_API_BASE_URL,
-            api_key=api_key,
-            source_name=source_name,
-            max_daily_requests=daily_limit,
-        )
+        """Initialize SAM Federal Hierarchy client. See _sam_init_kwargs() for key selection."""
+        super().__init__(**self._sam_init_kwargs("SAM_FEDHIER", api_key_number))
 
     # -----------------------------------------------------------------
     # Core search
@@ -136,6 +114,10 @@ class SAMFedHierClient(BaseAPIClient):
         offset (which is managed internally). Yields individual org dicts
         from the orglist[] array.
 
+        NOTE: The SAM FedHier API returns 'totalrecords' (lowercase), unlike
+        every other SAM API that uses 'totalRecords'. We pass total_key="totalrecords"
+        to handle this API inconsistency.
+
         Yields:
             dict: Individual organization records from the orglist.
 
@@ -144,31 +126,17 @@ class SAMFedHierClient(BaseAPIClient):
         """
         kwargs.pop("offset", None)
         limit = kwargs.get("limit", 100)
-        offset = 0
-        total_yielded = 0
-
-        while True:
-            data = self.search_organizations(offset=offset, **kwargs)
-            total_records = data.get("totalrecords", 0)
-            results = data.get("orglist", [])
-
-            for org in results:
-                total_yielded += 1
-                yield org
-
-            self.logger.info(
-                "Page at offset %d: %d results (total available: %d, yielded so far: %d)",
-                offset, len(results), total_records, total_yielded,
-            )
-
-            if not results:
-                break
-
-            offset += limit
-            if offset >= total_records:
-                break
-
-        self.logger.info("FedHier search complete: %d total results", total_yielded)
+        for page_results in self.paginate(
+            self.SEARCH_ENDPOINT,
+            params=self._build_params(**kwargs),
+            page_size=limit,
+            pagination_style="offset",
+            offset_param="offset",
+            size_param="limit",
+            total_key="totalrecords",  # SAM FedHier API uses lowercase — not a typo
+            results_key="orglist",
+        ):
+            yield from page_results
 
     # -----------------------------------------------------------------
     # Convenience methods
@@ -209,18 +177,39 @@ class SAMFedHierClient(BaseAPIClient):
     # Helpers
     # -----------------------------------------------------------------
 
-    @staticmethod
-    def _format_date(d):
-        """Convert a date to YYYY-MM-DD string for the API.
+    def _build_params(self, fhorgid=None, fhorgname=None, status=None,
+                      fhorgtype=None, agencycode=None, cgac=None,
+                      fhparentorgname=None,
+                      updateddatefrom=None, updateddateto=None,
+                      limit=100, **_ignored):
+        """Build the query params dict for a single-page organizations search.
 
-        Args:
-            d: date, datetime, or string.
+        Used by search_organizations_all() to pass a clean params dict into
+        paginate() (without offset/limit, which paginate() manages).
+        Uses base class _format_date() (default %Y-%m-%d format).
 
         Returns:
-            str: Date in YYYY-MM-DD format.
+            dict: Query parameters ready for the SAM FedHier API.
         """
-        if d is None:
-            return None
-        if isinstance(d, (date, datetime)):
-            return d.strftime("%Y-%m-%d")
-        return str(d)
+        params = {}
+
+        if fhorgid is not None:
+            params["fhorgid"] = fhorgid
+        if fhorgname is not None:
+            params["fhorgname"] = fhorgname
+        if status is not None:
+            params["status"] = status
+        if fhorgtype is not None:
+            params["fhorgtype"] = fhorgtype
+        if agencycode is not None:
+            params["agencycode"] = agencycode
+        if cgac is not None:
+            params["cgac"] = cgac
+        if fhparentorgname is not None:
+            params["fhparentorgname"] = fhparentorgname
+        if updateddatefrom is not None:
+            params["updateddatefrom"] = self._format_date(updateddatefrom)
+        if updateddateto is not None:
+            params["updateddateto"] = self._format_date(updateddateto)
+
+        return params

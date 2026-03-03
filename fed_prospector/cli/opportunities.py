@@ -47,12 +47,12 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to, hist
     set-aside types and date chunks each require separate API calls.
 
     Examples:
-        python main.py load-opportunities
-        python main.py load-opportunities --days-back=30
-        python main.py load-opportunities --set-aside=WOSB --naics=541511
-        python main.py load-opportunities --posted-from=01/01/2026 --posted-to=02/01/2026
-        python main.py load-opportunities --historical
-        python main.py load-opportunities --max-calls=8
+        python main.py load opportunities
+        python main.py load opportunities --days-back=30
+        python main.py load opportunities --set-aside=WOSB --naics=541511
+        python main.py load opportunities --posted-from=01/01/2026 --posted-to=02/01/2026
+        python main.py load opportunities --historical
+        python main.py load opportunities --max-calls=8
     """
     logger = setup_logging()
     from datetime import date as date_cls, timedelta
@@ -237,10 +237,10 @@ def search(set_aside, naics, open_only, days, limit):
     response deadline (most urgent first).
 
     Examples:
-        python main.py search
-        python main.py search --set-aside=WOSB --open-only
-        python main.py search --naics=541511 --days=60
-        python main.py search --set-aside=8A --limit=50
+        python main.py search opportunities
+        python main.py search opportunities --set-aside=WOSB --open-only
+        python main.py search opportunities --naics=541511 --days=60
+        python main.py search opportunities --set-aside=8A --limit=50
     """
     logger = setup_logging()
     from datetime import datetime as dt_cls, timedelta

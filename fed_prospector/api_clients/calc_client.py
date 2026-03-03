@@ -100,17 +100,9 @@ class CalcPlusClient(BaseAPIClient):
             max_daily_requests=999999,  # Effectively unlimited
         )
 
-    def get(self, endpoint, params=None, **kwargs):
-        """Override base get() to avoid injecting an api_key parameter.
-
-        The CALC+ API requires no authentication, so we skip the api_key
-        that BaseAPIClient.get() would normally add.
-        """
-        url = f"{self.base_url}{endpoint}"
-        if params is None:
-            params = {}
-        # Do NOT add api_key -- CALC+ has no auth
-        return self._request_with_retry("GET", url, params=params, **kwargs)
+    # Note: get() is inherited from BaseAPIClient, which skips api_key
+    # injection when self.api_key is falsy (empty string). No override
+    # needed for CALC+ since api_key="" is passed in __init__.
 
     # =================================================================
     # ES response helpers

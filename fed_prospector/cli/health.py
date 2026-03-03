@@ -3,6 +3,8 @@
 Commands: check-health, load-history, catchup-datasets, run-job, maintain-db, run-all-searches
 """
 
+import sys
+
 import click
 from config.logging_config import setup_logging
 
@@ -16,8 +18,8 @@ def check_health(as_json):
     recent errors, and actionable alerts.
 
     Examples:
-        python main.py check-health
-        python main.py check-health --json
+        python main.py health check
+        python main.py health check --json
     """
     logger = setup_logging()
     from etl.health_check import HealthCheck
@@ -114,18 +116,15 @@ def load_history(source, days, status, limit):
     Displays recent ETL load runs with timing, record counts, and errors.
 
     Examples:
-        python main.py load-history
-        python main.py load-history --source SAM_OPPORTUNITY
-        python main.py load-history --days 7
-        python main.py load-history --status FAILED
-        python main.py load-history --limit 50
+        python main.py health load-history
+        python main.py health load-history --source SAM_OPPORTUNITY
+        python main.py health load-history --days 7
+        python main.py health load-history --status FAILED
+        python main.py health load-history --limit 50
     """
     setup_logging()
     from datetime import datetime, timedelta
-    from db.connection import get_connection
-
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
+    from db.connection import get_cursor
 
     try:
         query = (
@@ -154,8 +153,9 @@ def load_history(source, days, status, limit):
         query += " ORDER BY started_at DESC LIMIT %s"
         params.append(limit)
 
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
+        with get_cursor(dictionary=True) as cursor:
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
 
         if not rows:
             click.echo("No load history found matching the given filters.")
@@ -215,21 +215,21 @@ def load_history(source, days, status, limit):
                     f"  {'':21s}Error: {truncated}"
                 )
 
-    finally:
-        cursor.close()
-        conn.close()
+    except Exception as e:
+        click.echo(f"ERROR: {e}")
+        sys.exit(1)
 
 
 # Manual instructions for sources that can't be auto-caught-up
 MANUAL_INSTRUCTIONS = {
     "usaspending": [
-        "python main.py load-transactions  (requires --award-id)",
+        "python main.py load usaspending  (requires --award-id)",
     ],
 }
 
 # Hints for sources that have no scheduled job at all
 NO_JOB_HINTS = {
-    "SAM_SUBAWARD": "python main.py load-subawards --key 2",
+    "SAM_SUBAWARD": "python main.py load subawards --key 2",
 }
 
 
@@ -246,9 +246,9 @@ def catchup_datasets(dry_run, include_all):
     (entity_daily, usaspending) unless --include-all is used.
 
     Examples:
-        python main.py catchup-datasets
-        python main.py catchup-datasets --dry-run
-        python main.py catchup-datasets --include-all
+        python main.py health catchup
+        python main.py health catchup --dry-run
+        python main.py health catchup --include-all
     """
     logger = setup_logging()
     from etl.health_check import HealthCheck
@@ -268,6 +268,7 @@ def catchup_datasets(dry_run, include_all):
     runner = JobRunner()
 
     count_refreshed = 0
+    count_would_refresh = 0
     count_skipped = 0
     count_healthy = 0
     count_no_job = 0
@@ -327,7 +328,7 @@ def catchup_datasets(dry_run, include_all):
 
         if dry_run:
             click.echo(f"    -> DRY RUN: Would run job '{job_name}' (~{est} API calls)")
-            count_refreshed += 1
+            count_would_refresh += 1
         else:
             click.echo(f"    -> Running job '{job_name}'...")
             success, output = runner.run_job_streaming(job_name)
@@ -341,11 +342,16 @@ def catchup_datasets(dry_run, include_all):
             count_refreshed += 1
 
     # Summary
-    prefix = "[DRY RUN] " if dry_run else ""
-    click.echo(
-        f"\n{prefix}Summary: {count_refreshed} refreshed, {count_skipped} skipped, "
-        f"{count_healthy} healthy, {count_no_job} no job defined"
-    )
+    if dry_run:
+        click.echo(
+            f"\n[DRY RUN] Summary: {count_would_refresh} would be refreshed, "
+            f"{count_skipped} skipped, {count_healthy} healthy, {count_no_job} no job defined"
+        )
+    else:
+        click.echo(
+            f"\nSummary: {count_refreshed} refreshed, {count_skipped} skipped, "
+            f"{count_healthy} healthy, {count_no_job} no job defined"
+        )
     if dry_run and total_estimated > 0:
         click.echo(f"\nEstimated total SAM.gov API calls: ~{total_estimated}")
 
@@ -360,9 +366,9 @@ def run_job(job_name, list_jobs):
     calc_rates, usaspending, exclusions, saved_searches
 
     Examples:
-        python main.py run-job opportunities
-        python main.py run-job --list
-        python main.py run-job exclusions
+        python main.py health run-job opportunities
+        python main.py health run-job --list
+        python main.py health run-job exclusions
     """
     logger = setup_logging()
     from etl.scheduler import JobRunner, JOBS
@@ -419,10 +425,10 @@ def maintain_db(dry_run, analyze, sizes):
     Use --sizes to show table sizes.
 
     Examples:
-        python main.py maintain-db --dry-run
-        python main.py maintain-db
-        python main.py maintain-db --analyze
-        python main.py maintain-db --sizes
+        python main.py health maintain-db --dry-run
+        python main.py health maintain-db
+        python main.py health maintain-db --analyze
+        python main.py health maintain-db --sizes
     """
     logger = setup_logging()
     from etl.db_maintenance import DatabaseMaintenance
@@ -470,7 +476,7 @@ def run_all_searches():
     This is used by the scheduled job system.
 
     Examples:
-        python main.py run-all-searches
+        python main.py health run-all-searches
     """
     logger = setup_logging()
     from db.connection import get_connection

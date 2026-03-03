@@ -471,28 +471,9 @@ class USASpendingClient(BaseAPIClient):
         return data
 
     # -----------------------------------------------------------------
-    # Override base class get() to skip api_key for USASpending
+    # Note: get() and _format_date() are inherited from BaseAPIClient.
+    # BaseAPIClient.get() skips api_key injection when self.api_key is
+    # falsy (empty string), so no override is needed for USASpending.
+    # BaseAPIClient._format_date() uses %Y-%m-%d by default, which
+    # matches USASpending's expected date format.
     # -----------------------------------------------------------------
-
-    def get(self, endpoint, params=None, **kwargs):
-        """GET request without api_key (USASpending needs no auth)."""
-        url = f"{self.base_url}{endpoint}"
-        return self._request_with_retry("GET", url, params=params, **kwargs)
-
-    # -----------------------------------------------------------------
-    # Helpers
-    # -----------------------------------------------------------------
-
-    @staticmethod
-    def _format_date(value):
-        """Convert a date value to YYYY-MM-DD format for USASpending API.
-
-        Args:
-            value: A date, datetime, or string.
-
-        Returns:
-            str: Date in YYYY-MM-DD format.
-        """
-        if hasattr(value, "strftime"):
-            return value.strftime("%Y-%m-%d")
-        return str(value)

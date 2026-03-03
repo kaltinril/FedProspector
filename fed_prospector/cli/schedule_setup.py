@@ -27,63 +27,63 @@ TASK_PREFIX = "FedContract_"
 SCHEDULED_TASKS = [
     {
         "task_name": "FedContract_Opportunities",
-        "command_args": "load-opportunities --key 2",
+        "command_args": "load opportunities --key 2",
         "description": "Refresh contract opportunities from SAM.gov",
         "windows": {"sc": "HOURLY", "mo": "4"},
         "crontab": "0 */4 * * *",
     },
     {
         "task_name": "FedContract_EntityDaily",
-        "command_args": "download-extract --type daily",
+        "command_args": "load entities-download --type daily",
         "description": "Download and load daily entity extract",
         "windows": {"sc": "WEEKLY", "d": "TUE,WED,THU,FRI,SAT", "st": "06:00"},
         "crontab": "0 6 * * 2-6",
     },
     {
         "task_name": "FedContract_Hierarchy",
-        "command_args": "load-hierarchy --full-refresh --key 2",
+        "command_args": "load hierarchy --full-refresh --key 2",
         "description": "Refresh federal org hierarchy",
         "windows": {"sc": "WEEKLY", "d": "SUN", "st": "02:00"},
         "crontab": "0 2 * * 0",
     },
     {
         "task_name": "FedContract_Awards",
-        "command_args": "load-awards --key 2",
+        "command_args": "load awards --naics 541511 --key 2",
         "description": "Refresh contract awards data",
         "windows": {"sc": "WEEKLY", "d": "SAT", "st": "03:00"},
         "crontab": "0 3 * * 6",
     },
     {
         "task_name": "FedContract_CalcRates",
-        "command_args": "load-calc",
+        "command_args": "load labor-rates",
         "description": "Refresh GSA CALC+ labor rates",
         "windows": {"sc": "MONTHLY", "d": "1", "st": "04:00"},
         "crontab": "0 4 1 * *",
     },
     {
         "task_name": "FedContract_Exclusions",
-        "command_args": "load-exclusions --key 2",
+        "command_args": "load exclusions --key 2",
         "description": "Refresh SAM.gov exclusions data",
         "windows": {"sc": "WEEKLY", "d": "MON", "st": "06:00"},
         "crontab": "0 6 * * 1",
     },
     {
         "task_name": "FedContract_HealthCheck",
-        "command_args": "check-health",
+        "command_args": "health check",
         "description": "Run system health check",
         "windows": {"sc": "DAILY", "st": "09:00"},
         "crontab": "0 9 * * *",
     },
     {
         "task_name": "FedContract_SavedSearches",
-        "command_args": "run-all-searches",
+        "command_args": "health run-all-searches",
         "description": "Run all active saved searches",
         "windows": {"sc": "DAILY", "st": "07:00"},
         "crontab": "0 7 * * *",
     },
     {
         "task_name": "FedContract_Maintenance",
-        "command_args": "maintain-db",
+        "command_args": "health maintain-db",
         "description": "Run database maintenance",
         "windows": {"sc": "MONTHLY", "d": "1", "st": "01:00"},
         "crontab": "0 1 1 * *",
@@ -193,11 +193,11 @@ def setup_schedule(platform_name, dry_run, remove):
     Use --remove to delete all previously created tasks.
 
     Examples:
-        python main.py setup-schedule
-        python main.py setup-schedule --platform windows
-        python main.py setup-schedule --platform linux
-        python main.py setup-schedule --dry-run
-        python main.py setup-schedule --remove
+        python main.py setup schedule-jobs
+        python main.py setup schedule-jobs --platform windows
+        python main.py setup schedule-jobs --platform linux
+        python main.py setup schedule-jobs --dry-run
+        python main.py setup schedule-jobs --remove
     """
     platform = platform_name or _detect_platform()
     task_count = len(SCHEDULED_TASKS)

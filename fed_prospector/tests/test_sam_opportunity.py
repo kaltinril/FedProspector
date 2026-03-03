@@ -65,34 +65,53 @@ class TestConstants:
 # ---------------------------------------------------------------------------
 
 class TestFormatDate:
+    # _format_date is now an instance method inherited from BaseAPIClient.
+    # SAMOpportunityClient uses MM/DD/YYYY format, so fmt="%m/%d/%Y" is passed.
+
     def test_format_date_from_date_object(self):
-        result = SAMOpportunityClient._format_date(date(2026, 1, 15))
+        client = _make_client()
+        result = client._format_date(date(2026, 1, 15), "%m/%d/%Y")
         assert result == "01/15/2026"
 
     def test_format_date_from_datetime_object(self):
-        result = SAMOpportunityClient._format_date(datetime(2026, 3, 5, 10, 30))
+        client = _make_client()
+        result = client._format_date(datetime(2026, 3, 5, 10, 30), "%m/%d/%Y")
         assert result == "03/05/2026"
 
     def test_format_date_from_string_passthrough(self):
-        result = SAMOpportunityClient._format_date("01/01/2026")
+        client = _make_client()
+        result = client._format_date("01/01/2026", "%m/%d/%Y")
         assert result == "01/01/2026"
 
     def test_format_date_from_integer_converts_to_string(self):
-        result = SAMOpportunityClient._format_date(2026)
+        client = _make_client()
+        result = client._format_date(2026, "%m/%d/%Y")
         assert result == "2026"
 
 
 class TestParseDate:
+    # _parse_date is now an instance method (was @staticmethod).
+    # Also extended to handle YYYY-MM-DD format (HIGH bug fix).
+
     def test_parse_date_from_date_object(self):
+        client = _make_client()
         d = date(2026, 6, 15)
-        assert SAMOpportunityClient._parse_date(d) == d
+        assert client._parse_date(d) == d
 
     def test_parse_date_from_datetime_object(self):
+        client = _make_client()
         dt = datetime(2026, 6, 15, 10, 30)
-        assert SAMOpportunityClient._parse_date(dt) == date(2026, 6, 15)
+        assert client._parse_date(dt) == date(2026, 6, 15)
 
     def test_parse_date_from_string(self):
-        result = SAMOpportunityClient._parse_date("06/15/2026")
+        client = _make_client()
+        result = client._parse_date("06/15/2026")
+        assert result == date(2026, 6, 15)
+
+    def test_parse_date_from_iso_string(self):
+        # Regression test for HIGH bug fix: YYYY-MM-DD format now supported
+        client = _make_client()
+        result = client._parse_date("2026-06-15")
         assert result == date(2026, 6, 15)
 
 

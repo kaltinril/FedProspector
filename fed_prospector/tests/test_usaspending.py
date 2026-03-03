@@ -53,20 +53,26 @@ class TestConstants:
 # ---------------------------------------------------------------------------
 
 class TestFormatDate:
+    # _format_date is now an instance method inherited from BaseAPIClient.
+    # USASpending uses YYYY-MM-DD (the base class default fmt).
+
     def test_format_date_from_date_object(self):
-        result = USASpendingClient._format_date(date(2026, 3, 15))
+        client = _make_client()
+        result = client._format_date(date(2026, 3, 15))
         assert result == "2026-03-15"
 
     def test_format_date_from_string_passthrough(self):
-        result = USASpendingClient._format_date("2026-03-15")
+        client = _make_client()
+        result = client._format_date("2026-03-15")
         assert result == "2026-03-15"
 
 
 # ---------------------------------------------------------------------------
-# get() override (no api_key)
+# get() — no api_key injection for clients with empty api_key=""
+# (Win 4 fix: BaseAPIClient.get() skips api_key when self.api_key is falsy)
 # ---------------------------------------------------------------------------
 
-class TestGetOverride:
+class TestGetNoApiKey:
     def test_get_does_not_add_api_key(self):
         client = _make_client()
         mock_resp = make_mock_response(200, {"data": "ok"})

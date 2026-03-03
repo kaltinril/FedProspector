@@ -28,10 +28,10 @@ def load_subawards(naics, agency, prime_uei, max_calls, api_key_number):
     counts as one API call against the daily SAM.gov limit.
 
     Examples:
-        python main.py load-subawards
-        python main.py load-subawards --naics 541511
-        python main.py load-subawards --agency 9700 --key 2
-        python main.py load-subawards --prime-uei ABC123DEF456 --max-calls 50
+        python main.py load subawards
+        python main.py load subawards --naics 541511
+        python main.py load subawards --agency 9700 --key 2
+        python main.py load subawards --prime-uei ABC123DEF456 --max-calls 50
     """
     logger = setup_logging()
 
@@ -147,13 +147,13 @@ def search_subawards(prime_uei, sub_uei, naics, piid, limit):
     """Search local subaward data for teaming analysis.
 
     Queries the local sam_subaward table (no API calls). Load data first
-    with 'load-subawards'.
+    with 'python main.py load subawards'.
 
     Examples:
-        python main.py search-subawards --prime-uei ABC123DEF456
-        python main.py search-subawards --sub-uei XYZ789GHI012
-        python main.py search-subawards --naics 541511 --limit 50
-        python main.py search-subawards --piid W91QVN-20-C-0001
+        python main.py search subawards --prime-uei ABC123DEF456
+        python main.py search subawards --sub-uei XYZ789GHI012
+        python main.py search subawards --naics 541511 --limit 50
+        python main.py search subawards --piid W91QVN-20-C-0001
     """
     logger = setup_logging()
 
@@ -199,7 +199,7 @@ def search_subawards(prime_uei, sub_uei, naics, piid, limit):
 
         if not results:
             click.echo("\nNo subaward records found matching the criteria.")
-            click.echo("Tip: Load data first with 'python main.py load-subawards'")
+            click.echo("Tip: Load data first with 'python main.py load subawards'")
             return
 
         click.echo(f"\n  Found {len(results)} subaward record(s):")
@@ -240,12 +240,12 @@ def teaming_partners(naics, min_subs, limit):
 
     Identifies prime contractors who frequently subcontract to small
     businesses in your NAICS codes. Queries the local sam_subaward table
-    (no API calls). Load data first with 'load-subawards'.
+    (no API calls). Load data first with 'python main.py load subawards'.
 
     Examples:
-        python main.py teaming-partners
-        python main.py teaming-partners --naics 541511
-        python main.py teaming-partners --naics 541511 --min-subs 5 --limit 50
+        python main.py analyze teaming
+        python main.py analyze teaming --naics 541511
+        python main.py analyze teaming --naics 541511 --min-subs 5 --limit 50
     """
     logger = setup_logging()
 
@@ -268,7 +268,7 @@ def teaming_partners(naics, min_subs, limit):
 
         if not results:
             click.echo("\nNo teaming partners found matching the criteria.")
-            click.echo("Tip: Load data first with 'python main.py load-subawards'")
+            click.echo("Tip: Load data first with 'python main.py load subawards'")
             return
 
         click.echo(f"\n  Found {len(results)} potential teaming partner(s):")
@@ -298,7 +298,7 @@ def teaming_partners(naics, min_subs, limit):
                 f"{unique_subs:>6d}  {total_str:>14s}  {naics_list}"
             )
 
-        click.echo(f"\n  Use 'search-subawards --prime-uei <UEI>' to see details for a specific prime.")
+        click.echo(f"\n  Use 'python main.py search subawards --prime-uei <UEI>' to see details for a specific prime.")
 
     except Exception as e:
         logger.exception("Teaming partner analysis failed")

@@ -24,10 +24,10 @@ def check_schema(fix, verbose, table_name):
     missing indexes, missing foreign keys, and missing views.
 
     Examples:
-        python main.py check-schema
-        python main.py check-schema --verbose
-        python main.py check-schema --table fpds_contract
-        python main.py check-schema --fix
+        python main.py health check-schema
+        python main.py health check-schema --verbose
+        python main.py health check-schema --table fpds_contract
+        python main.py health check-schema --fix
     """
     logger = setup_logging()
 

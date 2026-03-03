@@ -140,16 +140,16 @@ class SAMOpportunityClient(BaseAPIClient):
         self.logger.info(
             "Searching opportunities: set_aside=%s, posted %s to %s (%d date chunk(s))",
             set_aside_label,
-            self._format_date(posted_from),
-            self._format_date(posted_to),
+            self._format_date(posted_from, "%m/%d/%Y"),
+            self._format_date(posted_to, "%m/%d/%Y"),
             len(date_chunks),
         )
 
         total_yielded = 0
         for chunk_from, chunk_to in date_chunks:
             params = {
-                "postedFrom": self._format_date(chunk_from),
-                "postedTo": self._format_date(chunk_to),
+                "postedFrom": self._format_date(chunk_from, "%m/%d/%Y"),
+                "postedTo": self._format_date(chunk_to, "%m/%d/%Y"),
             }
 
             if set_aside is not None:
@@ -214,8 +214,8 @@ class SAMOpportunityClient(BaseAPIClient):
 
         params = {
             "noticeid": notice_id,
-            "postedFrom": self._format_date(posted_from),
-            "postedTo": self._format_date(posted_to),
+            "postedFrom": self._format_date(posted_from, "%m/%d/%Y"),
+            "postedTo": self._format_date(posted_to, "%m/%d/%Y"),
         }
 
         self.logger.info("Looking up opportunity by notice ID: %s", notice_id)
@@ -328,8 +328,11 @@ class SAMOpportunityClient(BaseAPIClient):
         """
         seen_ids = set()
         results = []
-        calls_used = 0
         budget = self.call_budget
+        # Track calls by reading the rate counter before and after each
+        # set-aside search so pagination calls are counted accurately
+        # (MEDIUM bug fix: old code only counted date chunks, not pages).
+        calls_at_start = budget - self._get_remaining_requests()
 
         self.logger.info(
             "Searching %d set-aside types: %s (call budget: %d)",
@@ -337,7 +340,9 @@ class SAMOpportunityClient(BaseAPIClient):
         )
 
         for idx, code in enumerate(set_aside_codes):
-            # Check call budget before starting a new set-aside type
+            # Check call budget before starting a new set-aside type.
+            # Re-read the rate counter so pagination calls are included.
+            calls_used = (budget - self._get_remaining_requests()) - calls_at_start
             if calls_used >= budget:
                 skipped = set_aside_codes[idx:]
                 self.logger.warning(
@@ -374,12 +379,7 @@ class SAMOpportunityClient(BaseAPIClient):
                 )
                 break
 
-            # Each set-aside type uses at least 1 call per date chunk,
-            # plus additional calls for pagination within each chunk.
-            # Count the date chunks as the minimum calls consumed.
-            date_chunks = self._split_date_range(posted_from, posted_to)
-            calls_used += len(date_chunks)
-
+            calls_used = (budget - self._get_remaining_requests()) - calls_at_start
             new_count = len(results) - count_before
             self.logger.info(
                 "Set-aside '%s': %d new opportunities (total unique so far: %d, "
@@ -387,6 +387,7 @@ class SAMOpportunityClient(BaseAPIClient):
                 code, new_count, len(results), calls_used, budget,
             )
 
+        calls_used = (budget - self._get_remaining_requests()) - calls_at_start
         self.logger.info(
             "Multi-set-aside search complete: %d unique opportunities "
             "(%d API calls used of %d budget)",
@@ -394,30 +395,12 @@ class SAMOpportunityClient(BaseAPIClient):
         )
         return results
 
-    @staticmethod
-    def _format_date(value):
-        """Convert a date value to MM/dd/yyyy format expected by the API.
-
-        Args:
-            value: A date object, datetime object, or string. If string,
-                it is returned as-is (caller is responsible for format).
-
-        Returns:
-            str: Date in MM/dd/yyyy format, or the original string.
-        """
-        if isinstance(value, datetime):
-            return value.strftime("%m/%d/%Y")
-        if isinstance(value, date):
-            return value.strftime("%m/%d/%Y")
-        return str(value)
-
-    @staticmethod
-    def _parse_date(value):
+    def _parse_date(self, value):
         """Parse a date value into a date object.
 
         Args:
             value: A date object, datetime object, or string in MM/dd/yyyy
-                format.
+                or YYYY-MM-DD format.
 
         Returns:
             date: A date object.
@@ -426,8 +409,21 @@ class SAMOpportunityClient(BaseAPIClient):
             return value.date()
         if isinstance(value, date):
             return value
-        # Parse MM/dd/yyyy string
-        return datetime.strptime(value, "%m/%d/%Y").date()
+        # Try MM/dd/yyyy first (SAM API native format), then YYYY-MM-DD
+        # (ISO 8601 format passed by ETL callers). Raises ValueError if
+        # neither format matches (HIGH bug fix).
+        s = str(value)
+        for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
+            try:
+                return datetime.strptime(s, fmt).date()
+            except ValueError:
+                continue
+        raise ValueError(
+            f"Cannot parse date {value!r}: expected MM/DD/YYYY or YYYY-MM-DD"
+        )
+
+    # _format_date is inherited from BaseAPIClient. SAM Opportunities API
+    # uses MM/DD/YYYY format, so all call sites pass fmt="%m/%d/%Y".
 
     def _split_date_range(self, posted_from, posted_to):
         """Split a date range into chunks of at most 1 year (365 days).
@@ -459,7 +455,7 @@ class SAMOpportunityClient(BaseAPIClient):
 
         self.logger.info(
             "Date range %s to %s split into %d chunks of <= %d days",
-            self._format_date(start), self._format_date(end),
+            self._format_date(start, "%m/%d/%Y"), self._format_date(end, "%m/%d/%Y"),
             len(chunks), MAX_DATE_RANGE_DAYS,
         )
         return chunks

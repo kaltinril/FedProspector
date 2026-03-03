@@ -397,12 +397,12 @@ def status():
                 if days_since > 30:
                     click.echo(
                         f"  WARNING: CALC+ rates are {days_since} days old. "
-                        f"Run 'python main.py load-calc' to refresh."
+                        f"Run 'python main.py load labor-rates' to refresh."
                     )
                 else:
                     click.echo("  Status: Current")
         else:
-            click.echo("  No CALC+ load recorded. Run 'python main.py load-calc' to load.")
+            click.echo("  No CALC+ load recorded. Run 'python main.py load labor-rates' to load.")
     except Exception as e:
         click.echo(f"  Could not query CALC+ freshness: {e}")
 

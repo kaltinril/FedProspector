@@ -7,7 +7,7 @@ import hashlib
 import re
 import secrets
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import click
 
@@ -27,10 +27,10 @@ def create_sysadmin(username, email, display_name, org_name):
     use the API to create client organizations and invite users.
 
     Examples:
-        python main.py create-sysadmin --username admin --email admin@myco.com \\
+        python main.py admin create-sysadmin --username admin --email admin@myco.com \\
             --display-name "Admin User"
 
-        python main.py create-sysadmin --username admin --email admin@myco.com \\
+        python main.py admin create-sysadmin --username admin --email admin@myco.com \\
             --display-name "Admin" --org-name "Acme Corp"
     """
     logger = setup_logging()
@@ -71,7 +71,7 @@ def create_sysadmin(username, email, display_name, org_name):
             org_id = row["organization_id"]
             logger.info("Using existing organization '%s' (org_id=%d)", org_name, org_id)
         else:
-            slug = org_name.lower().replace(" ", "-")
+            slug = _generate_slug(org_name)
             cursor.execute(
                 "INSERT INTO organization (name, slug, is_active, max_users, subscription_tier) "
                 "VALUES (%s, %s, 'Y', 50, 'enterprise')",
@@ -132,9 +132,9 @@ def create_org(name, slug, max_users, tier):
     """Create a new organization.
 
     Examples:
-        python main.py create-org --name "Acme Corp" --slug acme-corp
+        python main.py admin create-org --name "Acme Corp" --slug acme-corp
 
-        python main.py create-org --name "Acme Corp" --max-users 25 --tier professional
+        python main.py admin create-org --name "Acme Corp" --max-users 25 --tier professional
     """
     logger = setup_logging()
 
@@ -180,7 +180,7 @@ def list_orgs():
     """List all organizations.
 
     Examples:
-        python main.py list-orgs
+        python main.py admin list-orgs
     """
     logger = setup_logging()
 
@@ -237,9 +237,9 @@ def invite_user(email, org_id, role):
     """Create an invitation for a user to join an organization.
 
     Examples:
-        python main.py invite-user --email user@acme.com --org-id 2
+        python main.py admin invite-user --email user@acme.com --org-id 2
 
-        python main.py invite-user --email user@acme.com --org-id 2 --role admin
+        python main.py admin invite-user --email user@acme.com --org-id 2 --role admin
     """
     logger = setup_logging()
 
@@ -259,14 +259,21 @@ def invite_user(email, org_id, role):
             sys.exit(1)
 
         # Generate invite code
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         raw = f"{email}:{org_id}:{now.isoformat()}:{secrets.token_hex(16)}"
         invite_code = hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
         expires_at = now + timedelta(days=7)
 
-        # Use user_id=1 as the inviter (system admin)
-        invited_by = 1
+        # Look up the sysadmin user_id to use as the inviter
+        cursor.execute(
+            "SELECT user_id FROM app_user WHERE is_admin = 'Y' ORDER BY user_id LIMIT 1"
+        )
+        admin_row = cursor.fetchone()
+        if not admin_row:
+            click.echo("ERROR: No admin user found. Create a sysadmin first with 'python main.py admin create-sysadmin'.")
+            sys.exit(1)
+        invited_by = admin_row["user_id"]
 
         cursor.execute(
             "INSERT INTO organization_invite "
@@ -296,7 +303,7 @@ def list_org_members(org_id):
     """List members of an organization.
 
     Examples:
-        python main.py list-org-members --org-id 2
+        python main.py admin list-org-members --org-id 2
     """
     logger = setup_logging()
 
@@ -366,7 +373,7 @@ def disable_user(user_id):
     """Disable a user account and revoke all active sessions.
 
     Examples:
-        python main.py disable-user --user-id 5
+        python main.py admin disable-user --user-id 5
     """
     logger = setup_logging()
 
@@ -434,7 +441,7 @@ def enable_user(user_id):
     """Enable a previously disabled user account.
 
     Examples:
-        python main.py enable-user --user-id 5
+        python main.py admin enable-user --user-id 5
     """
     logger = setup_logging()
 
@@ -487,7 +494,7 @@ def reset_password(user_id):
     sets force_password_change so the user must pick a new password.
 
     Examples:
-        python main.py reset-password --user-id 5
+        python main.py admin reset-password --user-id 5
     """
     logger = setup_logging()
 

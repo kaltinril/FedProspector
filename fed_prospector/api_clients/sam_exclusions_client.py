@@ -13,10 +13,8 @@ Rate limit: Shares daily quota with other SAM.gov APIs
 # OpenAPI spec: thesolution/sam_gov_api/exclusions-api.yaml
 
 import logging
-from datetime import date, datetime
 
 from api_clients.base_client import BaseAPIClient, RateLimitExceeded
-from config import settings
 
 
 logger = logging.getLogger("fed_prospector.api.sam_exclusions")
@@ -44,28 +42,8 @@ class SAMExclusionsClient(BaseAPIClient):
     SEARCH_ENDPOINT = "/entity-information/v4/exclusions"
 
     def __init__(self, api_key_number=1):
-        """Initialize SAM Exclusions client.
-
-        Args:
-            api_key_number: Which API key to use (1 or 2). Key 2 has
-                1000/day limit vs 10/day for key 1.
-        """
-        if api_key_number == 2:
-            api_key = settings.SAM_API_KEY_2
-            daily_limit = settings.SAM_DAILY_LIMIT_2
-        else:
-            api_key = settings.SAM_API_KEY
-            daily_limit = settings.SAM_DAILY_LIMIT
-
-        # Separate source_name for independent rate tracking
-        source_name = "SAM_EXCLUSIONS"
-
-        super().__init__(
-            base_url=settings.SAM_API_BASE_URL,
-            api_key=api_key,
-            source_name=source_name,
-            max_daily_requests=daily_limit,
-        )
+        """Initialize SAM Exclusions client. See _sam_init_kwargs() for key selection."""
+        super().__init__(**self._sam_init_kwargs("SAM_EXCLUSIONS", api_key_number))
 
     # -----------------------------------------------------------------
     # Core search
@@ -129,31 +107,18 @@ class SAMExclusionsClient(BaseAPIClient):
         """
         kwargs.pop("page", None)
         size = kwargs.get("size", 10)
-        page = 0
-        total_yielded = 0
-
-        while True:
-            data = self.search_exclusions(page=page, **kwargs)
-            total_records = data.get("totalRecords", 0)
-            results = data.get("excludedEntity", [])
-
-            for exclusion in results:
-                total_yielded += 1
-                yield exclusion
-
-            self.logger.info(
-                "Page %d: %d results (total available: %d, yielded so far: %d)",
-                page, len(results), total_records, total_yielded,
-            )
-
-            if not results:
-                break
-
-            page += 1
-            if page * size >= total_records:
-                break
-
-        self.logger.info("Exclusion search complete: %d total results", total_yielded)
+        for page_results in self.paginate(
+            self.SEARCH_ENDPOINT,
+            params=self._build_params(**kwargs),
+            page_size=size,
+            pagination_style="page",
+            page_param="page",
+            size_param="size",
+            page_start=0,
+            total_key="totalRecords",
+            results_key="excludedEntity",
+        ):
+            yield from page_results
 
     # -----------------------------------------------------------------
     # Convenience methods
@@ -215,3 +180,33 @@ class SAMExclusionsClient(BaseAPIClient):
         """
         self.logger.info("Searching exclusions for name '%s'", name)
         return list(self.search_exclusions_all(q=name))
+
+    # -----------------------------------------------------------------
+    # Helpers
+    # -----------------------------------------------------------------
+
+    def _build_params(self, uei=None, q=None, excluding_agency_code=None,
+                      exclusion_type=None, exclusion_program=None,
+                      size=10, **_ignored):
+        """Build the query params dict for a single-page exclusions search.
+
+        Used by search_exclusions_all() to pass a clean params dict into
+        paginate() (without page/size, which paginate() manages).
+
+        Returns:
+            dict: Query parameters ready for the SAM Exclusions API.
+        """
+        params = {}
+
+        if uei is not None:
+            params["ueiSAM"] = uei
+        if q is not None:
+            params["q"] = q
+        if excluding_agency_code is not None:
+            params["excludingAgencyCode"] = excluding_agency_code
+        if exclusion_type is not None:
+            params["exclusionType"] = exclusion_type
+        if exclusion_program is not None:
+            params["exclusionProgram"] = exclusion_program
+
+        return params

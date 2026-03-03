@@ -242,9 +242,9 @@ class SAMExtractClient(BaseAPIClient):
     def _download_extract_file(self, filename, output_dir):
         """Download a single extract file by name.
 
-        Uses streaming download with progress bar. Does NOT go through
-        the base get() method because the response is a binary file
-        stream, not JSON.
+        Uses streaming download with progress bar. Routes through
+        get_binary() so rate-limit checking and retry logic are handled
+        by BaseAPIClient._request_with_retry().
 
         Args:
             filename: The SAM.gov extract filename (e.g. SAM_PUBLIC_...).
@@ -255,47 +255,26 @@ class SAMExtractClient(BaseAPIClient):
 
         Raises:
             RateLimitExceeded: If daily limit reached.
-            requests.HTTPError: On unexpected HTTP errors.
+            requests.HTTPError: On unexpected HTTP errors (non-404 4xx or 5xx).
         """
-        if not self._check_rate_limit():
-            raise RateLimitExceeded(
-                f"{self.source_name}: Daily rate limit of "
-                f"{self.max_daily_requests} reached. "
-                f"No requests remaining for today."
-            )
-
-        url = f"{self.base_url}{self.EXTRACT_ENDPOINT}"
-        params = {
-            "api_key": self.api_key,
-            "fileName": filename,
-        }
-
-        self.logger.debug("GET %s (stream=True)", url)
+        self.logger.debug("GET %s?fileName=%s (stream=True)",
+                          self.EXTRACT_ENDPOINT, filename)
 
         try:
-            response = self.session.get(
-                url, params=params, stream=True, timeout=60
+            response = self.get_binary(
+                self.EXTRACT_ENDPOINT,
+                params={"fileName": filename},
+                stream=True,
+                timeout=60,
             )
-        except (requests.ConnectionError, requests.Timeout) as exc:
-            self.logger.error("Connection failed for %s: %s", filename, exc)
+        except requests.HTTPError as exc:
+            # _request_with_retry raises HTTPError for 4xx (not 429) responses.
+            # 404 means the file doesn't exist for this date — a normal condition.
+            if exc.response is not None and exc.response.status_code == 404:
+                self.logger.debug("Not found: %s", filename)
+                return None
+            self.logger.error("HTTP error downloading %s: %s", filename, exc)
             raise
-
-        # Count this as one API call regardless of outcome
-        self._increment_rate_counter()
-
-        if response.status_code == 404:
-            self.logger.debug("Not found: %s", filename)
-            response.close()
-            return None
-
-        if response.status_code != 200:
-            self.logger.error(
-                "Unexpected status %d for %s: %s",
-                response.status_code,
-                filename,
-                response.text[:500],
-            )
-            response.raise_for_status()
 
         # Stream the file to disk with progress bar
         dest = output_dir / filename

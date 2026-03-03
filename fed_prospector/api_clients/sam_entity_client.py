@@ -12,7 +12,6 @@ Free tier: 10 requests/day (configurable via SAM_DAILY_LIMIT env var)
 # OpenAPI spec: thesolution/sam_gov_api/entity-api.yaml
 
 import logging
-from datetime import date, datetime
 
 from api_clients.base_client import BaseAPIClient, RateLimitExceeded
 from config import settings
@@ -120,7 +119,7 @@ class SAMEntityClient(BaseAPIClient):
         Raises:
             RateLimitExceeded: If daily API limit is reached during pagination.
         """
-        date_str = self._format_date(update_date)
+        date_str = self._format_date(update_date, "%m/%d/%Y")
 
         params = {
             "registrationStatus": registration_status,
@@ -251,20 +250,5 @@ class SAMEntityClient(BaseAPIClient):
         yield from self.search_entities(sbaBusinessTypeCode=SBA_8A_BUSINESS_TYPE_CODE,
                                         **kwargs)
 
-    @staticmethod
-    def _format_date(value):
-        """Convert a date value to MM/DD/YYYY format expected by SAM.gov API.
-
-        Args:
-            value: A date object, datetime object, or string. If string,
-                it is returned as-is (caller is responsible for format).
-
-        Returns:
-            str: Date in MM/DD/YYYY format, or the original string.
-        """
-        if isinstance(value, datetime):
-            return value.strftime("%m/%d/%Y")
-        if isinstance(value, date):
-            return value.strftime("%m/%d/%Y")
-        # Assume string is already formatted
-        return str(value)
+    # _format_date is inherited from BaseAPIClient. SAM Entity API uses
+    # MM/DD/YYYY format, so all call sites must pass fmt="%m/%d/%Y".

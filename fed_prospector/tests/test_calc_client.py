@@ -83,10 +83,11 @@ class TestGetTotalCount:
 
 
 # ---------------------------------------------------------------------------
-# get() override
+# get() — no api_key injection for clients with empty api_key=""
+# (Win 4 fix: BaseAPIClient.get() skips api_key when self.api_key is falsy)
 # ---------------------------------------------------------------------------
 
-class TestGetOverride:
+class TestGetNoApiKey:
     def test_get_does_not_add_api_key(self):
         client = _make_client()
         mock_resp = make_mock_response(200, {"hits": {"hits": []}})

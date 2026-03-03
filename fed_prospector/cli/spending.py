@@ -25,9 +25,9 @@ def load_transactions(award_id, solicitation, piid):
     No API rate limits (USASpending has no daily quotas).
 
     Examples:
-        python main.py load-transactions --award-id CONT_AWD_W911NF25C0001_9700_-NONE-_-NONE-
-        python main.py load-transactions --solicitation W911NF-25-R-0001
-        python main.py load-transactions --piid W911NF25C0001
+        python main.py load usaspending --award-id CONT_AWD_W911NF25C0001_9700_-NONE-_-NONE-
+        python main.py load usaspending --solicitation W911NF-25-R-0001
+        python main.py load usaspending --piid W911NF25C0001
     """
     logger = setup_logging()
 
@@ -66,7 +66,7 @@ def load_transactions(award_id, solicitation, piid):
             if not row:
                 click.echo(f"ERROR: No award found in usaspending_award table for "
                           f"{'solicitation ' + solicitation if solicitation else 'PIID ' + piid}")
-                click.echo("Load award data first: python main.py load-usaspending")
+                click.echo("Load award data first: python main.py load usaspending")
                 sys.exit(1)
             award_id = row["generated_unique_award_id"]
         finally:
@@ -121,9 +121,9 @@ def burn_rate(award_id, solicitation, piid, load_if_missing):
     --load-if-missing to auto-fetch both from USASpending API.
 
     Examples:
-        python main.py burn-rate --award-id CONT_AWD_W911NF25C0001_9700_-NONE-_-NONE-
-        python main.py burn-rate --piid W911NF25C0001 --load-if-missing
-        python main.py burn-rate --solicitation W911NF-25-R-0001
+        python main.py analyze burn-rate --award-id CONT_AWD_W911NF25C0001_9700_-NONE-_-NONE-
+        python main.py analyze burn-rate --piid W911NF25C0001 --load-if-missing
+        python main.py analyze burn-rate --solicitation W911NF-25-R-0001
     """
     logger = setup_logging()
 
@@ -246,7 +246,7 @@ def burn_rate(award_id, solicitation, piid, load_if_missing):
 
     if not result:
         click.echo("\nNo transaction data available for burn rate calculation.")
-        click.echo("Run: python main.py load-transactions --award-id " + award_id)
+        click.echo("Run: python main.py load usaspending --award-id " + award_id)
         return
 
     click.echo(f"\n{'='*50}")

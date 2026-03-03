@@ -27,9 +27,9 @@ def load_exclusions(exclusion_type, agency, max_calls, api_key_number):
     counts as one API call against the daily SAM.gov limit.
 
     Examples:
-        python main.py load-exclusions
-        python main.py load-exclusions --exclusion-type "Ineligible (Proceedings Completed)"
-        python main.py load-exclusions --agency DOD --key 2
+        python main.py load exclusions
+        python main.py load exclusions --exclusion-type "Ineligible (Proceedings Completed)"
+        python main.py load exclusions --agency DOD --key 2
     """
     logger = setup_logging()
 
@@ -161,10 +161,10 @@ def check_prospects():
     UEIs that appear in the exclusions list. This does NOT make API calls;
     it uses locally loaded data.
 
-    Run 'load-exclusions' first to populate the local exclusions table.
+    Run 'python main.py load exclusions' first to populate the local exclusions table.
 
     Examples:
-        python main.py check-prospects
+        python main.py analyze scan-exclusions
     """
     logger = setup_logging()
 
@@ -196,7 +196,7 @@ def check_prospects():
                 f"{row.get('excluding_agency_name', 'N/A')}"
             )
 
-        click.echo(f"\n  Run 'python main.py check-exclusion --uei <UEI>' for details on each.")
+        click.echo(f"\n  Run 'python main.py search exclusions --uei <UEI>' for details on each.")
 
     except Exception as e:
         logger.exception("Prospect exclusion check failed")

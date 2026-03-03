@@ -35,12 +35,12 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
     --awardee-uei, --piid, or --fiscal-year.
 
     Examples:
-        python main.py load-awards --naics 541512 --years-back 5
-        python main.py load-awards --naics 541512,541511,561110 --years-back 5
-        python main.py load-awards --set-aside WOSB --years-back 3
-        python main.py load-awards --awardee-uei ABC123DEF456
-        python main.py load-awards --piid W911NF25C0001
-        python main.py load-awards --naics 541512 --set-aside WOSB --key 2
+        python main.py load awards --naics 541512 --years-back 5
+        python main.py load awards --naics 541512,541511,561110 --years-back 5
+        python main.py load awards --set-aside WOSB --years-back 3
+        python main.py load awards --awardee-uei ABC123DEF456
+        python main.py load awards --piid W911NF25C0001
+        python main.py load awards --naics 541512 --set-aside WOSB --key 2
     """
     logger = setup_logging()
 

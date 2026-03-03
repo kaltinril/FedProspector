@@ -6,6 +6,7 @@ import time
 import click
 
 from config.logging_config import setup_logging
+from cli.cli_utils import QueryBuilder
 
 
 @click.command("load-hierarchy")
@@ -30,9 +31,9 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
     Default behavior is incremental upsert with SHA-256 change detection.
 
     Examples:
-        python main.py load-hierarchy
-        python main.py load-hierarchy --full-refresh --key 2
-        python main.py load-hierarchy --status Inactive --max-calls 20
+        python main.py load hierarchy
+        python main.py load hierarchy --full-refresh --key 2
+        python main.py load hierarchy --status Inactive --max-calls 20
     """
     logger = setup_logging()
 
@@ -141,54 +142,50 @@ def search_agencies(name, code, org_type, limit):
     given criteria. Requires load-hierarchy to have been run first.
 
     Examples:
-        python main.py search-agencies --name "Defense"
-        python main.py search-agencies --code 9700
-        python main.py search-agencies --type Department
-        python main.py search-agencies --name "Army" --type Sub-Tier
+        python main.py search agencies --name "Defense"
+        python main.py search agencies --code 9700
+        python main.py search agencies --type Department
+        python main.py search agencies --name "Army" --type Sub-Tier
     """
-    setup_logging()
+    logger = setup_logging()
 
     if not any([name, code, org_type]):
         click.echo("ERROR: At least one filter is required (--name, --code, or --type)")
         sys.exit(1)
 
-    from db.connection import get_connection
+    from db.connection import get_cursor
 
-    conn = get_connection()
-    cursor = conn.cursor(dictionary=True)
     try:
-        conditions = ["1=1"]
-        params = []
-
+        qb = QueryBuilder()
         if name:
-            conditions.append("fh_org_name LIKE %s")
-            params.append(f"%{name}%")
+            qb.filter("fh_org_name LIKE %s", f"%{name}%")
         if code:
-            conditions.append("(agency_code = %s OR cgac = %s)")
-            params.append(code)
-            params.append(code)
+            qb.filter("(agency_code = %s OR cgac = %s)", code, code)
         if org_type:
             type_map = {
                 "department": "Department/Ind. Agency",
                 "sub-tier": "Sub-Tier",
                 "office": "Office",
             }
-            conditions.append("fh_org_type = %s")
-            params.append(type_map.get(org_type.lower(), org_type))
+            qb.filter("fh_org_type = %s", type_map.get(org_type.lower(), org_type))
 
-        where_clause = " AND ".join(conditions)
+        where_sql, params = qb.build_where()
+        if not where_sql:
+            where_sql = "WHERE 1=1"
+
         sql = (
             f"SELECT fh_org_id, fh_org_name, fh_org_type, status, "
             f"agency_code, cgac, parent_org_id, level "
             f"FROM federal_organization "
-            f"WHERE {where_clause} "
+            f"{where_sql} "
             f"ORDER BY level, fh_org_name "
             f"LIMIT %s"
         )
         params.append(limit)
 
-        cursor.execute(sql, params)
-        rows = cursor.fetchall()
+        with get_cursor(dictionary=True) as cursor:
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
 
         if not rows:
             click.echo("No organizations found matching the criteria.")
@@ -208,6 +205,7 @@ def search_agencies(name, code, org_type, limit):
                 f"{agency_code:<8s}  {status_val:<10s}"
             )
 
-    finally:
-        cursor.close()
-        conn.close()
+    except Exception as e:
+        logger.exception("Agency search failed")
+        click.echo(f"ERROR: {e}", err=True)
+        sys.exit(1)

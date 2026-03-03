@@ -33,17 +33,24 @@ def _make_client(api_key_number=1):
 # ---------------------------------------------------------------------------
 
 class TestFormatDate:
+    # _format_date is now an instance method inherited from BaseAPIClient.
+    # Use a client instance instead of calling it as a static/class method.
+
     def test_format_date_from_date_object(self):
-        assert SAMFedHierClient._format_date(date(2026, 1, 15)) == "2026-01-15"
+        client = _make_client()
+        assert client._format_date(date(2026, 1, 15)) == "2026-01-15"
 
     def test_format_date_from_datetime_object(self):
-        assert SAMFedHierClient._format_date(datetime(2026, 1, 15, 10, 30)) == "2026-01-15"
+        client = _make_client()
+        assert client._format_date(datetime(2026, 1, 15, 10, 30)) == "2026-01-15"
 
     def test_format_date_from_string_passthrough(self):
-        assert SAMFedHierClient._format_date("2026-01-15") == "2026-01-15"
+        client = _make_client()
+        assert client._format_date("2026-01-15") == "2026-01-15"
 
     def test_format_date_none_returns_none(self):
-        assert SAMFedHierClient._format_date(None) is None
+        client = _make_client()
+        assert client._format_date(None) is None
 
 
 # ---------------------------------------------------------------------------

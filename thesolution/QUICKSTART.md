@@ -462,7 +462,7 @@ python main.py health check-schema --verbose         # Show details for each tab
 
 See [07-REFERENCE-ENRICHMENT.md](phases/07-REFERENCE-ENRICHMENT.md) for full details.
 
-> **Note**: CLI has 52 commands in 7 groups (`setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`). Run `python main.py --help` to see all groups, or `python main.py GROUP --help` to see sub-commands for a group.
+> **Note**: CLI has 54 commands in 7 groups (`setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`). Run `python main.py --help` to see all groups, or `python main.py GROUP --help` to see sub-commands for a group.
 
 ---
 
@@ -502,9 +502,9 @@ The API starts at `https://localhost:5001` (or `http://localhost:5000`).
 
 ### Phase 14: Testing — COMPLETE (2026-03-01)
 
-1,028 tests across Python and C#, all passing.
+968 tests across Python and C#, all passing.
 
-**Run Python tests** (568 tests):
+**Run Python tests** (508 tests):
 ```bash
 cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
@@ -636,14 +636,18 @@ See individual phase docs in `thesolution/phases/` for full specifications.
 
 ## Current Priority: Phase 15 (UI Foundation)
 
-Phase 14.7 (CLI Command Hierarchy) is COMPLETE. The system now has:
-- 52 CLI commands in 7 discoverable groups: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`
+Phases 14.7 through 14.11 are COMPLETE. The system now has:
+- 54 CLI commands in 7 discoverable groups: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`
 - Commands follow `python main.py GROUP COMMAND` pattern (e.g., `python main.py setup verify`)
 - `setup verify` for first-time prerequisite checking
 - `setup schedule-jobs` for automated task creation
 - `load entities-refresh` for one-step entity loading
 - Admin CLI commands for org/user management before UI exists
-- 57 endpoints across 14 controllers, 57 tables + 4 views
+- 57 endpoints across 13 controllers, 57 tables + 4 views
+- Phase 14.8: architecture compliance + 2 missing CLI search commands
+- Phase 14.9: raw staging table for USASpending data
+- Phase 14.10: ETL layer DRY refactor (shared utilities in etl/etl_utils.py)
+- Phase 14.11: CLI layer DRY refactor + bug fixes (shared utilities in cli/cli_utils.py)
 
 **Next**: Phase 15 (UI Foundation) → Phase 16 (Search) → and so on through Phase 20.
 

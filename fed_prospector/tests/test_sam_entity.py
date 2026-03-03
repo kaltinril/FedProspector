@@ -51,16 +51,22 @@ class TestConstants:
 # ---------------------------------------------------------------------------
 
 class TestFormatDate:
+    # _format_date is now an instance method inherited from BaseAPIClient.
+    # SAMEntityClient uses MM/DD/YYYY format, so fmt="%m/%d/%Y" is passed.
+
     def test_format_date_from_date_object(self):
-        result = SAMEntityClient._format_date(date(2026, 3, 15))
+        client = _make_client()
+        result = client._format_date(date(2026, 3, 15), "%m/%d/%Y")
         assert result == "03/15/2026"
 
     def test_format_date_from_datetime_object(self):
-        result = SAMEntityClient._format_date(datetime(2026, 12, 1, 8, 0))
+        client = _make_client()
+        result = client._format_date(datetime(2026, 12, 1, 8, 0), "%m/%d/%Y")
         assert result == "12/01/2026"
 
     def test_format_date_from_string_passthrough(self):
-        result = SAMEntityClient._format_date("03/15/2026")
+        client = _make_client()
+        result = client._format_date("03/15/2026", "%m/%d/%Y")
         assert result == "03/15/2026"
 
 

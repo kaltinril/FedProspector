@@ -12,10 +12,8 @@ Rate limit: Shares daily quota with other SAM.gov APIs
 # OpenAPI spec: thesolution/sam_gov_api/subawardreportingpublicapi.yaml
 
 import logging
-from datetime import date, datetime
 
 from api_clients.base_client import BaseAPIClient, RateLimitExceeded
-from config import settings
 
 
 logger = logging.getLogger("fed_prospector.api.sam_subaward")
@@ -45,28 +43,8 @@ class SAMSubawardClient(BaseAPIClient):
     SEARCH_ENDPOINT = "/prod/contract/v1/subcontracts/search"
 
     def __init__(self, api_key_number=1):
-        """Initialize SAM Subaward client.
-
-        Args:
-            api_key_number: Which API key to use (1 or 2). Key 2 has
-                1000/day limit vs 10/day for key 1.
-        """
-        if api_key_number == 2:
-            api_key = settings.SAM_API_KEY_2
-            daily_limit = settings.SAM_DAILY_LIMIT_2
-        else:
-            api_key = settings.SAM_API_KEY
-            daily_limit = settings.SAM_DAILY_LIMIT
-
-        # Separate source_name for independent rate tracking
-        source_name = "SAM_SUBAWARD"
-
-        super().__init__(
-            base_url=settings.SAM_API_BASE_URL,
-            api_key=api_key,
-            source_name=source_name,
-            max_daily_requests=daily_limit,
-        )
+        """Initialize SAM Subaward client. See _sam_init_kwargs() for key selection."""
+        super().__init__(**self._sam_init_kwargs("SAM_SUBAWARD", api_key_number))
 
     # -----------------------------------------------------------------
     # Core search
@@ -149,38 +127,22 @@ class SAMSubawardClient(BaseAPIClient):
         """
         kwargs.pop("page_number", None)
         page_size = kwargs.get("page_size", 100)
-        page_number = 0
-        total_yielded = 0
         pages_fetched = 0
-
-        while True:
+        for page_results in self.paginate(
+            self.SEARCH_ENDPOINT,
+            params=self._build_params(**kwargs),
+            page_size=page_size,
+            pagination_style="page",
+            page_param="pageNumber",
+            size_param="pageSize",
+            page_start=0,
+            results_key="data",
+            total_pages_key="totalPages",
+        ):
+            yield from page_results
+            pages_fetched += 1
             if max_pages is not None and pages_fetched >= max_pages:
                 break
-
-            data = self.search_subcontracts(page_number=page_number, **kwargs)
-            total_records = data.get("totalRecords", 0)
-            total_pages = data.get("totalPages", 0)
-            results = data.get("data", [])
-            pages_fetched += 1
-
-            for sub in results:
-                total_yielded += 1
-                yield sub
-
-            self.logger.info(
-                "Page %d/%d: %d results (total available: %d, yielded so far: %d)",
-                page_number + 1, total_pages, len(results),
-                total_records, total_yielded,
-            )
-
-            if not results:
-                break
-
-            page_number += 1
-            if page_number >= total_pages:
-                break
-
-        self.logger.info("Subaward search complete: %d total results", total_yielded)
 
     # -----------------------------------------------------------------
     # Convenience methods
@@ -242,21 +204,39 @@ class SAMSubawardClient(BaseAPIClient):
     # Helpers
     # -----------------------------------------------------------------
 
-    @staticmethod
-    def _format_date(d):
-        """Convert a date to yyyy-MM-dd format for the API.
+    def _build_params(self, piid=None, agency_id=None,
+                      prime_uei=None, sub_uei=None,
+                      naics_code=None, from_date=None, to_date=None,
+                      prime_award_type=None, status="Published",
+                      page_size=100, **_ignored):
+        """Build the query params dict for a single-page subcontracts search.
 
-        Args:
-            d: date object, datetime object, or string.
+        Used by search_subcontracts_all() to pass a clean params dict into
+        paginate() (without page_number/pageSize, which paginate() manages).
+        Uses base class _format_date() (default %Y-%m-%d format).
 
         Returns:
-            str: Date in yyyy-MM-dd format.
+            dict: Query parameters ready for the SAM Subaward API.
         """
-        if isinstance(d, (date, datetime)):
-            return d.strftime("%Y-%m-%d")
-        # Already a string -- ensure yyyy-MM-dd format
-        s = str(d).strip()
-        # Handle MM/DD/YYYY
-        if len(s) == 10 and s[2] == "/" and s[5] == "/":
-            return f"{s[6:10]}-{s[0:2]}-{s[3:5]}"
-        return s
+        params = {}
+
+        if piid is not None:
+            params["PIID"] = piid
+        if agency_id is not None:
+            params["agencyId"] = agency_id
+        if prime_uei is not None:
+            params["primeEntityUei"] = prime_uei
+        if sub_uei is not None:
+            params["subEntityUei"] = sub_uei
+        if naics_code is not None:
+            params["primeNaics"] = naics_code
+        if from_date is not None:
+            params["fromDate"] = self._format_date(from_date)
+        if to_date is not None:
+            params["toDate"] = self._format_date(to_date)
+        if prime_award_type is not None:
+            params["primeAwardType"] = prime_award_type
+        if status is not None:
+            params["status"] = status
+
+        return params

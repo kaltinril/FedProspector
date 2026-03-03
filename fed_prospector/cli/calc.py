@@ -23,7 +23,7 @@ def load_calc():
     No authentication or API key is required. No rate limits.
 
     Example:
-        python main.py load-calc
+        python main.py load labor-rates
     """
     import time
     logger = setup_logging()

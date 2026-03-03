@@ -17,7 +17,6 @@ import logging
 from datetime import date, datetime
 
 from api_clients.base_client import BaseAPIClient, RateLimitExceeded
-from config import settings
 
 
 logger = logging.getLogger("fed_prospector.api.sam_awards")
@@ -47,28 +46,8 @@ class SAMAwardsClient(BaseAPIClient):
     SEARCH_ENDPOINT = "/contract-awards/v1/search"
 
     def __init__(self, api_key_number=1):
-        """Initialize SAM Awards client.
-
-        Args:
-            api_key_number: Which API key to use (1 or 2). Key 2 has
-                1000/day limit vs 10/day for key 1.
-        """
-        if api_key_number == 2:
-            api_key = settings.SAM_API_KEY_2
-            daily_limit = settings.SAM_DAILY_LIMIT_2
-        else:
-            api_key = settings.SAM_API_KEY
-            daily_limit = settings.SAM_DAILY_LIMIT
-
-        # Separate source_name from SAM_OPPORTUNITY for independent rate tracking
-        source_name = "SAM_AWARDS"
-
-        super().__init__(
-            base_url=settings.SAM_API_BASE_URL,
-            api_key=api_key,
-            source_name=source_name,
-            max_daily_requests=daily_limit,
-        )
+        """Initialize SAM Awards client. See _sam_init_kwargs() for key selection."""
+        super().__init__(**self._sam_init_kwargs("SAM_AWARDS", api_key_number))
 
     # -----------------------------------------------------------------
     # Core search
@@ -144,7 +123,10 @@ class SAMAwardsClient(BaseAPIClient):
         offset (which is managed internally). Yields individual award dicts
         from the awardSummary[] array.
 
-        NOTE: The SAM Awards API 'offset' is a PAGE INDEX, not record offset.
+        NOTE: The SAM Awards API 'offset' parameter is a PAGE INDEX, not a
+        record offset. Page 0 returns records 0-99, page 1 returns 100-199,
+        etc. We use pagination_style="page" with page_param="offset" to
+        match SAM's unusual naming convention.
 
         Yields:
             dict: Individual award records from the awardSummary list.
@@ -154,31 +136,18 @@ class SAMAwardsClient(BaseAPIClient):
         """
         kwargs.pop("offset", None)
         limit = kwargs.get("limit", 100)
-        page = 0
-        total_yielded = 0
-
-        while True:
-            data = self.search_awards(offset=page, **kwargs)
-            total_records = int(data.get("totalRecords", 0))
-            results = data.get("awardSummary", [])
-
-            for award in results:
-                total_yielded += 1
-                yield award
-
-            self.logger.info(
-                "Page %d: %d results (total available: %d, yielded so far: %d)",
-                page, len(results), total_records, total_yielded,
-            )
-
-            if not results:
-                break
-
-            page += 1
-            if page * limit >= total_records:
-                break
-
-        self.logger.info("Award search complete: %d total results", total_yielded)
+        for page_results in self.paginate(
+            self.SEARCH_ENDPOINT,
+            params=self._build_params(**kwargs),
+            page_size=limit,
+            pagination_style="page",
+            page_param="offset",   # SAM uses "offset" param but treats it as page index
+            size_param="limit",
+            page_start=0,
+            total_key="totalRecords",
+            results_key="awardSummary",
+        ):
+            yield from page_results
 
     # -----------------------------------------------------------------
     # Convenience methods
@@ -281,6 +250,46 @@ class SAMAwardsClient(BaseAPIClient):
     # -----------------------------------------------------------------
     # Helpers
     # -----------------------------------------------------------------
+
+    def _build_params(self, naics_code=None, set_aside=None, agency_code=None,
+                      date_signed_from=None, date_signed_to=None,
+                      awardee_uei=None, psc_code=None, piid=None,
+                      fiscal_year=None, pop_state=None,
+                      limit=100, **_ignored):
+        """Build the query params dict for a single-page awards search.
+
+        Accepts the same keyword arguments as search_awards (minus offset/limit,
+        which paginate() manages). Used by search_awards_all() to pass a clean
+        params dict into paginate().
+
+        Returns:
+            dict: Query parameters ready for the SAM Awards API.
+        """
+        params = {}
+
+        if naics_code is not None:
+            params["naicsCode"] = naics_code
+        if set_aside is not None:
+            params["typeOfSetAsideCode"] = set_aside
+        if agency_code is not None:
+            params["contractingDepartmentCode"] = agency_code
+        if awardee_uei is not None:
+            params["awardeeUniqueEntityId"] = awardee_uei
+        if psc_code is not None:
+            params["productOrServiceCode"] = psc_code
+        if piid is not None:
+            params["piid"] = piid
+        if fiscal_year is not None:
+            params["fiscalYear"] = str(fiscal_year)
+        if pop_state is not None:
+            params["popState"] = pop_state
+
+        if date_signed_from is not None or date_signed_to is not None:
+            params["dateSigned"] = self._format_date_range(
+                date_signed_from, date_signed_to
+            )
+
+        return params
 
     @staticmethod
     def _format_date_range(from_date, to_date):

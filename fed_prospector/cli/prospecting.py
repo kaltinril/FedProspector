@@ -21,8 +21,8 @@ def add_user(username, display_name, email, role):
     """Add a team member to the system.
 
     Examples:
-        python main.py add-user --username jdoe --name "Jane Doe" --email jane@example.com
-        python main.py add-user --username admin1 --name "Admin" --role ADMIN
+        python main.py prospect add-user --username jdoe --name "Jane Doe" --email jane@example.com
+        python main.py prospect add-user --username admin1 --name "Admin" --role ADMIN
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -81,8 +81,8 @@ def create_prospect(notice_id, assign_to, priority, notes):
     the assigned user exists and is active.
 
     Examples:
-        python main.py create-prospect --notice-id ABC123 --assign-to jdoe --priority HIGH
-        python main.py create-prospect --notice-id XYZ789 --assign-to jsmith
+        python main.py prospect create --notice-id ABC123 --assign-to jdoe --priority HIGH
+        python main.py prospect create --notice-id XYZ789 --assign-to jsmith
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -119,8 +119,8 @@ def update_prospect(prospect_id, status, username, notes):
       NEW/REVIEWING -> DECLINED/NO_BID
 
     Examples:
-        python main.py update-prospect --id 1 --status REVIEWING --user jdoe --notes "Looks promising"
-        python main.py update-prospect --id 1 --status DECLINED --user jdoe --notes "Outside our NAICS"
+        python main.py prospect update --id 1 --status REVIEWING --user jdoe --notes "Looks promising"
+        python main.py prospect update --id 1 --status DECLINED --user jdoe --notes "Outside our NAICS"
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -146,8 +146,8 @@ def reassign_prospect(prospect_id, new_username, by_username, notes):
     """Reassign a prospect to a different team member.
 
     Examples:
-        python main.py reassign-prospect --id 1 --to jsmith --by jdoe
-        python main.py reassign-prospect --id 1 --to jsmith --by jdoe --notes "Jsmith has domain expertise"
+        python main.py prospect assign --id 1 --to jsmith --by jdoe
+        python main.py prospect assign --id 1 --to jsmith --by jdoe --notes "Jsmith has domain expertise"
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -179,10 +179,10 @@ def list_prospects(status, assigned_to, priority, open_only):
     Results are sorted by response deadline (most urgent first).
 
     Examples:
-        python main.py list-prospects
-        python main.py list-prospects --status REVIEWING
-        python main.py list-prospects --assigned-to jdoe --open-only
-        python main.py list-prospects --priority HIGH
+        python main.py prospect list
+        python main.py prospect list --status REVIEWING
+        python main.py prospect list --assigned-to jdoe --open-only
+        python main.py prospect list --priority HIGH
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -235,7 +235,7 @@ def show_prospect(prospect_id):
     """Show full prospect detail including opportunity info, notes, and team members.
 
     Examples:
-        python main.py show-prospect --id 1
+        python main.py prospect show --id 1
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -333,8 +333,8 @@ def add_note(prospect_id, user, note_type, text):
     """Add a note to a prospect.
 
     Examples:
-        python main.py add-note --prospect-id 1 --user jdoe --type COMMENT --text "Spoke with CO"
-        python main.py add-note --prospect-id 1 --user jdoe --type MEETING --text "Capability briefing scheduled"
+        python main.py prospect add-note --prospect-id 1 --user jdoe --type COMMENT --text "Spoke with CO"
+        python main.py prospect add-note --prospect-id 1 --user jdoe --type MEETING --text "Capability briefing scheduled"
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -365,8 +365,8 @@ def add_team_member(prospect_id, uei, role, notes):
     added even if not found (with a warning).
 
     Examples:
-        python main.py add-team-member --prospect-id 1 --uei ABC123DEF456 --role SUB
-        python main.py add-team-member --prospect-id 1 --uei XYZ789GHI012 --role JV_PARTNER --notes "Strong past performance"
+        python main.py prospect add-partner --prospect-id 1 --uei ABC123DEF456 --role SUB
+        python main.py prospect add-partner --prospect-id 1 --uei XYZ789GHI012 --role JV_PARTNER --notes "Strong past performance"
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -403,8 +403,8 @@ def save_search(name, user, set_asides, naics, states, min_value, max_value,
     search in the database. Use 'run-search' to execute later.
 
     Examples:
-        python main.py save-search --name "WOSB IT Midwest" --user jdoe --set-asides WOSB,EDWOSB --naics 541511,541512 --states WI,IL,MN --open-only
-        python main.py save-search --name "Big 8A" --user jdoe --set-asides 8A,8AN --min-value 500000
+        python main.py prospect save-search --name "WOSB IT Midwest" --user jdoe --set-asides WOSB,EDWOSB --naics 541511,541512 --states WI,IL,MN --open-only
+        python main.py prospect save-search --name "Big 8A" --user jdoe --set-asides 8A,8AN --min-value 500000
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -457,8 +457,8 @@ def run_search(name, search_id, result_limit):
     displays matching results. Updates last_run_at on the saved search.
 
     Examples:
-        python main.py run-search --name "WOSB IT Midwest"
-        python main.py run-search --id 1
+        python main.py prospect run-search --name "WOSB IT Midwest"
+        python main.py prospect run-search --id 1
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -526,8 +526,8 @@ def list_searches(user):
     """List saved searches.
 
     Examples:
-        python main.py list-searches
-        python main.py list-searches --user jdoe
+        python main.py prospect list-searches
+        python main.py prospect list-searches --user jdoe
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager

@@ -189,13 +189,13 @@ def _check_schema_tables():
         elif count > 0:
             _fail(
                 f"Only {count} tables found (expected ~56)",
-                fix="Run: python main.py build-database",
+                fix="Run: python main.py setup build",
             )
             return False
         else:
             _fail(
                 "No tables found in database",
-                fix="Run: python main.py build-database",
+                fix="Run: python main.py setup build",
             )
             return False
     except Exception as e:
@@ -221,7 +221,7 @@ def _check_quality_rules():
         else:
             _fail(
                 "No quality rules seeded",
-                fix="Run: python main.py seed-quality-rules  (or python main.py build-database)",
+                fix="Run: python main.py setup seed-rules  (or python main.py setup build)",
             )
             return False
     except Exception as e:
@@ -275,8 +275,8 @@ def verify_setup(skip_api):
     MySQL connectivity, database, schema tables, and SAM.gov API key.
 
     Examples:
-        python main.py verify-setup
-        python main.py verify-setup --skip-api
+        python main.py setup verify
+        python main.py setup verify --skip-api
     """
     click.echo("System Prerequisite Check")
     click.echo("=========================")
