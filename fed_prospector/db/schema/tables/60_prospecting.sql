@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS prospect (
     contract_award_id    VARCHAR(50),
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_prospect_notice (notice_id),
+    UNIQUE KEY uk_prospect_notice (organization_id, notice_id),
     CONSTRAINT fk_prospect_opp FOREIGN KEY (notice_id) REFERENCES opportunity(notice_id),
     CONSTRAINT fk_prospect_user FOREIGN KEY (assigned_to) REFERENCES app_user(user_id),
     CONSTRAINT fk_prospect_capture_mgr FOREIGN KEY (capture_manager_id) REFERENCES app_user(user_id) ON DELETE SET NULL,

@@ -412,7 +412,7 @@ def search_entities(uei, name, naics, state, cert, active_only, limit):
             "  ea.state_or_province "
             "FROM entity e "
             "LEFT JOIN entity_address ea ON e.uei_sam = ea.uei_sam "
-            "  AND ea.address_type = 'physical' "
+            "  AND ea.address_type = 'PHYSICAL' "
             f"{where_sql} "
             "ORDER BY e.legal_business_name "
             "LIMIT %s"

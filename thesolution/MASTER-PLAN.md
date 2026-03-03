@@ -307,7 +307,7 @@ DRY refactor: parameterized `paginate()` (Win 1, ~170 lines removed across 4 SAM
 Fix critical data-integrity bugs: exclusions/subaward change detection broken, entity stg_conn leak, len() on generator crash, fedhier full_refresh atomicity, bulk_loader FK checks, opportunity timezone, usaspending wrong field, dat_parser silent NULL dates
 
 ### Phase 14.14: Schema Fixes
-**Status**: [ ] NOT STARTED
+**Status**: [x] COMPLETE (2026-03-03)
 **Document**: [14.14-SCHEMA-FIXES.md](phases/14.14-SCHEMA-FIXES.md)
 
 Fix prospect UNIQUE KEY for multi-tenancy, add missing indexes (entity_disaster_response, usaspending last_modified_date, fpds ultimate_completion_date, idv_piid), sync opportunity baseline DDL with Phase 9 migration, sam_exclusion UNIQUE constraint, record_hash type consistency

@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS ref_naics_footnote (
 CREATE TABLE IF NOT EXISTS ref_psc_code (
     psc_code             VARCHAR(10) NOT NULL,
     psc_name             VARCHAR(200),
-    start_date           DATE,
+    start_date           DATE NOT NULL,
     end_date             DATE,
     full_description     TEXT,
     psc_includes         TEXT,

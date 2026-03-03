@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS entity_disaster_response (
     county_name          VARCHAR(100),
     msa_code             VARCHAR(10),
     msa_name             VARCHAR(100),
+    INDEX idx_edr_uei (uei_sam),
     CONSTRAINT fk_edr_entity FOREIGN KEY (uei_sam) REFERENCES entity(uei_sam)
         ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     solicitation_identifier  VARCHAR(50),
 
     -- ETL metadata
-    record_hash              VARCHAR(64),
+    record_hash              CHAR(64),
     last_load_id             INT,
     first_loaded_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     INDEX idx_usa_agency (awarding_agency_name(50)),
     INDEX idx_usa_setaside (type_of_set_aside),
     INDEX idx_usa_dates (start_date, end_date),
+    INDEX idx_usa_modified (last_modified_date),
     INDEX idx_usa_solicitation (solicitation_identifier),
     INDEX idx_usa_piid (piid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -67,7 +68,7 @@ CREATE TABLE IF NOT EXISTS usaspending_transaction (
     id                          BIGINT AUTO_INCREMENT PRIMARY KEY,
     award_id                    VARCHAR(100) NOT NULL,
     action_date                 DATE NOT NULL,
-    modification_number         VARCHAR(20),
+    modification_number         VARCHAR(20) NOT NULL DEFAULT '',
     action_type                 VARCHAR(5),
     action_type_description     VARCHAR(100),
     federal_action_obligation   DECIMAL(15,2),

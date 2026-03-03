@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     INDEX idx_fpds_date (date_signed),
     INDEX idx_fpds_setaside (set_aside_type),
     INDEX idx_fpds_completion (completion_date),
+    INDEX idx_fpds_ultimate_completion (ultimate_completion_date),
+    INDEX idx_fpds_idv_piid (idv_piid(50)),
     INDEX idx_fpds_hash (record_hash),
     INDEX idx_fpds_far1102 (far1102_exception_code),
     INDEX idx_fpds_solicitation (solicitation_number),
@@ -130,8 +132,9 @@ CREATE TABLE IF NOT EXISTS sam_exclusion (
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_load_id         INT,
+    UNIQUE KEY uk_excl_key (uei, exclusion_type, activation_date),
     INDEX idx_excl_uei (uei),
-    INDEX idx_excl_entity_name (entity_name),
+    INDEX idx_excl_entity_name (entity_name(100)),
     INDEX idx_excl_activation (activation_date),
     INDEX idx_excl_type (exclusion_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
