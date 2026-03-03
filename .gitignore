@@ -15,6 +15,10 @@ fed_prospector/.venv/
 fed_prospector/venv/
 
 # Python
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
 fed_prospector/__pycache__/
 fed_prospector/*.pyc
 fed_prospector/*.pyo

@@ -11,7 +11,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 | `fed_prospector/` | **Main Python application** - CLI, API clients, ETL pipeline, DB schema |
 | `thesolution/` | Plan documents and implementation roadmap |
 | `workdir/` | Data conversion scripts and reference CSV/MD files |
-| `api/` | **C# ASP.NET Core Web API** - backend REST API, 58 endpoints across 13 controllers (Phases 10-14.5) |
+| `api/` | **C# ASP.NET Core Web API** - backend REST API, 57 endpoints across 14 controllers (Phases 10-14.5) |
 | `ui/` | **Frontend web application** - TBD framework (future) |
 | `OLD_ATTEMPTS/`, `OLD_RESOURCES/` | Archived. Do not modify or reference in new code. |
 
@@ -45,7 +45,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
-- **API**: ASP.NET Core Web API with 58 endpoints across 13 controllers + auth + health (Phases 10-14.5 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
+- **API**: ASP.NET Core Web API with 57 endpoints across 14 controllers + auth + health (Phases 10-14.5 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
 - **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phases 15-20)
 - **Testing**: 1,028 tests total (568 Python pytest + 237 C# Core xUnit + 223 C# Api xUnit), all passing
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core owns application tables (app_user, prospect, saved_search, organization, organization_invite, etc.) starting Phase 10. 57 tables + 4 views total. See Phase 10 plan for details.
@@ -62,7 +62,7 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 
 | What | Location |
 |------|----------|
-| Python application | `fed_prospector/` (CLI: `python main.py --help`, 52 commands in 15 `cli/` modules) |
+| Python application | `fed_prospector/` (CLI: `python main.py --help`, 52 commands in 7 groups: setup, load, search, prospect, analyze, admin, health) |
 | CLI modules | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule) |
 | API clients | `fed_prospector/api_clients/` (sam_opportunity, sam_awards, sam_exclusions, sam_subaward, sam_fedhier, usaspending, calc) |
 | ETL loaders | `fed_prospector/etl/` (bulk_loader, dat_parser, opportunity_loader, awards_loader, usaspending_loader, calc_loader, fedhier_loader, exclusions_loader, subaward_loader, prospect_manager, scheduler, health_check, db_maintenance) |

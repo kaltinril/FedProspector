@@ -185,7 +185,7 @@ Your business must be **registered as an entity in SAM.gov** (which it should al
 
 3. **Wait for approval**: Role approval typically takes **1-2 weeks** after entity registration is complete. Total timeline from scratch: ~2-3 weeks.
 
-4. **Verify upgrade**: After role approval, your existing API key automatically gets the higher limit. Run `python main.py check-api` to verify. You can also check your daily usage with `python main.py status`.
+4. **Verify upgrade**: After role approval, your existing API key automatically gets the higher limit. Run `python main.py setup test-api` to verify. You can also check your daily usage with `python main.py health status`.
 
 5. **Update config**: Once approved, update your `.env` file:
    ```
@@ -354,29 +354,29 @@ cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 # or: .venv\Scripts\activate.bat     # CMD
 
-python main.py build-database        # Create/rebuild all 57 tables + 4 views
-python main.py load-lookups          # Load all 11 reference tables from CSVs
-python main.py status                # Show table counts, API status, recent loads
-python main.py check-api             # Test SAM.gov API key (uses 1 call)
-python main.py build-database --drop-first  # Nuclear option: drop and rebuild everything
+python main.py setup build           # Create/rebuild all 57 tables + 4 views
+python main.py setup seed-lookups    # Load all 11 reference tables from CSVs
+python main.py health status         # Show table counts, API status, recent loads
+python main.py setup test-api        # Test SAM.gov API key (uses 1 call)
+python main.py setup build --drop-first  # Nuclear option: drop and rebuild everything
 ```
 
 **Phase 2** (Entity Data Pipeline) is COMPLETE. 865,232 entities loaded. Run the pipeline:
 
 ```bash
 # Phase 2 commands:
-python main.py seed-quality-rules       # Seed 10 data quality rules into DB
-python main.py download-extract --type=monthly --year=2026 --month=2  # Download monthly extract (1 API call)
+python main.py setup seed-rules          # Seed 10 data quality rules into DB
+python main.py load entities-download --type=monthly --year=2026 --month=2  # Download monthly extract (1 API call)
 
 # Load from DAT file (V2 pipe-delimited, preferred - uses LOAD DATA INFILE, ~4.5 min for 865K entities):
-python main.py load-entities --mode=full --file=data/downloads/SAM_PUBLIC_MONTHLY_V2_20260215.dat
+python main.py load entities --mode=full --file=data/downloads/SAM_PUBLIC_MONTHLY_V2_20260215.dat
 
 # Load from JSON file (streaming parser, slower):
-python main.py load-entities --mode=full --file=data/downloads/entities.json
+python main.py load entities --mode=full --file=data/downloads/entities.json
 
 # Daily incremental:
-python main.py download-extract --type=daily --date=2026-02-21  # Download daily extract
-python main.py load-entities --mode=daily --file=data/downloads/daily.json    # Load daily incremental
+python main.py load entities-download --type=daily --date=2026-02-21  # Download daily extract
+python main.py load entities --mode=daily --file=data/downloads/daily.json    # Load daily incremental
 ```
 
 > **Note**: LOAD DATA INFILE requires MySQL to be started with `--secure-file-priv=""` and the `fed_app` user to have FILE privilege (`GRANT FILE ON *.* TO 'fed_app'@'localhost';`). Both are already configured in Steps 1b and 1c above.
@@ -387,11 +387,11 @@ See [02-ENTITY-PIPELINE.md](phases/02-ENTITY-PIPELINE.md) for full details.
 
 ```bash
 # Phase 3 commands:
-python main.py load-opportunities                          # Load WOSB/8(a) opps (last 7 days, 5 calls max)
-python main.py load-opportunities --set-aside=WOSB --days-back=30  # Specific set-aside
-python main.py load-opportunities --historical --max-calls=10      # 2-year historical (needs 1K/day limit)
-python main.py search --open-only --days=30                # Search local DB for open opportunities
-python main.py search --set-aside=WOSB --naics=541511      # Filtered search
+python main.py load opportunities                          # Load WOSB/8(a) opps (last 7 days, 5 calls max)
+python main.py load opportunities --set-aside=WOSB --days-back=30  # Specific set-aside
+python main.py load opportunities --historical --max-calls=10      # 2-year historical (needs 1K/day limit)
+python main.py search opportunities --open-only --days=30  # Search local DB for open opportunities
+python main.py search opportunities --set-aside=WOSB --naics=541511  # Filtered search
 ```
 
 See [03-OPPORTUNITIES-PIPELINE.md](phases/03-OPPORTUNITIES-PIPELINE.md) for full details.
@@ -400,15 +400,15 @@ See [03-OPPORTUNITIES-PIPELINE.md](phases/03-OPPORTUNITIES-PIPELINE.md) for full
 
 ```bash
 # Phase 4: Prospect Management
-python main.py add-user --username jdoe --name "Jane Doe" --email jane@example.com
-python main.py list-users
-python main.py create-prospect --notice-id ABC123 --assign-to jdoe --priority HIGH
-python main.py update-prospect --id 1 --status REVIEWING --user jdoe --notes "Looks good"
-python main.py list-prospects --open-only
-python main.py show-prospect --id 1
-python main.py save-search --name "WOSB IT" --user jdoe --set-asides WOSB,EDWOSB --open-only
-python main.py run-search --name "WOSB IT"
-python main.py dashboard
+python main.py prospect add-user --username jdoe --name "Jane Doe" --email jane@example.com
+python main.py prospect list-users
+python main.py prospect create --notice-id ABC123 --assign-to jdoe --priority HIGH
+python main.py prospect update --id 1 --status REVIEWING --user jdoe --notes "Looks good"
+python main.py prospect list --open-only
+python main.py prospect show --id 1
+python main.py prospect save-search --name "WOSB IT" --user jdoe --set-asides WOSB,EDWOSB --open-only
+python main.py prospect run-search --name "WOSB IT"
+python main.py prospect dashboard
 ```
 
 See [04-SALES-PROSPECTING.md](phases/04-SALES-PROSPECTING.md) for full details.
@@ -417,18 +417,18 @@ See [04-SALES-PROSPECTING.md](phases/04-SALES-PROSPECTING.md) for full details.
 
 ```bash
 # Phase 5: Extended Data Sources
-python main.py load-calc                    # Load ~122K GSA labor rates (no API key needed)
-python main.py load-awards --naics=541511 --key=2   # Load contract awards from SAM.gov API
-python main.py load-hierarchy --key=2       # Load federal org hierarchy from SAM.gov
-python main.py search-agencies --name="Army"  # Search federal organizations
-python main.py load-exclusions --key=2      # Load exclusion records from SAM.gov
-python main.py check-exclusion --uei=ABC123 --key=2   # Check entity for exclusions
-python main.py check-prospects              # Check prospect team members against exclusions
-python main.py load-transactions --award-id CONT_AWD_...  # Load transaction history for an award
-python main.py burn-rate --award-id CONT_AWD_...          # Calculate spend velocity for an award
-python main.py load-subawards --naics=541511 --key=2   # Load subaward data from SAM.gov
-python main.py search-subawards --prime-uei=ABC123     # Search local subaward data
-python main.py teaming-partners --naics=541511         # Find teaming partners from subawards
+python main.py load labor-rates                    # Load ~122K GSA labor rates (no API key needed)
+python main.py load awards --naics=541511 --key=2  # Load contract awards from SAM.gov API
+python main.py load hierarchy --key=2              # Load federal org hierarchy from SAM.gov
+python main.py search agencies --name="Army"       # Search federal organizations
+python main.py load exclusions --key=2             # Load exclusion records from SAM.gov
+python main.py search exclusions --uei=ABC123 --key=2  # Check entity for exclusions
+python main.py analyze scan-exclusions             # Check prospect team members against exclusions
+python main.py load usaspending --award-id CONT_AWD_...  # Load transaction history for an award
+python main.py analyze burn-rate --award-id CONT_AWD_... # Calculate spend velocity for an award
+python main.py load subawards --naics=541511 --key=2   # Load subaward data from SAM.gov
+python main.py search subawards --prime-uei=ABC123     # Search local subaward data
+python main.py analyze teaming --naics=541511          # Find teaming partners from subawards
 ```
 
 See [05-EXTENDED-SOURCES.md](phases/05-EXTENDED-SOURCES.md) for full details.
@@ -437,15 +437,15 @@ See [05-EXTENDED-SOURCES.md](phases/05-EXTENDED-SOURCES.md) for full details.
 
 ```bash
 # Phase 6: Automation & Health
-python main.py check-health             # Comprehensive health check (freshness, API, alerts)
-python main.py check-health --json      # Machine-readable JSON output
-python main.py run-job opportunities    # Manually trigger any scheduled job
-python main.py run-job --list           # List all jobs with last-run status
-python main.py maintain-db              # Run database maintenance (cleanup old history)
-python main.py maintain-db --dry-run    # Preview what would be cleaned up
-python main.py maintain-db --analyze    # Run ANALYZE TABLE on all tables
-python main.py maintain-db --sizes      # Show table sizes (data + index)
-python main.py run-all-searches         # Execute all active saved searches
+python main.py health check             # Comprehensive health check (freshness, API, alerts)
+python main.py health check --json      # Machine-readable JSON output
+python main.py health run-job opportunities  # Manually trigger any scheduled job
+python main.py health run-job --list    # List all jobs with last-run status
+python main.py health maintain-db       # Run database maintenance (cleanup old history)
+python main.py health maintain-db --dry-run  # Preview what would be cleaned up
+python main.py health maintain-db --analyze  # Run ANALYZE TABLE on all tables
+python main.py health maintain-db --sizes    # Show table sizes (data + index)
+python main.py prospect refresh-searches     # Execute all active saved searches
 ```
 
 See [06-AUTOMATION.md](phases/06-AUTOMATION.md) for Windows Task Scheduler setup.
@@ -453,16 +453,16 @@ See [06-AUTOMATION.md](phases/06-AUTOMATION.md) for Windows Task Scheduler setup
 **Phase 7** (Reference Data Enrichment) is COMPLETE. 11 reference tables with enriched metadata:
 
 ```bash
-python main.py load-lookups                 # Reload all 11 enriched reference tables
-python main.py load-lookups --table=sba_type  # Load a specific reference table
-python main.py status                       # Show updated row counts for all tables
-python main.py check-schema                 # Validate live DB matches DDL files
-python main.py check-schema --verbose       # Show details for each table
+python main.py setup seed-lookups                    # Reload all 11 enriched reference tables
+python main.py setup seed-lookups --table=sba_type   # Load a specific reference table
+python main.py health status                         # Show updated row counts for all tables
+python main.py health check-schema                   # Validate live DB matches DDL files
+python main.py health check-schema --verbose         # Show details for each table
 ```
 
 See [07-REFERENCE-ENRICHMENT.md](phases/07-REFERENCE-ENRICHMENT.md) for full details.
 
-> **Note**: CLI has 52 commands across 15 modules in `cli/`. Run `python main.py --help` for the full list.
+> **Note**: CLI has 52 commands in 7 groups (`setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`). Run `python main.py --help` to see all groups, or `python main.py GROUP --help` to see sub-commands for a group.
 
 ---
 
@@ -557,36 +557,36 @@ See [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md) for 
 **New commands**:
 ```bash
 # First-time setup — run this first to check all prerequisites
-python main.py verify-setup
+python main.py setup verify
 
-# One-step entity refresh (replaces manual download-extract + load-entities)
-python main.py refresh-entities --type daily
-python main.py refresh-entities --type monthly
+# One-step entity refresh (replaces manual entities-download + load entities)
+python main.py load entities-refresh --type daily
+python main.py load entities-refresh --type monthly
 
 # Auto-refresh stale data sources
-python main.py catchup-datasets                  # Refresh all stale datasets
-python main.py catchup-datasets --dry-run        # Preview what would run
+python main.py health catchup                    # Refresh all stale datasets
+python main.py health catchup --dry-run          # Preview what would run
 
 # View ETL load history
-python main.py load-history                      # Last 20 loads, all sources
-python main.py load-history --source SAM_OPPORTUNITY --days 7
-python main.py load-history --status FAILED
+python main.py health load-history               # Last 20 loads, all sources
+python main.py health load-history --source SAM_OPPORTUNITY --days 7
+python main.py health load-history --status FAILED
 
 # Auto-create scheduled tasks (Windows Task Scheduler or Linux cron)
-python main.py setup-schedule                    # Auto-detect OS, create tasks
-python main.py setup-schedule --dry-run          # Show what would be created
-python main.py setup-schedule --remove           # Remove all scheduled tasks
+python main.py setup schedule-jobs               # Auto-detect OS, create tasks
+python main.py setup schedule-jobs --dry-run     # Show what would be created
+python main.py setup schedule-jobs --remove      # Remove all scheduled tasks
 
 # Organization management
-python main.py create-org --name "Acme Corp" --slug acme-corp
-python main.py list-orgs
+python main.py admin create-org --name "Acme Corp" --slug acme-corp
+python main.py admin list-orgs
 
 # User management
-python main.py invite-user --email user@acme.com --org-id 2 --role member
-python main.py list-org-members --org-id 2
-python main.py disable-user --user-id 5
-python main.py enable-user --user-id 5
-python main.py reset-password --user-id 5        # Prints temp password
+python main.py admin invite-user --email user@acme.com --org-id 2 --role member
+python main.py admin list-org-members --org-id 2
+python main.py admin disable-user --user-id 5
+python main.py admin enable-user --user-id 5
+python main.py admin reset-password --user-id 5  # Prints temp password
 ```
 
 See [14.6-ADMIN-OPERABILITY.md](phases/14.6-ADMIN-OPERABILITY.md) for full details.
@@ -636,13 +636,14 @@ See individual phase docs in `thesolution/phases/` for full specifications.
 
 ## Current Priority: Phase 15 (UI Foundation)
 
-Phase 14.6 (Admin Operability & CLI Hardening) is COMPLETE. The system now has:
-- 52 CLI commands across 15 modules (self-service admin without AI or raw SQL)
-- `verify-setup` for first-time prerequisite checking
-- `setup-schedule` for automated task creation
-- `refresh-entities` for one-step entity loading
+Phase 14.7 (CLI Command Hierarchy) is COMPLETE. The system now has:
+- 52 CLI commands in 7 discoverable groups: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`
+- Commands follow `python main.py GROUP COMMAND` pattern (e.g., `python main.py setup verify`)
+- `setup verify` for first-time prerequisite checking
+- `setup schedule-jobs` for automated task creation
+- `load entities-refresh` for one-step entity loading
 - Admin CLI commands for org/user management before UI exists
-- 58 endpoints across 13 controllers, 57 tables + 4 views
+- 57 endpoints across 14 controllers, 57 tables + 4 views
 
 **Next**: Phase 15 (UI Foundation) → Phase 16 (Search) → and so on through Phase 20.
 

@@ -249,6 +249,13 @@ fedProspect/
 - [x] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
 - **Result**: 57 endpoints across 14 controllers, 14 services, 57 tables + 4 views, 1,028 tests passing
 
+### Phase 14.7: CLI Command Hierarchy
+**Status**: [x] COMPLETE (2026-03-02)
+**Document**: [14.7-CLI-HIERARCHY.md](phases/14.7-CLI-HIERARCHY.md)
+**Dependencies**: Phase 14.6 (Admin Operability — all 52 commands must exist before renaming)
+
+Restructured 52 flat commands into 7 discoverable groups. Commands now follow `python main.py GROUP COMMAND` pattern. The 7 groups are: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`. See [phases/14.7-CLI-HIERARCHY.md](phases/14.7-CLI-HIERARCHY.md).
+
 ### Phase 14.6: Admin Operability & CLI Hardening
 **Status**: [x] COMPLETE (2026-03-02)
 **Document**: [14.6-ADMIN-OPERABILITY.md](phases/14.6-ADMIN-OPERABILITY.md)
