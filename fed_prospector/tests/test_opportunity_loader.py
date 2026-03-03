@@ -213,8 +213,8 @@ class TestParseDateFormats:
         assert loader._parse_date(input_val) == expected
 
     @pytest.mark.parametrize("input_val,expected", [
-        ("2026-01-15T14:30:00-05:00", "2026-01-15 14:30:00"),
-        ("2026-01-15T14:30:00", "2026-01-15 14:30:00"),
+        ("2026-01-15T14:30:00-05:00", "2026-01-15 19:30:00"),  # converted to UTC
+        ("2026-01-15T14:30:00", "2026-01-15 14:30:00"),  # no tz info, stored as-is
         ("2026-01-15 14:30:00", "2026-01-15 14:30:00"),
         ("01/15/2026 02:30 PM", "2026-01-15 14:30:00"),
         (None, None),

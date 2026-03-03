@@ -82,6 +82,8 @@ class USASpendingLoader(StagingMixin):
             dict with keys: records_read, records_inserted, records_updated,
                 records_unchanged, records_errored.
         """
+        # Materialize generator to allow len() and safe re-iteration
+        awards_data = list(awards_data)
         self.logger.info(
             "Starting USASpending award load (%d records, load_id=%d)",
             len(awards_data), load_id,
@@ -254,7 +256,7 @@ class USASpendingLoader(StagingMixin):
             "base_and_all_options_value": parse_decimal(raw.get("Base and All Options Value")),
             "start_date":                parse_date(raw.get("Start Date")),
             "end_date":                  parse_date(raw.get("End Date")),
-            "last_modified_date":        parse_date(raw.get("Last Date to Order")),
+            "last_modified_date":        None,  # Not in search results; populated by enrich_from_detail()
             "awarding_agency_name":      raw.get("Awarding Agency"),
             "awarding_sub_agency_name":  raw.get("Awarding Sub Agency"),
             "funding_agency_name":       raw.get("Funding Agency"),

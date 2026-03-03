@@ -7,7 +7,7 @@ Follows the same patterns as entity_loader.py.
 
 import json
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from decimal import Decimal, InvalidOperation
 
 from db.connection import get_connection
@@ -15,7 +15,6 @@ from etl.change_detector import ChangeDetector
 from etl.etl_utils import parse_date, parse_decimal
 from etl.load_manager import LoadManager
 from etl.staging_mixin import StagingMixin
-from utils.hashing import compute_record_hash
 
 # ---------------------------------------------------------------------------
 # Fields used for opportunity record hash (all meaningful business fields,
@@ -71,6 +70,8 @@ class OpportunityLoader(StagingMixin):
         Returns:
             dict with keys: records_read, inserted, updated, unchanged, errored
         """
+        # Materialize generator to allow len() and safe re-iteration
+        opportunities_data = list(opportunities_data)
         self.logger.info(
             "Starting opportunity load (%d records, load_id=%d)",
             len(opportunities_data), load_id,
@@ -438,8 +439,8 @@ class OpportunityLoader(StagingMixin):
 
         # Try standard ISO formats
         for fmt in (
-            "%Y-%m-%dT%H:%M:%S%z",      # 2026-01-15T14:30:00-05:00
-            "%Y-%m-%dT%H:%M:%S.%f%z",    # with microseconds
+            "%Y-%m-%dT%H:%M:%S%z",      # 2026-01-15T14:30:00-05:00 (tz-aware)
+            "%Y-%m-%dT%H:%M:%S.%f%z",    # with microseconds (tz-aware)
             "%Y-%m-%dT%H:%M:%S",          # no timezone
             "%Y-%m-%dT%H:%M:%S.%f",       # no timezone, with microseconds
             "%Y-%m-%d %H:%M:%S",           # space-separated
@@ -448,6 +449,10 @@ class OpportunityLoader(StagingMixin):
         ):
             try:
                 dt = datetime.strptime(s, fmt)
+                # If timezone-aware, convert to UTC before stripping tz info
+                # so stored values are consistently UTC (e.g. response_deadline)
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
                 return dt.strftime("%Y-%m-%d %H:%M:%S")
             except ValueError:
                 continue

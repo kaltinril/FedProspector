@@ -35,7 +35,11 @@ class HealthCheck:
     """Perform system health checks and return structured results."""
 
     def check_all(self):
-        """Run all health checks. Returns dict with sections."""
+        """Run all health checks. Returns dict with sections.
+
+        Does NOT persist a snapshot — callers that want to save should
+        call save_snapshot(results) explicitly after this method returns.
+        """
         results = {
             "data_freshness": self.check_data_freshness(),
             "table_stats": self.get_table_stats(),
@@ -44,22 +48,15 @@ class HealthCheck:
             "recent_errors": self.get_recent_errors(),
             "alerts": self.get_alerts(),
         }
-        # Persist snapshot (best-effort, don't fail if table doesn't exist)
-        try:
-            self.save_snapshot(results)
-        except Exception:
-            pass
         return results
 
-    def save_snapshot(self, results=None):
+    def save_snapshot(self, results):
         """Save health check results to etl_health_snapshot for historical tracking.
 
-        If results is None, runs check_all() first.
+        Args:
+            results: dict returned by check_all(). Must not be None.
         """
         import json
-
-        if results is None:
-            results = self.check_all()
 
         alerts = results.get("alerts", [])
         alert_count = len(alerts)

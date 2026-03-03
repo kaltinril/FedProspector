@@ -404,9 +404,6 @@ class BulkLoader:
                         _CHILD_COLUMNS[table_name],
                     )
 
-            if load_type == "FULL":
-                cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
-
             conn.commit()
 
             elapsed = time.monotonic() - t_start
@@ -418,6 +415,16 @@ class BulkLoader:
             conn.rollback()
             raise
         finally:
+            # Re-enable FK checks in finally so they are restored even if the
+            # load crashes. FOREIGN_KEY_CHECKS is a session variable — if the
+            # connection is recycled by the pool while still disabled, the next
+            # caller would silently have FK checks off.
+            if load_type == "FULL":
+                try:
+                    cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
+                    # No commit needed — SET is a session variable, not transactional
+                except Exception:
+                    pass  # Best-effort; connection may be broken
             cursor.close()
             conn.close()
 

@@ -14,7 +14,7 @@ import logging
 
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
-from etl.etl_utils import fetch_existing_hashes, parse_date
+from etl.etl_utils import parse_date
 from etl.load_manager import LoadManager
 from etl.staging_mixin import StagingMixin
 
@@ -100,6 +100,8 @@ class ExclusionsLoader(StagingMixin):
             dict with keys: records_read, records_inserted, records_updated,
                 records_unchanged, records_errored.
         """
+        # Materialize generator (if any) to allow len() and re-iteration.
+        exclusions_data = list(exclusions_data)
         self.logger.info(
             "Starting SAM Exclusions load (%d records, load_id=%d)",
             len(exclusions_data), load_id,
@@ -113,8 +115,21 @@ class ExclusionsLoader(StagingMixin):
             "records_errored": 0,
         }
 
-        # Pre-fetch existing hashes for change detection.
-        existing_hashes = fetch_existing_hashes("sam_exclusion", "uei")
+        # Pre-fetch existing hashes keyed on the composite business key
+        # uei|activation_date|exclusion_type.  A single-column lookup on
+        # uei alone would give every record a different lookup key from the
+        # composite key used below, so all records would always appear new.
+        conn_h = get_connection()
+        cur_h = conn_h.cursor()
+        try:
+            cur_h.execute(
+                "SELECT CONCAT(COALESCE(uei,''), '|', COALESCE(activation_date,''), '|', COALESCE(exclusion_type,'')), record_hash "
+                "FROM sam_exclusion WHERE record_hash IS NOT NULL"
+            )
+            existing_hashes = {row[0]: row[1] for row in cur_h.fetchall()}
+        finally:
+            cur_h.close()
+            conn_h.close()
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -422,17 +437,26 @@ class ExclusionsLoader(StagingMixin):
     def _extract_staging_key(self, raw):
         """Extract the composite business key from a raw exclusion dict.
 
-        Uses top-level fields from the raw API response (before normalization).
-        For SAM Exclusions the natural key is uei + activationDate + exclusionType.
+        Mirrors the field extraction logic in _normalize_exclusion() so that
+        the staging key matches the change-detection key.  The SAM.gov
+        exclusions API nests these fields; reading top-level flat keys (e.g.
+        "uei", "activationDate") always returns empty strings and produces an
+        all-empty composite "||", making staging useless for replay/debugging.
 
         Returns:
             dict with record_id (composite key string, max 100 chars).
         """
-        uei = raw.get("uei") or raw.get("entityName", "")
-        activation_date = raw.get("activationDate", "")
-        exclusion_type = raw.get("exclusionType", "")
-        record_id = f"{uei}|{activation_date}|{exclusion_type}"[:100]
-        return {"record_id": record_id}
+        eid = raw.get("exclusionIdentification") or {}
+        actions = (raw.get("exclusionActions") or {}).get("listOfActions") or [{}]
+        uei = eid.get("ueiSAM") or eid.get("cageCode") or eid.get("npi") or ""
+        act_date = actions[0].get("activateDate", "") if actions else ""
+        ex_type_raw = raw.get("exclusionType")
+        if isinstance(ex_type_raw, dict):
+            ex_type = ex_type_raw.get("value", "")
+        else:
+            ex_type = ex_type_raw or ""
+        composite = f"{uei}|{act_date}|{ex_type}"
+        return {"record_id": composite[:100]}
 
     # =================================================================
     # Hash fields accessor

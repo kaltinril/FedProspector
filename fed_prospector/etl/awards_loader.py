@@ -13,7 +13,7 @@ import logging
 
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
-from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal
+from etl.etl_utils import parse_date, parse_decimal
 from etl.load_manager import LoadManager
 from etl.staging_mixin import StagingMixin
 
@@ -103,6 +103,8 @@ class AwardsLoader(StagingMixin):
             dict with keys: records_read, records_inserted, records_updated,
                 records_unchanged, records_errored.
         """
+        # Materialize generator (if any) to allow len() and re-iteration.
+        awards_data = list(awards_data)
         self.logger.info(
             "Starting SAM Awards load (%d records, load_id=%d)",
             len(awards_data), load_id,

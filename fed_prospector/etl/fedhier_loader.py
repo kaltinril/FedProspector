@@ -89,6 +89,8 @@ class FedHierLoader(StagingMixin):
             dict with keys: records_read, records_inserted, records_updated,
                 records_unchanged, records_errored.
         """
+        # Materialize generator (if any) so len() is safe and we can iterate twice
+        orgs_data = list(orgs_data)
         self.logger.info(
             "Starting Federal Hierarchy load (%d records, load_id=%d)",
             len(orgs_data), load_id,
@@ -214,27 +216,38 @@ class FedHierLoader(StagingMixin):
         return stats
 
     def full_refresh(self, orgs_data, load_id):
-        """TRUNCATE the federal_organization table and reload all data.
+        """Clear and reload all data in federal_organization atomically.
 
         Used for periodic full refreshes where the entire hierarchy should
         be replaced with fresh data from the API.
 
+        NOTE: We use DELETE FROM instead of TRUNCATE TABLE because MySQL
+        TRUNCATE acquires a metadata lock and implicitly commits — it cannot
+        be rolled back. DELETE FROM is slower but fully transactional, so if
+        load_organizations() fails mid-load the delete is rolled back and the
+        table retains its previous data.
+
         Args:
-            orgs_data: list of raw org dicts from Federal Hierarchy API.
+            orgs_data: list or generator of raw org dicts from the Federal
+                Hierarchy API.
             load_id: etl_load_log ID for this load.
 
         Returns:
             dict with load statistics.
         """
-        self.logger.info("Full refresh: truncating federal_organization table")
+        self.logger.info("Full refresh: clearing federal_organization table")
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("TRUNCATE TABLE federal_organization")
+            cursor.execute("DELETE FROM federal_organization")
             conn.commit()
-        finally:
             cursor.close()
             conn.close()
+        except Exception:
+            conn.rollback()
+            cursor.close()
+            conn.close()
+            raise
 
         return self.load_organizations(orgs_data, load_id)
 

@@ -15,7 +15,6 @@ from etl.change_detector import ChangeDetector
 from etl.data_cleaner import DataCleaner
 from etl.etl_utils import parse_date
 from etl.load_manager import LoadManager
-from utils.hashing import compute_record_hash
 
 # ---------------------------------------------------------------------------
 # Registration status mapping: API text -> single-char DB code
@@ -177,14 +176,18 @@ class EntityLoader:
             "entity", "uei_sam", "record_hash"
         )
 
-        # Open a dedicated autocommit connection for staging writes (API path only)
+        # Open a dedicated autocommit connection for staging writes (API path only).
+        # Initialize both to None before the try so the finally block can guard safely.
+        stg_conn, stg_cursor = None, None
         if write_staging:
-            stg_conn = get_connection()
-            stg_conn.autocommit = True
-            stg_cursor = stg_conn.cursor()
-        else:
-            stg_conn = None
-            stg_cursor = None
+            try:
+                stg_conn = get_connection()
+                stg_conn.autocommit = True
+                stg_cursor = stg_conn.cursor()
+            except Exception:
+                if stg_conn:
+                    stg_conn.close()
+                raise
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -308,8 +311,9 @@ class EntityLoader:
         finally:
             cursor.close()
             conn.close()
-            if write_staging:
+            if stg_cursor:
                 stg_cursor.close()
+            if stg_conn:
                 stg_conn.close()
 
         return stats

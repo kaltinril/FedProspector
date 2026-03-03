@@ -15,7 +15,7 @@ from datetime import datetime, date
 from db.connection import get_connection
 from etl.change_detector import ChangeDetector
 from etl.load_manager import LoadManager
-from etl.etl_utils import parse_date, parse_decimal, fetch_existing_hashes
+from etl.etl_utils import parse_date, parse_decimal
 from etl.staging_mixin import StagingMixin
 
 
@@ -100,6 +100,8 @@ class SubawardLoader(StagingMixin):
             dict with keys: records_read, records_inserted, records_updated,
                 records_unchanged, records_errored.
         """
+        # Materialize generator (if any) to allow len() and re-iteration.
+        subawards_data = list(subawards_data)
         self.logger.info(
             "Starting SAM Subaward load (%d records, load_id=%d)",
             len(subawards_data), load_id,
@@ -113,8 +115,21 @@ class SubawardLoader(StagingMixin):
             "records_errored": 0,
         }
 
-        # Pre-fetch existing hashes for change detection.
-        existing_hashes = fetch_existing_hashes("sam_subaward", "prime_piid")
+        # Pre-fetch existing hashes keyed on composite prime_piid|sub_uei.
+        # Keying on prime_piid alone causes hash collisions when a prime has
+        # multiple subawards: the dict only retains the last hash per prime,
+        # silently skipping real updates for all other subawards on that prime.
+        conn_h = get_connection()
+        cur_h = conn_h.cursor()
+        try:
+            cur_h.execute(
+                "SELECT CONCAT(COALESCE(prime_piid,''), '|', COALESCE(sub_uei,'')), record_hash "
+                "FROM sam_subaward WHERE record_hash IS NOT NULL"
+            )
+            existing_hashes = {row[0]: row[1] for row in cur_h.fetchall()}
+        finally:
+            cur_h.close()
+            conn_h.close()
 
         # Staging connection: autocommit=True so each staging row is committed
         # immediately and independently of the main batch-commit connection.
@@ -135,7 +150,10 @@ class SubawardLoader(StagingMixin):
 
                     # --- normalise ----------------------------------------
                     subaward_data = self._normalize_subaward(raw)
-                    record_key = subaward_data.get("prime_piid") or ""
+                    record_key = (
+                        f"{subaward_data.get('prime_piid', '')}"
+                        f"|{subaward_data.get('sub_uei', '')}"
+                    )
 
                     # --- change detection ---------------------------------
                     new_hash = self.change_detector.compute_hash(
