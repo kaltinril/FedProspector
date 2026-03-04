@@ -16,7 +16,9 @@ from cli.cli_utils import QueryBuilder
               help="TRUNCATE table and reload all data (default: incremental upsert)")
 @click.option("--key", "api_key_number", default=2, type=click.IntRange(1, 2),
               help="Which SAM API key to use (1 or 2, default: 2)")
-def load_hierarchy(status, max_calls, full_refresh, api_key_number):
+@click.option("--force", is_flag=True, default=False,
+              help="Ignore previous progress and start fresh")
+def load_hierarchy(status, max_calls, full_refresh, api_key_number, force):
     """Load federal organization hierarchy from SAM.gov Federal Hierarchy API.
 
     Fetches the federal agency organizational structure (departments,
@@ -27,6 +29,10 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
     Uses offset-based pagination (100 records per API call). Each page
     counts as one API call against the daily SAM.gov limit.
 
+    Incremental loads are resumable: progress is saved after each page.
+    If interrupted, re-run the same command to continue from where it
+    left off. Use --force to ignore previous progress and start fresh.
+
     Use --full-refresh for periodic complete reloads (TRUNCATE + reload).
     Default behavior is incremental upsert with SHA-256 change detection.
 
@@ -34,10 +40,12 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
         python main.py load hierarchy
         python main.py load hierarchy --full-refresh --key 2
         python main.py load hierarchy --status Inactive --max-calls 20
+        python main.py load hierarchy --force
     """
     logger = setup_logging()
 
     from api_clients.sam_fedhier_client import SAMFedHierClient
+    from api_clients.base_client import RateLimitExceeded
     from etl.fedhier_loader import FedHierLoader
     from etl.load_manager import LoadManager
 
@@ -58,16 +66,26 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
         click.echo("\nERROR: No API calls remaining today.")
         sys.exit(1)
 
-    # Start load
-    load_type = "FULL" if full_refresh else "INCREMENTAL"
-    params_dict = {"status": status, "full_refresh": full_refresh}
-    load_id = load_manager.start_load("SAM_FEDHIER", load_type, parameters=params_dict)
+    if full_refresh:
+        _load_hierarchy_full(logger, client, loader, load_manager,
+                             status, max_calls)
+    else:
+        _load_hierarchy_incremental(logger, client, loader, load_manager,
+                                     status, max_calls, api_key_number, force)
+
+
+def _load_hierarchy_full(logger, client, loader, load_manager, status, max_calls):
+    """Full-refresh path: fetch all orgs then TRUNCATE + reload (non-resumable)."""
+    load_id = load_manager.start_load(
+        "SAM_FEDHIER", "FULL",
+        parameters={"status": status, "full_refresh": True},
+    )
     click.echo(f"\nLoad started (load_id={load_id})")
 
     t_start = time.time()
 
     try:
-        # Collect organizations with pagination (respecting max_calls)
+        # Collect all organizations first
         all_orgs = []
         calls_made = 0
         offset = 0
@@ -83,13 +101,13 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
             total = data.get("totalrecords", 0)
             all_orgs.extend(records)
 
-            click.echo(f"  Page {calls_made}: {len(records)} records (total available: {total:,d}, fetched so far: {len(all_orgs):,d})")
+            click.echo(f"  Page {calls_made}: {len(records)} records "
+                       f"(total available: {total:,d}, fetched so far: {len(all_orgs):,d})")
 
             if not records or offset + 100 >= total:
                 break
             offset += 100
 
-        # Check if budget was exhausted before all data was fetched
         if calls_made >= max_calls and total > 0 and len(all_orgs) < total:
             remaining_records = total - len(all_orgs)
             remaining_calls = (remaining_records + 100 - 1) // 100
@@ -104,12 +122,8 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
             load_manager.complete_load(load_id, records_read=0)
             return
 
-        # Load into database
         click.echo("Loading into federal_organization table...")
-        if full_refresh:
-            stats = loader.full_refresh(all_orgs, load_id)
-        else:
-            stats = loader.load_organizations(all_orgs, load_id)
+        stats = loader.full_refresh(all_orgs, load_id)
 
         elapsed = time.time() - t_start
         load_manager.complete_load(load_id, **stats)
@@ -123,9 +137,175 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number):
 
     except Exception as e:
         load_manager.fail_load(load_id, str(e))
-        logger.exception("Federal Hierarchy load failed")
+        logger.exception("Federal Hierarchy full refresh failed")
         click.echo(f"\nERROR: {e}")
         sys.exit(1)
+
+
+def _load_hierarchy_incremental(logger, client, loader, load_manager,
+                                 status, max_calls, api_key_number, force):
+    """Incremental path: page-by-page loading with resume support."""
+    import json as _json
+    from api_clients.base_client import RateLimitExceeded
+    from db.connection import get_connection
+
+    # ---- Check previous loads for this status (resume support) ----
+    resume_offset = 0
+    if not force:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT load_id, status, parameters "
+                "FROM etl_load_log "
+                "WHERE source_system = 'SAM_FEDHIER' "
+                "AND parameters LIKE %s "
+                "ORDER BY CAST(JSON_EXTRACT(parameters, '$.pages_fetched') AS UNSIGNED) DESC "
+                "LIMIT 1",
+                (f'%"status_filter": "{status}"%',),
+            )
+            prev_load = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if prev_load:
+            prev_params = _json.loads(prev_load["parameters"]) if prev_load["parameters"] else {}
+            prev_pages = prev_params.get("pages_fetched", 0)
+            prev_total = prev_params.get("total_records")
+            is_complete = prev_params.get("complete", False)
+
+            if is_complete:
+                click.echo(f"Already loaded all {status} organizations "
+                           f"(load_id={prev_load['load_id']}). Skipping.")
+                click.echo("  Use --force to reload from scratch.")
+                return
+
+            if prev_pages > 0:
+                resume_offset = prev_pages * 100
+                click.echo(f"Resuming from offset {resume_offset} "
+                           f"(previous run loaded {prev_pages} pages, "
+                           f"~{resume_offset} of {prev_total or '?'} records).")
+
+    # ---- Create load entry and process page by page ----
+    load_id = load_manager.start_load(
+        "SAM_FEDHIER", "INCREMENTAL",
+        parameters={
+            "status_filter": status,
+            "pages_fetched": resume_offset // 100,
+            "total_records": None,
+            "complete": False,
+        },
+    )
+    click.echo(f"\nLoad started (load_id={load_id})")
+
+    t_start = time.time()
+    pages_fetched_total = resume_offset // 100
+    total_records = None
+    cumulative = {
+        "records_read": 0, "records_inserted": 0, "records_updated": 0,
+        "records_unchanged": 0, "records_errored": 0,
+    }
+    rate_limited = False
+
+    try:
+        for org_list, offset, total_records in client.iter_organization_pages(
+            status=status, start_offset=resume_offset, max_pages=max_calls,
+        ):
+            if org_list:
+                page_stats = loader.load_organization_batch(org_list, load_id)
+                for k in cumulative:
+                    cumulative[k] += page_stats.get(k, 0)
+
+            pages_fetched_total = (offset // 100) + 1
+            is_complete = total_records is not None and offset + 100 >= total_records
+
+            # Save progress after each page (survives ctrl+c / kill)
+            load_manager.save_load_progress(
+                load_id,
+                parameters={
+                    "status_filter": status,
+                    "pages_fetched": pages_fetched_total,
+                    "total_records": total_records,
+                    "complete": is_complete,
+                },
+                **cumulative,
+            )
+
+            total_pages = (total_records + 99) // 100 if total_records else "?"
+            click.echo(
+                f"  Page {pages_fetched_total}: {len(org_list)} records "
+                f"(offset {offset}, {pages_fetched_total}/{total_pages} pages)"
+            )
+
+    except KeyboardInterrupt:
+        new_pages = pages_fetched_total - (resume_offset // 100)
+        click.echo(f"\n  Interrupted. {new_pages} new page(s) saved.")
+        click.echo("  Run the same command again to continue.")
+        return
+    except RateLimitExceeded:
+        rate_limited = True
+        new_pages = pages_fetched_total - (resume_offset // 100)
+        click.echo(f"  Rate limit reached after {new_pages} new pages.")
+    except Exception as e:
+        # Ctrl+C during MySQL ops raises InternalError("Unread result found")
+        # with KeyboardInterrupt as __context__. Don't mark as FAILED.
+        if isinstance(getattr(e, '__context__', None), KeyboardInterrupt):
+            new_pages = pages_fetched_total - (resume_offset // 100)
+            click.echo(f"\n  Interrupted. {new_pages} new page(s) saved.")
+            click.echo("  Run the same command again to continue.")
+            return
+        if "429" in str(e):
+            rate_limited = True
+            new_pages = pages_fetched_total - (resume_offset // 100)
+            click.echo(f"  Server rate limit (429) after {new_pages} new pages.")
+            if api_key_number == 1:
+                click.echo("  Tip: Use --key=2 for the 1000/day tier.")
+        else:
+            load_manager.fail_load(load_id, str(e))
+            logger.exception("Federal Hierarchy load failed")
+            click.echo(f"\nERROR: {e}")
+            sys.exit(1)
+
+    # ---- Handle edge case: no new pages fetched ----
+    initial_pages = resume_offset // 100
+    if pages_fetched_total == initial_pages:
+        load_manager.save_load_progress(
+            load_id,
+            parameters={
+                "status_filter": status,
+                "pages_fetched": pages_fetched_total,
+                "total_records": total_records,
+                "complete": False,
+            },
+            **cumulative,
+        )
+        if rate_limited:
+            click.echo("Rate limited before any new pages could be fetched.")
+            click.echo(f"  Will resume from offset {resume_offset} next time.")
+        else:
+            click.echo(f"No organizations found matching status={status}.")
+        return
+
+    # ---- Summary ----
+    elapsed = time.time() - t_start
+    is_complete = (
+        total_records is not None
+        and pages_fetched_total * 100 >= total_records
+    )
+    total_pages = (total_records + 99) // 100 if total_records else "?"
+    status_str = "COMPLETE" if is_complete else f"PARTIAL ({pages_fetched_total} of {total_pages} pages)"
+    remaining_after = client._get_remaining_requests()
+
+    click.echo(f"\nIncremental load {status_str}! ({elapsed:.1f}s)")
+    click.echo(f"  Records read:      {cumulative['records_read']:>10,d}")
+    click.echo(f"  Records inserted:  {cumulative['records_inserted']:>10,d}")
+    click.echo(f"  Records updated:   {cumulative['records_updated']:>10,d}")
+    click.echo(f"  Records unchanged: {cumulative['records_unchanged']:>10,d}")
+    click.echo(f"  Records errored:   {cumulative['records_errored']:>10,d}")
+    click.echo(f"  API calls remaining: {remaining_after}")
+    if not is_complete:
+        click.echo("  Run the same command again to continue.")
 
 
 @click.command("search-agencies")

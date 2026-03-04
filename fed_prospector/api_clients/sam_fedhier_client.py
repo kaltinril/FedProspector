@@ -139,6 +139,59 @@ class SAMFedHierClient(BaseAPIClient):
             yield from page_results
 
     # -----------------------------------------------------------------
+    # Page-level iterator (for resumable loading)
+    # -----------------------------------------------------------------
+
+    def iter_organization_pages(self, status="Active", start_offset=0, max_pages=None,
+                                 **kwargs):
+        """Iterate over pages of organizations, yielding one tuple per API call.
+
+        Unlike search_organizations_all (which yields individual org dicts),
+        this yields one tuple per API call giving the caller control to save
+        progress after each page.
+
+        Args:
+            status: Organization status filter ('Active' or 'Inactive').
+            start_offset: Offset to start from (0-based) for resumption.
+            max_pages: Stop after this many API calls. None = no limit.
+            **kwargs: Additional filter kwargs passed to search_organizations.
+
+        Yields:
+            tuple: (org_list, offset, total_records) per API call.
+
+        Raises:
+            RateLimitExceeded: If daily API limit is reached during pagination.
+        """
+        self.logger.info(
+            "Fetching organization pages (status=%s, start_offset=%d, max_pages=%s)",
+            status, start_offset, max_pages or "unlimited",
+        )
+
+        offset = start_offset
+        pages_fetched = 0
+
+        while True:
+            data = self.search_organizations(status=status, limit=100, offset=offset, **kwargs)
+
+            org_list = data.get("orglist", [])
+            total_records = data.get("totalrecords", 0)
+
+            yield org_list, offset, total_records
+
+            pages_fetched += 1
+
+            # Stop conditions
+            if not org_list or offset + 100 >= total_records:
+                break
+            if max_pages is not None and pages_fetched >= max_pages:
+                self.logger.info("Stopping after %d pages (max_pages)", max_pages)
+                break
+
+            offset += 100
+
+        self.logger.info("Finished: %d pages fetched", pages_fetched)
+
+    # -----------------------------------------------------------------
     # Convenience methods
     # -----------------------------------------------------------------
 

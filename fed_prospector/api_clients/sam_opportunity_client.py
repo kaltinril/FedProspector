@@ -189,6 +189,116 @@ class SAMOpportunityClient(BaseAPIClient):
             total_yielded, set_aside_label,
         )
 
+    def iter_opportunity_pages(self, posted_from, posted_to, set_aside=None,
+                               naics=None, psc=None, ptype=None, state=None,
+                               zip_code=None, organization_code=None,
+                               title=None, solnum=None, limit=1000,
+                               start_page=0, max_pages=None):
+        """Generator yielding (opps_list, page_number, total_records) per API call.
+
+        Like search_opportunities() but yields per-page instead of per-record,
+        giving the caller control to save progress after each page. Handles
+        date-range chunking internally, treating all chunks as one continuous
+        pagination stream.
+
+        Args:
+            posted_from: Start date (date, datetime, or MM/dd/yyyy string).
+            posted_to: End date (date, datetime, or MM/dd/yyyy string).
+            set_aside: Single set-aside code filter.
+            naics: NAICS code filter.
+            psc: PSC classification code filter.
+            ptype: Procurement type code filter.
+            state: State code filter.
+            zip_code: ZIP code filter.
+            organization_code: Agency code filter.
+            title: Title search string.
+            solnum: Solicitation number.
+            limit: Records per page (max 1000, default 1000).
+            start_page: Global page number to resume from (0-based). Pages
+                before this are fetched from the API but skipped.
+            max_pages: Stop after yielding this many pages. None = no limit.
+
+        Yields:
+            tuple: (opps_list, page_number, total_records) per API call.
+
+        Raises:
+            RateLimitExceeded: If daily API limit is reached.
+        """
+        date_chunks = self._split_date_range(posted_from, posted_to)
+
+        set_aside_label = set_aside or "all"
+        self.logger.info(
+            "Iterating opportunity pages: set_aside=%s, posted %s to %s "
+            "(%d date chunk(s), start_page=%d, max_pages=%s)",
+            set_aside_label,
+            self._format_date(posted_from, "%m/%d/%Y"),
+            self._format_date(posted_to, "%m/%d/%Y"),
+            len(date_chunks), start_page, max_pages or "unlimited",
+        )
+
+        global_page = 0  # absolute page number across all chunks
+        pages_yielded = 0
+
+        # Single-chunk optimisation: skip directly to the resume offset
+        # so we don't waste API calls re-fetching pages we already have.
+        # Multi-chunk (historical, >1 year): accept re-fetch cost since
+        # we can't know per-chunk page counts without querying.
+        single_chunk = len(date_chunks) == 1
+
+        for chunk_from, chunk_to in date_chunks:
+            params = {
+                "postedFrom": self._format_date(chunk_from, "%m/%d/%Y"),
+                "postedTo": self._format_date(chunk_to, "%m/%d/%Y"),
+            }
+
+            if set_aside is not None:
+                params["typeOfSetAside"] = set_aside
+            if naics is not None:
+                params["ncode"] = naics
+            if psc is not None:
+                params["ccode"] = psc
+            if ptype is not None:
+                params["ptype"] = ptype
+            if state is not None:
+                params["state"] = state
+            if zip_code is not None:
+                params["zip"] = zip_code
+            if organization_code is not None:
+                params["organizationCode"] = organization_code
+            if title is not None:
+                params["title"] = title
+            if solnum is not None:
+                params["solnum"] = solnum
+
+            # For single-chunk, jump directly to the resume offset
+            chunk_offset_start = start_page * limit if single_chunk and start_page > 0 else 0
+            if single_chunk and start_page > 0:
+                global_page = start_page
+
+            for page_data in self.paginate(
+                OPPORTUNITY_ENDPOINT, params=params, page_size=limit,
+                offset_start=chunk_offset_start,
+            ):
+                opps = page_data.get("opportunitiesData", [])
+                total = page_data.get("totalRecords")
+
+                if global_page >= start_page:
+                    pages_yielded += 1
+                    yield opps, global_page, total
+
+                    if max_pages and pages_yielded >= max_pages:
+                        self.logger.info(
+                            "Stopping after %d pages (max_pages)", max_pages,
+                        )
+                        return
+
+                global_page += 1
+
+        self.logger.info(
+            "Iteration complete: %d pages yielded (set_aside=%s)",
+            pages_yielded, set_aside_label,
+        )
+
     def get_opportunity(self, notice_id, posted_from=None, posted_to=None):
         """Fetch a single opportunity by notice ID.
 

@@ -96,6 +96,53 @@ class FedHierLoader(StagingMixin):
             len(orgs_data), load_id,
         )
 
+        stats = self._process_orgs(orgs_data, load_id)
+
+        self.logger.info(
+            "Federal Hierarchy load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
+            load_id,
+            stats["records_read"],
+            stats["records_inserted"],
+            stats["records_updated"],
+            stats["records_unchanged"],
+            stats["records_errored"],
+        )
+        return stats
+
+    def load_organization_batch(self, orgs_data, load_id):
+        """Process a batch of org dicts under an existing load_id.
+
+        Unlike load_organizations, does NOT create or complete a load
+        entry -- the caller manages the load lifecycle.  Used for
+        page-by-page loading where progress is saved after each page.
+
+        Args:
+            orgs_data: List of raw org dicts from the Federal Hierarchy API.
+            load_id: Existing load_id from LoadManager.start_load().
+
+        Returns:
+            dict with batch statistics (records_read, records_inserted,
+                records_updated, records_unchanged, records_errored).
+        """
+        return self._process_orgs(orgs_data, load_id)
+
+    # =================================================================
+    # Core processing pipeline
+    # =================================================================
+
+    def _process_orgs(self, orgs_data, load_id):
+        """Iterate over raw org records, normalise, detect changes, upsert.
+
+        Shared implementation used by both load_organizations() and
+        load_organization_batch().
+
+        Args:
+            orgs_data: Iterable of raw org dicts from the API.
+            load_id: Current load identifier.
+
+        Returns:
+            dict with processing statistics.
+        """
         stats = {
             "records_read": 0,
             "records_inserted": 0,
@@ -109,9 +156,10 @@ class FedHierLoader(StagingMixin):
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
+        stg_conn = stg_cursor = None
 
-        stg_conn, stg_cursor = self._open_stg_conn()
         try:
+            stg_conn, stg_cursor = self._open_stg_conn()
             batch_count = 0
             for raw in orgs_data:
                 stats["records_read"] += 1
@@ -199,20 +247,13 @@ class FedHierLoader(StagingMixin):
             conn.commit()
 
         finally:
-            stg_cursor.close()
-            stg_conn.close()
+            if stg_cursor:
+                stg_cursor.close()
+            if stg_conn:
+                stg_conn.close()
             cursor.close()
             conn.close()
 
-        self.logger.info(
-            "Federal Hierarchy load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
-            load_id,
-            stats["records_read"],
-            stats["records_inserted"],
-            stats["records_updated"],
-            stats["records_unchanged"],
-            stats["records_errored"],
-        )
         return stats
 
     def full_refresh(self, orgs_data, load_id):

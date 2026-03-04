@@ -109,9 +109,9 @@ class HealthCheck:
                 cursor.execute(
                     "SELECT started_at "
                     "FROM etl_load_log "
-                    "WHERE source_system = %s AND status = 'SUCCESS' "
+                    "WHERE source_system LIKE %s AND status = 'SUCCESS' "
                     "ORDER BY started_at DESC LIMIT 1",
-                    (source_system,),
+                    (source_system + "%",),
                 )
                 row = cursor.fetchone()
 

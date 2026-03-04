@@ -283,7 +283,8 @@ class BaseAPIClient:
                  total_key="totalRecords",     # response key for total count
                  results_key=None,             # response key for record list (None = yield full response)
                  has_next_key=None,            # if set, use response[has_next_key] to stop
-                 total_pages_key=None):        # if set, use response[total_pages_key] to stop
+                 total_pages_key=None,          # if set, use response[total_pages_key] to stop
+                 offset_start=0):               # starting offset for offset-style pagination
         """Generic paginator — parameterize instead of reimplementing.
 
         Supports three end-of-page detection strategies:
@@ -305,7 +306,7 @@ class BaseAPIClient:
         params[size_param] = page_size
 
         page = page_start
-        offset = 0
+        offset = offset_start
 
         while True:
             if pagination_style == "page":

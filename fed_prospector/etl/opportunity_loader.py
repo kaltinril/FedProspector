@@ -76,7 +76,38 @@ class OpportunityLoader(StagingMixin):
             "Starting opportunity load (%d records, load_id=%d)",
             len(opportunities_data), load_id,
         )
+        return self._process_opportunities(iter(opportunities_data), load_id)
 
+    def load_opportunity_batch(self, opps_data, load_id):
+        """Process a batch of opportunities under an existing load_id.
+
+        Unlike load_opportunities, does NOT create or complete the load
+        entry -- the caller manages the load lifecycle. Used for page-by-page
+        loading where progress is saved after each page.
+
+        Args:
+            opps_data: List of raw opportunity dicts (from one API page).
+            load_id: Existing load_id from LoadManager.start_load().
+
+        Returns:
+            dict with batch statistics (records_read, records_inserted, etc.).
+        """
+        return self._process_opportunities(iter(opps_data), load_id)
+
+    # =================================================================
+    # Core processing pipeline
+    # =================================================================
+
+    def _process_opportunities(self, opps_iter, load_id):
+        """Iterate over raw opportunities, normalise, detect changes, upsert.
+
+        Processes in batches of BATCH_SIZE and commits after each batch.
+        Returns a stats dict compatible with LoadManager.complete_load().
+
+        Args:
+            opps_iter: Iterator of raw opportunity dicts.
+            load_id: Current load identifier.
+        """
         stats = {
             "records_read": 0,
             "records_inserted": 0,
@@ -99,7 +130,7 @@ class OpportunityLoader(StagingMixin):
 
         try:
             batch_count = 0
-            for raw in opportunities_data:
+            for raw in opps_iter:
                 stats["records_read"] += 1
                 notice_id = None
                 staging_id = None
@@ -205,7 +236,7 @@ class OpportunityLoader(StagingMixin):
             stg_conn.close()
 
         self.logger.info(
-            "Opportunity load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
+            "Opportunity batch complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
             load_id,
             stats["records_read"],
             stats["records_inserted"],

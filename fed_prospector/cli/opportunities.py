@@ -29,11 +29,17 @@ from config import settings
               help="Max API calls for this invocation (default: 5, reserves 5 of 10/day for other work)")
 @click.option("--key", "api_key_number", default=1, type=click.IntRange(1, 2),
               help="Which SAM API key to use (1 or 2, default: 1)")
-def load_opportunities(days_back, set_aside, naics, posted_from, posted_to, historical, max_calls, api_key_number):
+@click.option("--force", is_flag=True, default=False,
+              help="Ignore previous progress and start a fresh load")
+def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
+                       historical, max_calls, api_key_number, force):
     """Load contract opportunities from the SAM.gov Opportunities API.
 
     Fetches opportunities matching the given filters and loads them into
     the local database with change detection and history tracking.
+    Automatically resumes from the last page fetched if a previous partial
+    load exists for the same date range. Use --force to ignore previous
+    progress and start fresh.
 
     By default, reserves only 5 API calls for opportunity loading (out of
     10/day free-tier limit), saving the other 5 for entity/other work.
@@ -53,14 +59,18 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to, hist
         python main.py load opportunities --posted-from=01/01/2026 --posted-to=02/01/2026
         python main.py load opportunities --historical
         python main.py load opportunities --max-calls=8
+        python main.py load opportunities --force
     """
     logger = setup_logging()
     from datetime import date as date_cls, timedelta
+    import json as _json
     from api_clients.sam_opportunity_client import (
         SAMOpportunityClient, ALL_SB_SET_ASIDES, PRIORITY_SET_ASIDES,
     )
+    from api_clients.base_client import RateLimitExceeded
     from etl.opportunity_loader import OpportunityLoader
     from etl.load_manager import LoadManager
+    from db.connection import get_connection
 
     chosen_key = settings.SAM_API_KEY_2 if api_key_number == 2 else settings.SAM_API_KEY
     if not chosen_key or chosen_key == "your_api_key_here":
@@ -69,7 +79,7 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to, hist
 
     client = SAMOpportunityClient(call_budget=max_calls, api_key_number=api_key_number)
     loader = OpportunityLoader()
-    load_manager = LoadManager()
+    load_mgr = LoadManager()
 
     # --- Determine date range ---
     today = date_cls.today()
@@ -82,26 +92,95 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to, hist
         dt_to = today
         load_type = "HISTORICAL"
     elif posted_from:
-        # posted_from is already in MM/dd/yyyy format for the API
-        dt_from = posted_from
-        dt_to = posted_to or today.strftime("%m/%d/%Y")
+        # Parse MM/dd/yyyy strings to date objects for consistent handling
+        from datetime import datetime as _dt
+        dt_from = _dt.strptime(posted_from, "%m/%d/%Y").date()
+        dt_to = _dt.strptime(posted_to, "%m/%d/%Y").date() if posted_to else today
         load_type = "INCREMENTAL"
     else:
         dt_from = today - timedelta(days=days_back)
         dt_to = today
         load_type = "INCREMENTAL"
 
+    # Normalise date strings for consistent resume key matching (always YYYY-MM-DD)
+    posted_from_str = dt_from.isoformat()
+    posted_to_str = dt_to.isoformat()
+
     # --- Determine which set-aside codes to query ---
     if set_aside:
         # User specified a single set-aside type
         query_codes = [set_aside]
         set_aside_label = set_aside
+        is_multi = False
     else:
         # Default: use priority set-asides (WOSB, EDWOSB, 8A, 8AN) which
         # fit within the 5-call budget for date ranges up to 1 year.
         # With a larger budget, use all 12 set-aside types.
         query_codes = PRIORITY_SET_ASIDES if max_calls <= 5 else ALL_SB_SET_ASIDES
-        set_aside_label = f"top {len(query_codes)} priority" if query_codes is PRIORITY_SET_ASIDES else f"all {len(query_codes)} SB"
+        set_aside_label = (f"top {len(query_codes)} priority"
+                           if query_codes == PRIORITY_SET_ASIDES
+                           else f"all {len(query_codes)} SB")
+        is_multi = True
+
+    # --- Check previous loads for this date range (resume support) ---
+    resume_page = 0
+    completed_set_asides = []
+    current_set_aside = None
+    current_pages_in_sa = 0
+
+    if not force:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT load_id, status, records_inserted, records_updated, parameters "
+                "FROM etl_load_log "
+                "WHERE source_system = 'SAM_OPPORTUNITY' "
+                "AND parameters LIKE %s "
+                "AND parameters LIKE %s "
+                "ORDER BY CAST(JSON_EXTRACT(parameters, '$.pages_fetched') AS UNSIGNED) DESC "
+                "LIMIT 1",
+                (f'%"posted_from": "{posted_from_str}"%',
+                 f'%"posted_to": "{posted_to_str}"%'),
+            )
+            prev_load = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if prev_load:
+            prev_params = _json.loads(prev_load["parameters"]) if prev_load["parameters"] else {}
+            prev_pages = prev_params.get("pages_fetched", 0)
+            is_complete = prev_params.get("complete", False)
+
+            if is_complete:
+                click.echo(
+                    f"Already loaded all opportunities for {posted_from_str} to "
+                    f"{posted_to_str} (load_id={prev_load['load_id']}: "
+                    f"{prev_load['records_inserted']} inserted, "
+                    f"{prev_load['records_updated']} updated). Skipping."
+                )
+                click.echo("  Use --force to reload from scratch.")
+                return
+
+            if prev_pages > 0:
+                if is_multi:
+                    completed_set_asides = list(prev_params.get("completed_set_asides", []))
+                    current_set_aside = prev_params.get("current_set_aside")
+                    current_pages_in_sa = prev_params.get("current_pages_in_set_aside", 0)
+                    click.echo(
+                        f"Resuming multi-set-aside load from {current_set_aside} "
+                        f"page {current_pages_in_sa} "
+                        f"(completed: {', '.join(completed_set_asides) or 'none'}, "
+                        f"total pages so far: {prev_pages})."
+                    )
+                else:
+                    resume_page = prev_pages
+                    click.echo(
+                        f"Resuming from page {resume_page} "
+                        f"(previous run loaded {prev_pages} pages, "
+                        f"~{prev_pages * 1000} records)."
+                    )
 
     # --- Estimate API calls and warn user ---
     remaining = client._get_remaining_requests()
@@ -109,7 +188,7 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to, hist
 
     click.echo("SAM.gov Opportunities Load")
     click.echo(f"  API key:     #{api_key_number} (limit: {client.max_daily_requests}/day)")
-    click.echo(f"  Date range:  {client._format_date(dt_from)} to {client._format_date(dt_to)}")
+    click.echo(f"  Date range:  {posted_from_str} to {posted_to_str}")
     click.echo(f"  Set-asides:  {set_aside_label} ({', '.join(query_codes)})")
     if naics:
         click.echo(f"  NAICS:       {naics}")
@@ -146,77 +225,213 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to, hist
             return
 
     # --- Create load log entry ---
+    pages_fetched_total = resume_page  # single set-aside: resume from page N
+    if is_multi and not force and (completed_set_asides or current_pages_in_sa):
+        # Carry forward the total page count from previous partial load
+        if prev_load:
+            prev_params = _json.loads(prev_load["parameters"]) if prev_load["parameters"] else {}
+            pages_fetched_total = prev_params.get("pages_fetched", 0)
+
     params_dict = {
-        "days_back": days_back,
+        "posted_from": posted_from_str,
+        "posted_to": posted_to_str,
         "set_aside": set_aside,
         "set_aside_codes": query_codes,
         "naics": naics,
-        "posted_from": client._format_date(dt_from),
-        "posted_to": client._format_date(dt_to),
         "historical": historical,
         "max_calls": max_calls,
+        "pages_fetched": pages_fetched_total,
+        "total_records": None,
+        "complete": False,
     }
-    load_id = load_manager.start_load(
+    if is_multi:
+        params_dict["completed_set_asides"] = completed_set_asides
+        params_dict["current_set_aside"] = current_set_aside
+        params_dict["current_pages_in_set_aside"] = current_pages_in_sa
+
+    load_id = load_mgr.start_load(
         source_system="SAM_OPPORTUNITY",
         load_type=load_type,
         parameters=params_dict,
     )
     click.echo(f"\nLoad started (load_id={load_id})")
 
-    # --- Fetch opportunities ---
+    # --- Page-by-page fetch and load ---
+    cumulative = {
+        "records_read": 0, "records_inserted": 0, "records_updated": 0,
+        "records_unchanged": 0, "records_errored": 0,
+    }
+    remaining_budget = max_calls
+    rate_limited = False
+
     try:
-        if set_aside:
-            # Single set-aside search (not subject to budget)
-            click.echo(f"Searching for set-aside: {set_aside}...")
-            results = list(client.search_opportunities(
-                posted_from=dt_from,
-                posted_to=dt_to,
-                set_aside=set_aside,
-                naics=naics,
-            ))
+        if is_multi:
+            # --- Multi-set-aside path ---
+            _load_multi_set_aside(
+                client, loader, load_mgr, load_id,
+                query_codes, dt_from, dt_to, naics,
+                completed_set_asides, current_set_aside, current_pages_in_sa,
+                pages_fetched_total, remaining_budget,
+                cumulative, params_dict,
+            )
         else:
-            # Multiple set-aside types (respects call budget)
-            click.echo(f"Searching {len(query_codes)} set-aside types within {max_calls}-call budget...")
-            results = client.load_all_set_asides(
-                posted_from=dt_from,
-                posted_to=dt_to,
-                naics=naics,
-                set_aside_codes=query_codes,
+            # --- Single set-aside path ---
+            _load_single_set_aside(
+                client, loader, load_mgr, load_id,
+                set_aside, dt_from, dt_to, naics,
+                resume_page, remaining_budget,
+                cumulative, params_dict,
             )
 
-        click.echo(f"Retrieved {len(results):,d} unique opportunities from API")
-
-        if not results:
-            click.echo("No opportunities found matching the criteria.")
-            load_manager.complete_load(load_id, records_read=0)
+    except KeyboardInterrupt:
+        click.echo(f"\n  Interrupted. Progress saved.")
+        click.echo("  Run the same command again to continue.")
+        return
+    except RateLimitExceeded:
+        rate_limited = True
+        click.echo(f"  Rate limit reached. Progress saved.")
+    except Exception as e:
+        if isinstance(getattr(e, '__context__', None), KeyboardInterrupt):
+            click.echo(f"\n  Interrupted. Progress saved.")
+            click.echo("  Run the same command again to continue.")
             return
+        if "429" in str(e):
+            rate_limited = True
+            click.echo(f"  Server rate limit (429). Progress saved.")
+            if api_key_number == 1:
+                click.echo("  Tip: Use --key=2 for the 1000/day tier.")
+        else:
+            load_mgr.fail_load(load_id, str(e))
+            logger.exception("Opportunity load failed")
+            click.echo(f"\nERROR: {e}")
+            sys.exit(1)
 
-        # --- Load into database ---
-        click.echo("Loading into database...")
-        stats = loader.load_opportunities(results, load_id)
+    # --- Summary ---
+    is_complete = params_dict.get("complete", False)
+    remaining_after = client._get_remaining_requests()
+    status = "COMPLETE" if is_complete else "PARTIAL"
+    click.echo(f"\nOpportunity load {status}!")
+    click.echo(f"  Records read:      {cumulative['records_read']:>10,d}")
+    click.echo(f"  Records inserted:  {cumulative['records_inserted']:>10,d}")
+    click.echo(f"  Records updated:   {cumulative['records_updated']:>10,d}")
+    click.echo(f"  Records unchanged: {cumulative['records_unchanged']:>10,d}")
+    click.echo(f"  Records errored:   {cumulative['records_errored']:>10,d}")
+    click.echo(f"  API calls remaining: {remaining_after}")
+    if not is_complete:
+        click.echo("  Run the same command again to continue.")
 
-        # --- Complete load log ---
-        load_manager.complete_load(
-            load_id,
-            records_read=stats["records_read"],
-            records_inserted=stats["records_inserted"],
-            records_updated=stats["records_updated"],
-            records_unchanged=stats["records_unchanged"],
-            records_errored=stats["records_errored"],
+
+def _load_single_set_aside(client, loader, load_mgr, load_id,
+                            set_aside, dt_from, dt_to, naics,
+                            resume_page, remaining_budget,
+                            cumulative, params_dict):
+    """Page-by-page load for a single set-aside code."""
+    pages_fetched_total = resume_page
+
+    click.echo(f"Searching for set-aside: {set_aside} (page-by-page)...")
+
+    for opps, page_num, total in client.iter_opportunity_pages(
+        posted_from=dt_from, posted_to=dt_to,
+        set_aside=set_aside, naics=naics,
+        start_page=resume_page, max_pages=remaining_budget,
+    ):
+        if opps:
+            page_stats = loader.load_opportunity_batch(opps, load_id)
+            for k in cumulative:
+                cumulative[k] += page_stats.get(k, 0)
+
+        pages_fetched_total = page_num + 1
+        remaining_budget -= 1
+
+        is_complete = (
+            total is not None
+            and (pages_fetched_total * 1000) >= total
         )
 
-        click.echo(f"\nLoad complete!")
-        click.echo(f"  Records read:      {stats['records_read']:>10,d}")
-        click.echo(f"  Records inserted:  {stats['records_inserted']:>10,d}")
-        click.echo(f"  Records updated:   {stats['records_updated']:>10,d}")
-        click.echo(f"  Records unchanged: {stats['records_unchanged']:>10,d}")
-        click.echo(f"  Records errored:   {stats['records_errored']:>10,d}")
+        params_dict.update({
+            "pages_fetched": pages_fetched_total,
+            "total_records": total,
+            "complete": is_complete,
+        })
 
-    except Exception as e:
-        load_manager.fail_load(load_id, str(e))
-        logger.exception("Opportunity load failed")
-        click.echo(f"\nERROR: {e}")
-        sys.exit(1)
+        load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
+
+        click.echo(
+            f"  Page {page_num}: {len(opps)} opps "
+            f"({pages_fetched_total} pages, "
+            f"total={total or '?'})"
+        )
+
+
+def _load_multi_set_aside(client, loader, load_mgr, load_id,
+                           query_codes, dt_from, dt_to, naics,
+                           completed_set_asides, current_set_aside,
+                           current_pages_in_sa, pages_fetched_total,
+                           remaining_budget, cumulative, params_dict):
+    """Page-by-page load across multiple set-aside codes."""
+    click.echo(f"Searching {len(query_codes)} set-aside types (page-by-page)...")
+
+    for sa_code in query_codes:
+        if sa_code in completed_set_asides:
+            continue
+
+        # Determine start page within this set-aside
+        start_pg = current_pages_in_sa if sa_code == current_set_aside else 0
+
+        if remaining_budget <= 0:
+            click.echo(f"  Budget exhausted. Remaining set-asides deferred.")
+            break
+
+        click.echo(f"  Set-aside: {sa_code} (starting at page {start_pg})...")
+
+        sa_exhausted = True  # assume we'll finish unless we break early
+        for opps, page_num, total in client.iter_opportunity_pages(
+            posted_from=dt_from, posted_to=dt_to,
+            set_aside=sa_code, naics=naics,
+            start_page=start_pg, max_pages=remaining_budget,
+        ):
+            if opps:
+                page_stats = loader.load_opportunity_batch(opps, load_id)
+                for k in cumulative:
+                    cumulative[k] += page_stats.get(k, 0)
+
+            pages_fetched_total += 1
+            remaining_budget -= 1
+            pages_in_sa = page_num + 1
+
+            params_dict.update({
+                "current_set_aside": sa_code,
+                "current_pages_in_set_aside": pages_in_sa,
+                "completed_set_asides": completed_set_asides,
+                "pages_fetched": pages_fetched_total,
+                "total_records": total,
+                "complete": False,
+            })
+
+            load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
+
+            click.echo(
+                f"    Page {page_num}: {len(opps)} opps "
+                f"(sa={sa_code}, total={total or '?'})"
+            )
+
+            if remaining_budget <= 0:
+                sa_exhausted = False
+                break
+        else:
+            # for-loop completed without break => set-aside fully loaded
+            sa_exhausted = True
+
+        if sa_exhausted:
+            completed_set_asides.append(sa_code)
+            params_dict["completed_set_asides"] = completed_set_asides
+            load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
+            click.echo(f"  Completed set-aside: {sa_code}")
+
+    # Check if all set-asides are done
+    if set(completed_set_asides) >= set(query_codes):
+        params_dict["complete"] = True
+        load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
 
 
 @click.command("search")
