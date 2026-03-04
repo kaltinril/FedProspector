@@ -86,6 +86,7 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 | UI application | `ui/` (Vite + React 19 + TypeScript, MUI v6, TanStack Query — Phases 20-70) |
 | Phase plans | `thesolution/phases/` (01 through 80) |
 | Reference docs | `thesolution/reference/` (01 through 09) |
+| Vendor API docs | `thesolution/reference/vendor-apis/` (9 docs: SAM Opportunities, Entity, Entity Extracts, Awards, Exclusions, Subawards, Federal Hierarchy, USASpending, GSA CALC) |
 | Credentials (DB, API keys) | `thesolution/credentials.yml` |
 | Quick start | `thesolution/QUICKSTART.md` |
 | SAM.gov API specs | `thesolution/sam_gov_api/` (8 YAML/YML OpenAPI specs) |

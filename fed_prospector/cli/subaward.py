@@ -10,49 +10,141 @@ from config import settings
 
 
 @click.command("load-subawards")
-@click.option("--naics", default=None, help="NAICS code filter (searches primeNaics)")
+@click.option("--naics", default=None,
+              help="NAICS code(s) -- comma-separated for multiple: 541512,541511. "
+                   "Uses PIID-driven strategy (queries local fpds_contract table).")
 @click.option("--agency", default=None, help="Four-digit contracting agency code filter")
-@click.option("--prime-uei", default=None, help="Prime contractor UEI filter")
+@click.option("--piid", default=None, help="Prime contract PIID (direct API filter)")
+@click.option("--years-back", default=2, type=int,
+              help="Years of contract history to search for PIIDs (default: 2)")
 @click.option("--max-calls", default=20, type=int,
               help="Max API calls for this invocation (default: 20)")
+@click.option("--min-amount", default=750000, type=float,
+              help="Min prime contract dollars_obligated to include (default: 750000). "
+                   "Primes only report subawards on contracts >= $750K (FAR 52.204-10). "
+                   "Use 0 to include all contracts.")
+@click.option("--force", is_flag=True, default=False,
+              help="Ignore previous progress and start a fresh load")
 @click.option("--key", "api_key_number", default=2, type=click.IntRange(1, 2),
               help="Which SAM API key to use (1 or 2, default: 2)")
-def load_subawards(naics, agency, prime_uei, max_calls, api_key_number):
+def load_subawards(naics, agency, piid, years_back, max_calls, min_amount, force, api_key_number):
     """Load subaward/subcontract data from SAM.gov API.
 
     Fetches subaward records from the SAM.gov Acquisition Subaward Reporting
     API and loads them into the sam_subaward table. Uses SHA-256 change
     detection to skip unchanged records.
 
-    Uses page-based pagination (up to 1,000 records per API call). Each page
-    counts as one API call against the daily SAM.gov limit.
+    PIID-driven strategy (recommended): When --naics is provided, queries the
+    local fpds_contract table for PIIDs signed within --years-back, then
+    fetches subawards per PIID from the API. Automatically resumes from the
+    last PIID if a previous partial load exists. Use --force to start fresh.
+
+    Direct PIID mode: When --piid is provided, fetches subawards for that
+    single prime contract.
+
+    Agency mode: When --agency is provided, pages through all subawards for
+    that agency.
+
+    At least one filter is required (--naics, --agency, or --piid).
 
     Examples:
-        python main.py load subawards
-        python main.py load subawards --naics 541511
+        python main.py load subawards --naics 541512
+        python main.py load subawards --naics 541512,541511 --years-back 3
+        python main.py load subawards --piid W91QVN-20-C-0001
         python main.py load subawards --agency 9700 --key 2
-        python main.py load subawards --prime-uei ABC123DEF456 --max-calls 50
+        python main.py load subawards --naics 541512 --force
     """
     logger = setup_logging()
 
+    import json
+    from datetime import date, timedelta
     from api_clients.sam_subaward_client import SAMSubawardClient
     from etl.subaward_loader import SubawardLoader
     from etl.load_manager import LoadManager
+    from db.connection import get_connection
 
+    # --- Validate: at least one filter required ---
+    if not any([naics, agency, piid]):
+        click.echo("ERROR: At least one filter is required (--naics, --agency, or --piid)")
+        click.echo("  Without a filter, the API returns 2.7M+ records across 2,700+ pages.")
+        click.echo("  Use --naics for PIID-driven loading (recommended) or --piid for direct lookup.")
+        sys.exit(1)
+
+    # --- Parse comma-separated NAICS ---
+    naics_codes = [c.strip() for c in naics.split(',') if c.strip()] if naics else []
+
+    # --- Compute date window from --years-back ---
+    today = date.today()
+    date_from = today - timedelta(days=365 * years_back)
+    date_to = today
+    # SAM API expects MM/DD/YYYY date strings
+    date_from_str = date_from.strftime("%m/%d/%Y")
+    date_to_str = date_to.strftime("%m/%d/%Y")
+
+    # --- PIID-driven: query local fpds_contract for PIIDs ---
+    all_piids = []
+    if naics_codes:
+        piid_conn = get_connection()
+        piid_cursor = piid_conn.cursor()
+        try:
+            for naics_code in naics_codes:
+                if min_amount > 0:
+                    piid_cursor.execute(
+                        "SELECT DISTINCT contract_id FROM fpds_contract "
+                        "WHERE naics_code = %s AND date_signed >= %s "
+                        "AND dollars_obligated >= %s",
+                        (naics_code, date_from, min_amount),
+                    )
+                else:
+                    piid_cursor.execute(
+                        "SELECT DISTINCT contract_id FROM fpds_contract "
+                        "WHERE naics_code = %s AND date_signed >= %s",
+                        (naics_code, date_from),
+                    )
+                piids_for_naics = [row[0] for row in piid_cursor.fetchall()]
+                click.echo(f"  NAICS {naics_code}: {len(piids_for_naics)} PIIDs found in fpds_contract")
+                all_piids.extend(piids_for_naics)
+        finally:
+            piid_cursor.close()
+            piid_conn.close()
+
+        # De-duplicate while preserving order
+        seen = set()
+        unique_piids = []
+        for p in all_piids:
+            if p not in seen:
+                seen.add(p)
+                unique_piids.append(p)
+        all_piids = unique_piids
+
+        if not all_piids:
+            click.echo("\nNo PIIDs found in fpds_contract for the given NAICS codes.")
+            click.echo("  Load award data first: python main.py load awards --naics <code> --years-back <N>")
+            return
+
+        click.echo(f"  Total unique PIIDs: {len(all_piids)}")
+
+    # --- Setup client/loader ---
     client = SAMSubawardClient(api_key_number=api_key_number)
     loader = SubawardLoader()
     load_manager = LoadManager()
 
     remaining = client._get_remaining_requests()
 
-    click.echo("SAM.gov Subaward Load")
+    click.echo("\nSAM.gov Subaward Load")
     click.echo(f"  API key:     #{api_key_number} (limit: {client.max_daily_requests}/day)")
-    if naics:
-        click.echo(f"  NAICS:       {naics}")
+    if naics_codes:
+        click.echo(f"  NAICS:       {', '.join(naics_codes)} ({len(naics_codes)} code{'s' if len(naics_codes) != 1 else ''})")
+        click.echo(f"  Strategy:    PIID-driven ({len(all_piids)} PIIDs from fpds_contract)")
+        click.echo(f"  Date range:  {date_from} to {date_to} ({years_back} year{'s' if years_back != 1 else ''} back)")
+        if min_amount > 0:
+            click.echo(f"  Min amount:  ${min_amount:,.0f} (FAR 52.204-10 subaward reporting threshold)")
+    if piid:
+        click.echo(f"  PIID:        {piid}")
+        click.echo(f"  Strategy:    Direct PIID lookup")
     if agency:
         click.echo(f"  Agency:      {agency}")
-    if prime_uei:
-        click.echo(f"  Prime UEI:   {prime_uei}")
+        click.echo(f"  Strategy:    Agency page-through")
     click.echo(f"  Max calls:   {max_calls}")
     click.echo(f"  API calls remaining today: {remaining}")
 
@@ -60,81 +152,203 @@ def load_subawards(naics, agency, prime_uei, max_calls, api_key_number):
         click.echo("\nERROR: No API calls remaining today.")
         sys.exit(1)
 
-    # Start load
+    # --- Resume support: check for previous partial load ---
+    resume_piid_index = 0
+    resume_page = 0
+
+    if not force:
+        res_conn = get_connection()
+        res_cursor = res_conn.cursor(dictionary=True)
+        try:
+            res_cursor.execute(
+                "SELECT load_id, parameters FROM etl_load_log "
+                "WHERE source_system = 'SAM_SUBAWARD' "
+                "AND status = 'SUCCESS' "
+                "AND parameters IS NOT NULL "
+                "ORDER BY started_at DESC LIMIT 1"
+            )
+            prev = res_cursor.fetchone()
+        finally:
+            res_cursor.close()
+            res_conn.close()
+
+        if prev and prev["parameters"]:
+            prev_params = json.loads(prev["parameters"])
+            if not prev_params.get("complete", False):
+                # Check if params match current request
+                if naics_codes and prev_params.get("naics_codes") == naics_codes:
+                    resume_piid_index = prev_params.get("current_piid_index", 0)
+                    if resume_piid_index > 0:
+                        click.echo(f"  Resuming from PIID #{resume_piid_index + 1} of {len(all_piids)} "
+                                   f"(load_id={prev['load_id']})")
+                elif agency and prev_params.get("agency") == agency:
+                    resume_page = prev_params.get("current_page", 0)
+                    if resume_page > 0:
+                        click.echo(f"  Resuming from page {resume_page + 1} "
+                                   f"(load_id={prev['load_id']})")
+
+    # --- Build params dict for checkpoint ---
     params_dict = {
-        "naics": naics,
+        "naics_codes": naics_codes,
+        "piids_count": len(all_piids),
         "agency": agency,
-        "prime_uei": prime_uei,
+        "direct_piid": piid,
+        "years_back": years_back,
+        "date_from": str(date_from),
+        "date_to": str(date_to),
+        "current_piid_index": resume_piid_index,
+        "current_page": resume_page,
+        "calls_made": 0,
+        "complete": False,
     }
+
     load_id = load_manager.start_load("SAM_SUBAWARD", "FULL", parameters=params_dict)
     click.echo(f"\nLoad started (load_id={load_id})")
 
     t_start = time.time()
 
+    cumulative = {
+        "records_read": 0, "records_inserted": 0, "records_updated": 0,
+        "records_unchanged": 0, "records_errored": 0,
+    }
+    calls_made = 0
+
     try:
-        # Collect subawards with pagination (respecting max_calls)
-        all_subawards = []
-        calls_made = 0
-        page_number = 0
-        total = 0
+        if piid:
+            # --- Direct PIID mode: paginate through all results ---
+            piid_total = 0
+            page_num = 0
+            while calls_made < max_calls:
+                data = client.search_subcontracts(
+                    piid=piid, from_date=date_from_str, to_date=date_to_str,
+                    page_number=page_num, page_size=1000,
+                )
+                calls_made += 1
+                records = data.get("data", [])
+                total_pages = int(data.get("totalPages", 0))
 
-        while calls_made < max_calls:
-            data = client.search_subcontracts(
-                naics_code=naics,
-                agency_id=agency,
-                prime_uei=prime_uei,
-                page_number=page_number,
-                page_size=1000,
-            )
-            calls_made += 1
+                if records:
+                    batch_stats = loader.load_subaward_batch(records, load_id)
+                    for k in cumulative:
+                        cumulative[k] += batch_stats.get(k, 0)
+                    piid_total += len(records)
 
-            records = data.get("data", [])
-            total = data.get("totalRecords", 0)
-            total_pages = data.get("totalPages", 0)
-            all_subawards.extend(records)
+                if not records or page_num + 1 >= total_pages:
+                    break
+                page_num += 1
 
-            click.echo(f"  Page {page_number + 1}/{total_pages or '?'}: {len(records)} records "
-                       f"(total available: {total:,d}, fetched so far: {len(all_subawards):,d})")
+            click.echo(f"  PIID {piid}: {piid_total} subawards")
 
-            if not records or page_number + 1 >= total_pages:
-                break
-            page_number += 1
+            params_dict["calls_made"] = calls_made
+            params_dict["complete"] = (not records or page_num + 1 >= total_pages)
+            load_manager.save_load_progress(load_id, parameters=params_dict, **cumulative)
 
-        # Check if budget was exhausted before all data was fetched
-        if calls_made >= max_calls and total > 0 and len(all_subawards) < total:
-            remaining_records = total - len(all_subawards)
-            page_size = 1000
-            remaining_calls = (remaining_records + page_size - 1) // page_size
-            click.echo(f"\n  ** BUDGET EXHAUSTED: Retrieved {len(all_subawards):,d} of {total:,d} available records.")
-            click.echo(f"     {remaining_records:,d} records remain ({remaining_calls} more API calls needed).")
-            click.echo(f"     To get all data, re-run with: --max-calls {calls_made + remaining_calls}")
+        elif naics_codes:
+            # --- PIID-driven NAICS mode ---
+            for i, piid_val in enumerate(all_piids):
+                if i < resume_piid_index:
+                    continue  # skip already-fetched PIIDs
 
-        click.echo(f"\nFetched {len(all_subawards):,d} subaward records in {calls_made} API calls")
+                if calls_made >= max_calls:
+                    click.echo(f"\n  ** BUDGET EXHAUSTED after {calls_made} calls.")
+                    click.echo(f"     {len(all_piids) - i} PIIDs remaining.")
+                    click.echo(f"     Run the same command again to resume.")
+                    break
 
-        if not all_subawards:
-            click.echo("No subawards found matching the criteria.")
-            load_manager.complete_load(load_id, records_read=0)
-            return
+                # Paginate within each PIID (most have <1000, but some have more)
+                piid_total = 0
+                page_num = 0
+                while calls_made < max_calls:
+                    data = client.search_subcontracts(
+                        piid=piid_val, page_number=page_num, page_size=1000,
+                    )
+                    calls_made += 1
+                    records = data.get("data", [])
+                    total_records = int(data.get("totalRecords", 0))
+                    total_pages = int(data.get("totalPages", 0))
 
-        # Load into database
-        click.echo("Loading into sam_subaward table...")
-        stats = loader.load_subawards(all_subawards, load_id)
+                    if records:
+                        batch_stats = loader.load_subaward_batch(records, load_id)
+                        for k in cumulative:
+                            cumulative[k] += batch_stats.get(k, 0)
+                        piid_total += len(records)
 
-        elapsed = time.time() - t_start
-        load_manager.complete_load(load_id, **stats)
+                    # Done with this PIID if no more pages
+                    if not records or page_num + 1 >= total_pages:
+                        break
+                    page_num += 1
 
-        click.echo(f"\nLoad complete! ({elapsed:.1f}s)")
-        click.echo(f"  Records read:      {stats['records_read']:>10,d}")
-        click.echo(f"  Records inserted:  {stats['records_inserted']:>10,d}")
-        click.echo(f"  Records updated:   {stats['records_updated']:>10,d}")
-        click.echo(f"  Records unchanged: {stats['records_unchanged']:>10,d}")
-        click.echo(f"  Records errored:   {stats['records_errored']:>10,d}")
+                # Save checkpoint after each PIID
+                params_dict["current_piid_index"] = i + 1
+                params_dict["calls_made"] = calls_made
+                load_manager.save_load_progress(load_id, parameters=params_dict, **cumulative)
+
+                click.echo(f"    PIID {i + 1}/{len(all_piids)}: {piid_val} -> {piid_total} subawards")
+
+        elif agency:
+            # --- Agency mode: page through results ---
+            page_number = resume_page
+            while calls_made < max_calls:
+                data = client.search_subcontracts(
+                    agency_id=agency, page_number=page_number, page_size=1000,
+                )
+                calls_made += 1
+                records = data.get("data", [])
+                total = data.get("totalRecords", 0)
+                total_pages = data.get("totalPages", 0)
+
+                if records:
+                    batch_stats = loader.load_subaward_batch(records, load_id)
+                    for k in cumulative:
+                        cumulative[k] += batch_stats.get(k, 0)
+
+                params_dict["current_page"] = page_number + 1
+                params_dict["calls_made"] = calls_made
+                load_manager.save_load_progress(load_id, parameters=params_dict, **cumulative)
+
+                click.echo(f"  Page {page_number + 1}/{total_pages or '?'}: "
+                           f"{len(records)} records (total: {total:,d})")
+
+                if not records or page_number + 1 >= total_pages:
+                    break
+                page_number += 1
+
+    except KeyboardInterrupt:
+        # Save progress so next run can resume
+        params_dict["calls_made"] = calls_made
+        load_manager.save_load_progress(load_id, parameters=params_dict, **cumulative)
+        click.echo(f"\n  Interrupted. Progress saved (load_id={load_id}).")
+        click.echo("  Run the same command again to resume.")
+        return
 
     except Exception as e:
         load_manager.fail_load(load_id, str(e))
         logger.exception("Subaward load failed")
         click.echo(f"\nERROR: {e}")
         sys.exit(1)
+
+    # --- Mark complete when done ---
+    is_complete = (calls_made < max_calls) or params_dict.get("complete", False)
+    params_dict["complete"] = is_complete
+    params_dict["calls_made"] = calls_made
+    load_manager.save_load_progress(load_id, parameters=params_dict, **cumulative)
+
+    if is_complete:
+        load_manager.complete_load(load_id, **cumulative)
+
+    # --- Summary ---
+    elapsed = time.time() - t_start
+    status = "COMPLETE" if is_complete else "PARTIAL"
+    click.echo(f"\nSubaward load {status}! ({elapsed:.1f}s)")
+    click.echo(f"  Records read:      {cumulative['records_read']:>10,d}")
+    click.echo(f"  Records inserted:  {cumulative['records_inserted']:>10,d}")
+    click.echo(f"  Records updated:   {cumulative['records_updated']:>10,d}")
+    click.echo(f"  Records unchanged: {cumulative['records_unchanged']:>10,d}")
+    click.echo(f"  Records errored:   {cumulative['records_errored']:>10,d}")
+    click.echo(f"  API calls used:    {calls_made}")
+    click.echo(f"  API calls remaining: {client._get_remaining_requests()}")
+    if not is_complete:
+        click.echo("  Run the same command again to resume.")
 
 
 @click.command("search-subawards")

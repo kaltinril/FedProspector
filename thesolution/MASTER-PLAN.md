@@ -342,6 +342,12 @@ Full project review found 2 critical bugs, 4 unimplemented fixes, and widespread
 
 Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, and config/deps/secrets. 23 fixes implemented (3 CRITICAL, 5 HIGH, 10 MEDIUM, 4 LOW, 1 INFO), 11 risks accepted and documented, 4 skipped as security theater. Key fixes: temp password logging, JWT token body leak, ZIP Slip path traversal, cross-org admin access, system admin separation (IsSystemAdmin column on app_user), invite role validation, NuGet lock files, Directory.Build.props. New: CreateInviteRequestValidator. Total: 1,330 tests (738 Python + 320 C# Core + 244 C# Api + 28 C# Infra).
 
+### Phase 15: Subaward Data Strategy
+**Status**: [x] COMPLETE (2026-03-04)
+**File**: [phases/15-SUBAWARD-STRATEGY.md](phases/15-SUBAWARD-STRATEGY.md)
+
+Fixed broken SAM.gov Subaward API filters (primeNaics, primeEntityUei, subEntityUei silently ignored). Implemented PIID-driven NAICS loading strategy: `--naics` queries local `fpds_contract` for PIIDs, calls API per-PIID. Added resumable page-by-page loading with checkpoint support, `--years-back`, `--piid`, `--force` options. Removed broken `--prime-uei`. Created 9 per-vendor-API reference docs in `thesolution/reference/vendor-apis/`.
+
 ### Phase 20: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
 **File**: [phases/20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md)

@@ -2,6 +2,8 @@
 
 Validated 2026-02-28. Always validate with a live API call before bulk loading -- SAM.gov documentation is frequently wrong/outdated.
 
+> **Per-API reference docs**: See `thesolution/reference/vendor-apis/` for detailed docs per data source (endpoint, auth, working vs broken filters, response structure, loading strategy, troubleshooting).
+
 ---
 
 ## Pagination Conventions (each sub-API is different)

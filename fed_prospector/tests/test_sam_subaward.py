@@ -2,9 +2,9 @@
 
 Tests cover:
 - Date formatting (yyyy-MM-dd) and MM/DD/YYYY conversion
-- search_subcontracts parameter construction
+- search_subcontracts parameter construction (working filters only)
 - search_subcontracts_all pagination with max_pages
-- Convenience methods: search_by_prime, search_by_sub, search_by_naics, search_by_piid
+- Convenience method: search_by_piid
 """
 
 from datetime import date, datetime
@@ -86,9 +86,6 @@ class TestSearchSubcontracts:
         client.search_subcontracts(
             piid="W911NF-25-C-0001",
             agency_id="9700",
-            prime_uei="PRIME123UEI456",
-            sub_uei="SUB789UEI012",
-            naics_code="541512",
             from_date=date(2025, 1, 1),
             to_date=date(2025, 12, 31),
             prime_award_type="Contract",
@@ -99,15 +96,16 @@ class TestSearchSubcontracts:
 
         call_args = client.session.request.call_args
         params = call_args[1]["params"]
-        assert params["PIID"] == "W911NF-25-C-0001"
+        assert params["piid"] == "W911NF-25-C-0001"
         assert params["agencyId"] == "9700"
-        assert params["primeEntityUei"] == "PRIME123UEI456"
-        assert params["subEntityUei"] == "SUB789UEI012"
-        assert params["primeNaics"] == "541512"
         assert params["fromDate"] == "2025-01-01"
         assert params["toDate"] == "2025-12-31"
         assert params["primeAwardType"] == "Contract"
         assert params["status"] == "Published"
+        # Broken params removed in Phase 15: primeEntityUei, subEntityUei, primeNaics
+        assert "primeEntityUei" not in params
+        assert "subEntityUei" not in params
+        assert "primeNaics" not in params
 
     def test_omits_none_filter_params(self):
         client = _make_client()
@@ -121,7 +119,7 @@ class TestSearchSubcontracts:
 
         call_args = client.session.request.call_args
         params = call_args[1]["params"]
-        assert "PIID" not in params
+        assert "piid" not in params
         assert "agencyId" not in params
         assert "fromDate" not in params
 
@@ -176,42 +174,6 @@ class TestSearchSubcontractsAll:
 # ---------------------------------------------------------------------------
 # Convenience methods
 # ---------------------------------------------------------------------------
-
-class TestSearchByPrime:
-    def test_returns_subcontracts_for_prime_uei(self):
-        client = _make_client()
-        fixture = load_fixture("sam_subaward_response")
-        mock_resp = make_mock_response(200, fixture)
-        client.session.request = MagicMock(return_value=mock_resp)
-
-        results = client.search_by_prime("PRIME123UEI456")
-
-        assert len(results) == 2
-
-
-class TestSearchBySub:
-    def test_returns_subcontracts_for_sub_uei(self):
-        client = _make_client()
-        fixture = load_fixture("sam_subaward_response")
-        mock_resp = make_mock_response(200, fixture)
-        client.session.request = MagicMock(return_value=mock_resp)
-
-        results = client.search_by_sub("SUB789UEI012")
-
-        assert len(results) == 2
-
-
-class TestSearchByNaics:
-    def test_returns_subcontracts_for_naics(self):
-        client = _make_client()
-        fixture = load_fixture("sam_subaward_response")
-        mock_resp = make_mock_response(200, fixture)
-        client.session.request = MagicMock(return_value=mock_resp)
-
-        results = client.search_by_naics("541512")
-
-        assert len(results) == 2
-
 
 class TestSearchByPiid:
     def test_returns_subcontracts_for_piid(self):

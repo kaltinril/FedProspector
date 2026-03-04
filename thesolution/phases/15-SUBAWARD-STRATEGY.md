@@ -1,6 +1,6 @@
 # Phase 15 — Subaward Data Strategy
 
-## Status: PLANNED
+## Status: COMPLETE (2026-03-04) — P0-P2 implemented, P3 handled by existing hash detection, P4 deferred
 
 ---
 

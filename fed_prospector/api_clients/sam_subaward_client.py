@@ -23,21 +23,30 @@ class SAMSubawardClient(BaseAPIClient):
     """Client for the SAM.gov Acquisition Subaward Reporting API v1.
 
     Inherits rate limiting, retries, and pagination from BaseAPIClient.
-    Provides methods for searching subcontracts by prime, subcontractor,
-    NAICS code, or agency.
+
+    Working filters:
+        - PIID (Procurement Instrument Identifier)
+        - agencyId (four-digit contracting agency code)
+        - fromDate / toDate (date range)
+        - primeAwardType (type of prime award)
+        - status ("Published" or "Deleted")
+
+    Note: primeNaics, primeEntityUei, and subEntityUei are accepted by the
+    API without error but are SILENTLY IGNORED -- they have no effect on
+    results (Phase 15 finding).
 
     Usage:
         client = SAMSubawardClient(api_key_number=2)
 
         # Single page search
-        result = client.search_subcontracts(agencyId="9700")
+        result = client.search_subcontracts(agency_id="9700")
 
         # Paginate through all results
-        for sub in client.search_subcontracts_all(agencyId="9700"):
+        for sub in client.search_subcontracts_all(agency_id="9700"):
             print(sub["piid"], sub["subEntityLegalBusinessName"])
 
-        # Find subcontracts under a specific prime
-        subs = client.search_by_prime("ABC123DEF456")
+        # Find subcontracts under a specific prime contract
+        subs = client.search_by_piid("W911NF-25-C-0001")
     """
 
     SEARCH_ENDPOINT = "/prod/contract/v1/subcontracts/search"
@@ -51,8 +60,7 @@ class SAMSubawardClient(BaseAPIClient):
     # -----------------------------------------------------------------
 
     def search_subcontracts(self, piid=None, agency_id=None,
-                            prime_uei=None, sub_uei=None,
-                            naics_code=None, from_date=None, to_date=None,
+                            from_date=None, to_date=None,
                             prime_award_type=None, status="Published",
                             page_number=0, page_size=100):
         """Search subcontracts with filters. Returns one page of results.
@@ -63,9 +71,6 @@ class SAMSubawardClient(BaseAPIClient):
         Args:
             piid: Procurement Instrument Identifier for the prime contract.
             agency_id: Four-digit contracting agency code.
-            prime_uei: Prime contractor UEI identifier.
-            sub_uei: Subcontractor UEI identifier.
-            naics_code: NAICS code filter (searches primeNaics field).
             from_date: Start date (date, datetime, or yyyy-MM-dd string).
             to_date: End date (date, datetime, or yyyy-MM-dd string).
             prime_award_type: Type of prime award.
@@ -83,15 +88,9 @@ class SAMSubawardClient(BaseAPIClient):
         }
 
         if piid is not None:
-            params["PIID"] = piid
+            params["piid"] = piid
         if agency_id is not None:
             params["agencyId"] = agency_id
-        if prime_uei is not None:
-            params["primeEntityUei"] = prime_uei
-        if sub_uei is not None:
-            params["subEntityUei"] = sub_uei
-        if naics_code is not None:
-            params["primeNaics"] = naics_code
         if from_date is not None:
             params["fromDate"] = self._format_date(from_date)
         if to_date is not None:
@@ -148,45 +147,6 @@ class SAMSubawardClient(BaseAPIClient):
     # Convenience methods
     # -----------------------------------------------------------------
 
-    def search_by_prime(self, prime_uei, **kwargs):
-        """Find subcontracts under a specific prime contractor.
-
-        Args:
-            prime_uei: Prime contractor UEI identifier.
-            **kwargs: Additional filters passed to search_subcontracts_all.
-
-        Returns:
-            list[dict]: All matching subaward records.
-        """
-        self.logger.info("Searching subcontracts for prime UEI %s", prime_uei)
-        return list(self.search_subcontracts_all(prime_uei=prime_uei, **kwargs))
-
-    def search_by_sub(self, sub_uei, **kwargs):
-        """Find all subcontracts awarded TO a specific entity.
-
-        Args:
-            sub_uei: Subcontractor UEI identifier.
-            **kwargs: Additional filters passed to search_subcontracts_all.
-
-        Returns:
-            list[dict]: All matching subaward records.
-        """
-        self.logger.info("Searching subcontracts for sub UEI %s", sub_uei)
-        return list(self.search_subcontracts_all(sub_uei=sub_uei, **kwargs))
-
-    def search_by_naics(self, naics_code, **kwargs):
-        """Find subcontracts in a specific NAICS code.
-
-        Args:
-            naics_code: NAICS code string (e.g. "541511").
-            **kwargs: Additional filters passed to search_subcontracts_all.
-
-        Returns:
-            list[dict]: All matching subaward records.
-        """
-        self.logger.info("Searching subcontracts for NAICS %s", naics_code)
-        return list(self.search_subcontracts_all(naics_code=naics_code, **kwargs))
-
     def search_by_piid(self, piid, **kwargs):
         """Find subcontracts under a specific prime contract by PIID.
 
@@ -205,8 +165,7 @@ class SAMSubawardClient(BaseAPIClient):
     # -----------------------------------------------------------------
 
     def _build_params(self, piid=None, agency_id=None,
-                      prime_uei=None, sub_uei=None,
-                      naics_code=None, from_date=None, to_date=None,
+                      from_date=None, to_date=None,
                       prime_award_type=None, status="Published",
                       page_size=100, **_ignored):
         """Build the query params dict for a single-page subcontracts search.
@@ -221,15 +180,9 @@ class SAMSubawardClient(BaseAPIClient):
         params = {}
 
         if piid is not None:
-            params["PIID"] = piid
+            params["piid"] = piid
         if agency_id is not None:
             params["agencyId"] = agency_id
-        if prime_uei is not None:
-            params["primeEntityUei"] = prime_uei
-        if sub_uei is not None:
-            params["subEntityUei"] = sub_uei
-        if naics_code is not None:
-            params["primeNaics"] = naics_code
         if from_date is not None:
             params["fromDate"] = self._format_date(from_date)
         if to_date is not None:

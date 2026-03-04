@@ -240,6 +240,22 @@ class SubawardLoader(StagingMixin):
         )
         return stats
 
+    def load_subaward_batch(self, batch_data, load_id):
+        """Process a batch of subawards under an existing load_id.
+
+        Unlike load_subawards, does NOT create or complete the load
+        entry -- the caller manages the load lifecycle. Used for page-by-page
+        loading where progress is saved after each page.
+
+        Args:
+            batch_data: List of raw subaward dicts (from one API page).
+            load_id: Existing load_id from LoadManager.start_load().
+
+        Returns:
+            dict with batch statistics (records_read, records_inserted, etc.).
+        """
+        return self.load_subawards(batch_data, load_id)
+
     def full_refresh(self, client, load_id, **search_kwargs):
         """Reload subawards from the API using the provided search filters.
 
