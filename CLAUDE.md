@@ -48,7 +48,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
 - **App API**: ASP.NET Core Web API with 57 endpoints across 13 controllers + auth + health (Phases 10-14.5 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
 - **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phases 15-20)
-- **Testing**: 1,028 tests total (568 Python pytest + 237 C# Core xUnit + 223 C# Api xUnit), all passing
+- **Testing**: 1,259 tests total (738 Python pytest + 263 C# Core xUnit + 235 C# Api xUnit + 23 C# Infrastructure xUnit), all passing
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core owns application tables (app_user, prospect, saved_search, organization, organization_invite, etc.) starting Phase 10. 57 tables + 4 views total. See Phase 10 plan for details.
 
 ### Known Data Quality Issues
@@ -69,9 +69,10 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 | ETL loaders | `fed_prospector/etl/` (bulk_loader, dat_parser, opportunity_loader, awards_loader, usaspending_loader, calc_loader, fedhier_loader, exclusions_loader, subaward_loader, prospect_manager, scheduler, health_check, db_maintenance) |
 | API controllers | `api/src/FedProspector.Api/Controllers/` (13 controllers: Auth, Health, Opportunities, Awards, Entities, Subawards, Dashboard, Admin, SavedSearches, Prospects, Proposals, Notifications, Organization) |
 | API services | `api/src/FedProspector.Infrastructure/Services/` (14 services: Auth, Opportunity, Award, Entity, Subaward, Dashboard, Admin, SavedSearch, Prospect, Proposal, ActivityLog, GoNoGoScoring, Notification, Organization) |
-| Python tests | `fed_prospector/tests/` (24 test files, 8 JSON fixtures in `fixtures/`, shared `conftest.py`) |
-| C# Core tests | `api/tests/FedProspector.Core.Tests/` (237 tests, 31 test files: 22 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions) |
-| C# Api tests | `api/tests/FedProspector.Api.Tests/` (223 tests, 22 test files: 2 middleware, 9 controller + Phase 14.5 additions) |
+| Python tests | `fed_prospector/tests/` (34 test files, 8 JSON fixtures in `fixtures/`, shared `conftest.py`) |
+| C# Core tests | `api/tests/FedProspector.Core.Tests/` (263 tests, 34 test files: 25 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions) |
+| C# Api tests | `api/tests/FedProspector.Api.Tests/` (235 tests, 22 test files: 2 middleware, 9 controller + Phase 14.5 additions) |
+| C# Infrastructure tests | `api/tests/FedProspector.Infrastructure.Tests/` (23 tests: GoNoGoScoringService) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
 | Master plan | `thesolution/MASTER-PLAN.md` |
 | UI application | `ui/` (Vite + React 19 + TypeScript, MUI v6, TanStack Query — Phases 15-20) |

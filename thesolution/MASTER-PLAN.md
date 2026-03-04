@@ -224,10 +224,11 @@ fedProspect/
 **Document**: [14-TESTING.md](phases/14-TESTING.md)
 
 **Scope**:
-- [x] Python ETL test suite: ~568 Python tests (verify with: pytest --collect-only -q | tail -5) across 24 test files (8 API client, 3 data quality, 11 loader/business/utility + conftest.py + 8 JSON fixtures)
-- [x] C# Core.Tests: 237 tests across 25+ test files (22 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions)
-- [x] C# Api.Tests: 223 tests across 11+ test files (2 middleware, 9 controller + Phase 14.5 additions)
-- [x] **Total: 1,028 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
+- [x] Python ETL test suite: ~738 Python tests (verify with: pytest --collect-only -q | tail -5) across 34 test files (8 API client, 3 data quality, 21 loader/business/utility + conftest.py + 8 JSON fixtures)
+- [x] C# Core.Tests: 263 tests across 34 test files (25 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions)
+- [x] C# Api.Tests: 235 tests across 22 test files (2 middleware, 9 controller + Phase 14.5 additions)
+- [x] C# Infrastructure.Tests: 23 tests (GoNoGoScoringService)
+- [x] **Total: 1,259 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
 - [ ] UI test suite (future): deferred until UI exists
 - [ ] CI/CD: GitHub Actions skipped (user preference for lean tooling)
 - [ ] Integration tests against test DB: deferred (unit tests with mocking cover current needs)
@@ -247,7 +248,7 @@ fedProspect/
 - [x] Multi-tenant query scoping on all capture endpoints
 - [x] Missing endpoints: PATCH `saved-searches`, POST `milestones`, GET `proposals`, POST `auth/refresh`, GET `notifications/unread-count`, GET `opportunities/export`
 - [x] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
-- **Result**: 57 endpoints across 13 controllers, 14 services, 57 tables + 4 views, 1,028 tests passing
+- **Result**: 57 endpoints across 13 controllers, 14 services, 57 tables + 4 views, 1,259 tests passing
 
 ### Phase 14.7: CLI Command Hierarchy
 **Status**: [x] COMPLETE (2026-03-02)
@@ -301,7 +302,7 @@ CLI DRY refactor (cli_utils.py with print_table, echo_load_stats, QueryBuilder) 
 DRY refactor: parameterized `paginate()` (Win 1, ~170 lines removed across 4 SAM clients); `_format_date()` instance method in BaseAPIClient (Win 2, ~100 lines); `_sam_init_kwargs()` classmethod (Win 3, ~72 lines); `get()` skips empty api_key removing 2 overrides (Win 4); `get_binary()` for SAMExtractClient (Win 5, ~40 lines). Bug fixes: CRITICAL rate counter incremented on retries (now only on success); HIGH `paginate()` mutated caller's params dict; HIGH `_parse_date` crashed on YYYY-MM-DD; MEDIUM budget enforcement ignored pagination calls. ~320 net lines removed across 10 client files. 7 test files updated.
 
 ### Phase 14.13: ETL Loader Bug Fixes
-**Status**: [ ] NOT STARTED
+**Status**: [x] COMPLETE (2026-03-03)
 **Document**: [14.13-ETL-LOADER-BUG-FIXES.md](phases/14.13-ETL-LOADER-BUG-FIXES.md)
 
 Fix critical data-integrity bugs: exclusions/subaward change detection broken, entity stg_conn leak, len() on generator crash, fedhier full_refresh atomicity, bulk_loader FK checks, opportunity timezone, usaspending wrong field, dat_parser silent NULL dates
@@ -319,16 +320,10 @@ Fix prospect UNIQUE KEY for multi-tenancy, add missing indexes (entity_disaster_
 Fix admin privilege escalation, refresh token column misuse, ChangePassword error handling, cross-tenant prospect leak in opportunity search, CSV injection, N+1 queries in Proposal/Prospect services, missing validators, CSRF PUT method gap
 
 ### Phase 14.16: Test Coverage Gaps
-**Status**: [ ] NOT STARTED
+**Status**: [x] COMPLETE (2026-03-03)
 **Document**: [14.16-TEST-COVERAGE-GAPS.md](phases/14.16-TEST-COVERAGE-GAPS.md)
 
-Add test files for entity_loader, reference_loader, etl_utils, staging_mixin, load_manager, db_maintenance, calc_loader, fedhier_loader, exclusions_loader, subaward_loader; add get_cursor() tests; C# validator tests and GoNoGoScoringService tests
-
-### Phase 14.17: Security Hardening
-**Status**: [ ] DEFERRED (pre-production)
-**Document**: [14.17-SECURITY-HARDENING.md](phases/14.17-SECURITY-HARDENING.md)
-
-AllowedHosts specific domain, JWT secret startup assertion, JWT expiry wired to config, SameSite=Strict cookies, MySQL TLS, email masking in logs, distributed rate limiting
+Added 231 new tests (170 Python + 61 C#) across 15 new test files and 4 modified test files. New Infrastructure.Tests project for service-layer testing. Total: 1,259 tests (738 Python + 263 C# Core + 235 C# Api + 23 C# Infrastructure), all passing.
 
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
@@ -394,6 +389,12 @@ AllowedHosts specific domain, JWT secret startup assertion, JWT expiry wired to 
 - Responsive design: mobile, tablet, desktop
 - Performance: code splitting, bundle optimization
 - Accessibility: keyboard nav, ARIA, WCAG AA
+
+### Phase 30: Security Hardening
+**Status**: [ ] DEFERRED (pre-production)
+**Document**: [30-SECURITY-HARDENING.md](phases/30-SECURITY-HARDENING.md)
+
+AllowedHosts specific domain, JWT secret startup assertion, JWT expiry wired to config, SameSite=Strict cookies, MySQL TLS, email masking in logs, distributed rate limiting
 
 ## Success Criteria
 

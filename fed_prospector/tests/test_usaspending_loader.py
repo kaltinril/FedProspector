@@ -296,3 +296,202 @@ class TestUSASpendingGetHashFields:
     def test_returns_copy(self):
         fields = USASpendingLoader.get_hash_fields()
         assert fields == list(_AWARD_HASH_FIELDS)
+
+
+# ===================================================================
+# find_incumbent tests
+# ===================================================================
+
+class TestFindIncumbent:
+
+    def _loader(self):
+        with patch("etl.usaspending_loader.get_connection"):
+            return USASpendingLoader()
+
+    def test_find_incumbent_by_solicitation(self):
+        """Mock DB returning 1 row for a solicitation match."""
+        loader = self._loader()
+
+        with patch("etl.usaspending_loader.get_connection") as mock_gc:
+            from decimal import Decimal
+            from datetime import date
+
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.fetchone.return_value = {
+                "generated_unique_award_id": "CONT_AWD_123",
+                "piid": "GS-35F-0001",
+                "recipient_name": "Incumbent Corp",
+                "recipient_uei": "INCUEI123456",
+                "total_obligation": Decimal("500000.00"),
+                "start_date": date(2025, 1, 15),
+                "end_date": date(2026, 1, 14),
+            }
+            mock_conn.cursor.return_value = mock_cursor
+            mock_gc.return_value = mock_conn
+
+            result = loader.find_incumbent(solicitation_number="SOL-123")
+
+        assert result is not None
+        assert result["recipient_name"] == "Incumbent Corp"
+        assert result["total_obligation"] == 500000.00
+        assert result["start_date"] == "2025-01-15"
+
+    def test_find_incumbent_empty_result(self):
+        """Mock DB returning no rows."""
+        loader = self._loader()
+
+        with patch("etl.usaspending_loader.get_connection") as mock_gc:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.fetchone.return_value = None
+            mock_conn.cursor.return_value = mock_cursor
+            mock_gc.return_value = mock_conn
+
+            result = loader.find_incumbent(solicitation_number="SOL-999")
+
+        assert result is None
+
+    def test_find_incumbent_no_conditions_returns_none(self):
+        """Calling with no filters should return None without querying."""
+        loader = self._loader()
+
+        with patch("etl.usaspending_loader.get_connection") as mock_gc:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_conn.cursor.return_value = mock_cursor
+            mock_gc.return_value = mock_conn
+
+            result = loader.find_incumbent()
+
+        assert result is None
+        # cursor.execute should NOT be called because conditions list is empty
+        mock_cursor.execute.assert_not_called()
+
+
+# ===================================================================
+# calculate_burn_rate tests
+# ===================================================================
+
+class TestCalculateBurnRate:
+
+    def _loader(self):
+        with patch("etl.usaspending_loader.get_connection"):
+            return USASpendingLoader()
+
+    def test_calculate_burn_rate_basic(self):
+        """2 months of transaction data should give correct burn rate."""
+        loader = self._loader()
+
+        with patch("etl.usaspending_loader.get_connection") as mock_gc:
+            from decimal import Decimal
+
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = [
+                {"yr_month": "2026-01", "monthly_total": Decimal("100000.00"), "txn_count": 3},
+                {"yr_month": "2026-02", "monthly_total": Decimal("50000.00"), "txn_count": 2},
+            ]
+            mock_conn.cursor.return_value = mock_cursor
+            mock_gc.return_value = mock_conn
+
+            result = loader.calculate_burn_rate("CONT_AWD_123")
+
+        assert result is not None
+        assert result["total_obligated"] == 150000.00
+        assert result["months_elapsed"] == 2
+        assert result["monthly_rate"] == 75000.00
+        assert len(result["monthly_breakdown"]) == 2
+        assert result["transaction_count"] == 5
+
+    def test_calculate_burn_rate_no_transactions(self):
+        """No transaction data should return None."""
+        loader = self._loader()
+
+        with patch("etl.usaspending_loader.get_connection") as mock_gc:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = []
+            mock_conn.cursor.return_value = mock_cursor
+            mock_gc.return_value = mock_conn
+
+            result = loader.calculate_burn_rate("NONEXISTENT")
+
+        assert result is None
+
+    def test_calculate_burn_rate_single_month(self):
+        """Single month should give months_elapsed=1."""
+        loader = self._loader()
+
+        with patch("etl.usaspending_loader.get_connection") as mock_gc:
+            from decimal import Decimal
+
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.fetchall.return_value = [
+                {"yr_month": "2026-03", "monthly_total": Decimal("200000.00"), "txn_count": 1},
+            ]
+            mock_conn.cursor.return_value = mock_cursor
+            mock_gc.return_value = mock_conn
+
+            result = loader.calculate_burn_rate("CONT_AWD_456")
+
+        assert result["months_elapsed"] == 1
+        assert result["monthly_rate"] == 200000.00
+
+
+# ===================================================================
+# load_transactions tests
+# ===================================================================
+
+class TestLoadTransactions:
+
+    def _loader(self):
+        with patch("etl.usaspending_loader.get_connection"):
+            return USASpendingLoader()
+
+    def test_load_transactions_inserts_records(self):
+        """1 record mock should be inserted."""
+        loader = self._loader()
+
+        with patch("etl.usaspending_loader.get_connection") as mock_gc:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.rowcount = 1  # INSERT successful
+            mock_conn.cursor.return_value = mock_cursor
+            mock_gc.return_value = mock_conn
+
+            transactions = [
+                {
+                    "action_date": "2026-01-15",
+                    "modification_number": "P00001",
+                    "action_type": "A",
+                    "action_type_description": "New Award",
+                    "federal_action_obligation": "100000.00",
+                    "description": "Initial funding",
+                },
+            ]
+            stats = loader.load_transactions("CONT_AWD_123", transactions, load_id=1)
+
+        assert stats["records_read"] == 1
+        assert stats["records_inserted"] == 1
+        assert stats["records_skipped"] == 0
+        assert stats["records_errored"] == 0
+
+    def test_load_transactions_skips_duplicates(self):
+        """rowcount=0 means INSERT IGNORE skipped a duplicate."""
+        loader = self._loader()
+
+        with patch("etl.usaspending_loader.get_connection") as mock_gc:
+            mock_conn = MagicMock()
+            mock_cursor = MagicMock()
+            mock_cursor.rowcount = 0  # duplicate, skipped
+            mock_conn.cursor.return_value = mock_cursor
+            mock_gc.return_value = mock_conn
+
+            transactions = [{"action_date": "2026-01-15"}]
+            stats = loader.load_transactions("CONT_AWD_123", transactions, load_id=1)
+
+        assert stats["records_read"] == 1
+        assert stats["records_inserted"] == 0
+        assert stats["records_skipped"] == 1

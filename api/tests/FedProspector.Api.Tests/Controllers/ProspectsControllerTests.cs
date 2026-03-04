@@ -4,9 +4,13 @@ using FedProspector.Api.Controllers;
 using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Prospects;
 using FedProspector.Core.Interfaces;
+using FedProspector.Core.Models;
+using FedProspector.Infrastructure.Data;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace FedProspector.Api.Tests.Controllers;
@@ -303,5 +307,59 @@ public class ProspectsControllerTests
         var result = await _controller.RemoveTeamMember(5, 999);
 
         result.Should().BeOfType<NotFoundResult>();
+    }
+
+    // --- ResolveOrganizationIdAsync fallback (Gap 11) ---
+
+    [Fact]
+    public async Task Search_NoOrgIdClaim_FallsBackToDbLookup_ReturnsOk()
+    {
+        // Create an in-memory DbContext with a user record
+        var dbOptions = new DbContextOptionsBuilder<FedProspectorDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        var dbContext = new FedProspectorDbContext(dbOptions);
+        dbContext.AppUsers.Add(new AppUser
+        {
+            UserId = 5,
+            OrganizationId = 77,
+            Username = "testuser",
+            DisplayName = "Test User"
+        });
+        dbContext.SaveChanges();
+
+        // Set up DI container with the DbContext
+        var services = new ServiceCollection();
+        services.AddSingleton(dbContext);
+        services.AddSingleton<FedProspectorDbContext>(dbContext);
+        var serviceProvider = services.BuildServiceProvider();
+
+        // Create user claims WITHOUT org_id claim, but WITH a valid user ID
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, "5"),
+            new(ClaimTypes.NameIdentifier, "5"),
+            new(ClaimTypes.Role, "user"),
+            new("is_admin", "false")
+            // NOTE: no "org_id" claim -- forces DB fallback
+        };
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+        _controller.ControllerContext.HttpContext = new DefaultHttpContext
+        {
+            User = user,
+            RequestServices = serviceProvider
+        };
+
+        var request = new ProspectSearchRequest();
+        _serviceMock.Setup(s => s.SearchAsync(77, request))
+            .ReturnsAsync(new PagedResponse<ProspectListDto>());
+
+        var result = await _controller.Search(request);
+
+        result.Should().BeOfType<OkObjectResult>();
+        _serviceMock.Verify(s => s.SearchAsync(77, request), Times.Once);
+
+        dbContext.Dispose();
     }
 }

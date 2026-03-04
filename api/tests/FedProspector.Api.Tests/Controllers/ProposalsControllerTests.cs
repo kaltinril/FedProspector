@@ -313,4 +313,137 @@ public class ProposalsControllerTests
         var statusResult = result as ObjectResult;
         statusResult!.StatusCode.Should().Be(404);
     }
+
+    // --- AddMilestone returns DTO with 201 ---
+
+    [Fact]
+    public async Task AddMilestone_ReturnsMilestoneDto()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        var request = new CreateMilestoneRequest
+        {
+            Title = "Draft Review",
+            DueDate = DateTime.UtcNow.AddDays(14)
+        };
+        var expected = new ProposalMilestoneDto
+        {
+            MilestoneId = 42,
+            MilestoneName = "Draft Review",
+            Status = "PENDING"
+        };
+        _serviceMock.Setup(s => s.CreateMilestoneAsync(10, 5, 1, request))
+            .ReturnsAsync(expected);
+
+        var result = await _controller.CreateMilestone(5, request);
+
+        var statusResult = result as ObjectResult;
+        statusResult!.StatusCode.Should().Be(201);
+        statusResult.Value.Should().Be(expected);
+    }
+
+    // --- UpdateMilestone returns updated DTO with 200 ---
+
+    [Fact]
+    public async Task UpdateMilestone_ReturnsUpdatedDto()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        var request = new UpdateMilestoneRequest { Status = "COMPLETED" };
+        var expected = new ProposalMilestoneDto
+        {
+            MilestoneId = 42,
+            MilestoneName = "Draft Review",
+            Status = "COMPLETED"
+        };
+        _serviceMock.Setup(s => s.UpdateMilestoneAsync(10, 5, 42, 1, request))
+            .ReturnsAsync(expected);
+
+        var result = await _controller.UpdateMilestone(5, 42, request);
+
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = result as OkObjectResult;
+        okResult!.Value.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task UpdateMilestone_NotFound_Returns404()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        var request = new UpdateMilestoneRequest { Status = "COMPLETED" };
+        _serviceMock.Setup(s => s.UpdateMilestoneAsync(10, 5, 999, 1, request))
+            .ThrowsAsync(new KeyNotFoundException("Milestone not found"));
+
+        var result = await _controller.UpdateMilestone(5, 999, request);
+
+        var statusResult = result as ObjectResult;
+        statusResult!.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task UpdateMilestone_NoUser_ReturnsUnauthorized()
+    {
+        var request = new UpdateMilestoneRequest { Status = "COMPLETED" };
+
+        var result = await _controller.UpdateMilestone(5, 42, request);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    // --- AddDocument returns DTO with 201 ---
+
+    [Fact]
+    public async Task AddDocument_ReturnsDocumentDto()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        var request = new AddProposalDocumentRequest
+        {
+            FileName = "proposal_v1.pdf",
+            DocumentType = "PROPOSAL"
+        };
+        var expected = new ProposalDocumentDto
+        {
+            DocumentId = 99,
+            FileName = "proposal_v1.pdf",
+            DocumentType = "PROPOSAL"
+        };
+        _serviceMock.Setup(s => s.AddDocumentAsync(10, 5, 1, request))
+            .ReturnsAsync(expected);
+
+        var result = await _controller.AddDocument(5, request);
+
+        var statusResult = result as ObjectResult;
+        statusResult!.StatusCode.Should().Be(201);
+        statusResult.Value.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task AddDocument_ProposalNotFound_Returns404()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        var request = new AddProposalDocumentRequest
+        {
+            FileName = "test.pdf",
+            DocumentType = "PROPOSAL"
+        };
+        _serviceMock.Setup(s => s.AddDocumentAsync(10, 999, 1, request))
+            .ThrowsAsync(new KeyNotFoundException("Proposal not found"));
+
+        var result = await _controller.AddDocument(999, request);
+
+        var statusResult = result as ObjectResult;
+        statusResult!.StatusCode.Should().Be(404);
+    }
+
+    [Fact]
+    public async Task AddDocument_NoUser_ReturnsUnauthorized()
+    {
+        var request = new AddProposalDocumentRequest
+        {
+            FileName = "test.pdf",
+            DocumentType = "PROPOSAL"
+        };
+
+        var result = await _controller.AddDocument(5, request);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
 }

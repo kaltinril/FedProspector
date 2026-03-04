@@ -138,3 +138,59 @@ class TestExecuteSqlFile:
                 db_mod.execute_sql_file(str(sql_file))
 
             mock_conn.rollback.assert_called_once()
+
+
+# ===================================================================
+# get_cursor context manager tests
+# ===================================================================
+
+class TestGetCursor:
+
+    def test_get_cursor_yields_cursor(self):
+        """get_cursor should yield a cursor object from the connection."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        with patch("db.connection.get_connection", return_value=mock_conn):
+            with db_mod.get_cursor() as cursor:
+                assert cursor is mock_cursor
+            mock_conn.cursor.assert_called_once_with(dictionary=False)
+
+    def test_get_cursor_closes_on_exit(self):
+        """Both cursor and connection must be closed after normal exit."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        with patch("db.connection.get_connection", return_value=mock_conn):
+            with db_mod.get_cursor() as cursor:
+                pass  # normal exit
+
+        mock_cursor.close.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    def test_get_cursor_closes_on_exception(self):
+        """Both cursor and connection must be closed even if body raises."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        with patch("db.connection.get_connection", return_value=mock_conn):
+            with pytest.raises(ValueError, match="boom"):
+                with db_mod.get_cursor() as cursor:
+                    raise ValueError("boom")
+
+        mock_cursor.close.assert_called_once()
+        mock_conn.close.assert_called_once()
+
+    def test_get_cursor_dictionary_param(self):
+        """dictionary=True should be forwarded to conn.cursor()."""
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        with patch("db.connection.get_connection", return_value=mock_conn):
+            with db_mod.get_cursor(dictionary=True) as cursor:
+                assert cursor is mock_cursor
+            mock_conn.cursor.assert_called_once_with(dictionary=True)

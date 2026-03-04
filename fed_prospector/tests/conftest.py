@@ -83,7 +83,13 @@ def mock_db_connection():
          patch("api_clients.base_client.get_connection", mock_get_conn), \
          patch("etl.data_cleaner.get_connection", mock_get_conn), \
          patch("etl.staging_mixin.get_connection", mock_get_conn), \
-         patch("etl.etl_utils.get_connection", mock_get_conn):
+         patch("etl.etl_utils.get_connection", mock_get_conn), \
+         patch("etl.calc_loader.get_connection", mock_get_conn), \
+         patch("etl.fedhier_loader.get_connection", mock_get_conn), \
+         patch("etl.exclusions_loader.get_connection", mock_get_conn), \
+         patch("etl.subaward_loader.get_connection", mock_get_conn), \
+         patch("etl.load_manager.get_connection", mock_get_conn), \
+         patch("etl.db_maintenance.get_connection", mock_get_conn):
         yield mock_get_conn
 
 
