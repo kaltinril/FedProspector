@@ -31,7 +31,7 @@ None of these use cases require all 2.7 million subaward records in the system. 
 
 | Parameter | Type | Example | Notes |
 |-----------|------|---------|-------|
-| `PIID` | string | `W91QVN-20-C-0001` | Prime contract Procurement Instrument Identifier. **Most reliable filter.** |
+| `piid` | string | `W91QVN-20-C-0001` | Prime contract Procurement Instrument Identifier. **Most reliable filter.** Note: param name is lowercase; uppercase `PIID` is silently ignored. |
 | `agencyId` | string | `9700` | Four-digit contracting agency code |
 | `fromDate` | string | `2024-03-04` | Start date (yyyy-MM-dd format) |
 | `toDate` | string | `2026-03-04` | End date (yyyy-MM-dd format) |
@@ -52,7 +52,7 @@ None of these use cases require all 2.7 million subaward records in the system. 
 
 **How we discovered this**: Our client was sending `primeNaics`, `primeEntityUei`, and `subEntityUei` as query parameters. The API returned `200 OK` with no errors but returned the same `totalRecords` count regardless of the parameter values. Comparing filtered vs unfiltered requests confirmed the API ignores these parameters entirely.
 
-**Impact**: Any code that sends these parameters and assumes server-side filtering is getting **all records** back, not filtered results. The `search_by_naics()`, `search_by_prime()`, and `search_by_sub()` convenience methods in the client rely on these broken params and are marked for removal in Phase 15.
+**Impact**: Any code that sends these parameters and assumes server-side filtering is getting **all records** back, not filtered results. The `search_by_naics()`, `search_by_prime()`, and `search_by_sub()` convenience methods and their corresponding broken params have been **removed** in Phase 15.
 
 ### Pagination
 
@@ -224,7 +224,7 @@ Step 1:  Query local fpds_contract table for PIIDs matching the NAICS codes:
          -> 176 PIIDs (47 + 129, deduplicated)
 
 Step 2:  For each PIID, call the subaward API with PIID filter:
-         GET /prod/contract/v1/subcontracts/search?PIID=<piid>&fromDate=2024-03-04
+         GET /prod/contract/v1/subcontracts/search?piid=<piid>&fromDate=2024-03-04
          -> 176 API calls, each returning 0-20 subawards
 
 Step 3:  Load results into sam_subaward table with change detection

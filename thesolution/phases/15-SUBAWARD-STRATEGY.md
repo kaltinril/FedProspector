@@ -1,6 +1,6 @@
 # Phase 15 — Subaward Data Strategy
 
-## Status: COMPLETE (2026-03-04) — P0-P2 implemented, P3 handled by existing hash detection, P4 deferred
+## Status: COMPLETE (2026-03-04) — P0-P2 implemented (piid case fix, --min-amount $750K filter, per-PIID pagination, --prime-uei removed), P3 handled by existing hash detection, P4 deferred
 
 ---
 
@@ -73,7 +73,7 @@ None of these require all 2.7M subawards. They work with **targeted pulls by NAI
 
 | Filter | Param Name | Actually Works? | Status in Our Code |
 |--------|------------|-----------------|-------------------|
-| PIID | `PIID` | **YES** | In client, NOT in CLI |
+| PIID | `piid` | **YES** | In client, NOT in CLI |
 | Agency (4-digit) | `agencyId` | **YES** | In client + CLI |
 | From/To Date | `fromDate`, `toDate` | **YES** | In client, NOT in CLI |
 | Prime Award Type | `primeAwardType` | **YES** | NOT implemented |
@@ -81,9 +81,9 @@ None of these require all 2.7M subawards. They work with **targeted pulls by NAI
 | Referenced IDV PIID | `referencedIdvPIID` | **YES** | NOT implemented |
 | Referenced IDV Agency | `referencedIDVAgencyID` | **YES** | NOT implemented |
 | Status | `status` | **YES** | Hardcoded "Published" |
-| **NAICS** | `primeNaics` | **NO — silently ignored** | In client + CLI (**BUG**) |
-| **Prime UEI** | `primeEntityUei` | **NO — silently ignored** | In client + CLI (**BUG**) |
-| **Sub UEI** | `subEntityUei` | **NO — silently ignored** | In client (**BUG**) |
+| **NAICS** | `primeNaics` | **NO — silently ignored** | **REMOVED** (Phase 15) |
+| **Prime UEI** | `primeEntityUei` | **NO — silently ignored** | **REMOVED** (Phase 15) |
+| **Sub UEI** | `subEntityUei` | **NO — silently ignored** | **REMOVED** (Phase 15) |
 
 **CRITICAL FINDING**: `primeNaics`, `primeEntityUei`, and `subEntityUei` are **response fields**, not query parameters. The API silently ignores them and returns unfiltered results. Our client sends them as query params, giving the false impression that server-side filtering is happening. Verified by comparing filtered vs unfiltered `totalRecords` counts — they are identical.
 
@@ -180,13 +180,15 @@ Per GAO-24-106237 (Federal Spending Transparency, 2024):
 
 ## 5. Current State vs. Desired State
 
+> **Note (2026-03-04)**: The gaps below have been addressed in the Phase 15 implementation. Broken API params and methods were removed (P0), PIID-driven NAICS loading with `--min-amount` filtering was added (P1), and per-PIID pagination now correctly pages through all results (P2). `--prime-uei` was removed from CLI.
+
 ### CLI Options Gap
 
 | Feature | Awards CLI | Subawards CLI | Needed? |
 |---------|-----------|--------------|---------|
 | Multi-NAICS (comma-separated) | Yes | No | **YES** |
 | `--years-back` / date filtering | Yes (`--fiscal-year`, `--years-back`) | No (API supports it) | **YES** |
-| `--sub-uei` (search by subcontractor) | N/A | No (API supports it) | **YES** |
+| `--sub-uei` (search by subcontractor) | N/A | No (API supports it) | No — API ignores subEntityUei |
 | `--piid` (search by prime contract) | Yes | No (API supports it) | YES |
 | Page-by-page processing + DB commit | Yes (Phase 14.26) | No (collects all in memory) | **YES** |
 | Resume from last page | Yes (Phase 14.26) | No | **YES** |
@@ -227,11 +229,11 @@ Add missing CLI options to `fed_prospector/cli/subaward.py`:
 1. **`--years-back N`** — compute `from_date = today - N years`, pass to API's `fromDate` (which actually works)
 2. **`--naics` multi-value** — comma-separated; triggers PIID-driven strategy:
    - Query `fpds_contract` for PIIDs matching the NAICS code(s) + optional date window
-   - Call subaward API once per PIID using the `PIID` param (which actually works)
+   - Call subaward API once per PIID using the `piid` param (which actually works)
    - Log the number of PIIDs found and API calls needed
 3. **`--piid`** — expose existing client parameter (direct API param, works)
 4. **Require at least one filter** — prevent unfiltered 2.7M loads with a validation check
-5. **Remove `--prime-uei`** from CLI — API doesn't support it as a filter
+5. ~~**Remove `--prime-uei`** from CLI~~ — **DONE** (removed in Phase 15 implementation)
 
 ### Priority 2: Page-by-Page Processing + Resume (HIGH)
 
@@ -290,7 +292,7 @@ Step 1:  SELECT DISTINCT idv_piid FROM fpds_contract
          → 176 PIIDs (47 + 129, deduplicated)
 
 Step 2:  For each PIID, call:
-         GET /prod/contract/v1/subcontracts/search?PIID=<piid>&fromDate=2024-03-04
+         GET /prod/contract/v1/subcontracts/search?piid=<piid>&fromDate=2024-03-04
          → 176 API calls, each returning 0-20 subawards
 
 Step 3:  Load results into sam_subaward with change detection

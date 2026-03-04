@@ -77,9 +77,9 @@ def load_subawards(naics, agency, piid, years_back, max_calls, min_amount, force
     today = date.today()
     date_from = today - timedelta(days=365 * years_back)
     date_to = today
-    # SAM API expects MM/DD/YYYY date strings
-    date_from_str = date_from.strftime("%m/%d/%Y")
-    date_to_str = date_to.strftime("%m/%d/%Y")
+    # SAM Subaward API expects yyyy-MM-dd date strings
+    date_from_str = date_from.strftime("%Y-%m-%d")
+    date_to_str = date_to.strftime("%Y-%m-%d")
 
     # --- PIID-driven: query local fpds_contract for PIIDs ---
     all_piids = []

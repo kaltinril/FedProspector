@@ -35,9 +35,16 @@ class StagingMixin:
     """
 
     def _open_stg_conn(self):
-        """Open a dedicated autocommit connection for staging writes."""
+        """Open a dedicated autocommit connection for staging writes.
+
+        PooledMySQLConnection does not proxy autocommit to the underlying
+        connection, so we must set it on the inner ``_cnx`` object directly.
+        """
         conn = get_connection()
-        conn.autocommit = True
+        # PooledMySQLConnection wraps the real connection in _cnx.
+        # Setting autocommit on the wrapper is a no-op, so target _cnx.
+        inner = getattr(conn, "_cnx", conn)
+        inner.autocommit = True
         return conn, conn.cursor()
 
     def _insert_staging(self, stg_cursor, load_id: int, key_vals: dict, raw: dict) -> int:
