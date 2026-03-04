@@ -1,4 +1,13 @@
-"""MySQL connection pool using mysql-connector-python."""
+"""MySQL connection pool using mysql-connector-python.
+
+GOTCHA — PooledMySQLConnection autocommit:
+    mysql-connector-python's PooledMySQLConnection wrapper does NOT proxy the
+    ``autocommit`` property to the underlying MySQLConnection._cnx.  Setting
+    ``conn.autocommit = True`` on a pooled connection is silently ignored.
+
+    This module patches PooledMySQLConnection with a proper autocommit
+    property so callers can use ``conn.autocommit = True`` normally.
+"""
 
 import logging
 from contextlib import contextmanager
@@ -6,6 +15,22 @@ from mysql.connector import pooling
 from config import settings
 
 logger = logging.getLogger("fed_prospector.db")
+
+# ---------------------------------------------------------------------------
+# Patch PooledMySQLConnection so .autocommit proxies to the inner connection.
+# Without this, setting conn.autocommit = True is silently ignored and
+# statements remain uncommitted until an explicit conn.commit().
+# ---------------------------------------------------------------------------
+if not hasattr(pooling.PooledMySQLConnection, "_autocommit_patched"):
+
+    def _get_autocommit(self):
+        return self._cnx.autocommit
+
+    def _set_autocommit(self, value):
+        self._cnx.autocommit = value
+
+    pooling.PooledMySQLConnection.autocommit = property(_get_autocommit, _set_autocommit)
+    pooling.PooledMySQLConnection._autocommit_patched = True
 
 _pool = None
 

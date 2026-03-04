@@ -382,11 +382,9 @@ class AwardsLoader(StagingMixin):
 
         Overrides StagingMixin._open_stg_conn to use the module-local
         get_connection binding so test patches apply correctly.
-        PooledMySQLConnection doesn't proxy autocommit — set on inner conn.
         """
         conn = get_connection()
-        inner = getattr(conn, "_cnx", conn)
-        inner.autocommit = True
+        conn.autocommit = True
         return conn, conn.cursor()
 
     def _extract_staging_key(self, raw):

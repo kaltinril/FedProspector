@@ -35,14 +35,8 @@ class _TestLoaderMultiKey(StagingMixin):
 class TestOpenStgConn:
 
     def test_autocommit_set_to_true(self):
-        """_open_stg_conn must set autocommit on the inner connection.
-
-        PooledMySQLConnection wraps the real connection in _cnx and does not
-        proxy autocommit, so _open_stg_conn targets _cnx directly.
-        """
-        mock_inner = MagicMock()
+        """_open_stg_conn must set conn.autocommit = True."""
         mock_conn = MagicMock()
-        mock_conn._cnx = mock_inner
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value = mock_cursor
 
@@ -50,7 +44,7 @@ class TestOpenStgConn:
             loader = _TestLoader()
             conn, cursor = loader._open_stg_conn()
 
-        assert mock_inner.autocommit is True
+        assert mock_conn.autocommit is True
         assert conn is mock_conn
         assert cursor is mock_cursor
 

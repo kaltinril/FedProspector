@@ -203,9 +203,7 @@ class EntityLoader:
         if write_staging:
             try:
                 stg_conn = get_connection()
-                # PooledMySQLConnection doesn't proxy autocommit — set on inner conn.
-                inner = getattr(stg_conn, "_cnx", stg_conn)
-                inner.autocommit = True
+                stg_conn.autocommit = True
                 stg_cursor = stg_conn.cursor()
             except Exception:
                 if stg_conn:
