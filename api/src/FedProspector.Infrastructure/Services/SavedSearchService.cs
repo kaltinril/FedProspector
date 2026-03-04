@@ -192,7 +192,7 @@ public class SavedSearchService : ISavedSearchService
             search.Description = request.Description;
 
         if (request.FilterCriteria != null)
-            search.FilterCriteria = request.FilterCriteria;
+            search.FilterCriteria = JsonSerializer.Serialize(request.FilterCriteria, JsonOptions);
 
         if (request.NotificationsEnabled.HasValue)
             search.NotificationEnabled = request.NotificationsEnabled.Value ? "Y" : "N";

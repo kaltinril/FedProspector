@@ -144,9 +144,7 @@ public class AuthService : IAuthService
             TokenHash = accessTokenHash,
             IssuedAt = DateTime.UtcNow,
             ExpiresAt = accessExpiresAt,
-            // Store refresh token hash in RevokedReason field temporarily
-            // (repurposed as refresh_token_hash until schema migration adds a proper column)
-            RevokedReason = refreshTokenHash
+            RefreshTokenHash = refreshTokenHash
         };
 
         _db.AppSessions.Add(session);
@@ -308,7 +306,7 @@ public class AuthService : IAuthService
             TokenHash = accessTokenHash,
             IssuedAt = DateTime.UtcNow,
             ExpiresAt = accessExpiresAt,
-            RevokedReason = refreshTokenHash
+            RefreshTokenHash = refreshTokenHash
         };
 
         _db.AppSessions.Add(session);
@@ -355,6 +353,7 @@ public class AuthService : IAuthService
         foreach (var session in activeSessions)
         {
             session.RevokedAt = DateTime.UtcNow;
+            session.RefreshTokenHash = null;
         }
 
         await _db.SaveChangesAsync();
@@ -428,16 +427,16 @@ public class AuthService : IAuthService
 
     public async Task<AuthResult> RefreshTokenAsync(string refreshTokenHash)
     {
-        // Find session by refresh token hash (stored in RevokedReason field)
+        // Find session by refresh token hash
         var session = await _db.AppSessions
             .Include(s => s.User)
-            .FirstOrDefaultAsync(s => s.RevokedReason == refreshTokenHash && s.RevokedAt == null);
+            .FirstOrDefaultAsync(s => s.RefreshTokenHash == refreshTokenHash && s.RevokedAt == null);
 
         if (session is null)
         {
             // Check if this is a reuse of an already-rotated token (token reuse detection)
             var rotatedSession = await _db.AppSessions
-                .FirstOrDefaultAsync(s => s.RevokedReason == refreshTokenHash && s.RevokedAt != null);
+                .FirstOrDefaultAsync(s => s.RefreshTokenHash == refreshTokenHash && s.RevokedAt != null);
 
             if (rotatedSession != null)
             {
@@ -466,8 +465,9 @@ public class AuthService : IAuthService
             return new AuthResult { Success = false, Error = "Account is inactive." };
         }
 
-        // Rotate: invalidate old session
+        // Rotate: invalidate old session and clear its refresh token hash
         session.RevokedAt = DateTime.UtcNow;
+        session.RefreshTokenHash = null;
 
         // Generate new tokens
         var accessExpiresAt = DateTime.UtcNow.Add(AccessTokenLifetime);
@@ -482,7 +482,7 @@ public class AuthService : IAuthService
             TokenHash = newAccessHash,
             IssuedAt = DateTime.UtcNow,
             ExpiresAt = accessExpiresAt,
-            RevokedReason = newRefreshHash
+            RefreshTokenHash = newRefreshHash
         };
 
         _db.AppSessions.Add(newSession);
@@ -548,6 +548,7 @@ public class AuthService : IAuthService
         foreach (var session in activeSessions)
         {
             session.RevokedAt = DateTime.UtcNow;
+            session.RefreshTokenHash = null;
         }
 
         await _db.SaveChangesAsync();

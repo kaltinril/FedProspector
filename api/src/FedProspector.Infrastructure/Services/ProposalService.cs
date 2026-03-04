@@ -378,10 +378,15 @@ public class ProposalService : IProposalService
 
     public async Task<PagedResponse<ProposalDetailDto>> ListAsync(int organizationId, ProposalSearchRequest request)
     {
+        // Fix 9: Eliminate N+1 by loading the page in a single query, then batch-fetching
+        // milestones and documents for all proposals on the page in two additional queries
+        // instead of calling BuildDetailAsync (3+ queries) per record.
         var query = from pr in _context.Proposals.AsNoTracking()
                     join p in _context.Prospects.AsNoTracking() on pr.ProspectId equals p.ProspectId
+                    join o in _context.Opportunities.AsNoTracking() on p.NoticeId equals o.NoticeId into oJoin
+                    from o in oJoin.DefaultIfEmpty()
                     where p.OrganizationId == organizationId
-                    select new { pr, p };
+                    select new { pr, p, o };
 
         if (!string.IsNullOrWhiteSpace(request.Status))
             query = query.Where(x => x.pr.ProposalStatus == request.Status);
@@ -391,20 +396,122 @@ public class ProposalService : IProposalService
 
         var totalCount = await query.CountAsync();
 
-        var items = await query
+        // Load the page with proposal + prospect + opportunity data in one query
+        var pageRows = await query
             .OrderByDescending(x => x.pr.UpdatedAt)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(x => new { x.pr.ProposalId, x.p.NoticeId })
+            .Select(x => new
+            {
+                x.pr.ProposalId,
+                x.pr.ProspectId,
+                x.pr.ProposalNumber,
+                ProspectNoticeId = x.p.NoticeId,
+                OpportunityTitle = x.o != null ? x.o.Title : null,
+                x.pr.ProposalStatus,
+                x.pr.SubmissionDeadline,
+                x.pr.SubmittedAt,
+                x.pr.EstimatedValue,
+                x.pr.WinProbabilityPct,
+                x.pr.LessonsLearned,
+                x.pr.CreatedAt,
+                x.pr.UpdatedAt
+            })
             .ToListAsync();
 
-        // Build detail DTOs (fetches milestones + documents for each)
-        var results = new List<ProposalDetailDto>();
-        foreach (var item in items)
+        if (pageRows.Count == 0)
         {
-            var detail = await BuildDetailAsync(item.ProposalId);
-            results.Add(detail);
+            return new PagedResponse<ProposalDetailDto>
+            {
+                Items = [],
+                Page = request.Page,
+                PageSize = request.PageSize,
+                TotalCount = totalCount
+            };
         }
+
+        var pageProposalIds = pageRows.Select(r => r.ProposalId).ToList();
+
+        // Batch-fetch milestones for all proposals on this page in one query; keep ProposalId for grouping
+        var rawMilestones = await _context.ProposalMilestones.AsNoTracking()
+            .Where(m => pageProposalIds.Contains(m.ProposalId))
+            .OrderBy(m => m.DueDate)
+            .ThenBy(m => m.MilestoneId)
+            .Select(m => new
+            {
+                m.ProposalId,
+                m.MilestoneId,
+                m.MilestoneName,
+                m.DueDate,
+                m.CompletedDate,
+                m.AssignedTo,
+                m.Status,
+                m.Notes,
+                m.CreatedAt
+            })
+            .ToListAsync();
+
+        // Batch-fetch documents for all proposals on this page in one query; keep ProposalId for grouping
+        var rawDocuments = await _context.ProposalDocuments.AsNoTracking()
+            .Where(d => pageProposalIds.Contains(d.ProposalId))
+            .OrderByDescending(d => d.UploadedAt)
+            .Select(d => new
+            {
+                d.ProposalId,
+                d.DocumentId,
+                d.DocumentType,
+                d.FileName,
+                d.FileSizeBytes,
+                d.UploadedBy,
+                d.UploadedAt,
+                d.Notes
+            })
+            .ToListAsync();
+
+        // Group milestones and documents by proposal ID in memory, then map to DTOs
+        var milestonesByProposal = rawMilestones.GroupBy(m => m.ProposalId)
+            .ToDictionary(g => g.Key, g => g.Select(m => new ProposalMilestoneDto
+            {
+                MilestoneId = m.MilestoneId,
+                MilestoneName = m.MilestoneName,
+                DueDate = m.DueDate,
+                CompletedDate = m.CompletedDate,
+                AssignedTo = m.AssignedTo,
+                Status = m.Status,
+                Notes = m.Notes,
+                CreatedAt = m.CreatedAt
+            }).ToList());
+        var documentsByProposal = rawDocuments.GroupBy(d => d.ProposalId)
+            .ToDictionary(g => g.Key, g => g.Select(d => new ProposalDocumentDto
+            {
+                DocumentId = d.DocumentId,
+                DocumentType = d.DocumentType,
+                FileName = d.FileName,
+                FileSizeBytes = d.FileSizeBytes,
+                UploadedBy = d.UploadedBy,
+                UploadedAt = d.UploadedAt,
+                Notes = d.Notes
+            }).ToList());
+
+        // Map page rows to DTOs without additional DB calls
+        var results = pageRows.Select(row => new ProposalDetailDto
+        {
+            ProposalId = row.ProposalId,
+            ProspectId = row.ProspectId,
+            ProposalNumber = row.ProposalNumber,
+            ProspectTitle = row.ProspectNoticeId,
+            OpportunityTitle = row.OpportunityTitle,
+            ProposalStatus = row.ProposalStatus,
+            SubmissionDeadline = row.SubmissionDeadline,
+            SubmittedAt = row.SubmittedAt,
+            EstimatedValue = row.EstimatedValue,
+            WinProbabilityPct = row.WinProbabilityPct,
+            LessonsLearned = row.LessonsLearned,
+            Milestones = milestonesByProposal.TryGetValue(row.ProposalId, out var ms) ? ms : [],
+            Documents = documentsByProposal.TryGetValue(row.ProposalId, out var ds) ? ds : [],
+            CreatedAt = row.CreatedAt,
+            UpdatedAt = row.UpdatedAt
+        }).ToList();
 
         return new PagedResponse<ProposalDetailDto>
         {

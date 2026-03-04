@@ -22,7 +22,10 @@ public class OpportunitiesController : ApiControllerBase
     [HttpGet]
     public async Task<IActionResult> Search([FromQuery] OpportunitySearchRequest request)
     {
-        var result = await _service.SearchAsync(request);
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _service.SearchAsync(request, orgId.Value);
         return Ok(result);
     }
 
@@ -36,7 +39,10 @@ public class OpportunitiesController : ApiControllerBase
     [HttpGet("{noticeId}")]
     public async Task<IActionResult> GetDetail(string noticeId)
     {
-        var result = await _service.GetDetailAsync(noticeId);
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _service.GetDetailAsync(noticeId, orgId.Value);
         return result != null ? Ok(result) : NotFound();
     }
 

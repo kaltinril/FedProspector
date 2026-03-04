@@ -28,6 +28,13 @@ public class AppSession
     [MaxLength(100)]
     public string? RevokedReason { get; set; }
 
+    /// <summary>
+    /// SHA-256 hash of the refresh token associated with this session.
+    /// Dedicated column added in migration AddRefreshTokenHash.
+    /// </summary>
+    [MaxLength(64)]
+    public string? RefreshTokenHash { get; set; }
+
     [MaxLength(45)]
     public string? IpAddress { get; set; }
 

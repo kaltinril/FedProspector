@@ -25,13 +25,42 @@ public class OpportunitiesControllerTests
         };
     }
 
+    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isAdmin = false, int orgId = 1)
+    {
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new(ClaimTypes.NameIdentifier, userId.ToString()),
+            new(ClaimTypes.Role, role),
+            new("is_admin", isAdmin.ToString().ToLower()),
+            new("org_id", orgId.ToString())
+        };
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+    }
+
+    private void SetAuthenticatedUser(int userId = 1, int orgId = 1)
+    {
+        _controller.ControllerContext.HttpContext.User = CreateUser(userId, orgId: orgId);
+    }
+
     // --- Search ---
+
+    [Fact]
+    public async Task Search_NoOrgId_ReturnsUnauthorized()
+    {
+        var request = new OpportunitySearchRequest();
+
+        var result = await _controller.Search(request);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
 
     [Fact]
     public async Task Search_ValidRequest_ReturnsOk()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.SearchAsync(request))
+        _serviceMock.Setup(s => s.SearchAsync(request, 10))
             .ReturnsAsync(new PagedResponse<OpportunitySearchDto>());
 
         var result = await _controller.Search(request);
@@ -42,25 +71,40 @@ public class OpportunitiesControllerTests
     [Fact]
     public async Task Search_ValidRequest_CallsServiceWithCorrectParameters()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.SearchAsync(request))
+        _serviceMock.Setup(s => s.SearchAsync(request, 10))
             .ReturnsAsync(new PagedResponse<OpportunitySearchDto>());
 
         await _controller.Search(request);
 
-        _serviceMock.Verify(s => s.SearchAsync(request), Times.Once);
+        _serviceMock.Verify(s => s.SearchAsync(request, 10), Times.Once);
     }
 
     [Fact]
     public async Task Search_ValidRequest_ReturnsServiceResult()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
         var request = new OpportunitySearchRequest();
         var expected = new PagedResponse<OpportunitySearchDto> { TotalCount = 42 };
-        _serviceMock.Setup(s => s.SearchAsync(request)).ReturnsAsync(expected);
+        _serviceMock.Setup(s => s.SearchAsync(request, 10)).ReturnsAsync(expected);
 
         var result = await _controller.Search(request) as OkObjectResult;
 
         result!.Value.Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task Search_CallsServiceWithCorrectOrgId()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 42);
+        var request = new OpportunitySearchRequest();
+        _serviceMock.Setup(s => s.SearchAsync(request, 42))
+            .ReturnsAsync(new PagedResponse<OpportunitySearchDto>());
+
+        await _controller.Search(request);
+
+        _serviceMock.Verify(s => s.SearchAsync(request, 42), Times.Once);
     }
 
     // --- GetTargets ---
@@ -92,9 +136,18 @@ public class OpportunitiesControllerTests
     // --- GetDetail ---
 
     [Fact]
+    public async Task GetDetail_NoOrgId_ReturnsUnauthorized()
+    {
+        var result = await _controller.GetDetail("NOTICE-001");
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
     public async Task GetDetail_ExistingNoticeId_ReturnsOk()
     {
-        _serviceMock.Setup(s => s.GetDetailAsync("NOTICE-001"))
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.GetDetailAsync("NOTICE-001", 10))
             .ReturnsAsync(new OpportunityDetailDto());
 
         var result = await _controller.GetDetail("NOTICE-001");
@@ -105,7 +158,8 @@ public class OpportunitiesControllerTests
     [Fact]
     public async Task GetDetail_NonExistingNoticeId_ReturnsNotFound()
     {
-        _serviceMock.Setup(s => s.GetDetailAsync("DOES-NOT-EXIST"))
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.GetDetailAsync("DOES-NOT-EXIST", 10))
             .ReturnsAsync((OpportunityDetailDto?)null);
 
         var result = await _controller.GetDetail("DOES-NOT-EXIST");
@@ -116,12 +170,25 @@ public class OpportunitiesControllerTests
     [Fact]
     public async Task GetDetail_ExistingNoticeId_CallsServiceWithCorrectId()
     {
-        _serviceMock.Setup(s => s.GetDetailAsync("ABC-123"))
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.GetDetailAsync("ABC-123", 10))
             .ReturnsAsync(new OpportunityDetailDto());
 
         await _controller.GetDetail("ABC-123");
 
-        _serviceMock.Verify(s => s.GetDetailAsync("ABC-123"), Times.Once);
+        _serviceMock.Verify(s => s.GetDetailAsync("ABC-123", 10), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetDetail_CallsServiceWithCorrectOrgId()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 99);
+        _serviceMock.Setup(s => s.GetDetailAsync("ABC-123", 99))
+            .ReturnsAsync(new OpportunityDetailDto());
+
+        await _controller.GetDetail("ABC-123");
+
+        _serviceMock.Verify(s => s.GetDetailAsync("ABC-123", 99), Times.Once);
     }
 
     // --- ExportCsv ---

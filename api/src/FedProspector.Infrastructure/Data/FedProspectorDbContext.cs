@@ -171,6 +171,10 @@ public class FedProspectorDbContext : DbContext
             .HasIndex(e => e.TokenHash)
             .IsUnique();
 
+        modelBuilder.Entity<AppSession>()
+            .HasIndex(e => e.RefreshTokenHash)
+            .HasDatabaseName("IX_app_session_refresh_token_hash");
+
         modelBuilder.Entity<Organization>()
             .HasIndex(e => e.Slug)
             .IsUnique();

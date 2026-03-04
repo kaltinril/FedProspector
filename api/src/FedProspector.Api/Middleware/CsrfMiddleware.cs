@@ -15,7 +15,7 @@ public class CsrfMiddleware
 
     private static readonly HashSet<string> MutatingMethods = new(StringComparer.OrdinalIgnoreCase)
     {
-        "POST", "PATCH", "DELETE"
+        "POST", "PUT", "PATCH", "DELETE"
     };
 
     public CsrfMiddleware(RequestDelegate next, ILogger<CsrfMiddleware> logger)

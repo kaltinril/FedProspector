@@ -1,3 +1,4 @@
+using FedProspector.Core.Constants;
 using FedProspector.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -15,18 +16,9 @@ public class HealthController : ControllerBase
     private readonly FedProspectorDbContext _db;
     private static readonly DateTime StartTime = DateTime.UtcNow;
 
-    // Same staleness thresholds as AdminService
-    private static readonly Dictionary<string, (string Label, double ThresholdHours)> StalenessThresholds = new()
-    {
-        ["SAM_OPPORTUNITY"] = ("Opportunities", 6),
-        ["SAM_ENTITY"] = ("Entity Data", 48),
-        ["SAM_FEDHIER"] = ("Federal Hierarchy", 336),
-        ["SAM_AWARDS"] = ("Contract Awards", 336),
-        ["GSA_CALC"] = ("CALC+ Labor Rates", 1080),
-        ["USASPENDING"] = ("USASpending", 1080),
-        ["SAM_EXCLUSIONS"] = ("Exclusions", 336),
-        ["SAM_SUBAWARD"] = ("Subaward Data", 336),
-    };
+    // Shared with AdminService — single source of truth in EtlStalenessThresholds.All
+    private static readonly Dictionary<string, (string Label, double ThresholdHours)> StalenessThresholds
+        = EtlStalenessThresholds.All;
 
     public HealthController(FedProspectorDbContext db)
     {

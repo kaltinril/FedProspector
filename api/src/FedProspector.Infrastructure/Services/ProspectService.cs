@@ -64,6 +64,16 @@ public class ProspectService : IProspectService
                 throw new InvalidOperationException($"User {request.AssignedTo.Value} not found or not active");
         }
 
+        // Fix 6: Validate capture manager belongs to the same organization
+        if (request.CaptureManagerId.HasValue)
+        {
+            var captureManager = await _context.AppUsers.AsNoTracking()
+                .FirstOrDefaultAsync(u => u.UserId == request.CaptureManagerId.Value
+                                          && u.OrganizationId == organizationId);
+            if (captureManager == null)
+                throw new KeyNotFoundException("CaptureManagerId not found in organization.");
+        }
+
         var priority = request.Priority ?? "MEDIUM";
 
         var prospect = new Prospect
@@ -238,7 +248,8 @@ public class ProspectService : IProspectService
 
         if (prospect == null) return null;
 
-        // Fetch linked opportunity
+        // Fix 10: Consolidate related data retrieval. Notes and team members are fetched
+        // with their joined data in a single query each (no per-note or per-member sub-queries).
         var opp = await _context.Opportunities.AsNoTracking()
             .FirstOrDefaultAsync(o => o.NoticeId == prospect.NoticeId);
 
@@ -253,7 +264,7 @@ public class ProspectService : IProspectService
                 .FirstOrDefaultAsync(u => u.UserId == prospect.CaptureManagerId.Value)
             : null;
 
-        // Fetch notes ordered by CreatedAt ASC, joined to AppUser
+        // Fetch notes with user join in a single query
         var notes = await (from n in _context.ProspectNotes.AsNoTracking()
                            where n.ProspectId == prospectId
                            join u in _context.AppUsers on n.UserId equals u.UserId into uJoin
@@ -272,7 +283,7 @@ public class ProspectService : IProspectService
                                CreatedAt = n.CreatedAt
                            }).ToListAsync();
 
-        // Fetch team members, left join to Entity for legal_business_name
+        // Fetch team members with entity join in a single query
         var teamMembers = await (from tm in _context.ProspectTeamMembers.AsNoTracking()
                                  where tm.ProspectId == prospectId
                                  join e in _context.Entities on tm.UeiSam equals e.UeiSam into eJoin
@@ -288,7 +299,7 @@ public class ProspectService : IProspectService
                                      CommitmentPct = tm.CommitmentPct
                                  }).ToListAsync();
 
-        // Fetch proposal if exists
+        // Fetch proposal summary if exists
         var proposal = await _context.Proposals.AsNoTracking()
             .Where(pr => pr.ProspectId == prospectId)
             .Select(pr => new ProspectProposalSummaryDto

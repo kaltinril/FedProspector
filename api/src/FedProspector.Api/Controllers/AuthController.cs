@@ -76,15 +76,12 @@ public class AuthController : ApiControllerBase
         }
 
         var tokenHash = ComputeSha256Hash(rawToken);
-        var success = await _authService.LogoutAsync(userId, tokenHash);
 
-        // Always clear cookies on logout
+        // Always clear cookies first — client is logged out regardless of DB state
         ClearAuthCookies();
 
-        if (!success)
-        {
-            return NotFound(new { error = "No active session found." });
-        }
+        // Fire-and-forget if session not found; session absence is not a client error
+        await _authService.LogoutAsync(userId, tokenHash);
 
         return Ok(new { message = "Logged out successfully." });
     }
@@ -159,12 +156,20 @@ public class AuthController : ApiControllerBase
             return Unauthorized(new { error = "Invalid token." });
         }
 
-        await _authService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword);
-
-        // Clear cookies since all sessions are revoked
-        ClearAuthCookies();
-
-        return Ok(new { message = "Password changed successfully" });
+        try
+        {
+            await _authService.ChangePasswordAsync(userId.Value, request.CurrentPassword, request.NewPassword);
+            ClearAuthCookies();
+            return Ok(new { message = "Password changed successfully. Please log in again." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "User not found." });
+        }
     }
 
     /// <summary>

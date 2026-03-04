@@ -73,6 +73,10 @@ public class AdminController : ApiControllerBase
     [HttpPost("organizations")]
     public async Task<IActionResult> CreateOrganization([FromBody] CreateOrganizationRequest request)
     {
+        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
+        if (!isSystemAdmin)
+            return Forbid();
+
         var result = await _orgService.CreateOrganizationAsync(request.Name, request.Slug);
         return StatusCode(201, result);
     }
@@ -83,6 +87,10 @@ public class AdminController : ApiControllerBase
     [HttpPost("organizations/{id:int}/owner")]
     public async Task<IActionResult> CreateOwner(int id, [FromBody] CreateOwnerRequest request)
     {
+        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
+        if (!isSystemAdmin)
+            return Forbid();
+
         var result = await _orgService.CreateOwnerAsync(id, request.Email, request.Password, request.DisplayName);
         return StatusCode(201, result);
     }

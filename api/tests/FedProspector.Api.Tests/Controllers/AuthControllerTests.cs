@@ -136,7 +136,7 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task Logout_NoActiveSession_ReturnsNotFound()
+    public async Task Logout_NoActiveSession_ReturnsOk()
     {
         SetAuthenticatedUser(userId: 1);
         _controller.ControllerContext.HttpContext.Request.Headers.Authorization = "Bearer test-token";
@@ -145,7 +145,8 @@ public class AuthControllerTests
 
         var result = await _controller.Logout();
 
-        result.Should().BeOfType<NotFoundObjectResult>();
+        // Fix 13: Logout always returns Ok — session absence is not a client error
+        result.Should().BeOfType<OkObjectResult>();
     }
 
     // --- Register ---
@@ -206,16 +207,17 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task ChangePassword_WrongCurrentPassword_ThrowsInvalidOperation()
+    public async Task ChangePassword_WrongCurrentPassword_ReturnsBadRequest()
     {
         SetAuthenticatedUser(userId: 5);
         var request = new ChangePasswordRequest { CurrentPassword = "wrong", NewPassword = "new" };
         _authServiceMock.Setup(s => s.ChangePasswordAsync(5, "wrong", "new"))
             .ThrowsAsync(new InvalidOperationException("Current password is incorrect"));
 
-        var act = () => _controller.ChangePassword(request);
+        var result = await _controller.ChangePassword(request);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // Fix 3: InvalidOperationException is caught and mapped to 400 Bad Request
+        result.Should().BeOfType<BadRequestObjectResult>();
     }
 
     // --- GetProfile ---

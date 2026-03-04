@@ -313,7 +313,7 @@ Fix critical data-integrity bugs: exclusions/subaward change detection broken, e
 Fix prospect UNIQUE KEY for multi-tenancy, add missing indexes (entity_disaster_response, usaspending last_modified_date, fpds ultimate_completion_date, idv_piid), sync opportunity baseline DDL with Phase 9 migration, sam_exclusion UNIQUE constraint, record_hash type consistency
 
 ### Phase 14.15: C# API Bug Fixes
-**Status**: [ ] NOT STARTED
+**Status**: [x] COMPLETE (2026-03-03)
 **Document**: [14.15-CSHARP-API-BUG-FIXES.md](phases/14.15-CSHARP-API-BUG-FIXES.md)
 
 Fix admin privilege escalation, refresh token column misuse, ChangePassword error handling, cross-tenant prospect leak in opportunity search, CSV injection, N+1 queries in Proposal/Prospect services, missing validators, CSRF PUT method gap

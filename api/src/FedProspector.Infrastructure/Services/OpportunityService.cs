@@ -18,7 +18,7 @@ public class OpportunityService : IOpportunityService
         _logger = logger;
     }
 
-    public async Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request)
+    public async Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request, int organizationId)
     {
         var query = _context.Opportunities.AsNoTracking().AsQueryable();
 
@@ -56,7 +56,7 @@ public class OpportunityService : IOpportunityService
             from n in naicsJoin.DefaultIfEmpty()
             join sa in _context.RefSetAsideTypes on o.SetAsideCode equals sa.SetAsideCode into saJoin
             from sa in saJoin.DefaultIfEmpty()
-            join p in _context.Prospects on o.NoticeId equals p.NoticeId into pJoin
+            join p in _context.Prospects.Where(pr => pr.OrganizationId == organizationId) on o.NoticeId equals p.NoticeId into pJoin
             from p in pJoin.DefaultIfEmpty()
             join u in _context.AppUsers on p.AssignedTo equals u.UserId into uJoin
             from u in uJoin.DefaultIfEmpty()
@@ -113,7 +113,7 @@ public class OpportunityService : IOpportunityService
         };
     }
 
-    public async Task<OpportunityDetailDto?> GetDetailAsync(string noticeId)
+    public async Task<OpportunityDetailDto?> GetDetailAsync(string noticeId, int organizationId)
     {
         var opp = await _context.Opportunities.AsNoTracking()
             .FirstOrDefaultAsync(o => o.NoticeId == noticeId);
@@ -141,7 +141,7 @@ public class OpportunityService : IOpportunityService
         // Prospect info
         ProspectSummaryDto? prospect = null;
         var p = await _context.Prospects.AsNoTracking()
-            .FirstOrDefaultAsync(pr => pr.NoticeId == noticeId);
+            .FirstOrDefaultAsync(pr => pr.NoticeId == noticeId && pr.OrganizationId == organizationId);
         if (p != null)
         {
             var assignee = p.AssignedTo.HasValue
@@ -365,15 +365,22 @@ public class OpportunityService : IOpportunityService
 
         foreach (var item in items)
         {
-            sb.AppendLine($"\"{Escape(item.NoticeId)}\",\"{Escape(item.Title)}\",\"{Escape(item.SolicitationNumber)}\",\"{Escape(item.DepartmentName)}\",\"{Escape(item.Office)}\",{item.PostedDate},{item.ResponseDeadline},{item.SetAsideCode},{item.NaicsCode},{item.PopState},{item.AwardAmount},{item.Active}");
+            sb.AppendLine($"{CsvField(item.NoticeId)},{CsvField(item.Title)},{CsvField(item.SolicitationNumber)},{CsvField(item.DepartmentName)},{CsvField(item.Office)},{CsvField(item.PostedDate)},{CsvField(item.ResponseDeadline)},{CsvField(item.SetAsideCode)},{CsvField(item.NaicsCode)},{CsvField(item.PopState)},{CsvField(item.AwardAmount)},{CsvField(item.Active)}");
         }
 
         return sb.ToString();
     }
 
-    private static string? Escape(string? value)
+    /// <summary>
+    /// Formats a value for CSV output. Quotes all fields and neutralizes formula injection
+    /// by prefixing values that start with =, +, -, or @ with a single quote.
+    /// </summary>
+    private static string CsvField(object? value)
     {
-        if (value == null) return null;
-        return value.Replace("\"", "\"\"");
+        var s = value?.ToString() ?? "";
+        // Neutralize CSV formula injection (Excel/LibreOffice interpret these as formulas)
+        if (s.Length > 0 && "=+-@".Contains(s[0]))
+            s = "'" + s;
+        return $"\"{s.Replace("\"", "\"\"")}\"";
     }
 }

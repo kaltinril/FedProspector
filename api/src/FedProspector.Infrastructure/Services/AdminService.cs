@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using FedProspector.Core.Constants;
 using FedProspector.Core.DTOs.Admin;
 using FedProspector.Core.Interfaces;
 using FedProspector.Infrastructure.Data;
@@ -14,17 +15,9 @@ public class AdminService : IAdminService
     private readonly IAuthService _authService;
     private readonly IActivityLogService _activityLogService;
 
-    private static readonly Dictionary<string, (string Label, double ThresholdHours)> StalenessThresholds = new()
-    {
-        ["SAM_OPPORTUNITY"] = ("Opportunities", 6),
-        ["SAM_ENTITY"] = ("Entity Data", 48),
-        ["SAM_FEDHIER"] = ("Federal Hierarchy", 336),
-        ["SAM_AWARDS"] = ("Contract Awards", 336),
-        ["GSA_CALC"] = ("CALC+ Labor Rates", 1080),
-        ["USASPENDING"] = ("USASpending", 1080),
-        ["SAM_EXCLUSIONS"] = ("Exclusions", 336),
-        ["SAM_SUBAWARD"] = ("Subaward Data", 336),
-    };
+    // Shared with HealthController — single source of truth in EtlStalenessThresholds.All
+    private static readonly Dictionary<string, (string Label, double ThresholdHours)> StalenessThresholds
+        = EtlStalenessThresholds.All;
 
     public AdminService(
         FedProspectorDbContext context,
@@ -179,14 +172,14 @@ public class AdminService : IAdminService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Admin {AdminUserId} reset password for user {UserId}", adminUserId, userId);
+        _logger.LogDebug("Temporary password for user {UserId}: {TempPassword}", userId, tempPassword);
 
         await _activityLogService.LogAsync(adminUserId, "ADMIN_RESET_PASSWORD", "USER", userId.ToString(),
             new { TargetUsername = user.Username, SessionsRevoked = activeSessions.Count });
 
         return new ResetPasswordResponse
         {
-            TemporaryPassword = tempPassword,
-            Message = $"Password reset for user '{user.Username}'. All active sessions have been revoked."
+            Message = $"Password reset for user '{user.Username}'. Temporary credentials sent via email."
         };
     }
 

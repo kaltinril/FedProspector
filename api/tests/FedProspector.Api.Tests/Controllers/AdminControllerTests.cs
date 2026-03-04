@@ -180,7 +180,7 @@ public class AdminControllerTests
     {
         SetAuthenticatedAdmin(userId: 1);
         _serviceMock.Setup(s => s.ResetPasswordAsync(5, 1))
-            .ReturnsAsync(new ResetPasswordResponse { TemporaryPassword = "temp123" });
+            .ReturnsAsync(new ResetPasswordResponse { Message = "Password reset. Credentials sent via email." });
 
         var result = await _controller.ResetPassword(5);
 
