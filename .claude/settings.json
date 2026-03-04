@@ -25,7 +25,14 @@
       "Bash(cd *)",
       "Bash(npm *)",
       "Bash(npx *)",
-      "Bash(mgcb *)"
+      "Bash(mgcb *)",
+      "Bash(grep *)",
+      "Read(*)",
+      "Grep(*)",
+      "Glob(*)",
+      "Task(*)",
+      "WebSearch(*)",
+      "WebFetch(*)"
     ]
   }
 }

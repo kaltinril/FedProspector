@@ -51,6 +51,14 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Testing**: 1,310 tests total (738 Python pytest + 313 C# Core xUnit + 236 C# Api xUnit + 23 C# Infrastructure xUnit), all passing
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core owns application tables (app_user, prospect, saved_search, organization, organization_invite, etc.) starting Phase 10. 57 tables + 4 views total. See Phase 10 plan for details.
 
+### Keeping Skills & Agents Current
+
+When changes affect counts, file paths, or conventions referenced by skills or agents, update those files too:
+
+- **`.claude/skills/`**: Skills embed test counts (`run-tests`), file paths (`add-endpoint`, `check-health`), and project patterns. When these change, scan skill SKILL.md files for stale values.
+- **`.claude/agents/`**: Agents are pattern-based and rarely drift, but review if conventions change significantly.
+- **Use `/update-docs`**: This skill audits both documentation AND skills for stale values.
+
 ### Known Data Quality Issues
 
 See `thesolution/reference/08-DATA-QUALITY-ISSUES.md` for 18 known issues handled by ETL cleaners (ZIP parsing, date formats, SAM.gov API quirks, etc.)
