@@ -327,9 +327,10 @@ class BaseAPIClient:
             else:
                 # Legacy behavior: yield full response dict
                 total = data.get(total_key, 0)
-                self.logger.info(
-                    "Page at offset %d: total=%d", offset, total
-                )
+                if pagination_style == "page":
+                    self.logger.info("Page %d: total=%d", page, total)
+                else:
+                    self.logger.info("Page at offset %d: total=%d", offset, total)
                 yield data
 
             # Determine whether to stop

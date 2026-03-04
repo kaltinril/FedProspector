@@ -22,6 +22,17 @@ logger = logging.getLogger("fed_prospector.api.sam_entity")
 # SAM.gov Entity Management API endpoint (v3)
 ENTITY_ENDPOINT = "/entity-information/v3/entities"
 
+# Entity Management API uses page/size pagination (NOT limit/offset).
+# Max 10 records per page; page*size cannot exceed 10,000.
+_ENTITY_PAGINATE_KWARGS = dict(
+    pagination_style="page",
+    page_param="page",
+    size_param="size",
+    page_size=10,
+    page_start=0,
+    total_key="totalRecords",
+)
+
 # Business type codes (businessTypeCode query param)
 # These appear in coreData.businessTypes.businessTypeList
 WOSB_BUSINESS_TYPE_CODES = {
@@ -52,13 +63,8 @@ class SAMEntityClient(BaseAPIClient):
             print(entity["entityRegistration"]["legalBusinessName"])
     """
 
-    def __init__(self):
-        super().__init__(
-            base_url=settings.SAM_API_BASE_URL,
-            api_key=settings.SAM_API_KEY,
-            source_name="SAM_ENTITY",
-            max_daily_requests=settings.SAM_DAILY_LIMIT,
-        )
+    def __init__(self, api_key_number=1):
+        super().__init__(**self._sam_init_kwargs("SAM_ENTITY", api_key_number))
 
     def get_entity_by_uei(self, uei_sam, include_sections="all"):
         """Look up a single entity by its Unique Entity Identifier (UEI).
@@ -100,21 +106,24 @@ class SAMEntityClient(BaseAPIClient):
         self.logger.info("Found entity for UEI: %s", uei_sam)
         return entities[0]
 
-    def get_entities_by_date(self, update_date, registration_status="A",
-                             include_sections="all"):
-        """Get all entities updated on a specific date.
+    def iter_entity_pages_by_date(self, update_date, registration_status="A",
+                                   include_sections="all", max_pages=None,
+                                   start_page=0):
+        """Iterate over pages of entities updated on a specific date.
 
-        Uses pagination to retrieve all matching records. Returns a generator
-        that yields individual entity records.
+        Unlike get_entities_by_date (which yields individual entities), this
+        yields one tuple per API call, giving the caller control to save
+        progress after each page.
 
         Args:
-            update_date: Date to query. Accepts date object, datetime object,
-                or string in MM/DD/YYYY format.
+            update_date: Date to query (date, datetime, or MM/DD/YYYY string).
             registration_status: "A" for Active (default) or "E" for Expired.
             include_sections: Sections to include. Default "all".
+            max_pages: Stop after this many API calls. None = no limit.
+            start_page: Page number to start from (0-based) for resumption.
 
         Yields:
-            dict: Individual entity records from entityData.
+            tuple: (entities_list, page_number, total_records) per API call.
 
         Raises:
             RateLimitExceeded: If daily API limit is reached during pagination.
@@ -128,21 +137,68 @@ class SAMEntityClient(BaseAPIClient):
         }
 
         self.logger.info(
-            "Fetching entities updated on %s (status=%s)",
-            date_str, registration_status,
+            "Fetching entity pages updated on %s (status=%s, max_pages=%s, start_page=%d)",
+            date_str, registration_status, max_pages or "unlimited", start_page,
         )
 
-        total_yielded = 0
-        for page_data in self.paginate(ENTITY_ENDPOINT, params=params):
+        paginate_kwargs = dict(_ENTITY_PAGINATE_KWARGS)
+        if start_page > 0:
+            paginate_kwargs["page_start"] = start_page
+
+        pages_fetched = 0
+        page_num = start_page
+        for page_data in self.paginate(ENTITY_ENDPOINT, params=params,
+                                       **paginate_kwargs):
+            pages_fetched += 1
             entities = page_data.get("entityData", [])
+            total_records = page_data.get("totalRecords")
+            yield entities, page_num, total_records
+            page_num += 1
+            if max_pages and pages_fetched >= max_pages:
+                self.logger.info("Stopping after %d pages (--max-calls)", max_pages)
+                break
+
+        self.logger.info("Finished: %d pages fetched", pages_fetched)
+
+    def get_entities_by_date(self, update_date, registration_status="A",
+                             include_sections="all", max_pages=None,
+                             start_page=0):
+        """Get all entities updated on a specific date.
+
+        Convenience wrapper around iter_entity_pages_by_date that yields
+        individual entity records instead of pages.
+
+        After iteration, ``self.last_query_stats`` contains
+        ``{"pages_fetched": int, "total_records": int|None}``.
+
+        Args:
+            update_date: Date to query (date, datetime, or MM/DD/YYYY string).
+            registration_status: "A" for Active (default) or "E" for Expired.
+            include_sections: Sections to include. Default "all".
+            max_pages: Stop after this many API calls. None = no limit.
+            start_page: Page number to start from (0-based) for resumption.
+
+        Yields:
+            dict: Individual entity records from entityData.
+
+        Raises:
+            RateLimitExceeded: If daily API limit is reached during pagination.
+        """
+        self.last_query_stats = {"pages_fetched": 0, "total_records": None}
+        total_yielded = 0
+
+        for entities, page_num, total_records in self.iter_entity_pages_by_date(
+            update_date, registration_status, include_sections, max_pages, start_page,
+        ):
+            if self.last_query_stats["total_records"] is None:
+                self.last_query_stats["total_records"] = total_records
+            self.last_query_stats["pages_fetched"] += 1
+
             for entity in entities:
                 total_yielded += 1
                 yield entity
 
-        self.logger.info(
-            "Finished date query for %s: %d entities yielded",
-            date_str, total_yielded,
-        )
+        self.logger.info("Yielded %d entities total", total_yielded)
 
     def search_entities(self, include_sections="all", **filters):
         """Search entities with arbitrary filters. Returns a generator.
@@ -183,7 +239,8 @@ class SAMEntityClient(BaseAPIClient):
         self.logger.info("Searching entities with filters: %s", filter_summary)
 
         total_yielded = 0
-        for page_data in self.paginate(ENTITY_ENDPOINT, params=params):
+        for page_data in self.paginate(ENTITY_ENDPOINT, params=params,
+                                       **_ENTITY_PAGINATE_KWARGS):
             entities = page_data.get("entityData", [])
             for entity in entities:
                 total_yielded += 1

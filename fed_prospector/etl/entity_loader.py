@@ -116,21 +116,26 @@ class EntityLoader:
             self.logger.exception("Load %d failed", load_id)
             raise
 
-    def load_from_api_response(self, entity_data_list, mode="incremental"):
+    def load_from_api_response(self, entity_data_list, mode="incremental",
+                               extra_parameters=None):
         """Load entities already parsed from SAM.gov API responses.
 
         Args:
             entity_data_list: List of entity dicts (parsed JSON objects).
             mode: 'full' or 'incremental'.
+            extra_parameters: Optional dict merged into load log parameters.
 
         Returns:
             dict with load statistics.
         """
         load_type = "FULL" if mode == "full" else "INCREMENTAL"
+        params = {"source": "api", "count": len(entity_data_list)}
+        if extra_parameters:
+            params.update(extra_parameters)
         load_id = self.load_manager.start_load(
             source_system="SAM_ENTITY",
             load_type=load_type,
-            parameters={"source": "api", "count": len(entity_data_list)},
+            parameters=params,
         )
         self.logger.info(
             "Starting %s entity load from API (%d records, load_id=%d)",
@@ -146,6 +151,22 @@ class EntityLoader:
             self.load_manager.fail_load(load_id, str(exc))
             self.logger.exception("Load %d failed", load_id)
             raise
+
+    def load_entity_batch(self, entity_data_list, load_id):
+        """Process a batch of entities under an existing load_id.
+
+        Unlike load_from_api_response, does NOT create or complete a load
+        entry — the caller manages the load lifecycle. Used for page-by-page
+        loading where progress is saved after each page.
+
+        Args:
+            entity_data_list: List of entity dicts (parsed JSON objects).
+            load_id: Existing load_id from LoadManager.start_load().
+
+        Returns:
+            dict with batch statistics (records_read, records_inserted, etc.).
+        """
+        return self._process_entities(iter(entity_data_list), load_id, write_staging=True)
 
     # =================================================================
     # Core processing pipeline

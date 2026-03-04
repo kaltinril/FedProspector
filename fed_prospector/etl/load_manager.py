@@ -77,6 +77,40 @@ class LoadManager:
             cursor.close()
             conn.close()
 
+    def save_load_progress(self, load_id, parameters,
+                           records_read=0, records_inserted=0,
+                           records_updated=0, records_unchanged=0,
+                           records_errored=0):
+        """Save incremental progress: update counts, parameters, and mark SUCCESS.
+
+        Called after each page of a paginated load so that progress survives
+        a killed process. The next run can read pages_fetched from parameters
+        to resume.
+        """
+        import json
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE etl_load_log SET "
+                "status = 'SUCCESS', completed_at = %s, "
+                "records_read = %s, records_inserted = %s, "
+                "records_updated = %s, records_unchanged = %s, records_errored = %s, "
+                "parameters = %s "
+                "WHERE load_id = %s",
+                (
+                    datetime.now(),
+                    records_read, records_inserted,
+                    records_updated, records_unchanged, records_errored,
+                    json.dumps(parameters),
+                    load_id,
+                ),
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
     def fail_load(self, load_id, error_message):
         """Mark a load as FAILED with an error message."""
         conn = get_connection()
