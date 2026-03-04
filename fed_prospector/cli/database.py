@@ -158,7 +158,16 @@ def build_database(drop_first):
 
             # Split on semicolons outside of quoted strings
             for stmt in _split_sql_statements(sql):
-                if stmt and not stmt.startswith("--") and not stmt.startswith("USE "):
+                # Strip leading SQL comment lines so CREATE VIEW blocks
+                # preceded by comments are not accidentally skipped
+                stripped = stmt
+                while stripped.startswith("--"):
+                    newline = stripped.find("\n")
+                    if newline == -1:
+                        stripped = ""
+                        break
+                    stripped = stripped[newline + 1:].lstrip("\r\n")
+                if stripped and not stripped.startswith("USE "):
                     try:
                         cursor.execute(stmt)
                     except Exception as e:

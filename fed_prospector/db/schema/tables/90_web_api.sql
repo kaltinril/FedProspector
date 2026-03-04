@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS app_session (
     session_id           INT AUTO_INCREMENT PRIMARY KEY,
     user_id              INT NOT NULL,
     token_hash           CHAR(64) NOT NULL,
+    refresh_token_hash   CHAR(64),
     issued_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     expires_at           DATETIME NOT NULL,
     revoked_at           DATETIME,
@@ -15,6 +16,7 @@ CREATE TABLE IF NOT EXISTS app_session (
     user_agent           VARCHAR(500),
     CONSTRAINT fk_session_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
     UNIQUE INDEX idx_session_token (token_hash),
+    INDEX idx_session_refresh_token (refresh_token_hash),
     INDEX idx_session_user (user_id),
     INDEX idx_session_expires (expires_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

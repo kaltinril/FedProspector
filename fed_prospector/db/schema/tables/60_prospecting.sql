@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS app_user (
     org_role             VARCHAR(50) NOT NULL DEFAULT 'member',
     invited_by           INT,
     invite_accepted_at   DATETIME,
+    is_system_admin      TINYINT(1) NOT NULL DEFAULT 0,
     force_password_change CHAR(1) NOT NULL DEFAULT 'N',
     failed_login_attempts INT NOT NULL DEFAULT 0,
     locked_until         DATETIME,
