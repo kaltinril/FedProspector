@@ -338,6 +338,20 @@ def refresh_entities(extract_type, year, month, extract_date, batch_size):
                 click.echo(f"\nERROR: {e}")
                 sys.exit(1)
 
+    # ---- Step 3: Clean up extracted DAT files ----
+    # DAT files are ~500MB; the ZIP (~143MB) is kept for re-extraction.
+    for fp in paths:
+        fp = Path(fp)
+        if fp.suffix.lower() == ".dat" and fp.exists():
+            try:
+                size_mb = fp.stat().st_size / (1024 * 1024)
+                fp.unlink()
+                logger.info("Cleaned up extracted DAT file: %s (%.1f MB)", fp.name, size_mb)
+                click.echo(f"  Cleaned up: {fp.name} ({size_mb:.1f} MB freed)")
+            except OSError as e:
+                logger.warning("Could not delete DAT file %s: %s", fp.name, e)
+                click.echo(f"  WARNING: Could not delete {fp.name}: {e}")
+
     click.echo(f"\nRefresh complete! ({len(paths)} file(s) processed)")
 
 

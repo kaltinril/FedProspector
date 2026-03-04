@@ -242,6 +242,12 @@ class SAMExtractClient(BaseAPIClient):
     def _download_extract_file(self, filename, output_dir):
         """Download a single extract file by name.
 
+        If the file already exists locally with a matching size, the
+        download is skipped.  The size check uses a streaming GET with
+        ``stream=True`` so that only the headers are fetched; if sizes
+        match the response body is discarded without consuming
+        bandwidth or an extra API call.
+
         Uses streaming download with progress bar. Routes through
         get_binary() so rate-limit checking and retry logic are handled
         by BaseAPIClient._request_with_retry().
@@ -276,9 +282,23 @@ class SAMExtractClient(BaseAPIClient):
             self.logger.error("HTTP error downloading %s: %s", filename, exc)
             raise
 
-        # Stream the file to disk with progress bar
+        # --- Skip download if local file already matches remote size ---
         dest = output_dir / filename
-        total_size = int(response.headers.get("content-length", 0))
+        remote_size = int(response.headers.get("content-length", 0))
+
+        if dest.exists() and remote_size > 0:
+            local_size = dest.stat().st_size
+            if local_size == remote_size:
+                self.logger.info(
+                    "File already exists with matching size (%s bytes), "
+                    "skipping download: %s",
+                    local_size, dest.name,
+                )
+                response.close()
+                return dest
+
+        # Stream the file to disk with progress bar
+        total_size = remote_size
         chunk_size = 8192  # 8 KB
 
         with (
