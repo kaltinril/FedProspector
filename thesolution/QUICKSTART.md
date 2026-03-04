@@ -596,18 +596,18 @@ python main.py admin reset-password --user-id 5  # Prints temp password
 
 See [14.6-ADMIN-OPERABILITY.md](phases/14.6-ADMIN-OPERABILITY.md) for full details.
 
-### Phases 15-20: UI Roadmap — NOT STARTED
+### Phases 20-70: UI Roadmap — NOT STARTED
 
 **Tech Stack**: Vite 6 + React 19 + TypeScript + MUI v6 (Material UI) + TanStack Query + Axios
 
 | Phase | Name | Key Deliverables |
 |-------|------|-----------------|
-| 15 | UI Foundation | Project scaffold, auth flow, layout, shared components, API client layer |
-| 16 | Search & Discovery | Opportunity/award/entity/teaming search with advanced filters, CSV export, save search |
-| 17 | Detail Views & Intel | Opportunity/award/entity detail pages, incumbent analysis, burn rate charts, market share |
-| 18 | Capture Management | Prospect Kanban pipeline, Go/No-Go scoring, proposals, team collaboration |
-| 19 | Dashboard & Notifications | Executive dashboard, saved search management, notification center |
-| 20 | Admin & Polish | Org admin panel, ETL monitoring, responsive design, accessibility (WCAG AA) |
+| 20 | UI Foundation | Project scaffold, auth flow, layout, shared components, API client layer |
+| 30 | Search & Discovery | Opportunity/award/entity/teaming search with advanced filters, CSV export, save search |
+| 40 | Detail Views & Intel | Opportunity/award/entity detail pages, incumbent analysis, burn rate charts, market share |
+| 50 | Capture Management | Prospect Kanban pipeline, Go/No-Go scoring, proposals, team collaboration |
+| 60 | Dashboard & Notifications | Executive dashboard, saved search management, notification center |
+| 70 | Admin & Polish | Org admin panel, ETL monitoring, responsive design, accessibility (WCAG AA) |
 
 See individual phase docs in `thesolution/phases/` for full specifications.
 
@@ -639,7 +639,7 @@ See individual phase docs in `thesolution/phases/` for full specifications.
 
 ---
 
-## Current Priority: Phase 15 (UI Foundation)
+## Current Priority: Phase 20 (UI Foundation)
 
 Phases 14.7 through 14.22 are COMPLETE. The system now has:
 - 54 CLI commands in 7 discoverable groups: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`
@@ -654,6 +654,6 @@ Phases 14.7 through 14.22 are COMPLETE. The system now has:
 - Phase 14.10: ETL layer DRY refactor (shared utilities in etl/etl_utils.py)
 - Phase 14.11: CLI layer DRY refactor + bug fixes (shared utilities in cli/cli_utils.py)
 
-**Next**: Phase 15 (UI Foundation) → Phase 16 (Search) → and so on through Phase 20.
+**Next**: Phase 20 (UI Foundation) → Phase 30 (Search) → and so on through Phase 70.
 
 See [MASTER-PLAN.md](MASTER-PLAN.md) for the complete phase roadmap.

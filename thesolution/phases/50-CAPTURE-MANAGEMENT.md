@@ -1,7 +1,7 @@
-# Phase 18: Capture Management & Pipeline
+# Phase 50: Capture Management & Pipeline
 
 **Status**: NOT STARTED
-**Dependencies**: Phase 17 (Detail Views), Phase 14.5 (Multi-Tenancy)
+**Dependencies**: Phase 40 (Detail Views), Phase 14.5 (Multi-Tenancy)
 **Deliverable**: Prospect pipeline (Kanban + list), proposal tracking, team collaboration, Go/No-Go scoring
 **Repository**: `ui/src/pages/`
 
@@ -141,7 +141,7 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 
 ## Tasks
 
-### 18.1 Prospect Pipeline — Kanban View
+### 50.1 Prospect Pipeline — Kanban View
 - [ ] Build Kanban board with drag-and-drop (use `@dnd-kit/core` + `@dnd-kit/sortable` ONLY — `react-beautiful-dnd` is deprecated and incompatible with React 19)
 - [ ] Pipeline columns: NEW, REVIEWING, PURSUING, BID_SUBMITTED, WON, LOST (plus DECLINED and NO_BID as terminal/archived statuses)
 - [ ] Prospect cards: title, deadline, value, assignee, priority, score
@@ -153,14 +153,14 @@ This is where the tool goes beyond search (what GovWin does) into active bid man
 - [ ] Invalid status transitions: validate drop target against allowed transitions before calling API. Show toast if invalid (e.g., NEW -> WON is not allowed)
 - [ ] Loading state: brief dimming of dragged card during API call
 
-### 18.2 Prospect Pipeline — List View
+### 50.2 Prospect Pipeline — List View
 - [ ] Build data grid list view (toggle from Kanban)
 - [ ] All prospect fields as columns
 - [ ] Server-side pagination and sorting
 - [ ] Bulk status update and reassignment
 - [ ] Quick filter chips (status, priority, assigned user)
 
-### 18.3 Create Prospect Flow
+### 50.3 Create Prospect Flow
 
 #### Prospect Creation Defaults
 
@@ -182,14 +182,14 @@ When creating a prospect from the "Track as Prospect" button on an opportunity:
 - [ ] Duplicate prospect protection: if user tries to create a prospect for a NoticeId that already has a prospect in their org, show a message linking to the existing prospect
 - [ ] Redirect to new prospect detail
 
-### 18.4 Prospect Detail Page
+### 50.4 Prospect Detail Page
 - [ ] Build tabbed detail page
 - [ ] Status transition dropdown (valid transitions only)
 - [ ] Go/No-Go score gauge and criteria breakdown
 - [ ] "Recalculate Score" button
 - [ ] Wire to `GET /api/v1/prospects/{id}`
 
-### 18.5 Notes & Team Collaboration
+### 50.5 Notes & Team Collaboration
 - [ ] Notes feed component (chronological, add new)
 - [ ] Wire to `POST /api/v1/prospects/{id}/notes`
 - [ ] Team member list: company name, UEI, role, proposed hourly rate, commitment %
@@ -199,7 +199,7 @@ When creating a prospect from the "Track as Prospect" button on an opportunity:
 - [ ] Remove team member with confirmation dialog
 - [ ] Wire to `POST/DELETE /api/v1/prospects/{id}/team-members`
 
-### 18.6 Proposal Management
+### 50.6 Proposal Management
 - [ ] Create proposal form (from prospect detail)
 - [ ] Edit Proposal form for proposal-level fields (status, estimated value, win probability, lessons learned)
 - [ ] Proposal detail page with milestone tracker
@@ -208,7 +208,7 @@ When creating a prospect from the "Track as Prospect" button on an opportunity:
 - [ ] Document registry (metadata display) — includes `FileSizeBytes`
   - **MVP**: Document metadata registry — displays document title, type, uploaded date, and uploader name. Documents are tracked but not stored in the application.
 
-  > **Competitive Gap**: Without document upload, teams must manage RFP responses, compliance docs, and past performance examples in external tools (Box, Dropbox, SharePoint). This fragments the capture workflow. **Document upload (S3 or local storage) is a high-priority addition for Phase 20 or early post-MVP.** Include: file upload, download, version tracking, and per-document access within the prospect/proposal context.
+  > **Competitive Gap**: Without document upload, teams must manage RFP responses, compliance docs, and past performance examples in external tools (Box, Dropbox, SharePoint). This fragments the capture workflow. **Document upload (S3 or local storage) is a high-priority addition for Phase 70 or early post-MVP.** Include: file upload, download, version tracking, and per-document access within the prospect/proposal context.
 - [ ] Wire to proposal API endpoints
 - [ ] Breadcrumb: Dashboard > Prospects > [Name] > Proposal #[X]
 

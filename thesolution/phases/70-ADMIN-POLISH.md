@@ -1,7 +1,7 @@
-# Phase 20: Admin, Profile & Production Polish
+# Phase 70: Admin, Profile & Production Polish
 
 **Status**: NOT STARTED
-**Dependencies**: Phase 19 (Dashboard & Notifications)
+**Dependencies**: Phase 60 (Dashboard & Notifications)
 **Deliverable**: Admin panel, user profile, responsive design, performance optimization, error handling
 **Repository**: `ui/src/pages/`
 
@@ -144,7 +144,7 @@ Accessible to users with system `is_admin = true`. Manages the platform across a
 
 ## Tasks
 
-### 20.1 Admin — ETL Status
+### 70.1 Admin — ETL Status
 - [ ] Build ETL status page (admin-only route)
 - [ ] Source status table with staleness coloring
 - [ ] API usage progress bars
@@ -161,20 +161,20 @@ Accessible to users with system `is_admin = true`. Manages the platform across a
 - [ ] Job Schedule tab with read-only job list, schedules, and last-run status
 - [ ] Implement `GET /api/v1/admin/jobs` backend endpoint
 
-### 20.2 Admin — User Management
+### 70.2 Admin — User Management
 - [ ] User management table
 - [ ] Toggle active status
 - [ ] Change role (dropdown)
 - [ ] Reset password action → modal with temp password
 - [ ] Wire to admin user API endpoints
 
-### 20.3 User Profile
+### 70.3 User Profile
 - [ ] Profile page with user info
 - [ ] Edit display name / email form
 - [ ] Change password form with validation
 - [ ] Wire to auth profile endpoints
 
-### 20.4 Error Handling & Edge Cases
+### 70.4 Error Handling & Edge Cases
 - [ ] Global error boundary component
 - [ ] 404 Not Found page
 - [ ] API error snackbar (MUI Snackbar + Alert)
@@ -185,7 +185,7 @@ Accessible to users with system `is_admin = true`. Manages the platform across a
 - [ ] External URLs (entity URLs from SAM.gov) rendered with `rel="noopener noreferrer"` and `target="_blank"`
 - [ ] Offline detection banner
 
-### 20.5 Responsive Design
+### 70.5 Responsive Design
 - [ ] Sidebar collapses on tablets (< 1024px)
 - [ ] Sidebar hidden on mobile (< 768px) — hamburger menu
 - [ ] Data grids scroll horizontally on small screens
@@ -193,22 +193,22 @@ Accessible to users with system `is_admin = true`. Manages the platform across a
 - [ ] Detail pages single-column on mobile
 - [ ] Test on common breakpoints (1440, 1024, 768, 375)
 
-### 20.6 Performance
+### 70.6 Performance
 - [ ] Route-based code splitting (React.lazy + Suspense)
 - [ ] TanStack Query cache configuration (staleTime, gcTime per query type)
 - [ ] Image/asset optimization (if any)
 - [ ] Verify MUI bundle size — use tree shaking, only import used components
 - [ ] Bundle size analysis (vite-plugin-visualizer)
-- [ ] Verify initial route bundle < 500KB gzipped (measure after Phase 15 for baseline; MUI + Data Grid + Charts baseline is ~300-350KB). Total app size may exceed 500KB with code splitting.
+- [ ] Verify initial route bundle < 500KB gzipped (measure after Phase 20 for baseline; MUI + Data Grid + Charts baseline is ~300-350KB). Total app size may exceed 500KB with code splitting.
 
-### 20.7 Accessibility
+### 70.7 Accessibility
 - [ ] Keyboard navigation for all interactive elements
 - [ ] ARIA labels on icon buttons and status indicators
 - [ ] Color contrast meets WCAG AA
 - [ ] Screen reader testing on key flows (search, detail, pipeline)
-- [ ] Install `eslint-plugin-jsx-a11y` for automated accessibility linting (configured in Phase 15)
+- [ ] Install `eslint-plugin-jsx-a11y` for automated accessibility linting (configured in Phase 20)
 
-### 20.8 Organization Admin Features
+### 70.8 Organization Admin Features
 - [ ] Org settings page (name, member list)
 - [ ] Invite members flow (email + role)
 - [ ] Remove members with confirmation
@@ -217,7 +217,7 @@ Accessible to users with system `is_admin = true`. Manages the platform across a
 
 ---
 
-### New API Endpoints Required (Phase 20 Backend Work)
+### New API Endpoints Required (Phase 70 Backend Work)
 
 These endpoints support the admin UI features added above. They complement the existing
 `GET /api/v1/admin/etl-status` and `GET /health` endpoints.

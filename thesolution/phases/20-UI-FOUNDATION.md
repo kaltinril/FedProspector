@@ -1,4 +1,4 @@
-# Phase 15: UI Foundation & Layout
+# Phase 20: UI Foundation & Layout
 
 **Status**: NOT STARTED
 **Dependencies**: Phase 14.5 (Multi-Tenancy & Security)
@@ -90,15 +90,15 @@ ui/
 │   │   │   ├── CurrencyDisplay.tsx # Formatted dollar amounts
 │   │   │   ├── ErrorBoundary.tsx   # react-error-boundary wrapper with fallback UI
 │   │   │   └── NotificationProvider.tsx # notistack provider for global toast notifications
-│   │   └── charts/                 # Built in Phases 17/19 when consuming pages are developed
-│   │       ├── BurnRateChart.tsx   # Line chart for burn rate (Phase 17)
-│   │       ├── PipelineChart.tsx   # Funnel/bar for prospect stages (Phase 19)
-│   │       └── SpendChart.tsx      # Monthly spend bar chart (Phase 19)
+│   │   └── charts/                 # Built in Phases 40/60 when consuming pages are developed
+│   │       ├── BurnRateChart.tsx   # Line chart for burn rate (Phase 40)
+│   │       ├── PipelineChart.tsx   # Funnel/bar for prospect stages (Phase 60)
+│   │       └── SpendChart.tsx      # Monthly spend bar chart (Phase 60)
 │   ├── hooks/
 │   │   ├── useDebounce.ts         # Debounce search inputs
 │   │   ├── usePagination.ts       # Page state management
 │   │   └── useLocalStorage.ts     # Persist user preferences
-│   ├── pages/                     # Built in phases 16-20
+│   ├── pages/                     # Built in phases 30-70
 │   │   └── login/                 # Each page gets a subdirectory (LoginPage, RegisterPage, etc.)
 │   │       ├── LoginPage.tsx
 │   │       └── RegisterPage.tsx
@@ -118,7 +118,7 @@ ui/
 
 ## Tasks
 
-### 15.1 Project Scaffolding
+### 20.1 Project Scaffolding
 - [ ] Create Vite + React + TypeScript project in `ui/`
 - [ ] Install dependencies: MUI, @emotion/react, @emotion/styled, @mui/x-charts, @mui/x-data-grid, React Router, TanStack Query, @tanstack/react-query-devtools, Axios, React Hook Form, Zod, date-fns, react-error-boundary, notistack, @dnd-kit/core, @dnd-kit/sortable
 - [ ] Configure `vite.config.ts` with path aliases (`@/` -> `src/`)
@@ -128,7 +128,7 @@ ui/
 - [ ] Enable `React.StrictMode` in `main.tsx`. Note: StrictMode double-invokes effects in development — this is expected and harmless (TanStack Query deduplicates requests).
 - [ ] ~~**Important**: Exclude `ui/node_modules/` from OneDrive sync~~ **Resolved**: Project moved to `C:\git\fedProspect` (off OneDrive) to avoid sync issues. No exclusion needed.
 
-### 15.2 API Client Layer
+### 20.2 API Client Layer
 - [ ] Create Axios instance with base URL `/api/v1` (relative, works with proxy in dev and reverse proxy in prod)
 - [ ] Set `withCredentials: true` on all Axios requests (browser sends httpOnly cookie automatically)
 - [ ] Add CSRF interceptor: read XSRF token from non-httpOnly cookie, attach as `X-XSRF-TOKEN` header
@@ -157,23 +157,23 @@ Add as an npm script: `"generate-types": "openapi-typescript http://localhost:50
 
 **Alternative for MVP**: Manually maintain TypeScript types mirroring C# DTOs. Acceptable if build pipeline complexity is unwanted, but document the drift risk and plan to automate post-MVP.
 
-### 15.3 Authentication
+### 20.3 Authentication
 - [ ] Create AuthContext -- check session via `GET /auth/me` on app load
-- [ ] Auth transport configured in 15.2 (withCredentials, CSRF, 401 interceptor)
+- [ ] Auth transport configured in 20.2 (withCredentials, CSRF, 401 interceptor)
 - [ ] Create login page (email + password form)
 - [ ] Create register page (invite-only, requires invite token)
 - [ ] Create AuthGuard -- relies on AuthContext session state, redirects unauthenticated users to /login
 - [ ] Create AdminGuard -- checks `org_role` claim from session, not a separate API call; redirects non-admin users to /dashboard
 - [ ] Wire up login -> API sets httpOnly cookie -> AuthContext refreshes session -> redirect to dashboard
 
-### 15.4 Layout & Navigation
+### 20.4 Layout & Navigation
 - [ ] Create AppLayout with collapsible sidebar + top bar + content area
 - [ ] Sidebar navigation links: Dashboard, Opportunities, Awards, Entities, Prospects, Saved Searches, Organization, Admin
 - [ ] Top bar: notification bell (count badge), user avatar menu (profile, logout), theme toggle
 - [ ] Breadcrumb component auto-generated from React Router
 - [ ] Responsive: sidebar collapses to icons on small screens
 
-### 15.5 Theme & Shared Components
+### 20.5 Theme & Shared Components
 - [ ] Create MUI theme (professional blue/gray palette, dark mode variant)
 - [ ] Build shared components: PageHeader, DataTable, SearchFilters, StatusChip, LoadingState, ErrorState, EmptyState
 - [ ] Build ErrorBoundary wrapper (react-error-boundary) with branded fallback UI
@@ -181,11 +181,11 @@ Add as an npm script: `"generate-types": "openapi-typescript http://localhost:50
 - [ ] Currency formatter, NAICS display utilities
 - [ ] date-fns formatters: formatDate, formatRelative, formatCountdown
 
-### 15.6 Service Manager Integration
+### 20.6 Service Manager Integration
 - [ ] Update `fed_prospector.py` UI functions: build_ui (npm run build), start_ui (npm run dev), stop_ui, check_ui
 - [ ] Verify `fed_prospector.py start all` launches DB + API + UI
 
-### 15.7 Vite Proxy Configuration
+### 20.7 Vite Proxy Configuration
 - [ ] Configure `vite.config.ts` proxy: `/api` -> `http://localhost:5056`, `/health` -> `http://localhost:5056`
 - [ ] No `VITE_API_URL` in `.env.development` -- proxy handles it, all requests are same-origin
 - [ ] Axios base URL set to `/api/v1` (relative path, works with Vite proxy in dev and reverse proxy in prod)

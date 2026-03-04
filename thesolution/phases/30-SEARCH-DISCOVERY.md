@@ -1,7 +1,7 @@
-# Phase 16: Search & Discovery
+# Phase 30: Search & Discovery
 
 **Status**: NOT STARTED
-**Dependencies**: Phase 15 (UI Foundation), Phase 14.5 (Multi-Tenancy)
+**Dependencies**: Phase 20 (UI Foundation), Phase 14.5 (Multi-Tenancy)
 **Deliverable**: Opportunity, award, and entity search pages with filtering, sorting, and pagination
 **Repository**: `ui/src/pages/`
 
@@ -9,7 +9,7 @@
 
 ## Overview
 
-Build the core search experience — the primary way users find contracts to bid on. This phase delivers three search pages (opportunities, awards, entities) plus a teaming partner search. Each page has a filter bar, sortable data grid, and click-through to detail views (built in Phase 17).
+Build the core search experience — the primary way users find contracts to bid on. This phase delivers three search pages (opportunities, awards, entities) plus a teaming partner search. Each page has a filter bar, sortable data grid, and click-through to detail views (built in Phase 40).
 
 **User workflow this enables:**
 > "Show me all WOSB set-aside opportunities in NAICS 621111 (medical staffing) with deadlines in the next 60 days."
@@ -57,8 +57,8 @@ These filters match what competing products (GovWin IQ, etc.) offer:
 > **Column visibility configurable by user.** Default shows: Title, Solicitation#, Department, Set-Aside, NAICS, Response Deadline, Award Ceiling / Base+Options, POP State. Office, Posted Date, and Prospect Status are available as togglable columns.
 
 **Actions:**
-- Click row → Opportunity Detail (Phase 17)
-- "Track" button → Create prospect (Phase 18)
+- Click row → Opportunity Detail (Phase 40)
+- "Track" button → Create prospect (Phase 50)
 - Export to CSV (via `GET /api/v1/opportunities/export` -- server-side, accepts same filters)
 
 ### Target Opportunity Search (`/opportunities/targets`)
@@ -128,7 +128,7 @@ Find potential teaming partners based on subaward history.
 
 ## Tasks
 
-### 16.1 Opportunity Search Page
+### 30.1 Opportunity Search Page
 - [ ] Build opportunity search page with filter bar
 - [ ] NAICS autocomplete component (search-as-you-type from reference data)
 - [ ] Set-aside dropdown with color-coded options
@@ -139,55 +139,55 @@ Find potential teaming partners based on subaward history.
 - [ ] CSV export button
 - [ ] URL query params sync (shareable/bookmarkable searches)
 
-### 16.2 Target Opportunity Page
+### 30.2 Target Opportunity Page
 - [ ] Build target opportunity page (separate tab or route)
 - [ ] Wire to `GET /api/v1/opportunities/targets`
 - [ ] Highlight relevance indicators
 
-### 16.3 Award Search Page
+### 30.3 Award Search Page
 - [ ] Build award search page with filter bar
 - [ ] Wire to `GET /api/v1/awards`
 - [ ] Date range picker for award date filtering
 - [ ] Currency range inputs for value filtering
 - [ ] Paginated grid with server-side sorting
 
-### 16.4 Entity Search Page
+### 30.4 Entity Search Page
 - [ ] Build entity search page with filter bar
 - [ ] SBA certification filter (multi-select chips)
 - [ ] Wire to `GET /api/v1/entities`
 - [ ] Registration status color-coded chips
 - [ ] Paginated grid
 
-### 16.5 Teaming Partner Search
+### 30.5 Teaming Partner Search
 - [ ] Build teaming partner search page
 - [ ] Wire to `GET /api/v1/subawards/teaming-partners`
 - [ ] Link company names to entity detail pages
 
-### 16.6 Shared Search Infrastructure
+### 30.6 Shared Search Infrastructure
 - [ ] Reusable filter bar component (consistent across all search pages)
 - [ ] URL ↔ filter state sync (React Router search params)
 - [ ] Saved filter presets (local storage)
 
-### 16.7 Empty and Error States
+### 30.7 Empty and Error States
 - [ ] "No results" empty state with filter suggestions for each search page (e.g., broaden NAICS, remove set-aside filter)
 - [ ] Loading skeletons for all grids (match column layout per page)
 - [ ] Stale/invalid URL param handling: validate filters on load, toast notification if invalid params are stripped
 - [ ] Graceful error states for API failures (retry button, error message)
 
-### 16.X Save Search Integration
+### 30.X Save Search Integration
 
-**Purpose**: Let users save their current search filters for quick re-use. Phase 19 extends saved searches with notifications and auto-run.
+**Purpose**: Let users save their current search filters for quick re-use. Phase 60 extends saved searches with notifications and auto-run.
 
 **Implementation**:
 - "Save Search" button in the search results toolbar (next to export button)
 - Opens modal: search name (required), description (optional)
 - Calls `POST /api/v1/saved-searches` (already exists from Phase 11) with current URL filter params as `filter_criteria`
-- Success toast: "Search saved. Manage saved searches in Dashboard (Phase 19)."
+- Success toast: "Search saved. Manage saved searches in Dashboard (Phase 60)."
 - Saved searches appear in sidebar under "Saved Searches" section (read-only list, click to re-run)
 
 **API**: Uses existing endpoint. No new backend work needed.
 
-**Phase 19 extends**: Adds notification toggle, auto-run scheduling, and dashboard card for saved search management.
+**Phase 60 extends**: Adds notification toggle, auto-run scheduling, and dashboard card for saved search management.
 
 ---
 

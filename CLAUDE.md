@@ -47,7 +47,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
 - **App API**: ASP.NET Core Web API with 59 endpoints across 13 controllers + auth + health (Phases 10-14.22 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
-- **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phases 15-20)
+- **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phases 20-70)
 - **Testing**: Python pytest + C# xUnit (Core, Api, Infrastructure). Run `/run-tests all` or see test paths below.
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core owns application tables (app_user, prospect, saved_search, organization, organization_invite, etc.) starting Phase 10. 57 tables + 4 views total. See Phase 10 plan for details.
 
@@ -83,8 +83,8 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 | C# Infrastructure tests | `api/tests/FedProspector.Infrastructure.Tests/` (GoNoGoScoringService) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
 | Master plan | `thesolution/MASTER-PLAN.md` |
-| UI application | `ui/` (Vite + React 19 + TypeScript, MUI v6, TanStack Query — Phases 15-20) |
-| Phase plans | `thesolution/phases/` (01 through 20) |
+| UI application | `ui/` (Vite + React 19 + TypeScript, MUI v6, TanStack Query — Phases 20-70) |
+| Phase plans | `thesolution/phases/` (01 through 80) |
 | Reference docs | `thesolution/reference/` (01 through 09) |
 | Credentials (DB, API keys) | `thesolution/credentials.yml` |
 | Quick start | `thesolution/QUICKSTART.md` |

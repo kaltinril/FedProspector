@@ -9,7 +9,7 @@ agent: coder
 
 **Arguments**: `$ARGUMENTS` = `<PageName> <api-entity>` (e.g., `OpportunitySearch opportunities`)
 
-**Pre-check**: If `ui/src/` doesn't exist or Phase 15 foundation isn't in place, warn the user and stop.
+**Pre-check**: If `ui/src/` doesn't exist or Phase 20 foundation isn't in place, warn the user and stop.
 
 **Files to Create**:
 
@@ -68,7 +68,7 @@ agent: coder
 6. **Types** — Update `ui/src/types/api.ts`
    - Mirror the C# DTOs as TypeScript interfaces
 
-**Conventions** (from Phase 15):
+**Conventions** (from Phase 20):
 - Tech: Vite 6, React 19, TypeScript, MUI v6, TanStack Query v5, Axios
 - API calls use relative URLs (`/api/v1/...`), Vite proxy in dev
 - `withCredentials: true` on Axios (httpOnly cookie auth)

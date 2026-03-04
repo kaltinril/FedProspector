@@ -239,7 +239,7 @@ fedProspect/
 **Dependencies**: Phase 13 (Auth), Phase 14 (Testing)
 
 **Scope**:
-> **BLOCKER**: Must complete before Phase 15. Multi-tenancy changes affect auth flow, JWT claims, cookie handling, and all capture endpoint signatures. The UI cannot be built against the pre-14.5 API.
+> **BLOCKER**: Must complete before Phase 20. Multi-tenancy changes affect auth flow, JWT claims, cookie handling, and all capture endpoint signatures. The UI cannot be built against the pre-14.5 API.
 
 - [x] Organization-scoped data isolation: `organization` table, `organization_invite` table, `app_user` modifications (`org_role`, `organization_id`)
 - [x] httpOnly cookie auth replacing localStorage, token refresh endpoint, `OnTokenValidated` session check
@@ -342,9 +342,9 @@ Full project review found 2 critical bugs, 4 unimplemented fixes, and widespread
 
 Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, and config/deps/secrets. 23 fixes implemented (3 CRITICAL, 5 HIGH, 10 MEDIUM, 4 LOW, 1 INFO), 11 risks accepted and documented, 4 skipped as security theater. Key fixes: temp password logging, JWT token body leak, ZIP Slip path traversal, cross-org admin access, system admin separation (IsSystemAdmin column on app_user), invite role validation, NuGet lock files, Directory.Build.props. New: CreateInviteRequestValidator. Total: 1,330 tests (738 Python + 320 C# Core + 244 C# Api + 28 C# Infra).
 
-### Phase 15: UI Foundation & Layout
+### Phase 20: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
-**File**: [phases/15-UI-FOUNDATION.md](phases/15-UI-FOUNDATION.md)
+**File**: [phases/20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md)
 **Dependencies**: Phase 14 (Testing), Phase 14.5 (Multi-Tenancy & Security)
 
 - Vite + React 19 + TypeScript scaffold
@@ -355,9 +355,9 @@ Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, 
 - Shared components: DataTable, SearchFilters, StatusChip, etc.
 - Service manager integration (fed_prospector.py UI commands)
 
-### Phase 16: Search & Discovery
+### Phase 30: Search & Discovery
 **Status**: [ ] NOT STARTED
-**File**: [phases/16-SEARCH-DISCOVERY.md](phases/16-SEARCH-DISCOVERY.md)
+**File**: [phases/30-SEARCH-DISCOVERY.md](phases/30-SEARCH-DISCOVERY.md)
 
 - Opportunity search with NAICS, set-aside, keyword, deadline filters
 - Target opportunity search (pre-filtered relevance)
@@ -367,9 +367,9 @@ Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, 
 - Shared filter bar, URL state sync, CSV export
 - MUI X Data Grid with server-side pagination and sorting
 
-### Phase 17: Detail Views & Competitive Intelligence
+### Phase 40: Detail Views & Competitive Intelligence
 **Status**: [ ] NOT STARTED
-**File**: [phases/17-DETAIL-INTELLIGENCE.md](phases/17-DETAIL-INTELLIGENCE.md)
+**File**: [phases/40-DETAIL-INTELLIGENCE.md](phases/40-DETAIL-INTELLIGENCE.md)
 
 - Opportunity detail: overview, qualification checklist, CONUS/OCONUS, clearance
 - History & incumbent intel: new vs re-compete, incumbent profile, burn rate, bid count
@@ -377,9 +377,9 @@ Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, 
 - Entity detail: company profile, competitor analysis, exclusion check
 - Cross-linking between opportunities ↔ awards ↔ entities
 
-### Phase 18: Capture Management & Pipeline
+### Phase 50: Capture Management & Pipeline
 **Status**: [ ] NOT STARTED
-**File**: [phases/18-CAPTURE-MANAGEMENT.md](phases/18-CAPTURE-MANAGEMENT.md)
+**File**: [phases/50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md)
 
 - Prospect pipeline: Kanban view (drag-and-drop) + list view
 - Prospect detail: Go/No-Go scoring, status transitions, priority
@@ -387,18 +387,18 @@ Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, 
 - Proposal management: milestones, documents, status tracking
 - Create prospect flow from opportunity search/detail
 
-### Phase 19: Dashboard, Saved Searches & Notifications
+### Phase 60: Dashboard, Saved Searches & Notifications
 **Status**: [ ] NOT STARTED
-**File**: [phases/19-DASHBOARD-NOTIFICATIONS.md](phases/19-DASHBOARD-NOTIFICATIONS.md)
+**File**: [phases/60-DASHBOARD-NOTIFICATIONS.md](phases/60-DASHBOARD-NOTIFICATIONS.md)
 
 - Executive dashboard: pipeline funnel, due this week, workload, win/loss metrics
 - Saved search management: create, run, enable notifications
 - Notification center: feed with mark-as-read, filtering
 - Top bar notification bell with unread count
 
-### Phase 20: Admin, Profile & Production Polish
+### Phase 70: Admin, Profile & Production Polish
 **Status**: [ ] NOT STARTED
-**File**: [phases/20-ADMIN-POLISH.md](phases/20-ADMIN-POLISH.md)
+**File**: [phases/70-ADMIN-POLISH.md](phases/70-ADMIN-POLISH.md)
 
 - Admin panel: ETL status monitoring, user management
 - User profile: edit, change password
@@ -407,9 +407,9 @@ Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, 
 - Performance: code splitting, bundle optimization
 - Accessibility: keyboard nav, ARIA, WCAG AA
 
-### Phase 30: Security Hardening
+### Phase 80: Security Hardening
 **Status**: [ ] DEFERRED (pre-production)
-**Document**: [30-SECURITY-HARDENING.md](phases/30-SECURITY-HARDENING.md)
+**Document**: [80-SECURITY-HARDENING.md](phases/80-SECURITY-HARDENING.md)
 
 AllowedHosts specific domain, JWT secret startup assertion, JWT expiry wired to config, SameSite=Strict cookies, MySQL TLS, email masking in logs, distributed rate limiting
 
@@ -445,9 +445,9 @@ AllowedHosts specific domain, JWT secret startup assertion, JWT expiry wired to 
 | [credentials.yml](credentials.yml) | All local dev passwords (MySQL root, fed_app, SAM.gov API key) |
 | [06-GLOSSARY.md](reference/06-GLOSSARY.md) | Federal contracting terminology definitions |
 | [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md) | Multi-tenant architecture, auth hardening, org isolation |
-| [15-UI-FOUNDATION.md](phases/15-UI-FOUNDATION.md) | React + TypeScript UI scaffold and shared components |
-| [16-SEARCH-DISCOVERY.md](phases/16-SEARCH-DISCOVERY.md) | Opportunity, award, entity, and teaming partner search |
-| [17-DETAIL-INTELLIGENCE.md](phases/17-DETAIL-INTELLIGENCE.md) | Detail views and competitive intelligence features |
-| [18-CAPTURE-MANAGEMENT.md](phases/18-CAPTURE-MANAGEMENT.md) | Prospect pipeline Kanban and proposal management |
-| [19-DASHBOARD-NOTIFICATIONS.md](phases/19-DASHBOARD-NOTIFICATIONS.md) | Executive dashboard, saved searches, notification system |
-| [20-ADMIN-POLISH.md](phases/20-ADMIN-POLISH.md) | Admin panel, profile, responsive design, accessibility |
+| [20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md) | React + TypeScript UI scaffold and shared components |
+| [30-SEARCH-DISCOVERY.md](phases/30-SEARCH-DISCOVERY.md) | Opportunity, award, entity, and teaming partner search |
+| [40-DETAIL-INTELLIGENCE.md](phases/40-DETAIL-INTELLIGENCE.md) | Detail views and competitive intelligence features |
+| [50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md) | Prospect pipeline Kanban and proposal management |
+| [60-DASHBOARD-NOTIFICATIONS.md](phases/60-DASHBOARD-NOTIFICATIONS.md) | Executive dashboard, saved searches, notification system |
+| [70-ADMIN-POLISH.md](phases/70-ADMIN-POLISH.md) | Admin panel, profile, responsive design, accessibility |

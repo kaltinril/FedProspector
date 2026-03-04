@@ -1,7 +1,7 @@
-# Phase 19: Dashboard, Saved Searches & Notifications
+# Phase 60: Dashboard, Saved Searches & Notifications
 
 **Status**: NOT STARTED
-**Dependencies**: Phase 18 (Capture Management)
+**Dependencies**: Phase 50 (Capture Management)
 **Deliverable**: Executive dashboard, saved search management with alerts, notification center
 **Repository**: `ui/src/pages/`
 
@@ -141,7 +141,7 @@ Build the "home base" experience — the dashboard users see when they log in, t
 
 ## Tasks
 
-### 19.1 Dashboard Page
+### 60.1 Dashboard Page
 - [ ] Build card-based dashboard layout
 - [ ] Key metrics stat cards (open prospects, due this week, win rate, pipeline value)
 - [ ] Pipeline stage bar chart (@mui/x-charts horizontal bar chart) — @mui/x-charts does not support funnel charts; horizontal stacked bar effectively shows stage progression
@@ -152,7 +152,7 @@ Build the "home base" experience — the dashboard users see when they log in, t
 - [ ] Wire to `GET /api/v1/dashboard`
 - [ ] Auto-refresh via TanStack Query `refetchInterval: 300000` (5 minutes) with `refetchIntervalInBackground: false`. Pauses when browser tab is not visible.
 
-### 19.2 Saved Search Management
+### 60.2 Saved Search Management
 - [ ] Saved search list page
 - [ ] Create saved search dialog with filter builder
 - [ ] Reuse filter components from opportunity search
@@ -161,7 +161,7 @@ Build the "home base" experience — the dashboard users see when they log in, t
 - [ ] Delete saved search with confirmation
 - [ ] Wire to saved search API endpoints
 
-### 19.3 Notification Center
+### 60.3 Notification Center
 - [ ] Notification feed page (paginated)
 - [ ] Notification card component (icon, title, message, timestamp)
 - [ ] Click → navigate to relevant entity
@@ -169,7 +169,7 @@ Build the "home base" experience — the dashboard users see when they log in, t
 - [ ] Filter by unread/type
 - [ ] Wire to notification API endpoints
 
-### 19.4 Top Bar Notification Widget
+### 60.4 Top Bar Notification Widget
 - [ ] Bell icon with unread count badge
 - [ ] Dropdown with last 5 notifications
 - [ ] "View all" link to notification center

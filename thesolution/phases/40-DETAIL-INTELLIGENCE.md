@@ -1,7 +1,7 @@
-# Phase 17: Detail Views & Competitive Intelligence
+# Phase 40: Detail Views & Competitive Intelligence
 
 **Status**: NOT STARTED
-**Dependencies**: Phase 16 (Search & Discovery)
+**Dependencies**: Phase 30 (Search & Discovery)
 **Deliverable**: Detail pages for opportunities, awards, and entities with full intel and analytics
 **Repository**: `ui/src/pages/`
 
@@ -190,7 +190,7 @@ These pages are the competitive intelligence engine — the core value propositi
 
 ## Tasks
 
-### 17.1 Opportunity Detail Page
+### 40.1 Opportunity Detail Page
 - [ ] Build tabbed detail page layout
 - [ ] Header with deadline countdown, value, action buttons
 - [ ] Overview tab: description, key facts grid, resource links
@@ -205,7 +205,7 @@ These pages are the competitive intelligence engine — the core value propositi
 - [ ] Prospect tab: show linked prospect or "Track" CTA
 - [ ] Wire to `GET /api/v1/opportunities/{noticeId}`
 
-### 17.2 Award Detail Page
+### 40.2 Award Detail Page
 - [ ] Build tabbed detail page layout
 - [ ] Contract details tab with key facts
 - [ ] Financials tab: burn rate chart, obligation progress bar
@@ -214,14 +214,14 @@ These pages are the competitive intelligence engine — the core value propositi
 - [ ] Vendor profile summary card
 - [ ] Wire to `GET /api/v1/awards/{contractId}` and `GET .../burn-rate`
 
-### 17.3 Entity Detail Page
+### 40.3 Entity Detail Page
 - [ ] Build tabbed detail page layout
 - [ ] Company profile tab: certifications, NAICS, address
 - [ ] Competitor analysis tab with win metrics and recent awards
 - [ ] Exclusion check tab with prominent status badge
 - [ ] Wire to `GET /api/v1/entities/{uei}`, `GET .../competitor-profile`, `GET .../exclusion-check`
 
-### 17.4 Shared Detail Components
+### 40.4 Shared Detail Components
 - [ ] Tabbed page layout component (consistent across all detail pages)
 - [ ] Key facts grid component (label-value pairs in responsive grid)
 - [ ] Timeline/countdown component (deadline display)
@@ -229,7 +229,7 @@ These pages are the competitive intelligence engine — the core value propositi
 - [ ] Qualification checklist component (pass/fail visual)
 - [ ] "Back to search" navigation with preserved search state
 
-### 17.5 Edge Case Handling
+### 40.5 Edge Case Handling
 - [ ] Burn rate chart: handle zero transactions gracefully (show "No transaction data available" instead of empty chart)
 - [ ] CONUS/OCONUS detection: handle US territories (PR, GU, VI, AS, MP), APO/FPO addresses, and null country values
 - [ ] Cross-link integrity: if linked entity/award doesn't exist, show "Data not available" placeholder instead of 404
