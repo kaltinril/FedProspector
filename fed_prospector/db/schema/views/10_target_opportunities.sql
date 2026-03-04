@@ -25,7 +25,7 @@ SELECT
     o.award_amount,
     o.pop_state,
     o.pop_city,
-    o.description,
+    o.description_url,
     o.link,
     p.prospect_id,
     p.status AS prospect_status,

@@ -7,9 +7,12 @@
       "fhorgtype": "Department/Ind. Agency",
       "status": "Active",
       "agencycode": "9700",
-      "cgac": "097",
-      "fhparentorgname": null,
-      "description": "DoD"
+      "cgaclist": [{"cgac": "097"}],
+      "fhorgparenthistory": [],
+      "fhdeptindagencyorgid": null,
+      "description": "DoD",
+      "createddate": "2010-01-01",
+      "lastupdateddate": "2025-06-15"
     },
     {
       "fhorgid": 100000001,
@@ -17,9 +20,18 @@
       "fhorgtype": "Sub-Tier",
       "status": "Active",
       "agencycode": "2100",
-      "cgac": "021",
-      "fhparentorgname": "Department of Defense",
-      "description": "Army"
+      "cgaclist": [{"cgac": "021"}],
+      "fhorgparenthistory": [
+        {
+          "fhfullparentpathid": "100000000",
+          "fhfullparentpathname": "Department of Defense",
+          "effectivedate": "2010-01-01"
+        }
+      ],
+      "fhdeptindagencyorgid": 100000000,
+      "description": "Army",
+      "createddate": "2010-01-01",
+      "lastupdateddate": "2025-09-20"
     }
   ]
 }

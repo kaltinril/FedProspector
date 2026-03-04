@@ -39,7 +39,7 @@ def _make_raw_opportunity(**overrides):
             "amount": "150000.00",
             "awardee": {"ueiSAM": "TESTUEISAM1", "name": "Awardee LLC"},
         },
-        "description": "A test opportunity",
+        "description": "https://api.sam.gov/opportunities/v2/search?noticeid=OPP-001",
         "uiLink": "https://sam.gov/opp/OPP-001/view",
         "resourceLinks": ["https://example.com/attachment.pdf"],
     }

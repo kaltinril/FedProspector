@@ -131,7 +131,7 @@ class TestCheckEntity:
         exclusions = client.check_entity("XYZ789GHI012")
 
         assert len(exclusions) == 1
-        assert exclusions[0]["name"] == "Bad Actor Corp"
+        assert exclusions[0]["exclusionIdentification"]["entityName"] == "Bad Actor Corp"
 
     def test_returns_empty_list_for_clean_uei(self):
         client = _make_client()
@@ -156,7 +156,7 @@ class TestCheckEntities:
 
         excluded_resp = make_mock_response(200, {
             "totalRecords": 1,
-            "excludedEntity": [{"name": "Bad Actor"}],
+            "excludedEntity": [{"exclusionIdentification": {"entityName": "Bad Actor"}}],
         })
         clean_resp = make_mock_response(200, {
             "totalRecords": 0,
@@ -187,4 +187,4 @@ class TestSearchByName:
         results = client.search_by_name("Bad Actor")
 
         assert len(results) == 1
-        assert results[0]["name"] == "Bad Actor Corp"
+        assert results[0]["exclusionIdentification"]["entityName"] == "Bad Actor Corp"

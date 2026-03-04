@@ -30,6 +30,8 @@ _EXCLUSION_HASH_FIELDS = [
     "excluding_agency_code", "excluding_agency_name",
     "activation_date", "termination_date",
     "additional_comments",
+    "is_fascsa_order", "classification_type",
+    "termination_type", "ct_code",
 ]
 
 # All sam_exclusion columns used in upsert (order matters for values list)
@@ -40,6 +42,8 @@ _UPSERT_COLS = [
     "excluding_agency_code", "excluding_agency_name",
     "activation_date", "termination_date",
     "additional_comments",
+    "is_fascsa_order", "classification_type",
+    "termination_type", "ct_code",
     "record_hash", "last_load_id",
 ]
 
@@ -356,6 +360,10 @@ class ExclusionsLoader(StagingMixin):
             "activation_date":        parse_date(first_action.get("activateDate")),
             "termination_date":       parse_date(first_action.get("terminationDate")),
             "additional_comments":    other_info.get("additionalComments"),
+            "is_fascsa_order":        other_info.get("isFASCSAOrder"),
+            "classification_type":    details.get("classificationType"),
+            "termination_type":       first_action.get("terminationType"),
+            "ct_code":                other_info.get("ctCode"),
         }
 
     # =================================================================
@@ -450,11 +458,7 @@ class ExclusionsLoader(StagingMixin):
         actions = (raw.get("exclusionActions") or {}).get("listOfActions") or [{}]
         uei = eid.get("ueiSAM") or eid.get("cageCode") or eid.get("npi") or ""
         act_date = actions[0].get("activateDate", "") if actions else ""
-        ex_type_raw = raw.get("exclusionType")
-        if isinstance(ex_type_raw, dict):
-            ex_type = ex_type_raw.get("value", "")
-        else:
-            ex_type = ex_type_raw or ""
+        ex_type = (raw.get("exclusionDetails") or {}).get("exclusionType") or ""
         composite = f"{uei}|{act_date}|{ex_type}"
         return {"record_id": composite[:100]}
 

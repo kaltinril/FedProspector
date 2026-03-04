@@ -1,30 +1,179 @@
 {
-  "totalRecords": 1,
+  "totalRecords": 2,
   "awardSummary": [
     {
       "contractId": {
-        "contractNumber": "W911NF-25-C-0001",
-        "idvPIID": null,
-        "modNumber": "0"
+        "piid": "W911NF-25-C-0001",
+        "referencedIDVPiid": null,
+        "modificationNumber": "0",
+        "transactionNumber": "1",
+        "reasonForModification": {}
       },
-      "awardDetail": {
-        "typeOfContractDescription": "Firm Fixed Price",
-        "typeOfSetAsideDescription": "Women-Owned Small Business",
-        "naicsCode": "541512",
-        "dateSigned": "10/15/2025",
-        "obligatedAmount": 1500000.00,
-        "totalBaseAndAllOptionsValue": 3000000.00
+      "coreData": {
+        "federalOrganization": {
+          "contractingInformation": {
+            "contractingDepartment": {
+              "code": "9700",
+              "name": "Department of Defense"
+            },
+            "contractingOffice": {
+              "code": "W911NF",
+              "name": "Army Contracting Command - Aberdeen Proving Ground"
+            }
+          },
+          "fundingInformation": {
+            "fundingDepartment": {
+              "code": "9700",
+              "name": "Department of Defense"
+            },
+            "fundingSubtier": {
+              "code": "2100",
+              "name": "Department of the Army"
+            }
+          }
+        },
+        "principalPlaceOfPerformance": {
+          "state": {"code": "VA"},
+          "country": {"code": "USA"},
+          "zipCode": "22030"
+        },
+        "productOrServiceInformation": {
+          "productOrService": {"code": "D302"},
+          "principalNaics": [{"code": "541512"}]
+        },
+        "competitionInformation": {
+          "typeOfSetAside": {"code": "WOSB"},
+          "solicitationProcedures": {"code": "SP1"},
+          "extentCompeted": {"code": "A"}
+        },
+        "awardOrIDVType": {"code": "C"},
+        "acquisitionData": {
+          "typeOfContractPricing": {"code": "J"}
+        },
+        "solicitationId": "W911NF-25-R-0001",
+        "solicitationDate": "2025-06-15"
       },
-      "awardee": {
-        "name": "Acme Federal Solutions LLC",
-        "uei": "ABC123DEF456",
-        "cageCode": "1ABC2",
-        "stateCode": "VA",
-        "countryCode": "USA"
+      "awardDetails": {
+        "dates": {
+          "dateSigned": "10/15/2025",
+          "periodOfPerformanceStartDate": "11/01/2025",
+          "currentCompletionDate": "10/31/2026",
+          "ultimateCompletionDate": "10/31/2028"
+        },
+        "totalContractDollars": {
+          "totalActionObligation": 1500000.00,
+          "totalBaseAndAllOptionsValue": 3000000.00
+        },
+        "competitionInformation": {
+          "numberOfOffersReceived": 5
+        },
+        "preferenceProgramsInformation": {
+          "contractingOfficerBusinessSizeDetermination": [{"code": "S"}]
+        },
+        "productOrServiceInformation": {
+          "descriptionOfContractRequirement": "IT Support Services for Army Research Laboratory"
+        },
+        "awardeeData": {
+          "awardeeHeader": {
+            "awardeeName": "Acme Federal Solutions LLC"
+          },
+          "awardeeUEIInformation": {
+            "uniqueEntityId": "ABC123DEF456"
+          },
+          "far41102Exception": {
+            "code": "N",
+            "name": "Not Applicable"
+          }
+        },
+        "transactionData": {
+          "lastModifiedDate": "2025-11-01"
+        }
+      }
+    },
+    {
+      "contractId": {
+        "piid": "FA8750-26-C-0002",
+        "referencedIDVPiid": "FA8750-20-D-0100",
+        "modificationNumber": "P00001",
+        "transactionNumber": "1",
+        "reasonForModification": {"code": "A"}
       },
-      "awardingAgency": {
-        "agencyName": "Army Contracting Command",
-        "departmentName": "Department of the Army"
+      "coreData": {
+        "federalOrganization": {
+          "contractingInformation": {
+            "contractingDepartment": {
+              "code": "5700",
+              "name": "Department of the Air Force"
+            },
+            "contractingOffice": {
+              "code": "FA8750",
+              "name": "AF Life Cycle Management Center"
+            }
+          },
+          "fundingInformation": {
+            "fundingDepartment": {
+              "code": "5700",
+              "name": "Department of the Air Force"
+            },
+            "fundingSubtier": {
+              "code": "57AF",
+              "name": "Air Force Materiel Command"
+            }
+          }
+        },
+        "principalPlaceOfPerformance": {
+          "state": {"code": "OH"},
+          "country": {"code": "USA"},
+          "zipCode": "45433"
+        },
+        "productOrServiceInformation": {
+          "productOrService": {"code": "D399"},
+          "principalNaics": [{"code": "541519"}]
+        },
+        "competitionInformation": {
+          "typeOfSetAside": {"code": "8A"},
+          "solicitationProcedures": {"code": "SP1"},
+          "extentCompeted": {"code": "D"}
+        },
+        "awardOrIDVType": {"code": "D"},
+        "acquisitionData": {
+          "typeOfContractPricing": {"code": "Y"}
+        },
+        "solicitationId": "FA8750-26-R-0002",
+        "solicitationDate": "2025-09-01"
+      },
+      "awardDetails": {
+        "dates": {
+          "dateSigned": "01/10/2026",
+          "periodOfPerformanceStartDate": "02/01/2026",
+          "currentCompletionDate": "01/31/2027",
+          "ultimateCompletionDate": "01/31/2029"
+        },
+        "totalContractDollars": {
+          "totalActionObligation": 750000.00,
+          "totalBaseAndAllOptionsValue": 2500000.00
+        },
+        "competitionInformation": {
+          "numberOfOffersReceived": 3
+        },
+        "preferenceProgramsInformation": {
+          "contractingOfficerBusinessSizeDetermination": [{"code": "S"}]
+        },
+        "productOrServiceInformation": {
+          "descriptionOfContractRequirement": "Cybersecurity Assessment Services"
+        },
+        "awardeeData": {
+          "awardeeHeader": {
+            "awardeeName": "SecureTech 8a Partners Inc"
+          },
+          "awardeeUEIInformation": {
+            "uniqueEntityId": "XYZ789JKL012"
+          },
+          "far41102Exception": {}
+        },
+        "transactionData": {
+          "lastModifiedDate": "2026-02-15"
+        }
       }
     }
   ]

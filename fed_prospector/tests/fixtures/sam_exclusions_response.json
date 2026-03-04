@@ -2,27 +2,47 @@
   "totalRecords": 1,
   "excludedEntity": [
     {
-      "classificationType": "Entity",
-      "exclusionType": "Ineligible (Proceedings Completed)",
-      "exclusionProgram": "Reciprocal",
-      "excludingAgencyCode": "9700",
-      "excludingAgencyName": "Department of Defense",
-      "ueiSAM": "XYZ789GHI012",
-      "name": "Bad Actor Corp",
-      "addressLine1": "456 Shady Lane",
-      "city": "Somewhere",
-      "stateOrProvinceCode": "TX",
-      "zipCode": "75001",
-      "country": "USA",
-      "exclusionActions": [
-        {
-          "createDate": "2024-01-01",
-          "updateDate": "2024-06-15",
-          "activateDate": "2024-02-01",
-          "terminationDate": "2029-02-01",
-          "terminationType": "Definite"
-        }
-      ]
+      "exclusionDetails": {
+        "classificationType": "Entity",
+        "exclusionType": "Ineligible (Proceedings Completed)",
+        "exclusionProgram": "Reciprocal",
+        "excludingAgencyCode": "9700",
+        "excludingAgencyName": "Department of Defense"
+      },
+      "exclusionIdentification": {
+        "ueiSAM": "XYZ789GHI012",
+        "cageCode": "5XYZ9",
+        "npi": null,
+        "entityName": "Bad Actor Corp",
+        "prefix": null,
+        "firstName": null,
+        "middleName": null,
+        "lastName": null,
+        "suffix": null
+      },
+      "exclusionActions": {
+        "listOfActions": [
+          {
+            "createDate": "2024-01-01",
+            "updateDate": "2024-06-15",
+            "activateDate": "2024-02-01",
+            "terminationDate": "2029-02-01",
+            "terminationType": "Definite"
+          }
+        ]
+      },
+      "exclusionOtherInformation": {
+        "additionalComments": "Debarred for fraudulent billing practices",
+        "ctCode": "ZZ",
+        "isFASCSAOrder": "No"
+      },
+      "exclusionAddress": {
+        "addressLine1": "456 Shady Lane",
+        "city": "Somewhere",
+        "stateOrProvinceCode": "TX",
+        "zipCode": "75001",
+        "country": "USA"
+      }
     }
   ]
 }

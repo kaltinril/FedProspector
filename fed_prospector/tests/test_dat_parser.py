@@ -204,9 +204,19 @@ class TestParseBusinessTypeString:
 
 class TestParseSbaString:
 
-    def test_padded_entries_stripped(self):
+    def test_padded_entries_parsed(self):
         result = _parse_sba_string("XX        ~A4        ")
-        assert result == ["XX", "A4"]
+        assert len(result) == 2
+        assert result[0]["sba_type_code"] == "XX"
+        assert result[0]["certification_exit_date"] is None
+        assert result[1]["sba_type_code"] == "A4"
+        assert result[1]["certification_exit_date"] is None
+
+    def test_with_exit_date(self):
+        result = _parse_sba_string("A420260101")
+        assert len(result) == 1
+        assert result[0]["sba_type_code"] == "A4"
+        assert result[0]["certification_exit_date"] == "2026-01-01"
 
     def test_empty(self):
         assert _parse_sba_string(None) == []

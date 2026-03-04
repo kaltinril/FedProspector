@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS entity (
     exclusion_status_flag VARCHAR(1),
     no_public_display_flag VARCHAR(4),
     evs_source           VARCHAR(10),
+    eft_indicator        VARCHAR(10),
     record_hash          CHAR(64),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

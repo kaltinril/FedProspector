@@ -28,7 +28,7 @@ public class OpportunityDetailDto
     public decimal? AwardAmount { get; set; }
     public string? AwardeeUei { get; set; }
     public string? AwardeeName { get; set; }
-    public string? Description { get; set; }
+    public string? DescriptionUrl { get; set; }
     public string? Link { get; set; }
     public string? ResourceLinks { get; set; }
     public decimal? EstimatedContractValue { get; set; }

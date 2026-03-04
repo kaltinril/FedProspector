@@ -27,6 +27,12 @@ Discovered during SAM.gov imports. Handled by ETL data cleaners in `fed_prospect
 16. **Rejects Feb 29 as start date** -- historical load skips leap day
 17. **`pop_state` can contain ISO 3166-2 codes > 2 chars** -- e.g., IN-MH for India-Maharashtra; column widened to VARCHAR(6)
 
+## Subaward API Issues
+
+19. **Dict vs scalar fields** -- `recoveryModelQ1`, `recoveryModelQ2`, `primeNaics`, `subAwardDescription` return as `{code, description}` dicts from live API but as plain strings in test fixtures. Loader uses `isinstance(dict)` guards.
+20. **Loader was reading wrong address field** -- `placeOfPerformance` is the correct POP field, not `entityPhysicalAddress` (entity mailing address). Loader bug fixed 2026-03-03. Prod subaward POP data needs reload.
+21. **Foreign POP `state.code` is null** -- for non-US addresses, `state.code` returns `null`; `state.name` has the full province/state name. Column widened to VARCHAR(100).
+
 ## Awards API Issues
 
 18. **Dates in MM/DD/YYYY format** -- not ISO 8601; awards_loader converts during load

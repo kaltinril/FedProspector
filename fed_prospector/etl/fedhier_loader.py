@@ -274,8 +274,13 @@ class FedHierLoader(StagingMixin):
         # Determine parent org ID from parent history (most recent entry)
         parent_org_id = self._extract_parent_org_id(raw)
 
-        # Determine hierarchy level from org type
-        level = _ORG_TYPE_LEVELS.get(fh_org_type)
+        # Determine hierarchy level from org type (case-insensitive lookup)
+        org_type = raw.get("fhorgtype", "")
+        level = None
+        for key, val in _ORG_TYPE_LEVELS.items():
+            if key.lower() == org_type.lower():
+                level = val
+                break
 
         # Parse fhorgid as integer
         fh_org_id = raw.get("fhorgid")
@@ -295,7 +300,7 @@ class FedHierLoader(StagingMixin):
             "fh_org_id":            fh_org_id,
             "fh_org_name":          raw.get("fhorgname"),
             "fh_org_type":          fh_org_type,
-            "description":          None,
+            "description":          raw.get("description"),
             "status":               raw.get("status"),
             "agency_code":          raw.get("agencycode"),
             "oldfpds_office_code":  raw.get("oldfpdsofficecode"),
@@ -329,7 +334,8 @@ class FedHierLoader(StagingMixin):
         # for sub-tier orgs. For offices, we need the full path.
         parent_history = raw.get("fhorgparenthistory") or []
         if parent_history:
-            # Take the most recent entry
+            # Sort by effectivedate descending to ensure we take the most recent
+            parent_history.sort(key=lambda x: x.get("effectivedate", ""), reverse=True)
             latest = parent_history[0]
             full_path_id = latest.get("fhfullparentpathid", "")
             if full_path_id:

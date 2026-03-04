@@ -19,9 +19,6 @@ public class GsaLaborRate
     public int? MinYearsExperience { get; set; }
 
     [Column(TypeName = "decimal(10,2)")]
-    public decimal? HourlyRateYear1 { get; set; }
-
-    [Column(TypeName = "decimal(10,2)")]
     public decimal? CurrentPrice { get; set; }
 
     [Column(TypeName = "decimal(10,2)")]
@@ -51,6 +48,15 @@ public class GsaLaborRate
     public DateOnly? ContractStart { get; set; }
 
     public DateOnly? ContractEnd { get; set; }
+
+    [MaxLength(50)]
+    public string? IdvPiid { get; set; }
+
+    [MaxLength(200)]
+    public string? Category { get; set; }
+
+    [MaxLength(500)]
+    public string? Subcategory { get; set; }
 
     public DateTime? FirstLoadedAt { get; set; }
 

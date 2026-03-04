@@ -298,7 +298,7 @@ class OpportunityLoader(StagingMixin):
             "award_amount":          award_amount,
             "awardee_uei":           awardee.get("ueiSAM"),
             "awardee_name":          awardee.get("name"),
-            "description":           raw.get("description"),
+            "description_url":       raw.get("description"),
             "link":                  raw.get("uiLink"),
             "resource_links":        resource_links,
             "contracting_office_id": contracting_office_id,
@@ -330,7 +330,7 @@ class OpportunityLoader(StagingMixin):
             "active",
             "award_number", "award_date", "award_amount",
             "awardee_uei", "awardee_name",
-            "description", "link", "resource_links",
+            "description_url", "link", "resource_links",
             "contracting_office_id",
             "record_hash", "last_load_id",
         ]

@@ -33,7 +33,7 @@ _ENTITY_HASH_FIELDS = [
     "primary_naics",
     "credit_card_usage", "correspondence_flag",
     "debt_subject_to_offset", "exclusion_status_flag",
-    "no_public_display_flag", "evs_source",
+    "no_public_display_flag", "evs_source", "eft_indicator",
 ]
 
 # ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ _ENTITY_COLUMNS = [
     "primary_naics",
     "credit_card_usage", "correspondence_flag",
     "debt_subject_to_offset", "exclusion_status_flag",
-    "no_public_display_flag", "evs_source",
+    "no_public_display_flag", "evs_source", "eft_indicator",
     "record_hash", "last_load_id",
 ]
 
@@ -377,6 +377,12 @@ class BulkLoader:
             tsv_paths: Dict of table_name -> absolute TSV file path.
             load_type: "FULL" or "INCREMENTAL".
         """
+        if load_type != "FULL":
+            raise NotImplementedError(
+                "Incremental bulk load not yet implemented — "
+                "use entity_loader.py for incremental loads"
+            )
+
         conn = get_connection()
         cursor = conn.cursor()
         try:

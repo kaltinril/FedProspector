@@ -54,7 +54,7 @@ public class MappingProfileTests
             AwardAmount = 1000000m,
             PopState = "VA",
             PopCity = "Arlington",
-            Description = "Description text",
+            DescriptionUrl = "https://api.sam.gov/opportunities/v2/search?noticeid=123",
             Link = "https://sam.gov/opp/123",
             ProspectId = 42,
             ProspectStatus = "ACTIVE",

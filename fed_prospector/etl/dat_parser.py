@@ -303,6 +303,7 @@ def _parse_dat_line(fields):
         "exclusion_status_flag":        _field_or_none(fields[F_EXCLUSION_STATUS_FLAG]),
         "no_public_display_flag":       _field_or_none(fields[F_NO_PUBLIC_DISPLAY]),
         "evs_source":                   _field_or_none(fields[F_EVS_SOURCE]),
+        "eft_indicator":                _field_or_none(fields[F_EFT_INDICATOR]),
     }
 
     # --- Addresses --------------------------------------------------------
@@ -360,7 +361,7 @@ def _parse_dat_line(fields):
         _field_or_none(fields[F_SBA_TYPE_STRING])
     )
     sba_certifications = [
-        {"uei_sam": uei_sam, "sba_type_code": code} for code in sba_list
+        {"uei_sam": uei_sam, **entry} for entry in sba_list
     ]
 
     # --- POCs -------------------------------------------------------------
@@ -599,20 +600,37 @@ def _parse_business_type_string(bt_str):
 def _parse_sba_string(sba_str):
     """Parse tilde-separated SBA business type string.
 
-    Each entry is padded to 10 characters, e.g. ``"XX        "`` or
-    ``"A4        "``.  Entries are stripped of whitespace.
+    Each entry is a 10-character token: 2-char SBA type code + 8-digit
+    exit date (YYYYMMDD).  For example ``"A420260101"`` means
+    sba_type_code="A4", certification_exit_date="2026-01-01".
+    Entries are padded with spaces if the exit date is absent.
 
     Args:
         sba_str: Tilde-separated SBA string, or None.
 
     Returns:
-        list of SBA type code strings (stripped).
+        list of dicts with keys: sba_type_code, certification_exit_date.
     """
     if not sba_str:
         return []
 
     entries = split_tilde_values(sba_str)
-    return [e.strip() for e in entries if e.strip()]
+    results = []
+    for raw_entry in entries:
+        entry = raw_entry.strip()
+        if not entry:
+            continue
+
+        sba_type_code = entry[:2]
+        exit_date_raw = entry[2:10].strip() if len(entry) >= 10 else ""
+        exit_date = _norm_date(exit_date_raw) if exit_date_raw else None
+
+        results.append({
+            "sba_type_code": sba_type_code,
+            "certification_exit_date": exit_date,
+        })
+
+    return results
 
 
 def _parse_disaster_string(dr_str):

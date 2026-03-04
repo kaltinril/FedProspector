@@ -80,8 +80,8 @@ class TestSearchAwards:
 
         result = client.search_awards(naics_code="541512")
 
-        assert result["totalRecords"] == 1
-        assert len(result["awardSummary"]) == 1
+        assert result["totalRecords"] == 2
+        assert len(result["awardSummary"]) == 2
 
     def test_passes_all_filter_params(self):
         client = _make_client()
@@ -176,7 +176,7 @@ class TestSearchByNaics:
 
         results = client.search_by_naics("541512")
 
-        assert len(results) == 1
+        assert len(results) == 2
 
     def test_multiple_naics_codes(self):
         client = _make_client()
@@ -212,7 +212,7 @@ class TestSearchByAwardee:
 
         results = client.search_by_awardee("ABC123DEF456")
 
-        assert len(results) == 1
+        assert len(results) == 2
 
 
 class TestSearchBySolicitation:
@@ -224,7 +224,7 @@ class TestSearchBySolicitation:
 
         results = client.search_by_solicitation("W911NF-25-C-0001")
 
-        assert len(results) == 1
+        assert len(results) == 2
 
 
 # ---------------------------------------------------------------------------

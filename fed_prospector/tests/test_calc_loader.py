@@ -15,7 +15,6 @@ def _make_raw_rate(**overrides):
         "labor_category": "Senior Developer",
         "education_level": "Bachelors",
         "min_years_experience": 5,
-        "hourly_rate_year1": "125.50",
         "current_price": "130.00",
         "next_year_price": "135.00",
         "second_year_price": "140.00",
@@ -59,7 +58,6 @@ class TestNormalizeRate:
         loader = _make_loader()
         result = loader._normalize_rate(_make_raw_rate())
 
-        assert result["hourly_rate_year1"] == "125.50"
         assert result["current_price"] == "130.00"
         assert result["next_year_price"] == "135.00"
         assert result["second_year_price"] == "140.00"
@@ -83,7 +81,6 @@ class TestNormalizeRate:
         result = loader._normalize_rate(raw)
 
         assert result["labor_category"] is None
-        assert result["hourly_rate_year1"] is None
         assert result["min_years_experience"] is None
         assert result["contract_start"] is None
 

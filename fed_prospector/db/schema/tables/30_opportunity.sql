@@ -23,20 +23,20 @@ CREATE TABLE IF NOT EXISTS opportunity (
     pop_zip              VARCHAR(10),
     pop_country          VARCHAR(3),
     pop_city             VARCHAR(100),
-    period_of_performance_start DATE,
-    period_of_performance_end DATE,
-    security_clearance_required CHAR(1),
-    incumbent_uei        VARCHAR(13),
-    incumbent_name       VARCHAR(200),
-    contract_vehicle_type VARCHAR(50),
-    estimated_contract_value DECIMAL(15,2),
+    period_of_performance_start DATE,      -- Reserved: not in public Opportunities API v2 response
+    period_of_performance_end DATE,        -- Reserved: not in public Opportunities API v2 response
+    security_clearance_required CHAR(1),   -- Reserved: not in public Opportunities API v2 response
+    incumbent_uei        VARCHAR(13),      -- Reserved: not in public Opportunities API v2 response
+    incumbent_name       VARCHAR(200),     -- Reserved: not in public Opportunities API v2 response
+    contract_vehicle_type VARCHAR(50),     -- Reserved: not in public Opportunities API v2 response
+    estimated_contract_value DECIMAL(15,2), -- Reserved: not in public Opportunities API v2 response
     active               CHAR(1) DEFAULT 'Y',
     award_number         VARCHAR(200),
     award_date           DATE,
     award_amount         DECIMAL(15,2),
     awardee_uei          VARCHAR(12),
     awardee_name         VARCHAR(200),
-    description          TEXT,
+    description_url      VARCHAR(500),      -- URL to fetch description text via SAM.gov API
     link                 VARCHAR(500),
     resource_links       JSON,
     contracting_office_id VARCHAR(20),

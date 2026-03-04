@@ -97,7 +97,8 @@ public class Opportunity
     [MaxLength(200)]
     public string? AwardeeName { get; set; }
 
-    public string? Description { get; set; }
+    [MaxLength(500)]
+    public string? DescriptionUrl { get; set; }
 
     [MaxLength(500)]
     public string? Link { get; set; }

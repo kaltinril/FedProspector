@@ -35,6 +35,7 @@ _UPSERT_COLS = [
     "contract_id", "idv_piid", "modification_number", "transaction_number",
     "agency_id", "agency_name", "contracting_office_id", "contracting_office_name",
     "funding_agency_id", "funding_agency_name",
+    "funding_subtier_code", "funding_subtier_name",
     "vendor_uei", "vendor_name", "vendor_duns",
     "date_signed", "effective_date", "completion_date", "last_modified_date",
     "dollars_obligated", "base_and_all_options",
@@ -264,6 +265,7 @@ class AwardsLoader(StagingMixin):
         contracting_office = contracting_info.get("contractingOffice") or {}
         funding_info = fed_org.get("fundingInformation") or {}
         funding_dept = funding_info.get("fundingDepartment") or {}
+        funding_subtier = funding_info.get("fundingSubtier") or {}
         pop = core_data.get("principalPlaceOfPerformance") or {}
         pop_state = pop.get("state") or {}
         pop_country = pop.get("country") or {}
@@ -271,6 +273,7 @@ class AwardsLoader(StagingMixin):
         competition_info = core_data.get("competitionInformation") or {}
         set_aside = competition_info.get("typeOfSetAside") or {}
         sol_procedures = competition_info.get("solicitationProcedures") or {}
+        extent_competed_obj = competition_info.get("extentCompeted") or {}
         award_or_idv = core_data.get("awardOrIDVType") or {}
         acq_data = core_data.get("acquisitionData") or {}
         contract_pricing = acq_data.get("typeOfContractPricing") or {}
@@ -293,6 +296,7 @@ class AwardsLoader(StagingMixin):
         awardee_data = award_details.get("awardeeData") or {}
         awardee_header = awardee_data.get("awardeeHeader") or {}
         uei_info = awardee_data.get("awardeeUEIInformation") or {}
+        far_exception = awardee_data.get("far41102Exception") or {}
         transaction_data = award_details.get("transactionData") or {}
 
         # CO business size determination can be an array; take first entry
@@ -320,6 +324,8 @@ class AwardsLoader(StagingMixin):
             "contracting_office_name":  _s(contracting_office.get("name")),
             "funding_agency_id":        _s(funding_dept.get("code")),
             "funding_agency_name":      _s(funding_dept.get("name")),
+            "funding_subtier_code":     _s(funding_subtier.get("code")),
+            "funding_subtier_name":     _s(funding_subtier.get("name")),
             "vendor_uei":               _s(uei_info.get("uniqueEntityId")),
             "vendor_name":              _s(awardee_header.get("awardeeName")),
             "vendor_duns":              None,
@@ -351,10 +357,10 @@ class AwardsLoader(StagingMixin):
             "pop_state":                _s(pop_state.get("code")),
             "pop_country":              _s(pop_country.get("code")),
             "pop_zip":                  _s(pop.get("zipCode")),
-            "extent_competed":          _s(sol_procedures.get("code")),
+            "extent_competed":          _s(extent_competed_obj.get("code")),
             "number_of_offers":         award_competition.get("numberOfOffersReceived"),
-            "far1102_exception_code":   None,
-            "far1102_exception_name":   None,
+            "far1102_exception_code":   _s(far_exception.get("code")),
+            "far1102_exception_name":   _s(far_exception.get("name")),
             "reason_for_modification":  _s(reason_mod.get("code")),
             "solicitation_number":      _s(core_data.get("solicitationId")),
             "solicitation_date":        parse_date(

@@ -30,10 +30,11 @@ logger = logging.getLogger("fed_prospector.etl.calc_loader")
 # ---------------------------------------------------------------------------
 _RATE_COLUMNS = [
     "labor_category", "education_level", "min_years_experience",
-    "hourly_rate_year1", "current_price", "next_year_price", "second_year_price",
+    "current_price", "next_year_price", "second_year_price",
     "schedule", "contractor_name", "sin", "business_size",
     "security_clearance", "worksite",
     "contract_start", "contract_end",
+    "idv_piid", "category", "subcategory",
     "last_load_id",
 ]
 
@@ -42,7 +43,6 @@ _API_FIELD_MAP = {
     "labor_category": "labor_category",
     "education_level": "education_level",
     "min_years_experience": "min_years_experience",
-    "hourly_rate_year1": "hourly_rate_year1",
     "current_price": "current_price",
     "next_year_price": "next_year_price",
     "second_year_price": "second_year_price",
@@ -54,6 +54,9 @@ _API_FIELD_MAP = {
     "worksite": "worksite",
     "contract_start": "contract_start",
     "contract_end": "contract_end",
+    "idv_piid": "idv_piid",
+    "category": "category",
+    "subcategory": "subcategory",
 }
 
 
@@ -243,9 +246,6 @@ class CalcLoader:
         normalized["min_years_experience"] = self._parse_int(
             normalized.get("min_years_experience")
         )
-        normalized["hourly_rate_year1"] = parse_decimal(
-            normalized.get("hourly_rate_year1")
-        )
         normalized["current_price"] = parse_decimal(
             normalized.get("current_price")
         )
@@ -268,7 +268,8 @@ class CalcLoader:
         # fields like security_clearance: false/true).
         for field in ("labor_category", "education_level", "schedule",
                        "contractor_name", "sin", "business_size",
-                       "security_clearance", "worksite"):
+                       "security_clearance", "worksite",
+                       "idv_piid", "category", "subcategory"):
             val = normalized.get(field)
             if val is not None and not isinstance(val, str):
                 normalized[field] = str(val)
@@ -294,6 +295,12 @@ class CalcLoader:
             normalized["security_clearance"] = normalized["security_clearance"][:50]
         if normalized.get("worksite"):
             normalized["worksite"] = normalized["worksite"][:100]
+        if normalized.get("idv_piid"):
+            normalized["idv_piid"] = normalized["idv_piid"][:50]
+        if normalized.get("category"):
+            normalized["category"] = normalized["category"][:200]
+        if normalized.get("subcategory"):
+            normalized["subcategory"] = normalized["subcategory"][:500]
 
         return normalized
 

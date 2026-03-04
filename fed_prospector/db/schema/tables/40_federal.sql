@@ -30,9 +30,9 @@ CREATE TABLE IF NOT EXISTS federal_organization (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS fpds_contract (
-    contract_id          VARCHAR(50) NOT NULL,
+    contract_id          VARCHAR(100) NOT NULL,
     idv_piid             VARCHAR(50),
-    modification_number  VARCHAR(10) NOT NULL DEFAULT '0',
+    modification_number  VARCHAR(25) NOT NULL DEFAULT '0',
     transaction_number   VARCHAR(10),
     agency_id            VARCHAR(10),
     agency_name          VARCHAR(200),
@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     contracting_office_name VARCHAR(200),
     funding_agency_id    VARCHAR(10),
     funding_agency_name  VARCHAR(200),
+    funding_subtier_code VARCHAR(20),
+    funding_subtier_name VARCHAR(200),
     vendor_uei           VARCHAR(12),
     vendor_name          VARCHAR(200),
     vendor_duns          VARCHAR(9),
@@ -62,7 +64,7 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     far1102_exception_code   VARCHAR(2),
     far1102_exception_name   VARCHAR(100),
     reason_for_modification  VARCHAR(100),
-    solicitation_number      VARCHAR(100),
+    solicitation_number      VARCHAR(200),
     solicitation_date        DATE,
     ultimate_completion_date DATE,
     type_of_contract_pricing VARCHAR(10),
@@ -91,7 +93,6 @@ CREATE TABLE IF NOT EXISTS gsa_labor_rate (
     labor_category       VARCHAR(200),
     education_level      VARCHAR(50),
     min_years_experience INT,
-    hourly_rate_year1    DECIMAL(10,2),
     current_price        DECIMAL(10,2),
     next_year_price      DECIMAL(10,2),
     second_year_price    DECIMAL(10,2),
@@ -103,6 +104,9 @@ CREATE TABLE IF NOT EXISTS gsa_labor_rate (
     worksite             VARCHAR(100),
     contract_start       DATE,
     contract_end         DATE,
+    idv_piid             VARCHAR(50),
+    category             VARCHAR(200),
+    subcategory          VARCHAR(500),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_load_id         INT,
@@ -128,6 +132,10 @@ CREATE TABLE IF NOT EXISTS sam_exclusion (
     activation_date      DATE,
     termination_date     DATE,
     additional_comments  TEXT,
+    is_fascsa_order      CHAR(3),
+    classification_type  VARCHAR(50),
+    termination_type     VARCHAR(20),
+    ct_code              VARCHAR(50),
     record_hash          CHAR(64),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -154,7 +162,7 @@ CREATE TABLE IF NOT EXISTS sam_subaward (
     naics_code              VARCHAR(6),
     psc_code                VARCHAR(10),
     sub_business_type       VARCHAR(50),           -- Small business designation codes
-    pop_state               VARCHAR(6),
+    pop_state               VARCHAR(100),          -- Foreign addresses may use full state/province names
     pop_country             VARCHAR(3),
     pop_zip                 VARCHAR(10),
     recovery_model_q1       VARCHAR(3),            -- Y/N recovery act

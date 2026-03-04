@@ -22,7 +22,7 @@ public class TargetOpportunityView
     public decimal? AwardAmount { get; set; }
     public string? PopState { get; set; }
     public string? PopCity { get; set; }
-    public string? Description { get; set; }
+    public string? DescriptionUrl { get; set; }
     public string? Link { get; set; }
     public int? ProspectId { get; set; }
     public string? ProspectStatus { get; set; }

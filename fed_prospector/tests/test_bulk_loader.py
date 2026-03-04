@@ -227,23 +227,14 @@ class TestLoadIntoMysql:
         mock_conn.commit.assert_called_once()
 
     @patch("etl.bulk_loader.get_connection")
-    def test_incremental_does_not_truncate(self, mock_gc):
-        mock_conn = MagicMock()
-        mock_cursor = MagicMock()
-        mock_cursor.rowcount = 0
-        mock_conn.cursor.return_value = mock_cursor
-        mock_gc.return_value = mock_conn
-
+    def test_incremental_raises_not_implemented(self, mock_gc):
         loader = BulkLoader()
         tsv_paths = {"entity": "/tmp/entity.tsv"}
         for t in _CHILD_TABLE_NAMES:
             tsv_paths[t] = f"/tmp/{t}.tsv"
 
-        loader._load_into_mysql(tsv_paths, "INCREMENTAL")
-
-        calls = [str(c) for c in mock_cursor.execute.call_args_list]
-        truncate_found = any("TRUNCATE" in c for c in calls)
-        assert not truncate_found
+        with pytest.raises(NotImplementedError, match="Incremental bulk load not yet implemented"):
+            loader._load_into_mysql(tsv_paths, "INCREMENTAL")
 
 
 # ===================================================================

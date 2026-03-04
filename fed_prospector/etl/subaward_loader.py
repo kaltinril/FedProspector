@@ -355,8 +355,9 @@ class SubawardLoader(StagingMixin):
         org_info = raw.get("primeOrganizationInfo") or {}
         contracting_agency = org_info.get("contractingAgency") or {}
 
-        # Extract nested address info
-        address = raw.get("entityPhysicalAddress") or {}
+        # Extract nested address info — try placeOfPerformance first, fall back to entityPhysicalAddress
+        pop_address = raw.get("placeOfPerformance") or {}
+        address = pop_address if pop_address else (raw.get("entityPhysicalAddress") or {})
         state_obj = address.get("state") or {}
         country_obj = address.get("country") or {}
 
@@ -388,8 +389,8 @@ class SubawardLoader(StagingMixin):
             "naics_code":         _naics.get("code") if isinstance(_naics, dict) else _naics,
             "psc_code":           None,  # Not in API response
             "sub_business_type":  biz_type_str,
-            "pop_state":          state_obj.get("code"),
-            "pop_country":        country_obj.get("code"),
+            "pop_state":          state_obj.get("code") if isinstance(state_obj, dict) else state_obj,
+            "pop_country":        country_obj.get("code") if isinstance(country_obj, dict) else country_obj,
             "pop_zip":            address.get("zip"),
             "recovery_model_q1":  _rmq1.get("description") if isinstance(_rmq1, dict) else _rmq1,
             "recovery_model_q2":  _rmq2.get("description") if isinstance(_rmq2, dict) else _rmq2,

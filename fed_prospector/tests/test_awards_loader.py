@@ -27,6 +27,7 @@ def _make_raw_award(**overrides):
                 },
                 "fundingInformation": {
                     "fundingDepartment": {"code": "4700", "name": "GSA"},
+                    "fundingSubtier": {"code": "4740", "name": "Federal Acquisition Service"},
                 },
             },
             "principalPlaceOfPerformance": {
@@ -41,6 +42,7 @@ def _make_raw_award(**overrides):
             "competitionInformation": {
                 "typeOfSetAside": {"code": "WOSB"},
                 "solicitationProcedures": {"code": "SP1"},
+                "extentCompeted": {"code": "A", "name": "Full and Open Competition"},
             },
             "awardOrIDVType": {"code": "C"},
             "acquisitionData": {
@@ -72,6 +74,7 @@ def _make_raw_award(**overrides):
             "awardeeData": {
                 "awardeeHeader": {"awardeeName": "Test Corp"},
                 "awardeeUEIInformation": {"uniqueEntityId": "TESTAWARDEE1"},
+                "far41102Exception": {"code": "1A", "name": "Statutory Exception"},
             },
             "transactionData": {
                 "lastModifiedDate": "2026-01-20",
@@ -194,6 +197,35 @@ class TestNormalizeAward:
         loader = self._loader()
         result = loader._normalize_award(_make_raw_award())
         assert result["vendor_duns"] is None
+
+    def test_normalize_extent_competed_from_extent_competed(self):
+        """H1: extent_competed must read from extentCompeted, not solicitationProcedures."""
+        loader = self._loader()
+        result = loader._normalize_award(_make_raw_award())
+        assert result["extent_competed"] == "A"
+
+    def test_normalize_far_exception(self):
+        """H2: far1102 exception must read from awardeeData.far41102Exception."""
+        loader = self._loader()
+        result = loader._normalize_award(_make_raw_award())
+        assert result["far1102_exception_code"] == "1A"
+        assert result["far1102_exception_name"] == "Statutory Exception"
+
+    def test_normalize_far_exception_missing(self):
+        """H2: far1102 exception fields should be None when absent."""
+        loader = self._loader()
+        raw = _make_raw_award()
+        del raw["awardDetails"]["awardeeData"]["far41102Exception"]
+        result = loader._normalize_award(raw)
+        assert result["far1102_exception_code"] is None
+        assert result["far1102_exception_name"] is None
+
+    def test_normalize_funding_subtier(self):
+        """M2: funding_subtier_code/name must map from fundingSubtier."""
+        loader = self._loader()
+        result = loader._normalize_award(_make_raw_award())
+        assert result["funding_subtier_code"] == "4740"
+        assert result["funding_subtier_name"] == "Federal Acquisition Service"
 
     def test_normalize_missing_core_blocks(self):
         """Empty raw dict should not crash, just return Nones."""

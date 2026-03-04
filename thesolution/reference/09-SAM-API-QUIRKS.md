@@ -29,6 +29,10 @@ Validated 2026-02-28. Always validate with a live API call before bulk loading -
 ## Subawards API
 
 - **Bulk load impractical**: 2.7M+ records. Not needed for core bidding workflow.
+- **Response schema undocumented**: The OpenAPI spec defines response as bare `type: object` with no field definitions. Field structure is only documented on the GSA website (not in the YAML): [Acquisition](https://open.gsa.gov/api/acquisition-subaward-reporting-api/), [Assistance](https://open.gsa.gov/api/assistance-subaward-reporting-api/).
+- **Dict vs scalar fields**: `recoveryModelQ1`, `recoveryModelQ2`, `primeNaics`, and `subAwardDescription` return as `{code, description}` objects from live API, but may appear as plain strings in test fixtures. Always use `isinstance(dict)` guards.
+- **Foreign POP state codes**: For non-US addresses, `placeOfPerformance.state.code` is `null` and `state.name` contains the full name. US states use 2-char codes (e.g., "VA").
+
 
 ## General
 
