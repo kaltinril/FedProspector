@@ -110,7 +110,7 @@ Jobs are triggered via Windows Task Scheduler. Full schtasks commands are in `et
 
 ```bash
 schtasks /create /tn "FedContract_Opportunities" /tr "python main.py load-opportunities --key 2" /sc HOURLY /mo 4
-schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py download-extract --type daily" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
+schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py load entities-refresh --type daily" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
 schtasks /create /tn "FedContract_Hierarchy" /tr "python main.py load-hierarchy --full-refresh --key 2" /sc WEEKLY /d SUN /st 02:00
 schtasks /create /tn "FedContract_Awards" /tr "python main.py load-awards --key 2" /sc WEEKLY /d SAT /st 03:00
 schtasks /create /tn "FedContract_CalcRates" /tr "python main.py load-calc" /sc MONTHLY /d 1 /st 04:00

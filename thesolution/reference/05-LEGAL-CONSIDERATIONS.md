@@ -174,7 +174,7 @@ Day 90:  Key expires - all API calls will fail
 3. Regenerate API key
 4. Update `.env` file with new key
 5. Restart any running scheduler jobs
-6. Verify connectivity: `python main.py check-status`
+6. Verify connectivity: `python main.py health status`
 
 ### Key Storage
 

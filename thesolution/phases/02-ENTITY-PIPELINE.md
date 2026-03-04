@@ -42,7 +42,7 @@
   - [x] `load_from_json_extract(json_file_path, mode)` - primary method
   - [x] `load_from_api_response(entity_data_list, mode)` - for incremental
   - [x] `_normalize_entity(raw_json)` - flatten nested JSON to entity fields
-  - [x] `_extract_child_records(raw_json, uei_sam)` - extract all 7 child table types
+  - [x] `_extract_child_records(raw_json, uei_sam)` - extract all 8 child table types
   - [x] `_upsert_entity()` - INSERT ... ON DUPLICATE KEY UPDATE with change detection
   - [x] `_sync_child_records()` - delete + insert strategy for child tables
   - [x] `_insert_history()` - field-level change history to entity_history
@@ -106,7 +106,7 @@
 ## Acceptance Criteria
 
 1. [x] `entity` table has 500K+ records loaded from monthly extract -- **865,232 loaded**
-2. [x] All 9 entity child tables are populated with normalized data -- **all 8 child tables populated**
+2. [x] All 8 entity child tables are populated with normalized data -- **all 8 child tables populated**
 3. [ ] Running daily load correctly identifies and updates only changed records (not yet tested)
 4. [ ] `entity_history` contains field-level change records for updated entities (not yet tested)
 5. [x] `etl_load_log` shows successful load with accurate statistics
@@ -184,3 +184,5 @@
 - **SBA type date concatenation**: SBA type entries in DAT file concatenate code+date (e.g., "A620291223" = code "A6" + date "20291223"). The dat_parser currently stores the full string; needs a fix to split code from date suffix.
 - **Duplicate NAICS entries**: 7 entities in source data have duplicate NAICS rows (same code, different flags). Handled with LOAD DATA IGNORE.
 - **Multi-row entities**: 7,587 entities have multiple CAGE codes in the DAT file. Only the first CAGE code is stored in the entity table.
+
+> **Note (Phase 14.20):** The SBA type date-suffix concatenation bug (e.g., `A620291223`) remains a known low-priority backlog item. Current parsing handles whitespace-padded entries correctly.

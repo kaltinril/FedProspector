@@ -52,7 +52,10 @@ public class OpportunitiesController : ApiControllerBase
     [HttpGet("export")]
     public async Task<IActionResult> ExportCsv([FromQuery] OpportunitySearchRequest request)
     {
-        var csv = await _service.ExportCsvAsync(request);
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var csv = await _service.ExportCsvAsync(request, orgId.Value);
         var bytes = Encoding.UTF8.GetBytes(csv);
         return File(bytes, "text/csv", "opportunities_export.csv");
     }

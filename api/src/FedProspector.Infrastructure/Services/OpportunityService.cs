@@ -310,9 +310,10 @@ public class OpportunityService : IOpportunityService
         };
     }
 
-    public async Task<string> ExportCsvAsync(OpportunitySearchRequest request)
+    public async Task<string> ExportCsvAsync(OpportunitySearchRequest request, int organizationId)
     {
         // Build the same query as SearchAsync but without pagination
+        // organizationId available for future prospect-enriched CSV exports (same pattern as SearchAsync)
         var query = _context.Opportunities.AsNoTracking().AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.SetAside))

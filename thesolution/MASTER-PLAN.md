@@ -54,7 +54,7 @@ fedProspect/
 **Status**: [x] COMPLETE (2026-02-22)
 **File**: [01-FOUNDATION.md](phases/01-FOUNDATION.md)
 
-- ~~Set up MySQL database~~ 54 tables + 4 views
+- ~~Set up MySQL database~~ 54 tables + 4 views (expanded to 57 tables in later phases)
 - ~~Load reference data from CSVs~~ ~13,001 rows across 11 tables (originally 12,988 in Phase 1; Phase 7 added ref_sba_type + ref_entity_structure)
 - ~~Python project scaffolding~~ config, logging, DB pool, CLI
 - ~~Base API client~~ rate limit via DB, exponential backoff
@@ -110,7 +110,7 @@ fedProspect/
 - ~~SAM.gov Exclusions API~~ `sam_exclusions_client.py` + `exclusions_loader.py` (v4 API, check UEI/name, prospect team member cross-check, loads to `sam_exclusion`)
 - ~~SAM.gov Subaward Reporting API~~ `sam_subaward_client.py` + `subaward_loader.py` (v1 subcontracts API, teaming partner analysis, loads to `sam_subaward`)
 - **Key capability**: Incumbent analysis -- USASpending, FPDS, and Contract Awards data combine to identify previous contract winners, their pricing, and period of performance end dates. This enables predicting rebids before they post and crafting competitive proposals. See [01-RESEARCH-AND-DATA-SOURCES.md](reference/01-RESEARCH-AND-DATA-SOURCES.md) "Incumbent & Competitive Intelligence Strategy" section.
-- **CLI refactored**: `main.py` (1752 -> 170 lines) with 54 commands split into 15 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule)
+- **CLI refactored**: `main.py` (1752 -> 170 lines) with 54 commands split into 16 `cli/` modules (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule_setup, cli_utils)
 - **New CLI commands**: `load-awards`, `load-hierarchy`, `search-agencies`, `load-exclusions`, `check-exclusion`, `check-prospects`, `load-transactions`, `burn-rate`, `load-subawards`, `search-subawards`, `teaming-partners`
 - **Deliverable**: DONE
 
@@ -152,7 +152,7 @@ fedProspect/
 - [x] Gap analysis complete — schema audit, missing tables, missing columns documented
 - [x] Add 14 new tables — completed in Phase 9
 - [x] Add ~15 new columns across 4 existing tables — completed in Phase 9
-- [x] Build C# API backend — 57 endpoints across 14 controllers (Phases 10-14.5)
+- [x] Build C# API backend — 59 endpoints across 13 controllers (Phases 10-14.20)
 - [x] Replicate prospect status flow, Go/No-Go scoring in C# (Phase 12)
 
 **Impact**: Current 57 tables + 4 views (schema changes completed in Phase 9, expanded in Phase 14.5, +1 table in Phase 14.6).
@@ -177,7 +177,7 @@ fedProspect/
 
 **Scope**:
 - [x] ASP.NET Core Web API project (.NET 10)
-- [x] MySQL connectivity via Pomelo EF Core + entity models for 56 tables (50 production + 6 staging). EF Core models needed for 50 production tables only; staging tables are managed by the Python ETL pipeline. (Phase 14.5 added `organization` and `organization_invite`.)
+- [x] MySQL connectivity via Pomelo EF Core + entity models for 57 tables + 4 views (51 production + 6 staging). EF Core models needed for production tables only; staging tables are managed by the Python ETL pipeline. (Phase 14.5 added `organization` and `organization_invite`, Phase 14.6 added `etl_health_snapshot`.)
 - [x] JWT authentication middleware + BCrypt password hashing
 - [x] Swagger/OpenAPI documentation
 - [x] Repository pattern, pagination, DTOs, base controller
@@ -228,7 +228,7 @@ fedProspect/
 - [x] C# Core.Tests: 263 tests across 34 test files (25 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions)
 - [x] C# Api.Tests: 235 tests across 22 test files (2 middleware, 9 controller + Phase 14.5 additions)
 - [x] C# Infrastructure.Tests: 23 tests (GoNoGoScoringService)
-- [x] **Total: 1,259 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
+- [x] **Total: 1,310 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
 - [ ] UI test suite (future): deferred until UI exists
 - [ ] CI/CD: GitHub Actions skipped (user preference for lean tooling)
 - [ ] Integration tests against test DB: deferred (unit tests with mocking cover current needs)
@@ -248,7 +248,7 @@ fedProspect/
 - [x] Multi-tenant query scoping on all capture endpoints
 - [x] Missing endpoints: PATCH `saved-searches`, POST `milestones`, GET `proposals`, POST `auth/refresh`, GET `notifications/unread-count`, GET `opportunities/export`
 - [x] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
-- **Result**: 57 endpoints across 13 controllers, 14 services, 57 tables + 4 views, 1,259 tests passing
+- **Result**: 59 endpoints across 13 controllers, 14 services, 57 tables + 4 views, 1,310 tests passing
 
 ### Phase 14.7: CLI Command Hierarchy
 **Status**: [x] COMPLETE (2026-03-02)
@@ -256,6 +256,11 @@ fedProspect/
 **Dependencies**: Phase 14.6 (Admin Operability — all 54 commands must exist before renaming)
 
 Restructured 54 flat commands into 7 discoverable groups. Commands now follow `python main.py GROUP COMMAND` pattern. The 7 groups are: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`. See [phases/14.7-CLI-HIERARCHY.md](phases/14.7-CLI-HIERARCHY.md).
+
+### Phase 14.8: Architecture Compliance
+**Status**: [x] COMPLETE (2026-03-02)
+
+Clarified Vendor API vs App API terminology across all documentation. Added 2 missing CLI search commands (`search-entities`, `search-awards`). Ensured consistent use of qualified API terms throughout project docs and code comments.
 
 ### Phase 14.6: Admin Operability & CLI Hardening
 **Status**: [x] COMPLETE (2026-03-02)
@@ -323,7 +328,13 @@ Fix admin privilege escalation, refresh token column misuse, ChangePassword erro
 **Status**: [x] COMPLETE (2026-03-03)
 **Document**: [14.16-TEST-COVERAGE-GAPS.md](phases/14.16-TEST-COVERAGE-GAPS.md)
 
-Added 231 new tests (170 Python + 61 C#) across 15 new test files and 4 modified test files. New Infrastructure.Tests project for service-layer testing. Total: 1,259 tests (738 Python + 263 C# Core + 235 C# Api + 23 C# Infrastructure), all passing.
+Added 231 new tests (170 Python + 61 C#) across 15 new test files and 4 modified test files. New Infrastructure.Tests project for service-layer testing. Total: 1,259 tests (738 Python + 263 C# Core + 235 C# Api + 23 C# Infrastructure), all passing. Expanded to 1,310 in Phase 14.20.
+
+### Phase 14.20: Code Fixes & Documentation Sweep
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.20-CODE-FIXES-AND-DOC-SWEEP.md](phases/14.20-CODE-FIXES-AND-DOC-SWEEP.md)
+
+Full project review found 2 critical bugs, 4 unimplemented fixes, and widespread doc staleness. Fixed: JWT `is_system_admin` claim (broken CreateOrg/CreateOwner), ForcePasswordChange middleware, ExportCsvAsync cross-tenant leak, 4 Fix 17 items, 2 missing validator tests. Doc sweep across 14 files: corrected counts (59 endpoints, 13 controllers, 57 tables, 1,310 tests, 54 CLI commands), fixed phase statuses, updated stale command references.
 
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
@@ -334,7 +345,7 @@ Added 231 new tests (170 Python + 61 C#) across 15 new test files and 4 modified
 - MUI v6 component library, TanStack Query, Axios
 - JWT auth flow (login/register, token management, route guards)
 - App layout: collapsible sidebar, top bar, breadcrumbs, dark/light theme
-- Typed API client layer (all 57 API endpoints from Phases 10-14.5)
+- Typed API client layer (all 59 API endpoints from Phases 10-14.20)
 - Shared components: DataTable, SearchFilters, StatusChip, etc.
 - Service manager integration (fed_prospector.py UI commands)
 

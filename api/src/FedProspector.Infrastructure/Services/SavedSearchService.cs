@@ -31,6 +31,14 @@ public class SavedSearchService : ISavedSearchService
         _logger = logger;
     }
 
+    public async Task<SavedSearchDto?> GetByIdAsync(int searchId, int userId)
+    {
+        var search = await _context.SavedSearches.AsNoTracking()
+            .FirstOrDefaultAsync(s => s.SearchId == searchId && s.UserId == userId && s.IsActive == "Y");
+
+        return search == null ? null : _mapper.Map<SavedSearchDto>(search);
+    }
+
     public async Task<IEnumerable<SavedSearchDto>> ListAsync(int userId)
     {
         // Saved searches are user-scoped; org scoping is implicit via user ownership

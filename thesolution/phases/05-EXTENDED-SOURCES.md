@@ -6,6 +6,8 @@
 
 ---
 
+> **Note (Phase 14.20):** Iteration 5B (USASpending bulk CSV) and 5C/5D analysis queries were descoped. The API-based loading path in `usaspending_loader.py` is sufficient for current needs.
+
 ## Overview
 
 Phase 5 adds 7 additional data sources beyond the core Entity + Opportunities pipelines. Each is a self-contained iteration that can be implemented independently. The order below reflects priority ranking from [01-RESEARCH-AND-DATA-SOURCES.md](../reference/01-RESEARCH-AND-DATA-SOURCES.md).

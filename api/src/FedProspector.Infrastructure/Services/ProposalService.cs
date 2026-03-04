@@ -339,18 +339,12 @@ public class ProposalService : IProposalService
         if (!proposalInOrg)
             throw new KeyNotFoundException($"Proposal {proposalId} not found");
 
-        int? assignedToUserId = null;
-        if (!string.IsNullOrWhiteSpace(request.AssignedTo) && int.TryParse(request.AssignedTo, out var parsedId))
-        {
-            assignedToUserId = parsedId;
-        }
-
         var milestone = new ProposalMilestone
         {
             ProposalId = proposalId,
             MilestoneName = request.Title,
             DueDate = DateOnly.FromDateTime(request.DueDate),
-            AssignedTo = assignedToUserId,
+            AssignedTo = request.AssignedTo,
             Status = "PENDING",
             CreatedAt = DateTime.UtcNow
         };

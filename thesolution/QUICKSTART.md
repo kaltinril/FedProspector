@@ -502,7 +502,7 @@ The API starts at `https://localhost:5001` (or `http://localhost:5000`).
 
 ### Phase 14: Testing — COMPLETE (2026-03-01, expanded in Phase 14.16)
 
-1,259 tests across Python and C#, all passing.
+1,310 tests across Python and C#, all passing.
 
 **Run Python tests** (738 tests):
 ```bash
@@ -540,7 +540,7 @@ See [14-TESTING.md](phases/14-TESTING.md) for full details.
 - httpOnly cookie auth replacing localStorage JWT (XSS protection) with CSRF double-submit cookie
 - Token refresh flow with rotation and reuse detection (30-min access + 7-day refresh tokens)
 - Multi-tenant data isolation on all capture endpoints (prospects, proposals, searches, notifications)
-- 13 new API endpoints: 8 organization management + 5 missing functionality (total: 58 endpoints across 13 controllers)
+- 13 new API endpoints: 8 organization management + 5 missing functionality (total: 59 endpoints across 13 controllers)
 - Security hardening: CSP headers, CORS tightening, CSRF protection, generic error messages, Swagger restricted to Development, progressive login delay, global login rate limit
 
 **Auth changes from Phase 14.5** (important for API consumers):
@@ -556,7 +556,7 @@ See [14.5-MULTI-TENANCY-SECURITY.md](phases/14.5-MULTI-TENANCY-SECURITY.md) for 
 
 **What was delivered**:
 - First-time setup wizard, automated entity loading, schedule installer, admin CLI commands, job history, service manager hardening, API key tracking, health check persistence
-- 12 new CLI commands (52 total across 15 modules)
+- 12 new CLI commands (54 total across 16 modules)
 - 1 new table (`etl_health_snapshot`, total: 57 tables + 4 views)
 
 **New commands**:
@@ -648,7 +648,7 @@ Phases 14.7 through 14.11 are COMPLETE. The system now has:
 - `setup schedule-jobs` for automated task creation
 - `load entities-refresh` for one-step entity loading
 - Admin CLI commands for org/user management before UI exists
-- 57 endpoints across 13 controllers, 57 tables + 4 views
+- 59 endpoints across 13 controllers, 57 tables + 4 views
 - Phase 14.8: architecture compliance + 2 missing CLI search commands
 - Phase 14.9: raw staging table for USASpending data
 - Phase 14.10: ETL layer DRY refactor (shared utilities in etl/etl_utils.py)

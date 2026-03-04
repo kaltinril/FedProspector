@@ -343,6 +343,7 @@ public class AuthService : IAuthService
         }
 
         user.PasswordHash = HashPassword(newPassword);
+        user.ForcePasswordChange = "N";
         user.UpdatedAt = DateTime.UtcNow;
 
         // Revoke all active sessions
@@ -616,6 +617,8 @@ public class AuthService : IAuthService
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Name, user.DisplayName),
             new(ClaimTypes.Role, role),
+            new("is_system_admin", user.IsAdmin == "Y" ? "true" : "false"),
+            new("force_password_change", user.ForcePasswordChange == "Y" ? "true" : "false"),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("org_id", user.OrganizationId.ToString()),
             new("org_role", user.OrgRole)

@@ -137,8 +137,10 @@ fed_prospector/
 | `etl/db_maintenance.py` | Implemented | Phase 6 - archive history, purge staging, ANALYZE TABLE |
 | `etl/schema_checker.py` | Implemented | Schema drift detection - compares live DB to DDL files |
 | `db/schema/tables/*.sql`, `db/schema/views/*.sql` | Implemented | Phase 1 + Phase 5/7/9 - 54 tables + 4 views |
-| `main.py` | Implemented | 170 lines, delegates to 12 cli/ modules (39 commands) |
-| `cli/*.py` | Implemented | 12 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema |
+| `main.py` | Implemented | Delegates to 16 cli/ modules, 54 commands across 7 groups |
+| `cli/*.py` | Implemented | 16 modules: database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule_setup, cli_utils |
+| `etl/etl_utils.py` | Implemented | Phase 14.10 - shared ETL utilities (parse_date, parse_decimal, fetch_existing_hashes, escape_tsv_value) |
+| `etl/staging_mixin.py` | Implemented | Phase 14.9 - mixin for raw staging table writes across all loaders |
 
 ## Core Dependencies
 

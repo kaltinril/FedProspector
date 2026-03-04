@@ -1,4 +1,5 @@
 using FedProspector.Api.Controllers;
+using FedProspector.Core.DTOs.Health;
 using FedProspector.Infrastructure.Data;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;

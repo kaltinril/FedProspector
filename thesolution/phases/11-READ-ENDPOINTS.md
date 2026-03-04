@@ -452,8 +452,8 @@ WHERE status NOT IN ('WON', 'LOST', 'DECLINED', 'NO_BID');
 | SAM_ENTITY | 48 hours | 38.4 hours |
 | SAM_FED_HIERARCHY | 336 hours (14d) | 268.8 hours |
 | SAM_AWARDS | 336 hours (14d) | 268.8 hours |
-| CALC_RATES | 1080 hours (45d) | 864 hours |
-| SAM_EXCLUSION | 336 hours (14d) | 268.8 hours |
+| GSA_CALC | 1080 hours (45d) | 864 hours |
+| SAM_EXCLUSIONS | 336 hours (14d) | 268.8 hours |
 | USASPENDING | 1080 hours (45d) | 864 hours |
 | SAM_SUBAWARD | 1080 hours (45d) | 864 hours |
 

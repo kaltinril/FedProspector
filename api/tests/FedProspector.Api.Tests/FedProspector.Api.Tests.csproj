@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\FedProspector.Api\FedProspector.Api.csproj" />
+    <ProjectReference Include="..\..\src\FedProspector.Core\FedProspector.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -19,6 +19,18 @@ public class SavedSearchesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get a saved search by ID.
+    /// </summary>
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetById(int id)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+        var result = await _service.GetByIdAsync(id, userId.Value);
+        return result != null ? Ok(result) : NotFound();
+    }
+
+    /// <summary>
     /// List all active saved searches for the current user.
     /// </summary>
     [HttpGet]
@@ -43,7 +55,7 @@ public class SavedSearchesController : ApiControllerBase
         if (orgId == null) return Unauthorized();
 
         var result = await _service.CreateAsync(userId.Value, orgId.Value, request);
-        return CreatedAtAction(nameof(List), result);
+        return CreatedAtAction(nameof(GetById), new { id = result.SearchId }, result);
     }
 
     /// <summary>

@@ -194,10 +194,21 @@ public class OpportunitiesControllerTests
     // --- ExportCsv ---
 
     [Fact]
+    public async Task ExportCsv_NoOrgId_ReturnsUnauthorized()
+    {
+        var request = new OpportunitySearchRequest();
+
+        var result = await _controller.ExportCsv(request);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
     public async Task ExportCsv_ValidRequest_ReturnsFileResult()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest { SetAside = "WOSB" };
-        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
             .ReturnsAsync("header1,header2\nval1,val2\n");
 
         var result = await _controller.ExportCsv(request);
@@ -208,8 +219,9 @@ public class OpportunitiesControllerTests
     [Fact]
     public async Task ExportCsv_ReturnsCorrectContentType()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
             .ReturnsAsync("col1,col2\n");
 
         var result = await _controller.ExportCsv(request) as FileContentResult;
@@ -220,8 +232,9 @@ public class OpportunitiesControllerTests
     [Fact]
     public async Task ExportCsv_ReturnsCorrectFileName()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
             .ReturnsAsync("col1\n");
 
         var result = await _controller.ExportCsv(request) as FileContentResult;
@@ -232,20 +245,22 @@ public class OpportunitiesControllerTests
     [Fact]
     public async Task ExportCsv_CallsServiceWithCorrectParameters()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest { Naics = "541511", Keyword = "cyber" };
-        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
             .ReturnsAsync("data");
 
         await _controller.ExportCsv(request);
 
-        _serviceMock.Verify(s => s.ExportCsvAsync(request), Times.Once);
+        _serviceMock.Verify(s => s.ExportCsvAsync(request, 99), Times.Once);
     }
 
     [Fact]
     public async Task ExportCsv_EmptyCsv_ReturnsFileResult()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.ExportCsvAsync(request))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
             .ReturnsAsync(string.Empty);
 
         var result = await _controller.ExportCsv(request);

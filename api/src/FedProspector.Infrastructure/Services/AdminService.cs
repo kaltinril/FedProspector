@@ -157,6 +157,7 @@ public class AdminService : IAdminService
 
         var tempPassword = GenerateTemporaryPassword(12);
         user.PasswordHash = _authService.HashPassword(tempPassword);
+        user.ForcePasswordChange = "Y";
         user.UpdatedAt = DateTime.UtcNow;
         user.FailedLoginAttempts = 0;
         user.LockedUntil = null;

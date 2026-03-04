@@ -321,10 +321,13 @@ app.UseAuthorization();
 // 7. CSRF protection (after auth, before controllers)
 app.UseMiddleware<CsrfMiddleware>();
 
-// 8. Rate limiting (after auth, before controllers)
+// 8. Force password change enforcement (after auth, before controllers)
+app.UseMiddleware<ForcePasswordChangeMiddleware>();
+
+// 9. Rate limiting (after auth, before controllers)
 app.UseRateLimiter();
 
-// 9. Map controllers
+// 10. Map controllers
 app.MapControllers();
 
 app.Run();
