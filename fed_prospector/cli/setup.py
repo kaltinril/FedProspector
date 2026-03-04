@@ -241,13 +241,18 @@ def _check_sam_api_key():
         )
         return False
 
-    url = (
-        "https://api.sam.gov/opportunities/v2/search"
-        f"?api_key={api_key}&limit=1"
-        "&postedFrom=01/01/2026&postedTo=01/02/2026"
-    )
+    url = "https://api.sam.gov/opportunities/v2/search"
     try:
-        resp = requests.get(url, timeout=30)
+        resp = requests.get(
+            url,
+            params={
+                "api_key": api_key,
+                "limit": 1,
+                "postedFrom": "01/01/2026",
+                "postedTo": "01/02/2026",
+            },
+            timeout=30,
+        )
         if resp.status_code == 200:
             _pass("SAM.gov API key is valid")
             return True

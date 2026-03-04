@@ -104,7 +104,7 @@ public class CreateOwnerRequestValidatorTests
     public void Validate_PasswordExactly8_ShouldPass()
     {
         var request = ValidRequest();
-        request.Password = "12345678";
+        request.Password = "Abcdef1x";
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveValidationErrorFor(x => x.Password);
     }
@@ -113,18 +113,48 @@ public class CreateOwnerRequestValidatorTests
     public void Validate_PasswordTooLong_ShouldFail()
     {
         var request = ValidRequest();
-        request.Password = new string('a', 101);
+        request.Password = "A1" + new string('a', 127);
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Password);
     }
 
     [Fact]
-    public void Validate_PasswordExactly100_ShouldPass()
+    public void Validate_PasswordExactly128_ShouldPass()
     {
         var request = ValidRequest();
-        request.Password = new string('a', 100);
+        request.Password = "A1" + new string('a', 126);
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveValidationErrorFor(x => x.Password);
+    }
+
+    [Fact]
+    public void Validate_PasswordNoUppercase_ShouldFail()
+    {
+        var request = ValidRequest();
+        request.Password = "alllower1";
+        var result = _validator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.Password)
+            .WithErrorMessage("Password must contain at least one uppercase letter.");
+    }
+
+    [Fact]
+    public void Validate_PasswordNoLowercase_ShouldFail()
+    {
+        var request = ValidRequest();
+        request.Password = "ALLUPPER1";
+        var result = _validator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.Password)
+            .WithErrorMessage("Password must contain at least one lowercase letter.");
+    }
+
+    [Fact]
+    public void Validate_PasswordNoDigit_ShouldFail()
+    {
+        var request = ValidRequest();
+        request.Password = "NoDigitsHere";
+        var result = _validator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.Password)
+            .WithErrorMessage("Password must contain at least one digit.");
     }
 
     // --- DisplayName rules ---

@@ -28,4 +28,5 @@ public class TargetOpportunityView
     public string? ProspectStatus { get; set; }
     public string? ProspectPriority { get; set; }
     public string? AssignedTo { get; set; }
+    public int? OrganizationId { get; set; }
 }

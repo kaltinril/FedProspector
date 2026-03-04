@@ -32,7 +32,10 @@ public class OpportunitiesController : ApiControllerBase
     [HttpGet("targets")]
     public async Task<IActionResult> GetTargets([FromQuery] TargetOpportunitySearchRequest request)
     {
-        var result = await _service.GetTargetsAsync(request);
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _service.GetTargetsAsync(request, orgId.Value);
         return Ok(result);
     }
 

@@ -225,10 +225,10 @@ fedProspect/
 
 **Scope**:
 - [x] Python ETL test suite: ~738 Python tests (verify with: pytest --collect-only -q | tail -5) across 34 test files (8 API client, 3 data quality, 21 loader/business/utility + conftest.py + 8 JSON fixtures)
-- [x] C# Core.Tests: 263 tests across 34 test files (25 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5 additions)
-- [x] C# Api.Tests: 235 tests across 22 test files (2 middleware, 9 controller + Phase 14.5 additions)
-- [x] C# Infrastructure.Tests: 23 tests (GoNoGoScoringService)
-- [x] **Total: 1,310 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
+- [x] C# Core.Tests: 320 tests across 34 test files (25 validator, 1 mapping, 1 DTO, 1 paged response + Phase 14.5/14.22 additions)
+- [x] C# Api.Tests: 244 tests across 22 test files (2 middleware, 9 controller + Phase 14.5/14.22 additions)
+- [x] C# Infrastructure.Tests: 28 tests (GoNoGoScoringService + Phase 14.22 additions)
+- [x] **Total: 1,330 tests, all passing** — pytest + xUnit + Moq + FluentAssertions
 - [ ] UI test suite (future): deferred until UI exists
 - [ ] CI/CD: GitHub Actions skipped (user preference for lean tooling)
 - [ ] Integration tests against test DB: deferred (unit tests with mocking cover current needs)
@@ -248,7 +248,7 @@ fedProspect/
 - [x] Multi-tenant query scoping on all capture endpoints
 - [x] Missing endpoints: PATCH `saved-searches`, POST `milestones`, GET `proposals`, POST `auth/refresh`, GET `notifications/unread-count`, GET `opportunities/export`
 - [x] Security hardening: CSP, Swagger restriction, CORS tightening, generic error messages, `ClockSkew=Zero`
-- **Result**: 59 endpoints across 13 controllers, 14 services, 57 tables + 4 views, 1,310 tests passing
+- **Result**: 59 endpoints across 13 controllers, 14 services, 57 tables + 4 views, 1,330 tests passing
 
 ### Phase 14.7: CLI Command Hierarchy
 **Status**: [x] COMPLETE (2026-03-02)
@@ -328,13 +328,19 @@ Fix admin privilege escalation, refresh token column misuse, ChangePassword erro
 **Status**: [x] COMPLETE (2026-03-03)
 **Document**: [14.16-TEST-COVERAGE-GAPS.md](phases/14.16-TEST-COVERAGE-GAPS.md)
 
-Added 231 new tests (170 Python + 61 C#) across 15 new test files and 4 modified test files. New Infrastructure.Tests project for service-layer testing. Total: 1,259 tests (738 Python + 263 C# Core + 235 C# Api + 23 C# Infrastructure), all passing. Expanded to 1,310 in Phase 14.20.
+Added 231 new tests (170 Python + 61 C#) across 15 new test files and 4 modified test files. New Infrastructure.Tests project for service-layer testing. Total: 1,259 tests (738 Python + 263 C# Core + 235 C# Api + 23 C# Infrastructure), all passing. Expanded to 1,330 in Phase 14.22.
 
 ### Phase 14.20: Code Fixes & Documentation Sweep
 **Status**: [x] COMPLETE (2026-03-03)
 **Document**: [14.20-CODE-FIXES-AND-DOC-SWEEP.md](phases/14.20-CODE-FIXES-AND-DOC-SWEEP.md)
 
 Full project review found 2 critical bugs, 4 unimplemented fixes, and widespread doc staleness. Fixed: JWT `is_system_admin` claim (broken CreateOrg/CreateOwner), ForcePasswordChange middleware, ExportCsvAsync cross-tenant leak, 4 Fix 17 items, 2 missing validator tests. Doc sweep across 14 files: corrected counts (59 endpoints, 13 controllers, 57 tables, 1,310 tests, 54 CLI commands), fixed phase statuses, updated stale command references.
+
+### Phase 14.22: Security Hardening
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.22-SECURITY-HARDENING.md](phases/14.22-SECURITY-HARDENING.md)
+
+Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, and config/deps/secrets. 23 fixes implemented (3 CRITICAL, 5 HIGH, 10 MEDIUM, 4 LOW, 1 INFO), 11 risks accepted and documented, 4 skipped as security theater. Key fixes: temp password logging, JWT token body leak, ZIP Slip path traversal, cross-org admin access, system admin separation (IsSystemAdmin column on app_user), invite role validation, NuGet lock files, Directory.Build.props. New: CreateInviteRequestValidator. Total: 1,330 tests (738 Python + 320 C# Core + 244 C# Api + 28 C# Infra).
 
 ### Phase 15: UI Foundation & Layout
 **Status**: [ ] NOT STARTED

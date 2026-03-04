@@ -286,6 +286,16 @@ builder.Services.AddSwaggerGen(options =>
 
 var app = builder.Build();
 
+// --- Startup guards ---
+if (!app.Environment.IsDevelopment())
+{
+    var jwtSecret = app.Configuration["Jwt:SecretKey"];
+    if (string.IsNullOrEmpty(jwtSecret) || jwtSecret.Contains("CHANGE_ME") || jwtSecret.Length < 32)
+        throw new InvalidOperationException(
+            "JWT secret key must be configured for non-development environments. " +
+            "Set Jwt:SecretKey to a secure value of at least 32 characters.");
+}
+
 // --- Middleware pipeline (order matters) ---
 
 // 1. Global exception handler (first, catches everything)

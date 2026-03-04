@@ -342,6 +342,11 @@ public class AuthService : IAuthService
             throw new InvalidOperationException("Current password is incorrect");
         }
 
+        if (VerifyPassword(newPassword, user.PasswordHash))
+        {
+            throw new InvalidOperationException("New password must be different from current password.");
+        }
+
         user.PasswordHash = HashPassword(newPassword);
         user.ForcePasswordChange = "N";
         user.UpdatedAt = DateTime.UtcNow;
@@ -617,7 +622,7 @@ public class AuthService : IAuthService
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Name, user.DisplayName),
             new(ClaimTypes.Role, role),
-            new("is_system_admin", user.IsAdmin == "Y" ? "true" : "false"),
+            new("is_system_admin", user.IsSystemAdmin ? "true" : "false"),
             new("force_password_change", user.ForcePasswordChange == "Y" ? "true" : "false"),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("org_id", user.OrganizationId.ToString()),

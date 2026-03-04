@@ -30,7 +30,8 @@ SELECT
     p.prospect_id,
     p.status AS prospect_status,
     p.priority AS prospect_priority,
-    u.display_name AS assigned_to
+    u.display_name AS assigned_to,
+    p.organization_id
 FROM opportunity o
 LEFT JOIN ref_naics_code n ON n.naics_code = o.naics_code
 LEFT JOIN ref_naics_code sector

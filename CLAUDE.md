@@ -46,18 +46,18 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Vendor API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
-- **App API**: ASP.NET Core Web API with 59 endpoints across 13 controllers + auth + health (Phases 10-14.20 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
+- **App API**: ASP.NET Core Web API with 59 endpoints across 13 controllers + auth + health (Phases 10-14.22 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
 - **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phases 15-20)
-- **Testing**: 1,310 tests total (738 Python pytest + 313 C# Core xUnit + 236 C# Api xUnit + 23 C# Infrastructure xUnit), all passing
+- **Testing**: Python pytest + C# xUnit (Core, Api, Infrastructure). Run `/run-tests all` or see test paths below.
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core owns application tables (app_user, prospect, saved_search, organization, organization_invite, etc.) starting Phase 10. 57 tables + 4 views total. See Phase 10 plan for details.
 
 ### Keeping Skills & Agents Current
 
 When changes affect counts, file paths, or conventions referenced by skills or agents, update those files too:
 
-- **`.claude/skills/`**: Skills embed test counts (`run-tests`), file paths (`add-endpoint`, `check-health`), and project patterns. When these change, scan skill SKILL.md files for stale values.
+- **`.claude/skills/`**: Skills embed file paths (`add-endpoint`, `check-health`) and project patterns. When paths change, scan skill SKILL.md files.
 - **`.claude/agents/`**: Agents are pattern-based and rarely drift, but review if conventions change significantly.
-- **Use `/update-docs`**: This skill audits both documentation AND skills for stale values.
+- **Use `/update-docs`**: After completing work, run to update phase status and conventions in docs.
 
 ### Known Data Quality Issues
 
@@ -78,9 +78,9 @@ See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contr
 | API controllers | `api/src/FedProspector.Api/Controllers/` (13 controllers: Auth, Health, Opportunities, Awards, Entities, Subawards, Dashboard, Admin, SavedSearches, Prospects, Proposals, Notifications, Organization) |
 | API services | `api/src/FedProspector.Infrastructure/Services/` (14 services: Auth, Opportunity, Award, Entity, Subaward, Dashboard, Admin, SavedSearch, Prospect, Proposal, ActivityLog, GoNoGoScoring, Notification, Organization) |
 | Python tests | `fed_prospector/tests/` (34 test files, 8 JSON fixtures in `fixtures/`, shared `conftest.py`) |
-| C# Core tests | `api/tests/FedProspector.Core.Tests/` (263 tests, 25+ validator test files + mapping, DTO, paged response tests) |
-| C# Api tests | `api/tests/FedProspector.Api.Tests/` (235 tests, 16+ test files: 2 middleware, 9+ controller tests) |
-| C# Infrastructure tests | `api/tests/FedProspector.Infrastructure.Tests/` (23 tests: GoNoGoScoringService) |
+| C# Core tests | `api/tests/FedProspector.Core.Tests/` (validators, mappings, DTOs, paged response tests) |
+| C# Api tests | `api/tests/FedProspector.Api.Tests/` (middleware, controller tests) |
+| C# Infrastructure tests | `api/tests/FedProspector.Infrastructure.Tests/` (GoNoGoScoringService) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
 | Master plan | `thesolution/MASTER-PLAN.md` |
 | UI application | `ui/` (Vite + React 19 + TypeScript, MUI v6, TanStack Query — Phases 15-20) |

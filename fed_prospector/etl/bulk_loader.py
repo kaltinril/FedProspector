@@ -423,8 +423,8 @@ class BulkLoader:
                 try:
                     cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
                     # No commit needed — SET is a session variable, not transactional
-                except Exception:
-                    pass  # Best-effort; connection may be broken
+                except Exception as e:
+                    self.logger.error("Failed to re-enable FK checks: %s", e)
             cursor.close()
             conn.close()
 

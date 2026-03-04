@@ -9,5 +9,6 @@ public class AddProposalDocumentRequestValidator : AbstractValidator<AddProposal
     {
         RuleFor(x => x.FileName).NotEmpty().MaximumLength(255);
         RuleFor(x => x.DocumentType).NotEmpty().MaximumLength(50);
+        RuleFor(x => x.Notes).MaximumLength(10000).When(x => x.Notes != null);
     }
 }

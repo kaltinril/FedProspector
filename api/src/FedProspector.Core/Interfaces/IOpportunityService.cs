@@ -7,6 +7,6 @@ public interface IOpportunityService
 {
     Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request, int organizationId);
     Task<OpportunityDetailDto?> GetDetailAsync(string noticeId, int organizationId);
-    Task<PagedResponse<TargetOpportunityDto>> GetTargetsAsync(TargetOpportunitySearchRequest request);
+    Task<PagedResponse<TargetOpportunityDto>> GetTargetsAsync(TargetOpportunitySearchRequest request, int organizationId);
     Task<string> ExportCsvAsync(OpportunitySearchRequest request, int organizationId);
 }

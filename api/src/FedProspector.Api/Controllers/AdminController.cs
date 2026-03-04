@@ -32,12 +32,15 @@ public class AdminController : ApiControllerBase
     }
 
     /// <summary>
-    /// List all users. Admin only.
+    /// List users in the admin's organization. Admin only.
     /// </summary>
     [HttpGet("users")]
-    public async Task<IActionResult> GetUsers()
+    public async Task<IActionResult> GetUsers([FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
-        var users = await _service.GetUsersAsync();
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var users = await _service.GetUsersAsync(orgId.Value, page, pageSize);
         return Ok(users);
     }
 
@@ -50,7 +53,10 @@ public class AdminController : ApiControllerBase
         var adminUserId = GetCurrentUserId();
         if (adminUserId == null) return Unauthorized();
 
-        var result = await _service.UpdateUserAsync(id, request, adminUserId.Value);
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _service.UpdateUserAsync(id, request, adminUserId.Value, orgId.Value);
         return Ok(result);
     }
 
@@ -63,7 +69,10 @@ public class AdminController : ApiControllerBase
         var adminUserId = GetCurrentUserId();
         if (adminUserId == null) return Unauthorized();
 
-        var result = await _service.ResetPasswordAsync(id, adminUserId.Value);
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _service.ResetPasswordAsync(id, adminUserId.Value, orgId.Value);
         return Ok(result);
     }
 

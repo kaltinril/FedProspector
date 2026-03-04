@@ -188,7 +188,7 @@ class SAMExtractClient(BaseAPIClient):
         self.logger.info("Extracting %s to %s", zip_path.name, output_dir)
 
         with zipfile.ZipFile(zip_path, "r") as zf:
-            zf.extractall(output_dir)
+            zf.extractall(output_dir, filter="data")
             for member in zf.namelist():
                 member_path = output_dir / member
                 if member_path.is_file():

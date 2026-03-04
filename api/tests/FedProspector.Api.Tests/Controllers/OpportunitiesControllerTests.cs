@@ -110,10 +110,21 @@ public class OpportunitiesControllerTests
     // --- GetTargets ---
 
     [Fact]
-    public async Task GetTargets_ValidRequest_ReturnsOk()
+    public async Task GetTargets_NoOrgId_ReturnsUnauthorized()
     {
         var request = new TargetOpportunitySearchRequest();
-        _serviceMock.Setup(s => s.GetTargetsAsync(request))
+
+        var result = await _controller.GetTargets(request);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task GetTargets_ValidRequest_ReturnsOk()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        var request = new TargetOpportunitySearchRequest();
+        _serviceMock.Setup(s => s.GetTargetsAsync(request, 10))
             .ReturnsAsync(new PagedResponse<TargetOpportunityDto>());
 
         var result = await _controller.GetTargets(request);
@@ -124,13 +135,14 @@ public class OpportunitiesControllerTests
     [Fact]
     public async Task GetTargets_ValidRequest_CallsServiceWithCorrectParameters()
     {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
         var request = new TargetOpportunitySearchRequest();
-        _serviceMock.Setup(s => s.GetTargetsAsync(request))
+        _serviceMock.Setup(s => s.GetTargetsAsync(request, 10))
             .ReturnsAsync(new PagedResponse<TargetOpportunityDto>());
 
         await _controller.GetTargets(request);
 
-        _serviceMock.Verify(s => s.GetTargetsAsync(request), Times.Once);
+        _serviceMock.Verify(s => s.GetTargetsAsync(request, 10), Times.Once);
     }
 
     // --- GetDetail ---

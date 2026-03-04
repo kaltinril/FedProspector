@@ -426,7 +426,7 @@ def status():
     # SAM.gov API key check
     click.echo("\n--- Configuration ---")
     if settings.SAM_API_KEY and settings.SAM_API_KEY != "your_api_key_here":
-        click.echo(f"  SAM API key: configured ({settings.SAM_API_KEY[:8]}...)")
+        click.echo("  SAM API key: configured (****)")
         click.echo(f"  Daily limit: {settings.SAM_DAILY_LIMIT}")
     else:
         click.echo("  SAM API key: NOT CONFIGURED")
@@ -447,7 +447,7 @@ def check_api():
         click.echo("ERROR: SAM_API_KEY not configured in .env file")
         sys.exit(1)
 
-    click.echo(f"Testing SAM.gov API key ({settings.SAM_API_KEY[:8]}...)...")
+    click.echo("Testing SAM.gov API key (****)...")
     click.echo(f"Daily limit: {settings.SAM_DAILY_LIMIT}")
     click.echo("WARNING: This will use 1 API call.\n")
 

@@ -40,6 +40,9 @@ public class AppUser
     public string IsAdmin { get; set; } = "N";
 
     [Required]
+    public bool IsSystemAdmin { get; set; } = false;
+
+    [Required]
     [MaxLength(1)]
     public string MfaEnabled { get; set; } = "N";
 

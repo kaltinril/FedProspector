@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using FedProspector.Core.Constants;
+using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Admin;
 using FedProspector.Core.Interfaces;
 using FedProspector.Infrastructure.Data;
@@ -69,10 +70,20 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<List<UserListDto>> GetUsersAsync()
+    public async Task<PagedResponse<UserListDto>> GetUsersAsync(int organizationId, int page = 1, int pageSize = 25)
     {
-        return await _context.AppUsers.AsNoTracking()
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 1 : pageSize > 100 ? 100 : pageSize;
+
+        var query = _context.AppUsers.AsNoTracking()
+            .Where(u => u.OrganizationId == organizationId);
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
             .OrderBy(u => u.Username)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .Select(u => new UserListDto
             {
                 UserId = u.UserId,
@@ -86,12 +97,23 @@ public class AdminService : IAdminService
                 CreatedAt = u.CreatedAt
             })
             .ToListAsync();
+
+        return new PagedResponse<UserListDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount
+        };
     }
 
-    public async Task<UserListDto> UpdateUserAsync(int userId, UpdateUserRequest request, int adminUserId)
+    public async Task<UserListDto> UpdateUserAsync(int userId, UpdateUserRequest request, int adminUserId, int adminOrgId)
     {
         var user = await _context.AppUsers.FindAsync(userId)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
+
+        if (user.OrganizationId != adminOrgId)
+            throw new UnauthorizedAccessException("Cannot modify users from other organizations.");
 
         if (userId == adminUserId && request.IsActive == false)
             throw new InvalidOperationException("Cannot deactivate your own account.");
@@ -147,10 +169,13 @@ public class AdminService : IAdminService
         };
     }
 
-    public async Task<ResetPasswordResponse> ResetPasswordAsync(int userId, int adminUserId)
+    public async Task<ResetPasswordResponse> ResetPasswordAsync(int userId, int adminUserId, int adminOrgId)
     {
         var user = await _context.AppUsers.FindAsync(userId)
             ?? throw new KeyNotFoundException($"User {userId} not found.");
+
+        if (user.OrganizationId != adminOrgId)
+            throw new UnauthorizedAccessException("Cannot modify users from other organizations.");
 
         if (userId == adminUserId)
             throw new InvalidOperationException("Cannot reset your own password. Use change-password instead.");
@@ -173,14 +198,13 @@ public class AdminService : IAdminService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Admin {AdminUserId} reset password for user {UserId}", adminUserId, userId);
-        _logger.LogDebug("Temporary password for user {UserId}: {TempPassword}", userId, tempPassword);
 
         await _activityLogService.LogAsync(adminUserId, "ADMIN_RESET_PASSWORD", "USER", userId.ToString(),
             new { TargetUsername = user.Username, SessionsRevoked = activeSessions.Count });
 
         return new ResetPasswordResponse
         {
-            Message = $"Password reset for user '{user.Username}'. Temporary credentials sent via email."
+            Message = $"Password reset for user '{user.Username}'. Provide temporary credentials to user securely."
         };
     }
 

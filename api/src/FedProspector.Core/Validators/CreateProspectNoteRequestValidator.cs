@@ -14,6 +14,6 @@ public class CreateProspectNoteRequestValidator : AbstractValidator<CreateProspe
             .NotEmpty()
             .Must(t => ValidNoteTypes.Contains(t!))
             .WithMessage("NoteType must be one of: COMMENT, ASSIGNMENT, DECISION, REVIEW, MEETING, PHONE_CALL, EMAIL");
-        RuleFor(x => x.NoteText).NotEmpty();
+        RuleFor(x => x.NoteText).NotEmpty().MaximumLength(10000);
     }
 }

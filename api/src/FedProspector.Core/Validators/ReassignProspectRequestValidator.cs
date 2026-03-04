@@ -8,5 +8,6 @@ public class ReassignProspectRequestValidator : AbstractValidator<ReassignProspe
     public ReassignProspectRequestValidator()
     {
         RuleFor(x => x.NewAssignedTo).GreaterThan(0);
+        RuleFor(x => x.Notes).MaximumLength(10000).When(x => x.Notes != null);
     }
 }

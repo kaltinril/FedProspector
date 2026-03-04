@@ -24,7 +24,10 @@ public class EntityService : IEntityService
 
         // Apply filters
         if (!string.IsNullOrWhiteSpace(request.Name))
-            query = query.Where(e => EF.Functions.Like(e.LegalBusinessName, $"%{request.Name}%"));
+        {
+            var escapedName = EscapeLikePattern(request.Name);
+            query = query.Where(e => EF.Functions.Like(e.LegalBusinessName, $"%{escapedName}%"));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Uei))
             query = query.Where(e => e.UeiSam == request.Uei);
@@ -264,5 +267,14 @@ public class EntityService : IEntityService
             ActiveExclusions = exclusions,
             CheckedAt = DateTime.UtcNow
         };
+    }
+
+    /// <summary>
+    /// Escapes LIKE special characters (%, _, \) so user input is treated as literals.
+    /// </summary>
+    private static string EscapeLikePattern(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        return input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
     }
 }

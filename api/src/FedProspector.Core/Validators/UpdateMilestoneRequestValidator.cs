@@ -13,5 +13,6 @@ public class UpdateMilestoneRequestValidator : AbstractValidator<UpdateMilestone
             .Must(s => ValidStatuses.Contains(s!))
             .When(x => !string.IsNullOrEmpty(x.Status))
             .WithMessage("Status must be one of: PENDING, IN_PROGRESS, COMPLETED, SKIPPED");
+        RuleFor(x => x.Notes).MaximumLength(10000).When(x => x.Notes != null);
     }
 }

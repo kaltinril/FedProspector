@@ -14,5 +14,6 @@ public class CreateProspectRequestValidator : AbstractValidator<CreateProspectRe
             .Must(p => ValidPriorities.Contains(p!))
             .When(x => !string.IsNullOrEmpty(x.Priority))
             .WithMessage("Priority must be one of: LOW, MEDIUM, HIGH, CRITICAL");
+        RuleFor(x => x.Notes).MaximumLength(10000).When(x => x.Notes != null);
     }
 }

@@ -32,13 +32,19 @@ public class AwardService : IAwardService
             query = query.Where(c => c.NaicsCode == request.Naics);
 
         if (!string.IsNullOrWhiteSpace(request.Agency))
-            query = query.Where(c => c.AgencyName != null && EF.Functions.Like(c.AgencyName, $"%{request.Agency}%"));
+        {
+            var escapedAgency = EscapeLikePattern(request.Agency);
+            query = query.Where(c => c.AgencyName != null && EF.Functions.Like(c.AgencyName, $"%{escapedAgency}%"));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.VendorUei))
             query = query.Where(c => c.VendorUei == request.VendorUei);
 
         if (!string.IsNullOrWhiteSpace(request.VendorName))
-            query = query.Where(c => c.VendorName != null && EF.Functions.Like(c.VendorName, $"%{request.VendorName}%"));
+        {
+            var escapedVendor = EscapeLikePattern(request.VendorName);
+            query = query.Where(c => c.VendorName != null && EF.Functions.Like(c.VendorName, $"%{escapedVendor}%"));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.SetAside))
             query = query.Where(c => c.SetAsideType == request.SetAside);
@@ -262,5 +268,14 @@ public class AwardService : IAwardService
             TransactionCount = totalTransactions,
             MonthlyBreakdown = monthlyData
         };
+    }
+
+    /// <summary>
+    /// Escapes LIKE special characters (%, _, \) so user input is treated as literals.
+    /// </summary>
+    private static string EscapeLikePattern(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        return input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
     }
 }

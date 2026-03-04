@@ -3,6 +3,6 @@ namespace FedProspector.Core.DTOs.Admin;
 public class ResetPasswordResponse
 {
     // TemporaryPassword is intentionally omitted from the response.
-    // The password is sent via email (or logged at DEBUG level for local dev).
+    // Admin must deliver temporary credentials to the user through a secure channel.
     public string Message { get; set; } = string.Empty;
 }

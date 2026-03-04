@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FedProspector.Api.Controllers;
+using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Admin;
 using FedProspector.Core.Interfaces;
 using FluentAssertions;
@@ -25,21 +26,22 @@ public class AdminControllerTests
         };
     }
 
-    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "admin", bool isAdmin = true)
+    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "admin", bool isAdmin = true, int orgId = 1)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(ClaimTypes.Role, role),
-            new("is_admin", isAdmin.ToString().ToLower())
+            new("is_admin", isAdmin.ToString().ToLower()),
+            new("org_id", orgId.ToString())
         };
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
     }
 
-    private void SetAuthenticatedAdmin(int userId = 1)
+    private void SetAuthenticatedAdmin(int userId = 1, int orgId = 1)
     {
-        _controller.ControllerContext.HttpContext.User = CreateUser(userId);
+        _controller.ControllerContext.HttpContext.User = CreateUser(userId, orgId: orgId);
     }
 
     // --- GetEtlStatus ---
@@ -80,10 +82,20 @@ public class AdminControllerTests
     // --- GetUsers ---
 
     [Fact]
+    public async Task GetUsers_NoOrgId_ReturnsUnauthorized()
+    {
+        // No org_id claim set
+        var result = await _controller.GetUsers();
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
     public async Task GetUsers_ReturnsOk()
     {
-        _serviceMock.Setup(s => s.GetUsersAsync())
-            .ReturnsAsync(new List<UserListDto>());
+        SetAuthenticatedAdmin(orgId: 10);
+        _serviceMock.Setup(s => s.GetUsersAsync(10, 1, 25))
+            .ReturnsAsync(new PagedResponse<UserListDto>());
 
         var result = await _controller.GetUsers();
 
@@ -91,14 +103,15 @@ public class AdminControllerTests
     }
 
     [Fact]
-    public async Task GetUsers_CallsService()
+    public async Task GetUsers_CallsServiceWithOrgIdAndPagination()
     {
-        _serviceMock.Setup(s => s.GetUsersAsync())
-            .ReturnsAsync(new List<UserListDto>());
+        SetAuthenticatedAdmin(orgId: 10);
+        _serviceMock.Setup(s => s.GetUsersAsync(10, 2, 50))
+            .ReturnsAsync(new PagedResponse<UserListDto>());
 
-        await _controller.GetUsers();
+        await _controller.GetUsers(page: 2, pageSize: 50);
 
-        _serviceMock.Verify(s => s.GetUsersAsync(), Times.Once);
+        _serviceMock.Verify(s => s.GetUsersAsync(10, 2, 50), Times.Once);
     }
 
     // --- UpdateUser ---
@@ -116,9 +129,9 @@ public class AdminControllerTests
     [Fact]
     public async Task UpdateUser_ValidRequest_ReturnsOk()
     {
-        SetAuthenticatedAdmin(userId: 1);
+        SetAuthenticatedAdmin(userId: 1, orgId: 10);
         var request = new UpdateUserRequest { Role = "admin" };
-        _serviceMock.Setup(s => s.UpdateUserAsync(5, request, 1))
+        _serviceMock.Setup(s => s.UpdateUserAsync(5, request, 1, 10))
             .ReturnsAsync(new UserListDto { UserId = 5, Role = "admin" });
 
         var result = await _controller.UpdateUser(5, request);
@@ -129,22 +142,22 @@ public class AdminControllerTests
     [Fact]
     public async Task UpdateUser_CallsServiceWithCorrectParameters()
     {
-        SetAuthenticatedAdmin(userId: 2);
+        SetAuthenticatedAdmin(userId: 2, orgId: 20);
         var request = new UpdateUserRequest { IsAdmin = true };
-        _serviceMock.Setup(s => s.UpdateUserAsync(10, request, 2))
+        _serviceMock.Setup(s => s.UpdateUserAsync(10, request, 2, 20))
             .ReturnsAsync(new UserListDto());
 
         await _controller.UpdateUser(10, request);
 
-        _serviceMock.Verify(s => s.UpdateUserAsync(10, request, 2), Times.Once);
+        _serviceMock.Verify(s => s.UpdateUserAsync(10, request, 2, 20), Times.Once);
     }
 
     [Fact]
     public async Task UpdateUser_InvalidOperation_ThrowsInvalidOperation()
     {
-        SetAuthenticatedAdmin(userId: 1);
+        SetAuthenticatedAdmin(userId: 1, orgId: 10);
         var request = new UpdateUserRequest { IsActive = false };
-        _serviceMock.Setup(s => s.UpdateUserAsync(1, request, 1))
+        _serviceMock.Setup(s => s.UpdateUserAsync(1, request, 1, 10))
             .ThrowsAsync(new InvalidOperationException("Cannot deactivate yourself"));
 
         var act = () => _controller.UpdateUser(1, request);
@@ -155,9 +168,9 @@ public class AdminControllerTests
     [Fact]
     public async Task UpdateUser_UserNotFound_ThrowsKeyNotFound()
     {
-        SetAuthenticatedAdmin(userId: 1);
+        SetAuthenticatedAdmin(userId: 1, orgId: 10);
         var request = new UpdateUserRequest { Role = "admin" };
-        _serviceMock.Setup(s => s.UpdateUserAsync(999, request, 1))
+        _serviceMock.Setup(s => s.UpdateUserAsync(999, request, 1, 10))
             .ThrowsAsync(new KeyNotFoundException());
 
         var act = () => _controller.UpdateUser(999, request);
@@ -178,9 +191,9 @@ public class AdminControllerTests
     [Fact]
     public async Task ResetPassword_ValidRequest_ReturnsOk()
     {
-        SetAuthenticatedAdmin(userId: 1);
-        _serviceMock.Setup(s => s.ResetPasswordAsync(5, 1))
-            .ReturnsAsync(new ResetPasswordResponse { Message = "Password reset. Credentials sent via email." });
+        SetAuthenticatedAdmin(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.ResetPasswordAsync(5, 1, 10))
+            .ReturnsAsync(new ResetPasswordResponse { Message = "Password reset. Provide temporary credentials to user securely." });
 
         var result = await _controller.ResetPassword(5);
 
@@ -190,20 +203,20 @@ public class AdminControllerTests
     [Fact]
     public async Task ResetPassword_CallsServiceWithCorrectParameters()
     {
-        SetAuthenticatedAdmin(userId: 3);
-        _serviceMock.Setup(s => s.ResetPasswordAsync(7, 3))
+        SetAuthenticatedAdmin(userId: 3, orgId: 30);
+        _serviceMock.Setup(s => s.ResetPasswordAsync(7, 3, 30))
             .ReturnsAsync(new ResetPasswordResponse());
 
         await _controller.ResetPassword(7);
 
-        _serviceMock.Verify(s => s.ResetPasswordAsync(7, 3), Times.Once);
+        _serviceMock.Verify(s => s.ResetPasswordAsync(7, 3, 30), Times.Once);
     }
 
     [Fact]
     public async Task ResetPassword_UserNotFound_ThrowsKeyNotFound()
     {
-        SetAuthenticatedAdmin(userId: 1);
-        _serviceMock.Setup(s => s.ResetPasswordAsync(999, 1))
+        SetAuthenticatedAdmin(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.ResetPasswordAsync(999, 1, 10))
             .ThrowsAsync(new KeyNotFoundException());
 
         var act = () => _controller.ResetPassword(999);

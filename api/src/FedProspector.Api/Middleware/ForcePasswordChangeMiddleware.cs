@@ -22,9 +22,9 @@ public class ForcePasswordChangeMiddleware
                 var method = context.Request.Method;
 
                 // Allow password change and logout only
-                var isAllowed = (path.EndsWith("/auth/change-password") && method == "POST") ||
-                                (path.EndsWith("/auth/logout") && method == "POST") ||
-                                (path.EndsWith("/auth/me") && method == "GET");
+                var isAllowed = (path.Equals("/api/v1/auth/change-password", StringComparison.OrdinalIgnoreCase) && method == "POST") ||
+                                (path.Equals("/api/v1/auth/logout", StringComparison.OrdinalIgnoreCase) && method == "POST") ||
+                                (path.Equals("/api/v1/auth/me", StringComparison.OrdinalIgnoreCase) && method == "GET");
 
                 if (!isAllowed)
                 {

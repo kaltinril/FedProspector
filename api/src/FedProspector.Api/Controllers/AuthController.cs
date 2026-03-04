@@ -49,7 +49,7 @@ public class AuthController : ApiControllerBase
         // Set httpOnly cookies for browser clients
         SetAuthCookies(result);
 
-        return Ok(result);
+        return Ok(new { result.UserId, result.UserName, result.ExpiresAt });
     }
 
     /// <summary>
@@ -110,7 +110,7 @@ public class AuthController : ApiControllerBase
         // Set httpOnly cookies for browser clients
         SetAuthCookies(result);
 
-        return Ok(result);
+        return Ok(new { result.UserId, result.UserName, result.ExpiresAt });
     }
 
     /// <summary>
@@ -140,7 +140,7 @@ public class AuthController : ApiControllerBase
         // Set new cookies
         SetAuthCookies(result);
 
-        return Ok(result);
+        return Ok(new { result.UserId, result.UserName, result.ExpiresAt });
     }
 
     /// <summary>
@@ -217,7 +217,7 @@ public class AuthController : ApiControllerBase
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.Lax,
+                SameSite = SameSiteMode.Strict,
                 Path = "/api",
                 Expires = result.ExpiresAt
             });
@@ -229,7 +229,7 @@ public class AuthController : ApiControllerBase
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.Lax,
+                SameSite = SameSiteMode.Strict,
                 Path = "/api/v1/auth/refresh",
                 Expires = DateTimeOffset.UtcNow.AddDays(7)
             });
@@ -241,7 +241,7 @@ public class AuthController : ApiControllerBase
         {
             HttpOnly = false,
             Secure = true,
-            SameSite = SameSiteMode.Lax,
+            SameSite = SameSiteMode.Strict,
             Path = "/api",
             Expires = result.ExpiresAt
         });
@@ -256,7 +256,7 @@ public class AuthController : ApiControllerBase
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Lax,
+            SameSite = SameSiteMode.Strict,
             Path = "/api",
             MaxAge = TimeSpan.Zero
         });
@@ -265,7 +265,7 @@ public class AuthController : ApiControllerBase
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Lax,
+            SameSite = SameSiteMode.Strict,
             Path = "/api/v1/auth/refresh",
             MaxAge = TimeSpan.Zero
         });
@@ -274,7 +274,7 @@ public class AuthController : ApiControllerBase
         {
             HttpOnly = false,
             Secure = true,
-            SameSite = SameSiteMode.Lax,
+            SameSite = SameSiteMode.Strict,
             Path = "/api",
             MaxAge = TimeSpan.Zero
         });

@@ -17,23 +17,23 @@ Run one or more of the 4 test suites. Python and C# suites are independent — r
 
 ## Commands
 
-### Python (738 tests)
+### Python
 ```bash
 python -m pytest c:/git/fedProspect/fed_prospector/tests/ -v
 ```
 With filter: `python -m pytest c:/git/fedProspect/fed_prospector/tests/ -v -k "<filter>"`
 
-### C# Core (313 tests)
+### C# Core
 ```bash
 dotnet test c:/git/fedProspect/api/tests/FedProspector.Core.Tests/
 ```
 
-### C# Api (236 tests)
+### C# Api
 ```bash
 dotnet test c:/git/fedProspect/api/tests/FedProspector.Api.Tests/
 ```
 
-### C# Infrastructure (23 tests)
+### C# Infrastructure
 ```bash
 dotnet test c:/git/fedProspect/api/tests/FedProspector.Infrastructure.Tests/
 ```
@@ -48,6 +48,3 @@ When running `all` or `csharp`, launch independent suites in parallel using mult
 
 Show failing test names and relevant output. Do NOT attempt to fix tests unless the user explicitly asks.
 
-## Expected Counts
-
-Total: 1,310 (738 Python + 313 Core + 236 Api + 23 Infra). If counts drift, update CLAUDE.md and MEMORY.md.

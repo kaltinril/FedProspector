@@ -13,5 +13,6 @@ public class AddTeamMemberRequestValidator : AbstractValidator<AddTeamMemberRequ
             .NotEmpty()
             .Must(r => ValidRoles.Contains(r!))
             .WithMessage("Role must be one of: PRIME, SUB, MENTOR, JV_PARTNER");
+        RuleFor(x => x.Notes).MaximumLength(10000).When(x => x.Notes != null);
     }
 }

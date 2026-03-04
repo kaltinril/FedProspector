@@ -30,7 +30,10 @@ public class OpportunityService : IOpportunityService
             query = query.Where(o => o.NaicsCode == request.Naics);
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
-            query = query.Where(o => o.Title != null && EF.Functions.Like(o.Title, $"%{request.Keyword}%"));
+        {
+            var escapedKeyword = EscapeLikePattern(request.Keyword);
+            query = query.Where(o => o.Title != null && EF.Functions.Like(o.Title, $"%{escapedKeyword}%"));
+        }
 
         if (request.DaysOut.HasValue)
         {
@@ -42,7 +45,10 @@ public class OpportunityService : IOpportunityService
             query = query.Where(o => o.Active == "Y" && o.ResponseDeadline != null && o.ResponseDeadline > DateTime.UtcNow);
 
         if (!string.IsNullOrWhiteSpace(request.Department))
-            query = query.Where(o => o.DepartmentName != null && EF.Functions.Like(o.DepartmentName, $"%{request.Department}%"));
+        {
+            var escapedDept = EscapeLikePattern(request.Department);
+            query = query.Where(o => o.DepartmentName != null && EF.Functions.Like(o.DepartmentName, $"%{escapedDept}%"));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.State))
             query = query.Where(o => o.PopState == request.State);
@@ -225,9 +231,12 @@ public class OpportunityService : IOpportunityService
         };
     }
 
-    public async Task<PagedResponse<TargetOpportunityDto>> GetTargetsAsync(TargetOpportunitySearchRequest request)
+    public async Task<PagedResponse<TargetOpportunityDto>> GetTargetsAsync(TargetOpportunitySearchRequest request, int organizationId)
     {
         var query = _context.TargetOpportunities.AsNoTracking().AsQueryable();
+
+        // Filter prospect data to current organization only
+        query = query.Where(t => t.OrganizationId == null || t.OrganizationId == organizationId);
 
         // Apply optional filters on top of the view's built-in WOSB/8(a) filter
         if (request.MinValue.HasValue)
@@ -246,7 +255,10 @@ public class OpportunityService : IOpportunityService
             query = query.Where(t => t.NaicsCode == request.Naics);
 
         if (!string.IsNullOrWhiteSpace(request.Department))
-            query = query.Where(t => t.DepartmentName != null && EF.Functions.Like(t.DepartmentName, $"%{request.Department}%"));
+        {
+            var escapedDept = EscapeLikePattern(request.Department);
+            query = query.Where(t => t.DepartmentName != null && EF.Functions.Like(t.DepartmentName, $"%{escapedDept}%"));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.State))
             query = query.Where(t => t.PopState == request.State);
@@ -323,7 +335,10 @@ public class OpportunityService : IOpportunityService
             query = query.Where(o => o.NaicsCode == request.Naics);
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
-            query = query.Where(o => o.Title != null && EF.Functions.Like(o.Title, $"%{request.Keyword}%"));
+        {
+            var escapedKeyword = EscapeLikePattern(request.Keyword);
+            query = query.Where(o => o.Title != null && EF.Functions.Like(o.Title, $"%{escapedKeyword}%"));
+        }
 
         if (request.DaysOut.HasValue)
         {
@@ -335,7 +350,10 @@ public class OpportunityService : IOpportunityService
             query = query.Where(o => o.Active == "Y" && o.ResponseDeadline != null && o.ResponseDeadline > DateTime.UtcNow);
 
         if (!string.IsNullOrWhiteSpace(request.Department))
-            query = query.Where(o => o.DepartmentName != null && EF.Functions.Like(o.DepartmentName, $"%{request.Department}%"));
+        {
+            var escapedDept = EscapeLikePattern(request.Department);
+            query = query.Where(o => o.DepartmentName != null && EF.Functions.Like(o.DepartmentName, $"%{escapedDept}%"));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.State))
             query = query.Where(o => o.PopState == request.State);
@@ -370,6 +388,15 @@ public class OpportunityService : IOpportunityService
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Escapes LIKE special characters (%, _, \) so user input is treated as literals.
+    /// </summary>
+    private static string EscapeLikePattern(string input)
+    {
+        if (string.IsNullOrEmpty(input)) return input;
+        return input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
     }
 
     /// <summary>

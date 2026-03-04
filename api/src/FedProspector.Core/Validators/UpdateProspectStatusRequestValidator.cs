@@ -17,5 +17,6 @@ public class UpdateProspectStatusRequestValidator : AbstractValidator<UpdatePros
             .NotEmpty()
             .Must(s => ValidStatuses.Contains(s))
             .WithMessage("Invalid status. Valid values: " + string.Join(", ", ValidStatuses));
+        RuleFor(x => x.Notes).MaximumLength(10000).When(x => x.Notes != null);
     }
 }

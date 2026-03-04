@@ -502,26 +502,26 @@ The API starts at `https://localhost:5001` (or `http://localhost:5000`).
 
 ### Phase 14: Testing — COMPLETE (2026-03-01, expanded in Phase 14.16)
 
-1,310 tests across Python and C#, all passing.
+All tests passing across Python and C#.
 
-**Run Python tests** (738 tests):
+**Run Python tests**:
 ```bash
 cd fed_prospector
 source .venv/Scripts/activate        # Git Bash
 python -m pytest fed_prospector/tests/ -v
 ```
 
-**Run C# Core tests** (263 tests):
+**Run C# Core tests**:
 ```bash
 dotnet test api/tests/FedProspector.Core.Tests/
 ```
 
-**Run C# Api tests** (235 tests):
+**Run C# Api tests**:
 ```bash
 dotnet test api/tests/FedProspector.Api.Tests/
 ```
 
-**Run C# Infrastructure tests** (23 tests):
+**Run C# Infrastructure tests**:
 ```bash
 dotnet test api/tests/FedProspector.Infrastructure.Tests/
 ```
@@ -641,7 +641,7 @@ See individual phase docs in `thesolution/phases/` for full specifications.
 
 ## Current Priority: Phase 15 (UI Foundation)
 
-Phases 14.7 through 14.11 are COMPLETE. The system now has:
+Phases 14.7 through 14.22 are COMPLETE. The system now has:
 - 54 CLI commands in 7 discoverable groups: `setup`, `load`, `search`, `prospect`, `analyze`, `admin`, `health`
 - Commands follow `python main.py GROUP COMMAND` pattern (e.g., `python main.py setup verify`)
 - `setup verify` for first-time prerequisite checking
