@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     contract_vehicle_type VARCHAR(50),
     estimated_contract_value DECIMAL(15,2),
     active               CHAR(1) DEFAULT 'Y',
-    award_number         VARCHAR(50),
+    award_number         VARCHAR(200),
     award_date           DATE,
     award_amount         DECIMAL(15,2),
     awardee_uei          VARCHAR(12),

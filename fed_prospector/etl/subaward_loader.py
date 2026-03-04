@@ -367,6 +367,13 @@ class SubawardLoader(StagingMixin):
             codes = [bt.get("code", "") for bt in biz_types if bt.get("code")]
             biz_type_str = ", ".join(codes) if codes else None
 
+        # SAM.gov returns some fields as objects (code/description) in live
+        # responses but as plain strings in test fixtures — handle both.
+        _naics = raw.get("primeNaics")
+        _rmq1 = raw.get("recoveryModelQ1")
+        _rmq2 = raw.get("recoveryModelQ2")
+        _desc = raw.get("subAwardDescription")
+
         return {
             "prime_piid":         raw.get("piid"),
             "prime_agency_id":    contracting_agency.get("code") or raw.get("agencyId"),
@@ -377,15 +384,15 @@ class SubawardLoader(StagingMixin):
             "sub_name":           raw.get("subEntityLegalBusinessName"),
             "sub_amount":         parse_decimal(raw.get("subAwardAmount")),
             "sub_date":           parse_date(raw.get("subAwardDate")),
-            "sub_description":    raw.get("subAwardDescription"),
-            "naics_code":         raw.get("primeNaics"),
+            "sub_description":    _desc.get("description") if isinstance(_desc, dict) else _desc,
+            "naics_code":         _naics.get("code") if isinstance(_naics, dict) else _naics,
             "psc_code":           None,  # Not in API response
             "sub_business_type":  biz_type_str,
             "pop_state":          state_obj.get("code"),
             "pop_country":        country_obj.get("code"),
             "pop_zip":            address.get("zip"),
-            "recovery_model_q1":  raw.get("recoveryModelQ1"),
-            "recovery_model_q2":  raw.get("recoveryModelQ2"),
+            "recovery_model_q1":  _rmq1.get("description") if isinstance(_rmq1, dict) else _rmq1,
+            "recovery_model_q2":  _rmq2.get("description") if isinstance(_rmq2, dict) else _rmq2,
         }
 
     # =================================================================
