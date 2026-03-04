@@ -69,21 +69,43 @@ None of these require all 2.7M subawards. They work with **targeted pulls by NAI
 - **Max page size**: 1,000 records
 - **Data freshness**: Near real-time (as soon as prime reports)
 
-**Supported filters**:
+**Supported query filters** (validated against [GSA docs](https://open.gsa.gov/api/acquisition-subaward-reporting-api/) and OpenAPI spec, 2026-03-04):
 
-| Filter | Param Name | Status in Our Code |
-|--------|------------|-------------------|
-| PIID | `PIID` | In client, NOT in CLI |
-| Agency (4-digit) | `agencyId` | In client + CLI |
-| Prime UEI | `primeEntityUei` | In client + CLI |
-| Sub UEI | `subEntityUei` | In client, NOT in CLI |
-| From/To Date | `fromDate`, `toDate` | In client, NOT in CLI |
-| Prime Award Type | `primeAwardType` | NOT implemented |
-| Referenced IDV PIID | `referencedIDVPIID` | NOT implemented |
-| Status | `status` | Hardcoded "Published" |
-| **NAICS** | `primeNaics` | **In client + CLI, but NOT in official OpenAPI spec** |
+| Filter | Param Name | Actually Works? | Status in Our Code |
+|--------|------------|-----------------|-------------------|
+| PIID | `PIID` | **YES** | In client, NOT in CLI |
+| Agency (4-digit) | `agencyId` | **YES** | In client + CLI |
+| From/To Date | `fromDate`, `toDate` | **YES** | In client, NOT in CLI |
+| Prime Award Type | `primeAwardType` | **YES** | NOT implemented |
+| Prime Contract Key | `primeContractKey` | **YES** | NOT implemented |
+| Referenced IDV PIID | `referencedIdvPIID` | **YES** | NOT implemented |
+| Referenced IDV Agency | `referencedIDVAgencyID` | **YES** | NOT implemented |
+| Status | `status` | **YES** | Hardcoded "Published" |
+| **NAICS** | `primeNaics` | **NO — silently ignored** | In client + CLI (**BUG**) |
+| **Prime UEI** | `primeEntityUei` | **NO — silently ignored** | In client + CLI (**BUG**) |
+| **Sub UEI** | `subEntityUei` | **NO — silently ignored** | In client (**BUG**) |
 
-**Key finding**: The `primeNaics` parameter works in practice but is not documented in the official OpenAPI spec. It may be an undocumented filter or could be removed without notice.
+**CRITICAL FINDING**: `primeNaics`, `primeEntityUei`, and `subEntityUei` are **response fields**, not query parameters. The API silently ignores them and returns unfiltered results. Our client sends them as query params, giving the false impression that server-side filtering is happening. Verified by comparing filtered vs unfiltered `totalRecords` counts — they are identical.
+
+### NAICS Filtering Strategy: PIID-Driven Lookup
+
+Since the subaward API does not support NAICS filtering, the correct approach is:
+
+1. **Query local `fpds_contract` table** for PIIDs matching the target NAICS code(s)
+2. **Call the subaward API once per PIID** — each call returns only subawards for that specific prime contract
+3. **Combine with `--years-back`** to limit to recent contracts via `date_signed`
+
+This is practical because PIID counts per NAICS are small (validated against local DB, 2026-03-04):
+
+| NAICS | Distinct PIIDs (all time) | With 2-year lookback |
+|-------|--------------------------|---------------------|
+| 541611 | 161 | 129 |
+| 541519 | 102 | 72 |
+| 541330 | 82 | 67 |
+| 541511 | 55 | 47 |
+| 541512 | 40 | 27 |
+
+Even the largest (541611) needs only 129 API calls with a 2-year window — well within the 1,000/day budget on key 2. The API only supports single-value PIID queries (no batch/multi-value), but the small counts make this viable.
 
 **Pros**: Real-time data, direct from source, JSON format
 **Cons**: Rate-limited, expensive for bulk loads, 2.7M+ total records unfiltered
@@ -186,15 +208,30 @@ Per GAO-24-106237 (Federal Spending Transparency, 2024):
 
 ## 6. Recommended Changes
 
-### Priority 1: CLI Parity (HIGH)
+### Priority 0: Fix Broken API Params (CRITICAL)
+
+Remove silently-ignored query params from `fed_prospector/api_clients/sam_subaward_client.py`:
+
+1. **Remove `primeNaics`** from `search_subcontracts()` and `_build_params()` — not a valid API filter
+2. **Remove `primeEntityUei`** from both methods — not a valid API filter
+3. **Remove `subEntityUei`** from both methods — not a valid API filter
+4. **Remove `search_by_naics()`** convenience method — fundamentally broken (server ignores param)
+5. **Remove `search_by_prime()`** and **`search_by_sub()`** — rely on broken UEI params
+6. Remove `naics_code`, `prime_uei`, `sub_uei` args from method signatures (or repurpose for client-side filtering)
+7. Update docstrings to document only the params that actually work
+
+### Priority 1: CLI Parity + PIID-Driven NAICS Loading (HIGH)
 
 Add missing CLI options to `fed_prospector/cli/subaward.py`:
 
-1. **`--naics` multi-value** — comma-separated loop (same pattern as awards)
-2. **`--years-back N`** — compute `from_date = today - N years`, pass to client
-3. **`--sub-uei`** — expose existing client parameter
-4. **`--piid`** — expose existing client parameter
-5. **Require at least one filter** — prevent unfiltered 2.7M loads with a validation check
+1. **`--years-back N`** — compute `from_date = today - N years`, pass to API's `fromDate` (which actually works)
+2. **`--naics` multi-value** — comma-separated; triggers PIID-driven strategy:
+   - Query `fpds_contract` for PIIDs matching the NAICS code(s) + optional date window
+   - Call subaward API once per PIID using the `PIID` param (which actually works)
+   - Log the number of PIIDs found and API calls needed
+3. **`--piid`** — expose existing client parameter (direct API param, works)
+4. **Require at least one filter** — prevent unfiltered 2.7M loads with a validation check
+5. **Remove `--prime-uei`** from CLI — API doesn't support it as a filter
 
 ### Priority 2: Page-by-Page Processing + Resume (HIGH)
 
@@ -226,34 +263,102 @@ This is NOT blocking for V1 — the SAM.gov API with proper filtering is suffici
 
 ---
 
-## 7. Files to Modify
+## 7. Smart Loading Strategy
+
+### The Problem
+
+The subaward API has 2.7M records but **no NAICS filter**. The `--naics` param we send (`primeNaics`) is silently ignored — the API returns ALL records regardless. Loading everything wastes API budget, time, and storage on irrelevant data.
+
+### The Solution: PIID-Driven Loading
+
+Instead of asking the subaward API "give me subawards for NAICS 541511" (which it can't do), we flip the approach:
+
+1. **Ask our local database**: "What prime contracts exist for NAICS 541511?" → returns a list of PIIDs
+2. **Ask the subaward API per PIID**: "Give me subawards for PIID X" → returns only relevant subawards
+3. **Combine with date filtering**: `--years-back 2` limits both the PIID lookup and API `fromDate`
+
+```
+User runs:  python main.py load subawards --naics 541511,541611 --years-back 2
+
+Step 0:  Parse comma-separated NAICS (same pattern as awards CLI):
+         naics_codes = [c.strip() for c in naics.split(',') if c.strip()]
+         → ['541511', '541611']
+
+Step 1:  SELECT DISTINCT idv_piid FROM fpds_contract
+         WHERE naics_code IN ('541511', '541611')
+           AND date_signed >= '2024-03-04'
+         → 176 PIIDs (47 + 129, deduplicated)
+
+Step 2:  For each PIID, call:
+         GET /prod/contract/v1/subcontracts/search?PIID=<piid>&fromDate=2024-03-04
+         → 176 API calls, each returning 0-20 subawards
+
+Step 3:  Load results into sam_subaward with change detection
+
+Result:  ~400-800 relevant subaward records loaded in 176 API calls
+         vs. 2,700+ API calls to page through all 2.7M records unfiltered
+```
+
+### Why This Works
+
+- **PIID is a supported filter** — the API actually respects it
+- **PIID counts are small** — 47-161 per NAICS with a 2-year window (see table in Section 3)
+- **Each call returns a focused result set** — subawards for one specific prime contract
+- **Date filtering works too** — `fromDate`/`toDate` are supported API params
+- **Requires `fpds_contract` data** — must load awards first (`python main.py load awards --naics 541511`)
+
+### Fallback: No Local Award Data
+
+If `fpds_contract` has no PIIDs for the requested NAICS (awards not yet loaded):
+- Warn the user: "No awards found for NAICS 541511 in local DB. Load awards first."
+- Suggest: `python main.py load awards --naics 541511 --years-back 2`
+- Do NOT fall back to unfiltered loading
+
+### Files to Modify
 
 | File | Change |
 |------|--------|
-| `fed_prospector/cli/subaward.py` | Add `--years-back`, `--sub-uei`, `--piid`, multi-NAICS, filter validation, page-by-page processing |
-| `fed_prospector/etl/subaward_loader.py` | Add `load_subaward_batch()` for per-page processing |
+| `fed_prospector/api_clients/sam_subaward_client.py` | Remove broken `primeNaics`/`primeEntityUei`/`subEntityUei` params; remove `search_by_naics`/`search_by_prime`/`search_by_sub` methods |
+| `fed_prospector/cli/subaward.py` | Add `--years-back`, `--piid`, multi-NAICS with PIID-driven strategy, filter validation, page-by-page processing |
+| `fed_prospector/etl/subaward_loader.py` | Add `load_subaward_batch()` for per-page processing; add PIID lookup helper |
 | `fed_prospector/db/schema/tables/40_federal.sql` | Add duplicate detection index if needed |
+| `thesolution/reference/09-SAM-API-QUIRKS.md` | Document that NAICS/UEI are not valid subaward API filters |
 
 ---
 
 ## 8. Verification
 
 ```bash
-# Multi-NAICS with date filter
-python main.py load subawards --naics 541611,541512 --years-back 3 --max-calls 10
+# Prerequisites: load awards for target NAICS first
+python main.py load awards --naics 541611,541512 --years-back 3
 
-# Search by subcontractor
-python main.py load subawards --sub-uei DNJPS1CVCP17 --max-calls 5
+# PIID-driven subaward load (queries local fpds_contract for PIIDs, then fetches per-PIID)
+python main.py load subawards --naics 541611,541512 --years-back 3 --max-calls 200
+# Expected output:
+#   Found 156 PIIDs for NAICS 541611,541512 (2-year lookback)
+#   Fetching subawards for PIID 1/156: W91QVN-20-C-0001 ...
+#   ...
+#   Loaded 423 subaward records in 156 API calls
+
+# Direct PIID load (no local lookup needed)
+python main.py load subawards --piid W91QVN-20-C-0001
+
+# Agency + date filter (uses supported API params directly)
+python main.py load subawards --agency 9700 --years-back 2 --max-calls 50
 
 # Verify filter required (should error)
 python main.py load subawards --max-calls 5
-# Expected: "ERROR: At least one filter required (--naics, --agency, --prime-uei, --sub-uei, or --piid)"
+# Expected: "ERROR: At least one filter required (--naics, --agency, or --piid)"
+
+# Verify NAICS without local awards data (should warn)
+python main.py load subawards --naics 999999
+# Expected: "No awards found for NAICS 999999 in local DB. Load awards first."
 
 # Resume test: start load, Ctrl+C, re-run same command
-python main.py load subawards --naics 541611 --max-calls 20
-# (Ctrl+C at page 5)
-python main.py load subawards --naics 541611 --max-calls 20
-# Expected: "Resuming from page 6 (load_id=XX)"
+python main.py load subawards --naics 541611 --max-calls 200
+# (Ctrl+C at PIID 50)
+python main.py load subawards --naics 541611 --max-calls 200
+# Expected: "Resuming from PIID 51/156 (load_id=XX)"
 ```
 
 ---
