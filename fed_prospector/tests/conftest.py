@@ -5,11 +5,25 @@ so that unit tests never touch a real database or make live API calls.
 """
 
 import json
+import logging
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+
+# ---------------------------------------------------------------------------
+# Suppress noisy log output during tests (fed_prospector logs at WARNING+
+# produce ~16K lines per run, drowning out real production issues in the
+# shared log file).  Tests that need to assert on log output can override
+# this per-test via caplog or by re-enabling the logger.
+# ---------------------------------------------------------------------------
+logging.getLogger("fed_prospector").setLevel(logging.CRITICAL)
+logging.getLogger("etl").setLevel(logging.CRITICAL)
+logging.getLogger("api_clients").setLevel(logging.CRITICAL)
+logging.getLogger("db").setLevel(logging.CRITICAL)
+logging.getLogger("cli").setLevel(logging.CRITICAL)
 
 # ---------------------------------------------------------------------------
 # Ensure fed_prospector package is importable

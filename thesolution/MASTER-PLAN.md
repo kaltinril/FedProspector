@@ -342,6 +342,24 @@ Full project review found 2 critical bugs, 4 unimplemented fixes, and widespread
 
 Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, and config/deps/secrets. 23 fixes implemented (3 CRITICAL, 5 HIGH, 10 MEDIUM, 4 LOW, 1 INFO), 11 risks accepted and documented, 4 skipped as security theater. Key fixes: temp password logging, JWT token body leak, ZIP Slip path traversal, cross-org admin access, system admin separation (IsSystemAdmin column on app_user), invite role validation, NuGet lock files, Directory.Build.props. New: CreateInviteRequestValidator. Total: 1,330 tests (738 Python + 320 C# Core + 244 C# Api + 28 C# Infra).
 
+### Phase 14.24: DDL Consolidation
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.24-DDL-CONSOLIDATION.md](phases/14.24-DDL-CONSOLIDATION.md)
+
+Consolidated all DDL scripts into a canonical set. Added `refresh_token_hash` column to `app_session` DDL. Production ALTER deferred to deployment.
+
+### Phase 14.25: Vendor API Loader Audit Fixes
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.25-LOADER-AUDIT-FIXES.md](phases/14.25-LOADER-AUDIT-FIXES.md)
+
+Full audit of all 6 vendor API loaders against API specs and website docs. 21 fixes including subaward POP address bug (was reading entity mailing address instead of place-of-performance), field mapping corrections, and response parsing improvements.
+
+### Phase 14.26: Resumable Paginated Loads
+**Status**: [x] COMPLETE (2026-03-03)
+**Document**: [14.26-RESUMABLE-PAGINATED-LOADS.md](phases/14.26-RESUMABLE-PAGINATED-LOADS.md)
+
+Added checkpoint-based resume support to paginated API loaders. Loads can be interrupted and resumed from the last successful page, preserving API budget.
+
 ### Phase 15: Subaward Data Strategy
 **Status**: [x] COMPLETE (2026-03-04)
 **File**: [phases/15-SUBAWARD-STRATEGY.md](phases/15-SUBAWARD-STRATEGY.md)

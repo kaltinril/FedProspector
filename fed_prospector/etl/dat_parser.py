@@ -437,6 +437,8 @@ def _norm_date(value):
     s = value.strip()
     if len(s) == 8 and s.isdigit():
         return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
+    if len(s) == 10 and s[4] == '-' and s[7] == '-' and s[:4].isdigit() and s[5:7].isdigit() and s[8:].isdigit():
+        return s
     logger.warning("dat_parser: unrecognized date format %r — stored as NULL", s)
     return None
 

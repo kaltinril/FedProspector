@@ -86,7 +86,7 @@ class TestNormDate:
         ("", None),
         (None, None),
         ("   ", None),
-        ("2026-02-01", None),   # Not 8-digit, returns None
+        ("2026-02-01", "2026-02-01"),   # Already YYYY-MM-DD, passed through
         ("abcdefgh", None),     # Not digits
         ("202601", None),       # Only 6 digits
     ])
