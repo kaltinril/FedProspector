@@ -1,12 +1,26 @@
 """MySQL connection pool using mysql-connector-python.
 
-GOTCHA — PooledMySQLConnection autocommit:
+Autocommit dual-mode design:
+    The pool default is autocommit=False. This is intentional -- most ETL loaders
+    use explicit transactions with conn.commit() / conn.rollback() for batch
+    consistency. Do not change the pool default.
+
+    StagingMixin (see etl/staging_mixin.py) explicitly sets conn.autocommit = True
+    on a dedicated staging connection so that each raw JSON staging row is committed
+    immediately and independently of the main batch-commit connection. This dual-mode
+    (autocommit=False for main, autocommit=True for staging) is intentional and both
+    modes must coexist.
+
+GOTCHA — PooledMySQLConnection autocommit patch:
     mysql-connector-python's PooledMySQLConnection wrapper does NOT proxy the
     ``autocommit`` property to the underlying MySQLConnection._cnx.  Setting
     ``conn.autocommit = True`` on a pooled connection is silently ignored.
 
     This module patches PooledMySQLConnection with a proper autocommit
     property so callers can use ``conn.autocommit = True`` normally.
+    Without this patch, StagingMixin's autocommit=True would be silently
+    swallowed and staging writes would remain uncommitted until an explicit
+    conn.commit() -- which never happens for staging rows.
 """
 
 import logging

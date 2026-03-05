@@ -4,6 +4,8 @@ import csv
 import logging
 import re
 
+import mysql.connector
+
 from db.connection import get_connection
 from config import settings
 
@@ -85,8 +87,8 @@ class ReferenceLoader:
                 count = loader()
                 results[table_name] = count
                 self.logger.info("Loaded %s: %d rows", table_name, count)
-            except Exception:
-                self.logger.exception("Failed to load %s", table_name)
+            except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+                self.logger.error("Failed to load %s: %s", table_name, e)
                 results[table_name] = -1
         return results
 
@@ -140,6 +142,7 @@ class ReferenceLoader:
                     code = (row.get("2022 NAICS US   Code") or "").strip()
                     title = (row.get("2022 NAICS US Title") or "").strip()
                     if not code:
+                        self.logger.warning("Skipping NAICS 2022 record with empty code (title=%s)", title)
                         continue
                     code_level, level_name, parent_code = self._naics_hierarchy(code)
                     rows.append((code, title, code_level, level_name, parent_code, "2022", "Y"))
@@ -165,6 +168,7 @@ class ReferenceLoader:
                     code = (row.get("2017 NAICS Code") or "").strip()
                     title = (row.get("2017 NAICS Title") or "").rstrip()
                     if not code:
+                        self.logger.warning("Skipping NAICS 2017 record with empty code (title=%s)", title)
                         continue
                     code_level, level_name, parent_code = self._naics_hierarchy(code)
                     rows_2017.append((code, title, code_level, level_name, parent_code, "2017", "Y"))
@@ -189,7 +193,8 @@ class ReferenceLoader:
 
             conn.commit()
             return total
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load NAICS codes: %s", e)
             conn.rollback()
             raise
         finally:
@@ -217,6 +222,7 @@ class ReferenceLoader:
                 for row in reader:
                     naics_code = (row.get("NAICS Codes") or "").strip()
                     if not naics_code:
+                        self.logger.warning("Skipping size standard record with empty NAICS code")
                         continue
                     if naics_code not in valid_naics:
                         self.logger.warning(
@@ -250,7 +256,8 @@ class ReferenceLoader:
             if skipped:
                 self.logger.warning("Skipped %d size standard rows (missing NAICS FK)", skipped)
             return len(rows)
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load SBA size standards: %s", e)
             conn.rollback()
             raise
         finally:
@@ -273,6 +280,7 @@ class ReferenceLoader:
                     section = (row.get("section") or "").strip()
                     description = (row.get("Description") or "").strip()
                     if not footnote_id:
+                        self.logger.warning("Skipping footnote record with empty ID")
                         continue
                     rows.append((footnote_id, section, description))
 
@@ -287,7 +295,8 @@ class ReferenceLoader:
 
             conn.commit()
             return len(rows)
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load NAICS footnotes: %s", e)
             conn.rollback()
             raise
         finally:
@@ -310,6 +319,7 @@ class ReferenceLoader:
                 for row in reader:
                     psc_code = (row.get("PSC CODE") or "").strip()
                     if not psc_code:
+                        self.logger.warning("Skipping PSC record with empty code")
                         continue
 
                     psc_name = (row.get("PRODUCT AND SERVICE CODE NAME") or "").strip() or None
@@ -372,7 +382,8 @@ class ReferenceLoader:
 
             conn.commit()
             return len(rows)
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load PSC codes: %s", e)
             conn.rollback()
             raise
         finally:
@@ -404,6 +415,9 @@ class ReferenceLoader:
                     numeric_code = (row.get("NUMERIC_CODE") or "").strip() or None
                     independent = (row.get("INDEPENDENT") or "").strip() or None
                     if not three_code:
+                        self.logger.warning(
+                            "Skipping country record with empty three_code (name=%s)", country_name
+                        )
                         continue
                     iso_codes.add(three_code)
                     # is_iso_standard='Y', sam_gov_recognized='Y' (defaults)
@@ -472,7 +486,8 @@ class ReferenceLoader:
                     "Added %d special territory codes (XKS, XWB, XGZ)", special_count
                 )
             return total
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load country codes: %s", e)
             conn.rollback()
             raise
         finally:
@@ -494,6 +509,9 @@ class ReferenceLoader:
                     state_code = (row.get("State Code") or "").strip()
                     state_name = (row.get("State") or "").strip()
                     if not state_code:
+                        self.logger.warning(
+                            "Skipping state record with empty code (name=%s)", state_name
+                        )
                         continue
                     rows.append((state_code, state_name, "USA"))
 
@@ -508,7 +526,8 @@ class ReferenceLoader:
 
             conn.commit()
             return len(rows)
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load state codes: %s", e)
             conn.rollback()
             raise
         finally:
@@ -537,6 +556,7 @@ class ReferenceLoader:
                 for row in reader:
                     raw_fips = (row.get("FIPS") or "").strip()
                     if not raw_fips:
+                        self.logger.warning("Skipping FIPS record with empty code")
                         continue
                     fips_code = raw_fips.zfill(5)
 
@@ -559,7 +579,8 @@ class ReferenceLoader:
 
             conn.commit()
             return len(rows)
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load FIPS counties: %s", e)
             conn.rollback()
             raise
         finally:
@@ -582,6 +603,9 @@ class ReferenceLoader:
                     description = (row.get("Description") or "").strip()
                     classification = (row.get("Classification") or "").strip() or None
                     if not code:
+                        self.logger.warning(
+                            "Skipping business type record with empty code (desc=%s)", description
+                        )
                         continue
                     category = self._get_business_type_category(code)
                     is_socioeconomic = "Y" if code in self.SOCIOECONOMIC_CODES else "N"
@@ -603,7 +627,8 @@ class ReferenceLoader:
 
             conn.commit()
             return len(rows)
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load business types: %s", e)
             conn.rollback()
             raise
         finally:
@@ -647,7 +672,8 @@ class ReferenceLoader:
 
             conn.commit()
             return len(seed_data)
-        except Exception:
+        except mysql.connector.Error as e:
+            self.logger.error("Failed to load entity structures: %s", e)
             conn.rollback()
             raise
         finally:
@@ -675,6 +701,9 @@ class ReferenceLoader:
                     is_sb = (row.get("is_small_business") or "Y").strip()
                     category = (row.get("category") or "").strip() or None
                     if not code:
+                        self.logger.warning(
+                            "Skipping set-aside type record with empty code (desc=%s)", description
+                        )
                         continue
                     rows.append((code, description, is_sb, category))
 
@@ -687,7 +716,8 @@ class ReferenceLoader:
 
             conn.commit()
             return len(rows)
-        except Exception:
+        except (OSError, ValueError, KeyError, mysql.connector.Error) as e:
+            self.logger.error("Failed to load set-aside types: %s", e)
             conn.rollback()
             raise
         finally:

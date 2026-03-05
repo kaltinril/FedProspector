@@ -116,9 +116,10 @@ class SubawardLoader(StagingMixin):
         }
 
         # Pre-fetch existing hashes keyed on composite prime_piid|sub_uei.
-        # Keying on prime_piid alone causes hash collisions when a prime has
-        # multiple subawards: the dict only retains the last hash per prime,
-        # silently skipping real updates for all other subawards on that prime.
+        # Keying on prime_piid alone caused hash collisions when a prime had
+        # multiple subawards: the dict only retained the last hash per prime,
+        # which silently skipped real updates for other subawards on that prime.
+        # Fixed: composite key now prevents this collision.
         conn_h = get_connection()
         cur_h = conn_h.cursor()
         try:

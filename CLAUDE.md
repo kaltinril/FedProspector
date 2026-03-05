@@ -59,13 +59,29 @@ When changes affect counts, file paths, or conventions referenced by skills or a
 - **`.claude/agents/`**: Agents are pattern-based and rarely drift, but review if conventions change significantly.
 - **Use `/update-docs`**: After completing work, run to update phase status and conventions in docs.
 
-### Known Data Quality Issues
+### Critical Reference Docs
 
-See `thesolution/reference/08-DATA-QUALITY-ISSUES.md` for 18 known issues handled by ETL cleaners (ZIP parsing, date formats, SAM.gov API quirks, etc.)
+- **SAM.gov API quirks** (pagination, param names, response oddities): `thesolution/reference/09-SAM-API-QUIRKS.md`
+- **Data quality issues** (21 known issues, all handled by ETL cleaners): `thesolution/reference/08-DATA-QUALITY-ISSUES.md`
+- **Data architecture & entity linking**: `thesolution/reference/07-DATA-ARCHITECTURE.md`
+- **Vendor API docs** (endpoints, working/broken filters, response structures): `thesolution/reference/vendor-apis/`
+- **Project roadmap & phase status**: `thesolution/MASTER-PLAN.md`
 
-### Data Linking
+### Shared Module Dependencies — Check Before Changing
 
-See `thesolution/reference/07-DATA-ARCHITECTURE.md` for entity/opportunity/contract linking chains and field mappings.
+These files are imported by many modules. Changes have wide blast radius — verify downstream consumers still work:
+
+| File | Downstream Impact |
+|------|-------------------|
+| `db/connection.py` | ALL Python modules |
+| `config/settings.py` | 25+ files (API keys, DB creds, URLs) |
+| `etl/staging_mixin.py` | 7 loaders (opportunity, awards, exclusions, subaward, usaspending, fedhier, calc) |
+| `etl/change_detector.py` | 7 loaders (all using SHA-256 change detection) |
+| `etl/load_manager.py` | ALL loaders (load orchestration, etl_load_log) |
+| `etl/etl_utils.py` | 8 loaders (date/decimal parsing, hash fetching) |
+| `api_clients/base_client.py` | 9 API clients (rate limiting, retries, pagination) |
+
+Individual loaders and `prospect_manager.py` are independent — safe to change in isolation.
 
 ### Project File References
 

@@ -15,6 +15,8 @@ import json
 import logging
 from datetime import datetime, timedelta
 
+import mysql.connector
+
 from db.connection import get_connection
 
 logger = logging.getLogger("fed_prospector.etl.prospect_manager")
@@ -83,7 +85,8 @@ class ProspectManager:
             conn.commit()
             logger.info("Created user '%s' (user_id=%d)", username, user_id)
             return user_id
-        except Exception:
+        except (ValueError, mysql.connector.Error) as e:
+            logger.error("Failed to add user '%s': %s", username, e)
             conn.rollback()
             raise
         finally:
@@ -133,7 +136,8 @@ class ProspectManager:
                 logger.info("Deactivated user '%s'", username)
                 return True
             return False
-        except Exception:
+        except mysql.connector.Error as e:
+            logger.error("Failed to deactivate user '%s': %s", username, e)
             conn.rollback()
             raise
         finally:
@@ -225,7 +229,8 @@ class ProspectManager:
                 prospect_id, notice_id, assigned_to_username,
             )
             return prospect_id
-        except Exception:
+        except (ValueError, mysql.connector.Error) as e:
+            logger.error("Failed to create prospect for notice_id='%s': %s", notice_id, e)
             conn.rollback()
             raise
         finally:
@@ -313,7 +318,8 @@ class ProspectManager:
                 prospect_id, current_status, new_status, username,
             )
             return True
-        except Exception:
+        except (ValueError, mysql.connector.Error) as e:
+            logger.error("Failed to update status for prospect %d: %s", prospect_id, e)
             conn.rollback()
             raise
         finally:
@@ -377,7 +383,8 @@ class ProspectManager:
                 prospect_id, old_username, new_username, by_username,
             )
             return True
-        except Exception:
+        except (ValueError, mysql.connector.Error) as e:
+            logger.error("Failed to reassign prospect %d: %s", prospect_id, e)
             conn.rollback()
             raise
         finally:
@@ -554,7 +561,8 @@ class ProspectManager:
             conn.commit()
             logger.info("Added %s note %d to prospect %d", note_type, note_id, prospect_id)
             return note_id
-        except Exception:
+        except (ValueError, mysql.connector.Error) as e:
+            logger.error("Failed to add note to prospect %d: %s", prospect_id, e)
             conn.rollback()
             raise
         finally:
@@ -643,7 +651,8 @@ class ProspectManager:
                 uei_sam, role, prospect_id,
             )
             return member_id
-        except Exception:
+        except (ValueError, mysql.connector.Error) as e:
+            logger.error("Failed to add team member to prospect %d: %s", prospect_id, e)
             conn.rollback()
             raise
         finally:
@@ -707,7 +716,8 @@ class ProspectManager:
             conn.commit()
             logger.info("Saved search '%s' (search_id=%d) for user '%s'", name, search_id, username)
             return search_id
-        except Exception:
+        except (ValueError, TypeError, mysql.connector.Error) as e:
+            logger.error("Failed to save search '%s': %s", name, e)
             conn.rollback()
             raise
         finally:
@@ -847,7 +857,8 @@ class ProspectManager:
                 "count": len(results),
                 "new_count": new_count,
             }
-        except Exception:
+        except (ValueError, KeyError, json.JSONDecodeError, mysql.connector.Error) as e:
+            logger.error("Failed to run search %s: %s", search_id or search_name, e)
             conn.rollback()
             raise
         finally:
@@ -1040,7 +1051,8 @@ class ProspectManager:
                 "percentage": round((total / max_total) * 100, 1),
                 "breakdown": breakdown,
             }
-        except Exception:
+        except (ValueError, mysql.connector.Error) as e:
+            logger.error("Failed to calculate score for prospect %d: %s", prospect_id, e)
             conn.rollback()
             raise
         finally:

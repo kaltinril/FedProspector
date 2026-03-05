@@ -264,17 +264,17 @@ class TestReferenceLoaderErrors:
         loader = _make_loader()
 
         # Make every individual loader fail
-        with patch.object(loader, "load_footnotes", side_effect=Exception("fail")), \
-             patch.object(loader, "load_naics_codes", side_effect=Exception("fail")), \
-             patch.object(loader, "load_size_standards", side_effect=Exception("fail")), \
-             patch.object(loader, "load_psc_codes", side_effect=Exception("fail")), \
-             patch.object(loader, "load_country_codes", side_effect=Exception("fail")), \
-             patch.object(loader, "load_state_codes", side_effect=Exception("fail")), \
-             patch.object(loader, "load_fips_counties", side_effect=Exception("fail")), \
-             patch.object(loader, "load_business_types", side_effect=Exception("fail")), \
-             patch.object(loader, "load_entity_structures", side_effect=Exception("fail")), \
-             patch.object(loader, "load_set_aside_types", side_effect=Exception("fail")), \
-             patch.object(loader, "load_sba_types", side_effect=Exception("fail")):
+        with patch.object(loader, "load_footnotes", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_naics_codes", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_size_standards", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_psc_codes", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_country_codes", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_state_codes", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_fips_counties", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_business_types", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_entity_structures", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_set_aside_types", side_effect=ValueError("fail")), \
+             patch.object(loader, "load_sba_types", side_effect=ValueError("fail")):
             results = loader.load_all()
 
         # All entries should be -1 (failure)
