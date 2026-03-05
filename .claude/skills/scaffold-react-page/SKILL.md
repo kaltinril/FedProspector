@@ -1,6 +1,6 @@
 ---
 name: scaffold-react-page
-description: "[DRAFT — revisit when Phase 20 starts] Scaffold a new React page following FedProspect UI patterns: page component, API module, TanStack Query hooks, route registration, and MUI layout. Usage: /scaffold-react-page <PageName> <api-entity>"
+description: "Scaffold a new React page following FedProspect UI patterns: page component, API module, TanStack Query hooks, route registration, and MUI layout. Usage: /scaffold-react-page <PageName> <api-entity>"
 argument-hint: "<PageName> <api-entity>"
 disable-model-invocation: true
 ---
