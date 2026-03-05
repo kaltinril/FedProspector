@@ -59,14 +59,6 @@ When changes affect counts, file paths, or conventions referenced by skills or a
 - **`.claude/agents/`**: Agents are pattern-based and rarely drift, but review if conventions change significantly.
 - **Use `/update-docs`**: After completing work, run to update phase status and conventions in docs.
 
-### Critical Reference Docs
-
-- **SAM.gov API quirks** (pagination, param names, response oddities): `thesolution/reference/09-SAM-API-QUIRKS.md`
-- **Data quality issues** (21 known issues, all handled by ETL cleaners): `thesolution/reference/08-DATA-QUALITY-ISSUES.md`
-- **Data architecture & entity linking**: `thesolution/reference/07-DATA-ARCHITECTURE.md`
-- **Vendor API docs** (endpoints, working/broken filters, response structures): `thesolution/reference/vendor-apis/`
-- **Project roadmap & phase status**: `thesolution/MASTER-PLAN.md`
-
 ### Shared Module Dependencies — Check Before Changing
 
 These files are imported by many modules. Changes have wide blast radius — verify downstream consumers still work:
@@ -87,28 +79,16 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 
 | What | Location |
 |------|----------|
-| Python application | `fed_prospector/` (CLI: `python main.py --help`, 54 commands in 7 groups: setup, load, search, prospect, analyze, admin, health) |
-| CLI modules | `fed_prospector/cli/` (database, entities, opportunities, prospecting, calc, awards, fedhier, exclusions, spending, health, subaward, schema, admin, setup, schedule_setup, cli_utils) |
-| Vendor API clients | `fed_prospector/api_clients/` (sam_opportunity, sam_awards, sam_exclusions, sam_subaward, sam_fedhier, usaspending, calc) |
-| ETL loaders | `fed_prospector/etl/` (bulk_loader, dat_parser, opportunity_loader, awards_loader, usaspending_loader, calc_loader, fedhier_loader, exclusions_loader, subaward_loader, prospect_manager, scheduler, health_check, db_maintenance) |
-| API controllers | `api/src/FedProspector.Api/Controllers/` (13 controllers: Auth, Health, Opportunities, Awards, Entities, Subawards, Dashboard, Admin, SavedSearches, Prospects, Proposals, Notifications, Organization) |
-| API services | `api/src/FedProspector.Infrastructure/Services/` (14 services: Auth, Opportunity, Award, Entity, Subaward, Dashboard, Admin, SavedSearch, Prospect, Proposal, ActivityLog, GoNoGoScoring, Notification, Organization) |
-| Python tests | `fed_prospector/tests/` (34 test files, 8 JSON fixtures in `fixtures/`, shared `conftest.py`) |
-| C# Core tests | `api/tests/FedProspector.Core.Tests/` (validators, mappings, DTOs, paged response tests) |
-| C# Api tests | `api/tests/FedProspector.Api.Tests/` (middleware, controller tests) |
-| C# Infrastructure tests | `api/tests/FedProspector.Infrastructure.Tests/` (GoNoGoScoringService) |
+| Python app + CLI | `fed_prospector/` (`python main.py --help`, 54 commands in 7 groups) |
+| Vendor API clients | `fed_prospector/api_clients/` (7 clients, all inherit `BaseAPIClient`) |
+| ETL loaders | `fed_prospector/etl/` (7 loaders + prospect_manager, scheduler, health_check) |
+| C# API | `api/src/FedProspector.Api/Controllers/` (13 controllers, 59 endpoints) |
+| C# services | `api/src/FedProspector.Infrastructure/Services/` (14 services) |
+| Tests | `fed_prospector/tests/`, `api/tests/` (Python pytest + C# xUnit) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
+| UI application | `ui/` (Phases 20-70) |
 | Master plan | `thesolution/MASTER-PLAN.md` |
-| UI application | `ui/` (Vite + React 19 + TypeScript, MUI v6, TanStack Query — Phases 20-70) |
-| Phase plans | `thesolution/phases/` (01 through 80) |
-| Reference docs | `thesolution/reference/` (01 through 09) |
-| Vendor API docs | `thesolution/reference/vendor-apis/` (9 docs: SAM Opportunities, Entity, Entity Extracts, Awards, Exclusions, Subawards, Federal Hierarchy, USASpending, GSA CALC) |
-| Credentials (DB, API keys) | `thesolution/credentials.yml` |
-| Quick start | `thesolution/QUICKSTART.md` |
-| SAM.gov API specs | `thesolution/sam_gov_api/` (8 YAML/YML OpenAPI specs) |
-| Reference data CSVs | `workdir/converted/local database/` (NAICS, PSC, SBA size standards, FIPS, entity field mapping) |
-| Reference docs (legacy) | `workdir/converted/` (country_codes, state_codes, entity_api_relationship, proposed mysql solution) |
-| Data architecture | `thesolution/reference/07-DATA-ARCHITECTURE.md` |
-| Data quality issues | `thesolution/reference/08-DATA-QUALITY-ISSUES.md` |
-| SAM.gov API quirks | `thesolution/reference/09-SAM-API-QUIRKS.md` |
-| Glossary | `thesolution/reference/06-GLOSSARY.md` |
+| Phase plans | `thesolution/phases/` |
+| Reference docs | `thesolution/reference/` (architecture, data quality, API quirks, glossary, vendor API docs) |
+| Credentials | `thesolution/credentials.yml` |
+| Reference CSVs | `workdir/converted/local database/` (NAICS, PSC, SBA, FIPS) |
