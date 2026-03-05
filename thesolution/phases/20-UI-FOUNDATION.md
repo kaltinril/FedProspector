@@ -9,7 +9,7 @@
 
 ## Overview
 
-Scaffold the Vite + React + TypeScript frontend application with MUI (Material UI) component library. Establishes the project structure, cookie-based auth flow, API client layer, shared layout (sidebar nav, top bar), and dark/light theme. This phase produces no feature pages — just the shell that all subsequent phases build on.
+Scaffold the Vite + React + TypeScript frontend application with MUI (Material UI) component library. Establishes the project structure, cookie-based auth flow, API client layer, shared layout (sidebar nav, top bar), dark/light theme, and company profile setup wizard. This phase produces the shell that all subsequent phases build on, plus the company profile that enables Phase 30's target search and Phase 45's pWin scoring and opportunity recommendations.
 
 ## Tech Stack
 
@@ -55,7 +55,8 @@ ui/
 │   │   ├── dashboard.ts      # dashboard aggregate
 │   │   ├── savedSearches.ts  # CRUD, run
 │   │   ├── notifications.ts  # list, mark read
-│   │   └── admin.ts          # ETL status, users, org management
+│   │   ├── admin.ts          # ETL status, users, org management
+│   │   └── organization.ts   # Org profile, NAICS codes, certifications, company setup
 │   ├── queries/
 │   │   ├── queryKeys.ts        # Cache key factory (all query keys in one place)
 │   │   ├── useOpportunities.ts # TanStack Query hooks for opportunities
@@ -102,10 +103,13 @@ ui/
 │   │   └── login/                 # Each page gets a subdirectory (LoginPage, RegisterPage, etc.)
 │   │       ├── LoginPage.tsx
 │   │       └── RegisterPage.tsx
+│   │   └── setup/
+│   │       └── CompanySetupWizard.tsx
 │   ├── types/
 │   │   ├── api.ts                 # Mirrors C# DTOs
 │   │   ├── auth.ts                # Auth types
-│   │   └── common.ts              # PagedResponse, PagedRequest, etc.
+│   │   ├── common.ts              # PagedResponse, PagedRequest, etc.
+│   │   └── organization.ts       # Company profile, NAICS, certifications
 │   ├── utils/
 │   │   ├── formatters.ts          # Currency, NAICS display
 │   │   ├── dateFormatters.ts      # date-fns helpers: formatDate, formatRelative, formatCountdown
@@ -190,6 +194,147 @@ Add as an npm script: `"generate-types": "openapi-typescript http://localhost:50
 - [ ] No `VITE_API_URL` in `.env.development` -- proxy handles it, all requests are same-origin
 - [ ] Axios base URL set to `/api/v1` (relative path, works with Vite proxy in dev and reverse proxy in prod)
 
+### 20.8 Company Profile Wizard
+
+After first login, org owners/admins are guided through a setup wizard to configure their company profile. This data is required by Phase 30 (target opportunity filtering), Phase 45 (pWin scoring, recommended opportunities, qualification checks), and Phase 50 (Go/No-Go scoring enhancement).
+
+#### Backend Changes Required
+
+**Extend Organization entity** with new columns (EF Core migration):
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `legal_name` | VARCHAR(300) | Official business name |
+| `dba_name` | VARCHAR(300) | Doing-business-as name (nullable) |
+| `uei_sam` | VARCHAR(13) | SAM.gov Unique Entity ID — links to `entity` table for past performance lookup |
+| `cage_code` | VARCHAR(5) | CAGE code (nullable) |
+| `ein` | VARCHAR(10) | Federal tax ID (nullable, encrypted at rest) |
+| `address_line1` | VARCHAR(200) | Business address |
+| `address_line2` | VARCHAR(200) | (nullable) |
+| `city` | VARCHAR(100) | |
+| `state_code` | VARCHAR(2) | |
+| `zip_code` | VARCHAR(10) | |
+| `country_code` | VARCHAR(3) | Default 'USA' |
+| `phone` | VARCHAR(20) | Primary phone (nullable) |
+| `website` | VARCHAR(500) | Company website (nullable) |
+| `employee_count` | INT | Number of employees (for size standard checks) |
+| `annual_revenue` | DECIMAL(15,2) | Annual revenue in USD (for size standard checks) |
+| `fiscal_year_end_month` | TINYINT | 1-12, default 12 |
+| `entity_structure` | VARCHAR(50) | LLC, Corp, Sole Prop, Partnership, JV, etc. |
+| `profile_completed` | CHAR(1) | 'Y'/'N' — wizard completed flag |
+| `profile_completed_at` | DATETIME | When wizard was completed |
+
+**New junction table: `organization_naics`**
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | INT AUTO_INCREMENT | PK |
+| `organization_id` | INT | FK to organization |
+| `naics_code` | VARCHAR(11) | NAICS code the company competes under |
+| `is_primary` | CHAR(1) | 'Y'/'N' — primary NAICS |
+| `size_standard_met` | CHAR(1) | 'Y'/'N' — company meets size standard for this NAICS |
+| `created_at` | DATETIME | |
+
+**New junction table: `organization_certification`**
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | INT AUTO_INCREMENT | PK |
+| `organization_id` | INT | FK to organization |
+| `certification_type` | VARCHAR(50) | WOSB, EDWOSB, 8A, SDVOSB, HUBZONE, etc. |
+| `certifying_agency` | VARCHAR(100) | SBA, VA, etc. |
+| `certification_number` | VARCHAR(100) | (nullable) |
+| `expiration_date` | DATE | (nullable) |
+| `is_active` | CHAR(1) | 'Y'/'N' |
+| `created_at` | DATETIME | |
+
+**New junction table: `organization_past_performance`**
+
+| Column | Type | Purpose |
+|--------|------|---------|
+| `id` | INT AUTO_INCREMENT | PK |
+| `organization_id` | INT | FK to organization |
+| `contract_number` | VARCHAR(50) | PIID or contract reference |
+| `agency_name` | VARCHAR(200) | Contracting agency |
+| `description` | TEXT | Brief description of work performed |
+| `naics_code` | VARCHAR(11) | NAICS code for this contract |
+| `contract_value` | DECIMAL(15,2) | Total contract value |
+| `period_start` | DATE | Performance period start |
+| `period_end` | DATE | Performance period end |
+| `created_at` | DATETIME | |
+
+**New API Endpoints:**
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| GET | `/api/v1/org/profile` | Get full company profile (org + NAICS + certs) |
+| PUT | `/api/v1/org/profile` | Update company profile (wizard save) |
+| GET | `/api/v1/org/naics` | Get org's NAICS codes |
+| PUT | `/api/v1/org/naics` | Set org's NAICS codes (bulk replace) |
+| GET | `/api/v1/org/certifications` | Get org's certifications |
+| PUT | `/api/v1/org/certifications` | Set org's certifications (bulk replace) |
+| GET | `/api/v1/org/past-performance` | Get org's past performance records |
+| POST | `/api/v1/org/past-performance` | Add past performance record |
+| DELETE | `/api/v1/org/past-performance/{id}` | Remove past performance record |
+| GET | `/api/v1/reference/naics` | Search NAICS codes (autocomplete) |
+| GET | `/api/v1/reference/naics/{code}` | Get NAICS code details + size standard |
+| GET | `/api/v1/reference/certifications` | List valid certification types |
+
+#### Wizard UI Flow
+
+**Route**: `/setup` (redirected to after first login if `profile_completed != 'Y'`)
+
+**Step 1: Company Basics**
+- Legal name, DBA name (optional)
+- SAM.gov UEI (with "Lookup" button — auto-fills from entity table if UEI exists)
+- CAGE code (optional)
+- Entity structure (dropdown: LLC, Corp, S-Corp, Sole Prop, Partnership, JV)
+- Address (street, city, state, ZIP)
+- Phone, website
+
+**Step 2: NAICS Codes & Size Standards**
+- Autocomplete search for NAICS codes (searches `ref_naics_code` table)
+- Add multiple NAICS codes, mark one as primary
+- For each NAICS: display the SBA size standard and ask if company meets it (auto-check if revenue/employee data is entered)
+- Show revenue and employee count fields here for size standard validation
+
+**Step 3: Certifications**
+- Checklist of common certification types: WOSB, EDWOSB, 8(a), SDVOSB, HUBZone, Small Business, Veteran-Owned
+- For each selected: certification number (optional), expiration date (optional)
+- "We don't have any certifications yet" option (still allows using the system, just won't match set-aside filters)
+
+**Step 4: Past Performance (Optional)**
+- "Add a contract" form: contract number, agency, description, NAICS, value, period
+- "Skip for now" option — can be filled in later from Organization settings
+- Auto-populate suggestion: if UEI was entered in Step 1, show matching contracts from `fpds_contract` table — "We found these contracts associated with your UEI. Select any that represent your past performance."
+
+**Step 5: Review & Save**
+- Summary of all entered data
+- "Complete Setup" button — sets `profile_completed = 'Y'`
+- After completion, redirect to dashboard
+
+#### Tasks
+
+- [ ] Create EF Core migration for Organization entity extensions (new columns)
+- [ ] Create `organization_naics` table + EF Core entity/mapping
+- [ ] Create `organization_certification` table + EF Core entity/mapping
+- [ ] Create `organization_past_performance` table + EF Core entity/mapping
+- [ ] Add `OrgProfileDto`, `UpdateOrgProfileRequest`, `OrgNaicsDto`, `OrgCertificationDto`, `OrgPastPerformanceDto` DTOs
+- [ ] Add `NaicsSearchDto` and `NaicsDetailDto` DTOs for reference data endpoints
+- [ ] Implement `/api/v1/org/profile` GET/PUT endpoints in OrganizationController
+- [ ] Implement `/api/v1/org/naics` GET/PUT endpoints
+- [ ] Implement `/api/v1/org/certifications` GET/PUT endpoints
+- [ ] Implement `/api/v1/org/past-performance` GET/POST/DELETE endpoints
+- [ ] Implement `/api/v1/reference/naics` search endpoint (autocomplete, searches ref_naics_code)
+- [ ] Implement `/api/v1/reference/naics/{code}` detail endpoint (includes size standard from ref_sba_size_standard)
+- [ ] Implement `/api/v1/reference/certifications` list endpoint
+- [ ] Build CompanySetupWizard UI component (5-step stepper using MUI Stepper)
+- [ ] Build NAICS autocomplete component (debounced search, chip display for selected codes)
+- [ ] Build certification checklist component
+- [ ] Build past performance form + auto-populate from FPDS data
+- [ ] Add redirect logic: after login, if `profile_completed != 'Y'`, redirect to `/setup`
+- [ ] Add "Company Profile" link in Organization section of sidebar (for editing later)
+
 ---
 
 ## Verification
@@ -204,3 +349,9 @@ Add as an npm script: `"generate-types": "openapi-typescript http://localhost:50
 - [ ] Theme toggle switches dark/light mode
 - [ ] API calls use `withCredentials: true` (cookie sent automatically, no Bearer header in JS)
 - [ ] Org context is loaded from session -- user sees only their organization's data
+- [ ] Company setup wizard renders after first login for new org owners
+- [ ] NAICS autocomplete searches and returns results from ref_naics_code
+- [ ] Certifications can be added with type and optional expiration
+- [ ] Past performance auto-populates from FPDS data when UEI is entered
+- [ ] Profile completion flag prevents re-showing wizard on subsequent logins
+- [ ] Company profile is editable from Organization settings after initial setup

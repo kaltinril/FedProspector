@@ -372,6 +372,12 @@ Fixed broken SAM.gov Subaward API filters (primeNaics, primeEntityUei, subEntity
 
 Added 431 new tests (276 Python + 155 C# Infrastructure) across 19 new test files. C# service layer: 13 services now tested (Auth, SavedSearch, Prospect, Opportunity, Award, Proposal, Entity, Subaward, Organization, Dashboard, Admin, Notification, ActivityLog). Python: prospect_manager, schema_checker, 4 CLI modules. Replaced 22 bare `except Exception:` blocks with specific types, added deadlock retry decorator (`utils/db_retry.py`), fixed silent error suppression in reference_loader and subaward_loader. Created `/validate` skill. Expanded CLAUDE.md with reference doc links and shared module dependency map.
 
+### Phase 19: UI Phase Review & Adjustments
+**Status**: [x] COMPLETE (2026-03-04)
+**File**: [phases/19-UI-PHASE-REVIEW.md](phases/19-UI-PHASE-REVIEW.md)
+
+Pre-flight review of UI phases (20-70) before starting implementation. Validated alignment with project goal: helping WOSB and 8(a) firms find and win federal contracts. All UI phases confirmed as aligned.
+
 ### Phase 20: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
 **File**: [phases/20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md)
@@ -384,6 +390,7 @@ Added 431 new tests (276 Python + 155 C# Infrastructure) across 19 new test file
 - Typed API client layer (all 59 API endpoints from Phases 10-14.20)
 - Shared components: DataTable, SearchFilters, StatusChip, etc.
 - Service manager integration (fed_prospector.py UI commands)
+- **Company profile setup wizard**: first-login flow for org NAICS codes, set-aside types, and target agencies
 
 ### Phase 30: Search & Discovery
 **Status**: [ ] NOT STARTED
@@ -407,6 +414,17 @@ Added 431 new tests (276 Python + 155 C# Infrastructure) across 19 new test file
 - Entity detail: company profile, competitor analysis, exclusion check
 - Cross-linking between opportunities ↔ awards ↔ entities
 
+### Phase 45: Opportunity Intelligence & Re-compete Targeting
+**Status**: [ ] NOT STARTED
+**File**: [phases/45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md)
+**Dependencies**: Phase 40 (Detail Views & Competitive Intelligence)
+
+- Re-compete identification and targeting from incumbent/award history
+- Opportunity scoring and prioritization based on win probability signals
+- Market intelligence: NAICS trends, agency spend patterns, competitive landscape
+- Timeline tracking: pre-solicitation → solicitation → award lifecycle
+- Re-compete alerts and watchlist for expiring contracts
+
 ### Phase 50: Capture Management & Pipeline
 **Status**: [ ] NOT STARTED
 **File**: [phases/50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md)
@@ -426,16 +444,25 @@ Added 431 new tests (276 Python + 155 C# Infrastructure) across 19 new test file
 - Notification center: feed with mark-as-read, filtering
 - Top bar notification bell with unread count
 
-### Phase 70: Admin, Profile & Production Polish
+### Phase 70: Admin & Organization Management
 **Status**: [ ] NOT STARTED
 **File**: [phases/70-ADMIN-POLISH.md](phases/70-ADMIN-POLISH.md)
 
 - Admin panel: ETL status monitoring, user management
 - User profile: edit, change password
+- Organization settings: invite management, member roles, org details
 - Error handling: 404 page, error boundaries, session expired flow
+
+### Phase 75: Production Polish
+**Status**: [ ] NOT STARTED
+**File**: [phases/75-PRODUCTION-POLISH.md](phases/75-PRODUCTION-POLISH.md)
+**Dependencies**: Phase 70 (Admin & Organization Management)
+
 - Responsive design: mobile, tablet, desktop
-- Performance: code splitting, bundle optimization
-- Accessibility: keyboard nav, ARIA, WCAG AA
+- Performance: code splitting, bundle optimization, lazy loading
+- Accessibility: keyboard nav, ARIA, WCAG AA compliance
+- UX polish: loading states, empty states, transitions, toast notifications
+- Browser compatibility testing
 
 ### Phase 80: Security Hardening
 **Status**: [ ] DEFERRED (pre-production)
@@ -478,6 +505,8 @@ AllowedHosts specific domain, JWT secret startup assertion, JWT expiry wired to 
 | [20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md) | React + TypeScript UI scaffold and shared components |
 | [30-SEARCH-DISCOVERY.md](phases/30-SEARCH-DISCOVERY.md) | Opportunity, award, entity, and teaming partner search |
 | [40-DETAIL-INTELLIGENCE.md](phases/40-DETAIL-INTELLIGENCE.md) | Detail views and competitive intelligence features |
+| [45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md) | Re-compete targeting, opportunity scoring, market intelligence |
 | [50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md) | Prospect pipeline Kanban and proposal management |
 | [60-DASHBOARD-NOTIFICATIONS.md](phases/60-DASHBOARD-NOTIFICATIONS.md) | Executive dashboard, saved searches, notification system |
-| [70-ADMIN-POLISH.md](phases/70-ADMIN-POLISH.md) | Admin panel, profile, responsive design, accessibility |
+| [70-ADMIN-POLISH.md](phases/70-ADMIN-POLISH.md) | Admin panel, organization management, error handling |
+| [75-PRODUCTION-POLISH.md](phases/75-PRODUCTION-POLISH.md) | Responsive design, performance, accessibility, UX polish |
