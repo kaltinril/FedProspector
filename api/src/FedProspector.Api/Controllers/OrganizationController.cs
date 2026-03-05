@@ -12,8 +12,13 @@ namespace FedProspector.Api.Controllers;
 public class OrganizationController : ApiControllerBase
 {
     private readonly IOrganizationService _service;
+    private readonly ICompanyProfileService _profileService;
 
-    public OrganizationController(IOrganizationService service) => _service = service;
+    public OrganizationController(IOrganizationService service, ICompanyProfileService profileService)
+    {
+        _service = service;
+        _profileService = profileService;
+    }
 
     /// <summary>
     /// Get the current user's organization details.
@@ -100,6 +105,138 @@ public class OrganizationController : ApiControllerBase
         if (orgId is null) return Unauthorized();
 
         await _service.RevokeInviteAsync(orgId.Value, id);
+        return NoContent();
+    }
+
+    // -----------------------------------------------------------------------
+    // Company Profile Endpoints (Phase 20.8)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Get the current organization's company profile.
+    /// </summary>
+    [HttpGet("profile")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetProfile()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.GetProfileAsync(orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Update the current organization's company profile. Requires OrgAdmin role.
+    /// </summary>
+    [HttpPut("profile")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateOrgProfileRequest request)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.UpdateProfileAsync(orgId.Value, request);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get the organization's NAICS codes.
+    /// </summary>
+    [HttpGet("naics")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetNaics()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.GetNaicsAsync(orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Set (bulk replace) the organization's NAICS codes. Requires OrgAdmin role.
+    /// </summary>
+    [HttpPut("naics")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> SetNaics([FromBody] List<OrgNaicsDto> naicsCodes)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.SetNaicsAsync(orgId.Value, naicsCodes);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get the organization's certifications.
+    /// </summary>
+    [HttpGet("certifications")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetCertifications()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.GetCertificationsAsync(orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Set (bulk replace) the organization's certifications. Requires OrgAdmin role.
+    /// </summary>
+    [HttpPut("certifications")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> SetCertifications([FromBody] List<OrgCertificationDto> certifications)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.SetCertificationsAsync(orgId.Value, certifications);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get the organization's past performance records.
+    /// </summary>
+    [HttpGet("past-performance")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetPastPerformances()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.GetPastPerformancesAsync(orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Add a past performance record. Requires OrgAdmin role.
+    /// </summary>
+    [HttpPost("past-performance")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> AddPastPerformance([FromBody] CreatePastPerformanceRequest request)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.AddPastPerformanceAsync(orgId.Value, request);
+        return StatusCode(201, result);
+    }
+
+    /// <summary>
+    /// Delete a past performance record. Requires OrgAdmin role.
+    /// </summary>
+    [HttpDelete("past-performance/{id:int}")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> DeletePastPerformance(int id)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var deleted = await _profileService.DeletePastPerformanceAsync(orgId.Value, id);
+        if (!deleted) return NotFound();
+
         return NoContent();
     }
 

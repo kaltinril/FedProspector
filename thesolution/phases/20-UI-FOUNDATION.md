@@ -1,6 +1,6 @@
 # Phase 20: UI Foundation & Layout
 
-**Status**: NOT STARTED
+**Status**: COMPLETE
 **Dependencies**: Phase 14.5 (Multi-Tenancy & Security)
 **Deliverable**: React + TypeScript SPA scaffold with auth, routing, layout, API client, and component library
 **Repository**: `ui/`
@@ -123,27 +123,27 @@ ui/
 ## Tasks
 
 ### 20.1 Project Scaffolding
-- [ ] Create Vite + React + TypeScript project in `ui/`
-- [ ] Install dependencies: MUI, @emotion/react, @emotion/styled, @mui/x-charts, @mui/x-data-grid, React Router, TanStack Query, @tanstack/react-query-devtools, Axios, React Hook Form, Zod, date-fns, react-error-boundary, notistack, @dnd-kit/core, @dnd-kit/sortable
-- [ ] Configure `vite.config.ts` with path aliases (`@/` -> `src/`)
-- [ ] Add `tsconfig.json` with strict mode, path aliases (`@/` -> `src/`)
-- [ ] Update `.gitignore` with `node_modules/`, `ui/dist/`, `ui/.env.local`
-- [ ] Configure ESLint (`@typescript-eslint`, `eslint-plugin-jsx-a11y`) and Prettier for consistent code formatting
-- [ ] Enable `React.StrictMode` in `main.tsx`. Note: StrictMode double-invokes effects in development — this is expected and harmless (TanStack Query deduplicates requests).
-- [ ] ~~**Important**: Exclude `ui/node_modules/` from OneDrive sync~~ **Resolved**: Project moved to `C:\git\fedProspect` (off OneDrive) to avoid sync issues. No exclusion needed.
+- [x] Create Vite + React + TypeScript project in `ui/`
+- [x] Install dependencies: MUI, @emotion/react, @emotion/styled, @mui/x-charts, @mui/x-data-grid, React Router, TanStack Query, @tanstack/react-query-devtools, Axios, React Hook Form, Zod, date-fns, react-error-boundary, notistack, @dnd-kit/core, @dnd-kit/sortable
+- [x] Configure `vite.config.ts` with path aliases (`@/` -> `src/`)
+- [x] Add `tsconfig.json` with strict mode, path aliases (`@/` -> `src/`)
+- [x] Update `.gitignore` with `node_modules/`, `ui/dist/`, `ui/.env.local`
+- [x] Configure ESLint (`@typescript-eslint`, `eslint-plugin-jsx-a11y`) and Prettier for consistent code formatting
+- [x] Enable `React.StrictMode` in `main.tsx`. Note: StrictMode double-invokes effects in development — this is expected and harmless (TanStack Query deduplicates requests).
+- [x] ~~**Important**: Exclude `ui/node_modules/` from OneDrive sync~~ **Resolved**: Project moved to `C:\git\fedProspect` (off OneDrive) to avoid sync issues. No exclusion needed.
 
 ### 20.2 API Client Layer
-- [ ] Create Axios instance with base URL `/api/v1` (relative, works with proxy in dev and reverse proxy in prod)
-- [ ] Set `withCredentials: true` on all Axios requests (browser sends httpOnly cookie automatically)
-- [ ] Add CSRF interceptor: read XSRF token from non-httpOnly cookie, attach as `X-XSRF-TOKEN` header
-- [ ] Add 401 interceptor: attempt silent refresh via `POST /auth/refresh`, redirect to login only if refresh fails
+- [x] Create Axios instance with base URL `/api/v1` (relative, works with proxy in dev and reverse proxy in prod)
+- [x] Set `withCredentials: true` on all Axios requests (browser sends httpOnly cookie automatically)
+- [x] Add CSRF interceptor: read XSRF token from non-httpOnly cookie, attach as `X-XSRF-TOKEN` header
+- [x] Add 401 interceptor: attempt silent refresh via `POST /auth/refresh`, redirect to login only if refresh fails
   - Use refresh lock pattern: first 401 triggers refresh, concurrent 401s queue behind shared Promise. Prevents multiple competing refresh calls and infinite redirect loops.
-- [ ] Add 429 interceptor (rate limit toast notification via notistack)
-- [ ] Create typed API modules matching all endpoints
-- [ ] Create TypeScript types mirroring every C# DTO
-- [ ] Create TanStack Query hooks in `src/queries/` with centralized query key factory
-- [ ] Configure TanStack Query defaults: `staleTime` (2-5min searches, 30s notifications, 60s dashboard), `retry` (2 queries, 1 mutations, 0 auth), `refetchOnWindowFocus` per query type
-- [ ] Consider generating TypeScript types from the API's OpenAPI/Swagger spec using `openapi-typescript` to prevent manual DTO drift.
+- [x] Add 429 interceptor (rate limit toast notification via notistack)
+- [x] Create typed API modules matching all endpoints
+- [x] Create TypeScript types mirroring every C# DTO
+- [x] Create TanStack Query hooks in `src/queries/` with centralized query key factory
+- [x] Configure TanStack Query defaults: `staleTime` (2-5min searches, 30s notifications, 60s dashboard), `retry` (2 queries, 1 mutations, 0 auth), `refetchOnWindowFocus` per query type
+- [x] Consider generating TypeScript types from the API's OpenAPI/Swagger spec using `openapi-typescript` to prevent manual DTO drift.
 
 #### DTO Sync Strategy
 
@@ -162,37 +162,37 @@ Add as an npm script: `"generate-types": "openapi-typescript http://localhost:50
 **Alternative for MVP**: Manually maintain TypeScript types mirroring C# DTOs. Acceptable if build pipeline complexity is unwanted, but document the drift risk and plan to automate post-MVP.
 
 ### 20.3 Authentication
-- [ ] Create AuthContext -- check session via `GET /auth/me` on app load
-- [ ] Auth transport configured in 20.2 (withCredentials, CSRF, 401 interceptor)
-- [ ] Create login page (email + password form)
-- [ ] Create register page (invite-only, requires invite token)
-- [ ] Create AuthGuard -- relies on AuthContext session state, redirects unauthenticated users to /login
-- [ ] Create AdminGuard -- checks `org_role` claim from session, not a separate API call; redirects non-admin users to /dashboard
-- [ ] Wire up login -> API sets httpOnly cookie -> AuthContext refreshes session -> redirect to dashboard
+- [x] Create AuthContext -- check session via `GET /auth/me` on app load
+- [x] Auth transport configured in 20.2 (withCredentials, CSRF, 401 interceptor)
+- [x] Create login page (email + password form)
+- [x] Create register page (invite-only, requires invite token)
+- [x] Create AuthGuard -- relies on AuthContext session state, redirects unauthenticated users to /login
+- [x] Create AdminGuard -- checks `org_role` claim from session, not a separate API call; redirects non-admin users to /dashboard
+- [x] Wire up login -> API sets httpOnly cookie -> AuthContext refreshes session -> redirect to dashboard
 
 ### 20.4 Layout & Navigation
-- [ ] Create AppLayout with collapsible sidebar + top bar + content area
-- [ ] Sidebar navigation links: Dashboard, Opportunities, Awards, Entities, Prospects, Saved Searches, Organization, Admin
-- [ ] Top bar: notification bell (count badge), user avatar menu (profile, logout), theme toggle
-- [ ] Breadcrumb component auto-generated from React Router
-- [ ] Responsive: sidebar collapses to icons on small screens
+- [x] Create AppLayout with collapsible sidebar + top bar + content area
+- [x] Sidebar navigation links: Dashboard, Opportunities, Awards, Entities, Prospects, Saved Searches, Organization, Admin
+- [x] Top bar: notification bell (count badge), user avatar menu (profile, logout), theme toggle
+- [x] Breadcrumb component auto-generated from React Router
+- [x] Responsive: sidebar collapses to icons on small screens
 
 ### 20.5 Theme & Shared Components
-- [ ] Create MUI theme (professional blue/gray palette, dark mode variant)
-- [ ] Build shared components: PageHeader, DataTable, SearchFilters, StatusChip, LoadingState, ErrorState, EmptyState
-- [ ] Build ErrorBoundary wrapper (react-error-boundary) with branded fallback UI
-- [ ] Build NotificationProvider (notistack) for global toast notifications
-- [ ] Currency formatter, NAICS display utilities
-- [ ] date-fns formatters: formatDate, formatRelative, formatCountdown
+- [x] Create MUI theme (professional blue/gray palette, dark mode variant)
+- [x] Build shared components: PageHeader, DataTable, SearchFilters, StatusChip, LoadingState, ErrorState, EmptyState
+- [x] Build ErrorBoundary wrapper (react-error-boundary) with branded fallback UI
+- [x] Build NotificationProvider (notistack) for global toast notifications
+- [x] Currency formatter, NAICS display utilities
+- [x] date-fns formatters: formatDate, formatRelative, formatCountdown
 
 ### 20.6 Service Manager Integration
-- [ ] Update `fed_prospector.py` UI functions: build_ui (npm run build), start_ui (npm run dev), stop_ui, check_ui
-- [ ] Verify `fed_prospector.py start all` launches DB + API + UI
+- [x] Update `fed_prospector.py` UI functions: build_ui (npm run build), start_ui (npm run dev), stop_ui, check_ui
+- [x] Verify `fed_prospector.py start all` launches DB + API + UI
 
 ### 20.7 Vite Proxy Configuration
-- [ ] Configure `vite.config.ts` proxy: `/api` -> `http://localhost:5056`, `/health` -> `http://localhost:5056`
-- [ ] No `VITE_API_URL` in `.env.development` -- proxy handles it, all requests are same-origin
-- [ ] Axios base URL set to `/api/v1` (relative path, works with Vite proxy in dev and reverse proxy in prod)
+- [x] Configure `vite.config.ts` proxy: `/api` -> `http://localhost:5056`, `/health` -> `http://localhost:5056`
+- [x] No `VITE_API_URL` in `.env.development` -- proxy handles it, all requests are same-origin
+- [x] Axios base URL set to `/api/v1` (relative path, works with Vite proxy in dev and reverse proxy in prod)
 
 ### 20.8 Company Profile Wizard
 
@@ -315,43 +315,43 @@ After first login, org owners/admins are guided through a setup wizard to config
 
 #### Tasks
 
-- [ ] Create EF Core migration for Organization entity extensions (new columns)
-- [ ] Create `organization_naics` table + EF Core entity/mapping
-- [ ] Create `organization_certification` table + EF Core entity/mapping
-- [ ] Create `organization_past_performance` table + EF Core entity/mapping
-- [ ] Add `OrgProfileDto`, `UpdateOrgProfileRequest`, `OrgNaicsDto`, `OrgCertificationDto`, `OrgPastPerformanceDto` DTOs
-- [ ] Add `NaicsSearchDto` and `NaicsDetailDto` DTOs for reference data endpoints
-- [ ] Implement `/api/v1/org/profile` GET/PUT endpoints in OrganizationController
-- [ ] Implement `/api/v1/org/naics` GET/PUT endpoints
-- [ ] Implement `/api/v1/org/certifications` GET/PUT endpoints
-- [ ] Implement `/api/v1/org/past-performance` GET/POST/DELETE endpoints
-- [ ] Implement `/api/v1/reference/naics` search endpoint (autocomplete, searches ref_naics_code)
-- [ ] Implement `/api/v1/reference/naics/{code}` detail endpoint (includes size standard from ref_sba_size_standard)
-- [ ] Implement `/api/v1/reference/certifications` list endpoint
-- [ ] Build CompanySetupWizard UI component (5-step stepper using MUI Stepper)
-- [ ] Build NAICS autocomplete component (debounced search, chip display for selected codes)
-- [ ] Build certification checklist component
-- [ ] Build past performance form + auto-populate from FPDS data
-- [ ] Add redirect logic: after login, if `profile_completed != 'Y'`, redirect to `/setup`
-- [ ] Add "Company Profile" link in Organization section of sidebar (for editing later)
+- [x] Create EF Core migration for Organization entity extensions (new columns)
+- [x] Create `organization_naics` table + EF Core entity/mapping
+- [x] Create `organization_certification` table + EF Core entity/mapping
+- [x] Create `organization_past_performance` table + EF Core entity/mapping
+- [x] Add `OrgProfileDto`, `UpdateOrgProfileRequest`, `OrgNaicsDto`, `OrgCertificationDto`, `OrgPastPerformanceDto` DTOs
+- [x] Add `NaicsSearchDto` and `NaicsDetailDto` DTOs for reference data endpoints
+- [x] Implement `/api/v1/org/profile` GET/PUT endpoints in OrganizationController
+- [x] Implement `/api/v1/org/naics` GET/PUT endpoints
+- [x] Implement `/api/v1/org/certifications` GET/PUT endpoints
+- [x] Implement `/api/v1/org/past-performance` GET/POST/DELETE endpoints
+- [x] Implement `/api/v1/reference/naics` search endpoint (autocomplete, searches ref_naics_code)
+- [x] Implement `/api/v1/reference/naics/{code}` detail endpoint (includes size standard from ref_sba_size_standard)
+- [x] Implement `/api/v1/reference/certifications` list endpoint
+- [x] Build CompanySetupWizard UI component (5-step stepper using MUI Stepper)
+- [x] Build NAICS autocomplete component (debounced search, chip display for selected codes)
+- [x] Build certification checklist component
+- [x] Build past performance form + auto-populate from FPDS data
+- [x] Add redirect logic: after login, if `profile_completed != 'Y'`, redirect to `/setup`
+- [x] Add "Company Profile" link in Organization section of sidebar (for editing later)
 
 ---
 
 ## Verification
-- [ ] `npm run dev` starts on localhost:5173
-- [ ] Login page renders, login/register flow works end-to-end against live API
-- [ ] httpOnly cookie is set by API on login (not visible to JavaScript, visible in browser DevTools)
-- [ ] CSRF token is read from non-httpOnly cookie and sent as `X-XSRF-TOKEN` header on mutating requests
-- [ ] Silent token refresh works: expired access token triggers `POST /auth/refresh`, session continues without redirect
-- [ ] Authenticated routes redirect to login when session is invalid (AuthContext has no user)
-- [ ] Sidebar navigation works, layout renders correctly
-- [ ] Organization link visible to org admins in sidebar
-- [ ] Theme toggle switches dark/light mode
-- [ ] API calls use `withCredentials: true` (cookie sent automatically, no Bearer header in JS)
-- [ ] Org context is loaded from session -- user sees only their organization's data
-- [ ] Company setup wizard renders after first login for new org owners
-- [ ] NAICS autocomplete searches and returns results from ref_naics_code
-- [ ] Certifications can be added with type and optional expiration
-- [ ] Past performance auto-populates from FPDS data when UEI is entered
-- [ ] Profile completion flag prevents re-showing wizard on subsequent logins
-- [ ] Company profile is editable from Organization settings after initial setup
+- [x] `npm run dev` starts on localhost:5173
+- [x] Login page renders, login/register flow works end-to-end against live API
+- [x] httpOnly cookie is set by API on login (not visible to JavaScript, visible in browser DevTools)
+- [x] CSRF token is read from non-httpOnly cookie and sent as `X-XSRF-TOKEN` header on mutating requests
+- [x] Silent token refresh works: expired access token triggers `POST /auth/refresh`, session continues without redirect
+- [x] Authenticated routes redirect to login when session is invalid (AuthContext has no user)
+- [x] Sidebar navigation works, layout renders correctly
+- [x] Organization link visible to org admins in sidebar
+- [x] Theme toggle switches dark/light mode
+- [x] API calls use `withCredentials: true` (cookie sent automatically, no Bearer header in JS)
+- [x] Org context is loaded from session -- user sees only their organization's data
+- [x] Company setup wizard renders after first login for new org owners
+- [x] NAICS autocomplete searches and returns results from ref_naics_code
+- [x] Certifications can be added with type and optional expiration
+- [x] Past performance auto-populates from FPDS data when UEI is entered
+- [x] Profile completion flag prevents re-showing wizard on subsequent logins
+- [x] Company profile is editable from Organization settings after initial setup

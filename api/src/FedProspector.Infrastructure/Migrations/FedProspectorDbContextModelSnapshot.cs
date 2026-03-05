@@ -1854,15 +1854,72 @@ namespace FedProspector.Infrastructure.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("OrganizationId"));
 
+                    b.Property<string>("AddressLine1")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("address_line1");
+
+                    b.Property<string>("AddressLine2")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("address_line2");
+
+                    b.Property<decimal?>("AnnualRevenue")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("annual_revenue");
+
+                    b.Property<string>("CageCode")
+                        .HasMaxLength(5)
+                        .HasColumnType("varchar(5)")
+                        .HasColumnName("cage_code");
+
+                    b.Property<string>("City")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("city");
+
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("varchar(3)")
+                        .HasColumnName("country_code");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("created_at");
+
+                    b.Property<string>("DbaName")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)")
+                        .HasColumnName("dba_name");
+
+                    b.Property<string>("Ein")
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("ein");
+
+                    b.Property<int?>("EmployeeCount")
+                        .HasColumnType("int")
+                        .HasColumnName("employee_count");
+
+                    b.Property<string>("EntityStructure")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("entity_structure");
+
+                    b.Property<byte?>("FiscalYearEndMonth")
+                        .HasColumnType("tinyint unsigned")
+                        .HasColumnName("fiscal_year_end_month");
 
                     b.Property<string>("IsActive")
                         .IsRequired()
                         .HasMaxLength(1)
                         .HasColumnType("varchar(1)")
                         .HasColumnName("is_active");
+
+                    b.Property<string>("LegalName")
+                        .HasMaxLength(300)
+                        .HasColumnType("varchar(300)")
+                        .HasColumnName("legal_name");
 
                     b.Property<int>("MaxUsers")
                         .HasColumnType("int")
@@ -1874,20 +1931,55 @@ namespace FedProspector.Infrastructure.Migrations
                         .HasColumnType("varchar(200)")
                         .HasColumnName("name");
 
+                    b.Property<string>("Phone")
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasColumnName("phone");
+
+                    b.Property<string>("ProfileCompleted")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("profile_completed");
+
+                    b.Property<DateTime?>("ProfileCompletedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("profile_completed_at");
+
                     b.Property<string>("Slug")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("varchar(100)")
                         .HasColumnName("slug");
 
+                    b.Property<string>("StateCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("varchar(2)")
+                        .HasColumnName("state_code");
+
                     b.Property<string>("SubscriptionTier")
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)")
                         .HasColumnName("subscription_tier");
 
+                    b.Property<string>("UeiSam")
+                        .HasMaxLength(13)
+                        .HasColumnType("varchar(13)")
+                        .HasColumnName("uei_sam");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)")
                         .HasColumnName("updated_at");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)")
+                        .HasColumnName("website");
+
+                    b.Property<string>("ZipCode")
+                        .HasMaxLength(10)
+                        .HasColumnType("varchar(10)")
+                        .HasColumnName("zip_code");
 
                     b.HasKey("OrganizationId")
                         .HasName("pk_organization");
@@ -1897,6 +1989,58 @@ namespace FedProspector.Infrastructure.Migrations
                         .HasDatabaseName("ix_organization_slug");
 
                     b.ToTable("organization", (string)null);
+                });
+
+            modelBuilder.Entity("FedProspector.Core.Models.OrganizationCertification", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CertificationNumber")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("certification_number");
+
+                    b.Property<string>("CertificationType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("certification_type");
+
+                    b.Property<string>("CertifyingAgency")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)")
+                        .HasColumnName("certifying_agency");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("ExpirationDate")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("expiration_date");
+
+                    b.Property<string>("IsActive")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("OrganizationId")
+                        .HasColumnType("int")
+                        .HasColumnName("organization_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_organization_certification");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_organization_certification_organization_id");
+
+                    b.ToTable("organization_certification", (string)null);
                 });
 
             modelBuilder.Entity("FedProspector.Core.Models.OrganizationInvite", b =>
@@ -1960,6 +2104,107 @@ namespace FedProspector.Infrastructure.Migrations
                         .HasDatabaseName("ix_organization_invite_organization_id");
 
                     b.ToTable("organization_invite", (string)null);
+                });
+
+            modelBuilder.Entity("FedProspector.Core.Models.OrganizationNaics", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("IsPrimary")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("is_primary");
+
+                    b.Property<string>("NaicsCode")
+                        .IsRequired()
+                        .HasMaxLength(11)
+                        .HasColumnType("varchar(11)")
+                        .HasColumnName("naics_code");
+
+                    b.Property<int>("OrganizationId")
+                        .HasColumnType("int")
+                        .HasColumnName("organization_id");
+
+                    b.Property<string>("SizeStandardMet")
+                        .IsRequired()
+                        .HasMaxLength(1)
+                        .HasColumnType("varchar(1)")
+                        .HasColumnName("size_standard_met");
+
+                    b.HasKey("Id")
+                        .HasName("pk_organization_naics");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_organization_naics_organization_id");
+
+                    b.ToTable("organization_naics", (string)null);
+                });
+
+            modelBuilder.Entity("FedProspector.Core.Models.OrganizationPastPerformance", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasColumnName("id");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AgencyName")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)")
+                        .HasColumnName("agency_name");
+
+                    b.Property<string>("ContractNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)")
+                        .HasColumnName("contract_number");
+
+                    b.Property<decimal?>("ContractValue")
+                        .HasColumnType("decimal(18,2)")
+                        .HasColumnName("contract_value");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<string>("NaicsCode")
+                        .HasMaxLength(11)
+                        .HasColumnType("varchar(11)")
+                        .HasColumnName("naics_code");
+
+                    b.Property<int>("OrganizationId")
+                        .HasColumnType("int")
+                        .HasColumnName("organization_id");
+
+                    b.Property<DateTime?>("PeriodEnd")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("period_end");
+
+                    b.Property<DateTime?>("PeriodStart")
+                        .HasColumnType("datetime(6)")
+                        .HasColumnName("period_start");
+
+                    b.HasKey("Id")
+                        .HasName("pk_organization_past_performance");
+
+                    b.HasIndex("OrganizationId")
+                        .HasDatabaseName("ix_organization_past_performance_organization_id");
+
+                    b.ToTable("organization_past_performance", (string)null);
                 });
 
             modelBuilder.Entity("FedProspector.Core.Models.Proposal", b =>
@@ -3674,6 +3919,18 @@ namespace FedProspector.Infrastructure.Migrations
                     b.Navigation("Organization");
                 });
 
+            modelBuilder.Entity("FedProspector.Core.Models.OrganizationCertification", b =>
+                {
+                    b.HasOne("FedProspector.Core.Models.Organization", "Organization")
+                        .WithMany("Certifications")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_organization_certification_organization_organization_id");
+
+                    b.Navigation("Organization");
+                });
+
             modelBuilder.Entity("FedProspector.Core.Models.OrganizationInvite", b =>
                 {
                     b.HasOne("FedProspector.Core.Models.AppUser", "InvitedByUser")
@@ -3691,6 +3948,30 @@ namespace FedProspector.Infrastructure.Migrations
                         .HasConstraintName("fk_organization_invite_organization_organization_id");
 
                     b.Navigation("InvitedByUser");
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("FedProspector.Core.Models.OrganizationNaics", b =>
+                {
+                    b.HasOne("FedProspector.Core.Models.Organization", "Organization")
+                        .WithMany("NaicsCodes")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_organization_naics_organization_organization_id");
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("FedProspector.Core.Models.OrganizationPastPerformance", b =>
+                {
+                    b.HasOne("FedProspector.Core.Models.Organization", "Organization")
+                        .WithMany("PastPerformances")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_organization_past_performance_organization_organization_id");
 
                     b.Navigation("Organization");
                 });
@@ -3723,7 +4004,13 @@ namespace FedProspector.Infrastructure.Migrations
                 {
                     b.Navigation("ActivityLogs");
 
+                    b.Navigation("Certifications");
+
                     b.Navigation("Invites");
+
+                    b.Navigation("NaicsCodes");
+
+                    b.Navigation("PastPerformances");
 
                     b.Navigation("Prospects");
 

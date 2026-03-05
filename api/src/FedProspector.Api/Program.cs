@@ -135,6 +135,7 @@ builder.Services.AddScoped<IProspectService, ProspectService>();
 builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
+builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

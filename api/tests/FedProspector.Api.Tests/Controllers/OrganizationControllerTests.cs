@@ -13,11 +13,12 @@ namespace FedProspector.Api.Tests.Controllers;
 public class OrganizationControllerTests
 {
     private readonly Mock<IOrganizationService> _serviceMock = new();
+    private readonly Mock<ICompanyProfileService> _profileServiceMock = new();
     private readonly OrganizationController _controller;
 
     public OrganizationControllerTests()
     {
-        _controller = new OrganizationController(_serviceMock.Object);
+        _controller = new OrganizationController(_serviceMock.Object, _profileServiceMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

@@ -11,8 +11,8 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 | `fed_prospector/` | **Main Python application** - CLI, API clients, ETL pipeline, DB schema |
 | `thesolution/` | Plan documents and implementation roadmap |
 | `workdir/` | Data conversion scripts and reference CSV/MD files |
-| `api/` | **C# ASP.NET Core Web API** - backend REST API, 59 endpoints across 13 controllers (Phases 10-14.20) |
-| `ui/` | **Frontend web application** - TBD framework (future) |
+| `api/` | **C# ASP.NET Core Web API** - backend REST API, 71 endpoints across 14 controllers (Phases 10-20) |
+| `ui/` | **Frontend web application** - Vite + React 19 + TypeScript + MUI v6 (Phase 20 complete) |
 | `OLD_ATTEMPTS/`, `OLD_RESOURCES/` | Archived. Do not modify or reference in new code. |
 
 ## Context Management
@@ -37,7 +37,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 
 ### Key Conventions
 
-- **Terminology**: In this project, "Vendor API" = external government data sources (SAM.gov, USASpending.gov, GSA CALC+), called only by Python `load` commands, rate-limited. "App API" = FedProspect's own C# ASP.NET Core backend (59 endpoints), consumed by the React UI, queries local DB only.
+- **Terminology**: In this project, "Vendor API" = external government data sources (SAM.gov, USASpending.gov, GSA CALC+), called only by Python `load` commands, rate-limited. "App API" = FedProspect's own C# ASP.NET Core backend (71 endpoints), consumed by the React UI, queries local DB only.
 - **Language**: Python 3.14 for all data gathering, transformation, and loading
 - **Database**: MySQL 8.0+ with InnoDB engine, utf8mb4 charset
 - **Config**: `.env` file with `python-dotenv`, never commit `.env` to git
@@ -46,10 +46,10 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Vendor API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
-- **App API**: ASP.NET Core Web API with 59 endpoints across 13 controllers + auth + health (Phases 10-14.22 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
-- **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phases 20-70)
+- **App API**: ASP.NET Core Web API with 71 endpoints across 14 controllers + auth + health (Phases 10-20 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
+- **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phase 20 complete, Phases 30-70 remaining)
 - **Testing**: Python pytest + C# xUnit (Core, Api, Infrastructure). Run `/run-tests all` or see test paths below.
-- **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core owns application tables (app_user, prospect, saved_search, organization, organization_invite, etc.) starting Phase 10. 57 tables + 4 views total. See Phase 10 plan for details.
+- **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core owns application tables (app_user, prospect, saved_search, organization, organization_invite, organization_naics, organization_certification, organization_past_performance, etc.) starting Phase 10. 60 tables + 4 views total. See Phase 10 plan for details.
 
 ### Keeping Skills & Agents Current
 
@@ -83,11 +83,11 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | Python app + CLI | `fed_prospector/` (`python main.py --help`, 54 commands in 7 groups) |
 | Vendor API clients | `fed_prospector/api_clients/` (7 clients, all inherit `BaseAPIClient`) |
 | ETL loaders | `fed_prospector/etl/` (7 loaders + prospect_manager, scheduler, health_check) |
-| C# API | `api/src/FedProspector.Api/Controllers/` (13 controllers, 59 endpoints) |
+| C# API | `api/src/FedProspector.Api/Controllers/` (14 controllers, 71 endpoints) |
 | C# services | `api/src/FedProspector.Infrastructure/Services/` (14 services) |
 | Tests | `fed_prospector/tests/`, `api/tests/` (Python pytest + C# xUnit) |
 | DB schema (DDL) | `fed_prospector/db/schema/` |
-| UI application | `ui/` (Phases 20-70) |
+| UI application | `ui/` (Phase 20 complete, Phases 30-70 remaining) |
 | Master plan | `thesolution/MASTER-PLAN.md` |
 | Phase plans | `thesolution/phases/` |
 | Reference docs | `thesolution/reference/` (architecture, data quality, API quirks, glossary, vendor API docs) |

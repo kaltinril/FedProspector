@@ -110,6 +110,9 @@ public class FedProspectorDbContext : DbContext
 
     public DbSet<Organization> Organizations { get; set; }
     public DbSet<OrganizationInvite> OrganizationInvites { get; set; }
+    public DbSet<OrganizationNaics> OrganizationNaics { get; set; }
+    public DbSet<OrganizationCertification> OrganizationCertifications { get; set; }
+    public DbSet<OrganizationPastPerformance> OrganizationPastPerformances { get; set; }
     public DbSet<AppUser> AppUsers { get; set; }
     public DbSet<AppSession> AppSessions { get; set; }
     public DbSet<SavedSearch> SavedSearches { get; set; }
@@ -253,6 +256,24 @@ public class FedProspectorDbContext : DbContext
             .WithOne(a => a.Organization)
             .HasForeignKey(a => a.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.NaicsCodes)
+            .WithOne(n => n.Organization)
+            .HasForeignKey(n => n.OrganizationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.Certifications)
+            .WithOne(c => c.Organization)
+            .HasForeignKey(c => c.OrganizationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.PastPerformances)
+            .WithOne(p => p.Organization)
+            .HasForeignKey(p => p.OrganizationId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<AppUser>()
             .HasOne(u => u.InvitedByUser)

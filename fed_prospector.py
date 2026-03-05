@@ -204,22 +204,84 @@ def check_api():
         print("  [API] Stopped")
 
 
-# -- UI (placeholder) -------------------------------------------------
+# -- UI ---------------------------------------------------------------
 
 def build_ui():
-    print("  [UI]  Not yet implemented. (Awaiting frontend framework selection)")
+    ui_dir = SCRIPT_DIR / "ui"
+    if not (ui_dir / "package.json").is_file():
+        print("  [UI]  ERROR: No package.json found in ui/")
+        return False
+    print("  [UI]  Building (npm run build) ...")
+    result = subprocess.run(
+        ["npm", "run", "build"],
+        cwd=str(ui_dir),
+        timeout=120,
+    )
+    if result.returncode == 0:
+        print("  [UI]  Build succeeded.")
+        return True
+    else:
+        print("  [UI]  Build FAILED.")
+        return False
 
 
 def start_ui():
-    print("  [UI]  Not yet implemented.")
+    if port_in_use(5173):
+        print("  [UI]  Already running (port 5173).")
+        return
+    ui_dir = SCRIPT_DIR / "ui"
+    if not (ui_dir / "package.json").is_file():
+        print("  [UI]  ERROR: No package.json found in ui/")
+        return
+    print("  [UI]  Starting Vite dev server ...")
+    subprocess.Popen(
+        f'start "FedProspect UI" /MIN cmd /c "cd /d {ui_dir} && npm run dev"',
+        shell=True,
+    )
+    for i in range(30):
+        time.sleep(1)
+        if port_in_use(5173):
+            print("  [UI]  Ready.  http://localhost:5173")
+            return
+        if i == 9:
+            print("  [UI]  Still waiting for Vite to start...")
+    print("  [UI]  TIMEOUT: Vite did not start after 30 seconds.")
 
 
 def stop_ui():
-    print("  [UI]  Not yet implemented.")
+    if not port_in_use(5173):
+        print("  [UI]  Not running.")
+        return
+    print("  [UI]  Stopping Vite dev server ...")
+    # Find PID listening on port 5173 and kill it with its child processes
+    try:
+        result = subprocess.run(
+            ["netstat", "-ano"],
+            capture_output=True, text=True, timeout=10,
+        )
+        for line in result.stdout.splitlines():
+            if ":5173" in line and "LISTENING" in line:
+                pid = line.strip().split()[-1]
+                subprocess.run(
+                    ["taskkill", "/PID", pid, "/F", "/T"],
+                    capture_output=True, timeout=10,
+                )
+                break
+    except Exception:
+        pass
+    # Wait for port to actually free up
+    for _ in range(10):
+        if not port_in_use(5173):
+            break
+        time.sleep(1)
+    print("  [UI]  Stopped.")
 
 
 def check_ui():
-    print("  [UI]  Not yet implemented")
+    if port_in_use(5173):
+        print("  [UI]  Running  (http://localhost:5173)")
+    else:
+        print("  [UI]  Stopped")
 
 
 # -- Commands ----------------------------------------------------------

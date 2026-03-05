@@ -60,7 +60,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 15 | Subaward Data Strategy | COMPLETE | [15-SUBAWARD-STRATEGY.md](phases/15-SUBAWARD-STRATEGY.md) |
 | 16 | Stabilization | COMPLETE | [16-STABILIZATION.md](phases/16-STABILIZATION.md) |
 | 19 | UI Phase Review | COMPLETE | [19-UI-PHASE-REVIEW.md](phases/19-UI-PHASE-REVIEW.md) |
-| 20 | UI Foundation & Layout | NOT STARTED | [20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md) |
+| 20 | UI Foundation & Layout | COMPLETE | [20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md) |
 | 30 | Search & Discovery | NOT STARTED | [30-SEARCH-DISCOVERY.md](phases/30-SEARCH-DISCOVERY.md) |
 | 40 | Detail Views & Intelligence | NOT STARTED | [40-DETAIL-INTELLIGENCE.md](phases/40-DETAIL-INTELLIGENCE.md) |
 | 45 | Opportunity Intelligence | NOT STARTED | [45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md) |

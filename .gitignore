@@ -2,6 +2,7 @@
 **/.env
 **/.env.*
 !**/.env.example
+!ui/.env.development
 *.key
 *.pem
 **/secrets.*

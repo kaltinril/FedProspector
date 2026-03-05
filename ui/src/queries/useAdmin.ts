@@ -1,0 +1,61 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { queryKeys } from './queryKeys';
+import {
+  getEtlStatus,
+  listUsers,
+  updateUser,
+  resetUserPassword,
+  createOrganization,
+  createOrganizationOwner,
+} from '@/api/admin';
+import type { UpdateUserRequest, CreateOrganizationRequest, CreateOwnerRequest } from '@/types/api';
+
+export function useEtlStatus() {
+  return useQuery({
+    queryKey: queryKeys.admin.etlStatus,
+    queryFn: getEtlStatus,
+    staleTime: 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useAdminUsers(params?: { page?: number; pageSize?: number }) {
+  return useQuery({
+    queryKey: queryKeys.admin.users(params as Record<string, unknown>),
+    queryFn: () => listUsers(params),
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: UpdateUserRequest }) => updateUser(id, data),
+    retry: 1,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
+    },
+  });
+}
+
+export function useResetUserPassword() {
+  return useMutation({
+    mutationFn: (id: number) => resetUserPassword(id),
+    retry: 0,
+  });
+}
+
+export function useCreateOrganization() {
+  return useMutation({
+    mutationFn: (data: CreateOrganizationRequest) => createOrganization(data),
+    retry: 0,
+  });
+}
+
+export function useCreateOrganizationOwner() {
+  return useMutation({
+    mutationFn: ({ orgId, data }: { orgId: number; data: CreateOwnerRequest }) =>
+      createOrganizationOwner(orgId, data),
+    retry: 0,
+  });
+}
