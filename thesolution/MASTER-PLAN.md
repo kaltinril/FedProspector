@@ -348,6 +348,12 @@ Full-stack white-hat security audit: 38 findings across C# API, Python ETL/CLI, 
 
 Fixed broken SAM.gov Subaward API filters (primeNaics, primeEntityUei, subEntityUei silently ignored). Implemented PIID-driven NAICS loading strategy: `--naics` queries local `fpds_contract` for PIIDs, calls API per-PIID. Added resumable page-by-page loading with checkpoint support, `--years-back`, `--piid`, `--force` options. Removed broken `--prime-uei`. Created 9 per-vendor-API reference docs in `thesolution/reference/vendor-apis/`.
 
+### Phase 16: Stabilization
+**Status**: [x] COMPLETE (2026-03-04)
+**File**: [phases/16-STABILIZATION.md](phases/16-STABILIZATION.md)
+
+Added 431 new tests (276 Python + 155 C# Infrastructure) across 19 new test files. C# service layer: 13 services now tested (Auth, SavedSearch, Prospect, Opportunity, Award, Proposal, Entity, Subaward, Organization, Dashboard, Admin, Notification, ActivityLog). Python: prospect_manager, schema_checker, 4 CLI modules. Replaced 22 bare `except Exception:` blocks with specific types, added deadlock retry decorator (`utils/db_retry.py`), fixed silent error suppression in reference_loader and subaward_loader. Created `/validate` skill. Expanded CLAUDE.md with reference doc links and shared module dependency map.
+
 ### Phase 20: UI Foundation & Layout
 **Status**: [ ] NOT STARTED
 **File**: [phases/20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md)
