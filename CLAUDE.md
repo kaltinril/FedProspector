@@ -79,6 +79,7 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 
 | What | Location |
 |------|----------|
+| Service manager | `fed_prospector.py` / `fed_prospector.bat` — `start\|stop\|restart\|status\|build` `[all\|db\|api\|ui]` |
 | Python app + CLI | `fed_prospector/` (`python main.py --help`, 54 commands in 7 groups) |
 | Vendor API clients | `fed_prospector/api_clients/` (7 clients, all inherit `BaseAPIClient`) |
 | ETL loaders | `fed_prospector/etl/` (7 loaders + prospect_manager, scheduler, health_check) |
