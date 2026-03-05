@@ -1,6 +1,6 @@
 ---
 name: build-api
-description: "Build the C# ASP.NET Core Web API solution. Restores NuGet packages and builds all projects. Usage: /build-api [Release|Debug]"
+description: "Build the C# ASP.NET Core Web API solution. Restores NuGet packages and builds all projects. Use when you need to compile the API, check for build errors, or verify code compiles. Usage: /build-api [Release|Debug]"
 argument-hint: "[Release|Debug]"
 disable-model-invocation: true
 ---
@@ -12,7 +12,7 @@ Build the C# solution including Api, Core, Infrastructure, and all test projects
 ## Command
 
 ```bash
-dotnet build c:/git/fedProspect/api/FedProspector.slnx -c <config>
+dotnet build api/FedProspector.slnx -c <config>
 ```
 
 - `$ARGUMENTS` = configuration name (default: `Debug`)
@@ -21,7 +21,7 @@ dotnet build c:/git/fedProspect/api/FedProspector.slnx -c <config>
 ## If Build Fails with Package Restore Errors
 
 ```bash
-dotnet restore c:/git/fedProspect/api/FedProspector.slnx
+dotnet restore api/FedProspector.slnx
 ```
 
 Then retry the build.

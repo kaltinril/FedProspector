@@ -23,7 +23,7 @@ Quick reference for adding a new API endpoint. See SKILL.md for detailed pattern
 - .When() guards on nullable/optional validator rules
 - .DefaultIfEmpty() for LEFT JOINs in LINQ
 - Count before join for paged queries
-- 4 test cases minimum: NoAuth, HappyPath, NotFound, VerifyServiceCall
+- 4 test cases minimum: NoAuth, HappyPath, VerifyServiceCall, VerifyOrgId
 
 ## Canonical References
 
@@ -36,12 +36,12 @@ Quick reference for adding a new API endpoint. See SKILL.md for detailed pattern
 
 ## DI Registration Location
 
-`api/src/FedProspector.Api/Program.cs` lines 124-137 (AddScoped block)
+`api/src/FedProspector.Api/Program.cs` (AddScoped block)
 
 ## Build & Test
 
 ```bash
-dotnet build c:/git/fedProspect/api/FedProspector.slnx
-dotnet test c:/git/fedProspect/api/tests/FedProspector.Api.Tests/
-dotnet test c:/git/fedProspect/api/tests/FedProspector.Core.Tests/
+dotnet build api/FedProspector.slnx
+dotnet test api/tests/FedProspector.Api.Tests/
+dotnet test api/tests/FedProspector.Core.Tests/
 ```

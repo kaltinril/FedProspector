@@ -1,6 +1,6 @@
 ---
 name: run-tests
-description: "Run project test suites: Python pytest and/or C# xUnit. Supports all, python, csharp, core, api, infra. Usage: /run-tests [suite] [filter]"
+description: "Run project test suites: Python pytest and/or C# xUnit. Also acts as a validation check — use when you need to verify code changes, check for regressions, confirm nothing is broken, or run specific test filters. Supports all, python, csharp, core, api, infra. Usage: /run-tests [suite] [filter]"
 argument-hint: "[all|python|csharp|core|api|infra] [filter]"
 disable-model-invocation: true
 ---
@@ -19,23 +19,23 @@ Run one or more of the 4 test suites. Python and C# suites are independent — r
 
 ### Python
 ```bash
-python -m pytest c:/git/fedProspect/fed_prospector/tests/ -v
+python -m pytest fed_prospector/tests/ -v --tb=short
 ```
-With filter: `python -m pytest c:/git/fedProspect/fed_prospector/tests/ -v -k "<filter>"`
+With filter: `python -m pytest fed_prospector/tests/ -v --tb=short -k "<filter>"`
 
 ### C# Core
 ```bash
-dotnet test c:/git/fedProspect/api/tests/FedProspector.Core.Tests/
+dotnet test api/tests/FedProspector.Core.Tests/ --verbosity normal
 ```
 
 ### C# Api
 ```bash
-dotnet test c:/git/fedProspect/api/tests/FedProspector.Api.Tests/
+dotnet test api/tests/FedProspector.Api.Tests/ --verbosity normal
 ```
 
 ### C# Infrastructure
 ```bash
-dotnet test c:/git/fedProspect/api/tests/FedProspector.Infrastructure.Tests/
+dotnet test api/tests/FedProspector.Infrastructure.Tests/ --verbosity normal
 ```
 
 With filter: add `--filter "FullyQualifiedName~<filter>"`
@@ -47,4 +47,3 @@ When running `all` or `csharp`, launch independent suites in parallel using mult
 ## On Failure
 
 Show failing test names and relevant output. Do NOT attempt to fix tests unless the user explicitly asks.
-

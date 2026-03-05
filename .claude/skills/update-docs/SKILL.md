@@ -36,11 +36,11 @@ Update project documentation after code changes. Focus on what actually changed 
 
 | File | Purpose | Key Values |
 |------|---------|-----------|
-| `c:/git/fedProspect/CLAUDE.md` | Agent instructions | endpoints, controllers, tables, views, CLI commands, conventions, file paths |
-| `C:/Users/jerem/.claude/projects/c--git-fedProspect/memory/MEMORY.md` | Cross-session memory | structural counts, environment, workflow prefs |
-| `c:/git/fedProspect/thesolution/MASTER-PLAN.md` | Phase tracking | phase statuses, deliverable summaries |
-| `c:/git/fedProspect/thesolution/QUICKSTART.md` | Setup guide | prerequisites, setup instructions |
-| `c:/git/fedProspect/thesolution/phases/*.md` | Phase details | task checkboxes |
+| `CLAUDE.md` | Agent instructions | endpoints, controllers, tables, views, CLI commands, conventions, file paths |
+| `MEMORY.md` | Cross-session memory (auto-loaded into context) | structural counts, environment, workflow prefs |
+| `thesolution/MASTER-PLAN.md` | Phase tracking | phase statuses, deliverable summaries |
+| `thesolution/QUICKSTART.md` | Setup guide | prerequisites, setup instructions |
+| `thesolution/phases/*.md` | Phase details | task checkboxes |
 
 ## Skills to Check
 
@@ -48,7 +48,7 @@ Only check these if changes affect their embedded values:
 
 | Skill | What Drifts |
 |-------|-------------|
-| `add-endpoint/SKILL.md` | DI registration line range in Program.cs, controller list |
+| `add-endpoint/SKILL.md` | Controller list, DI registration block |
 | `check-health/SKILL.md` | MySQL credentials, file paths |
 
 ## Process
