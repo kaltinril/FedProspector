@@ -241,8 +241,8 @@ function CompanyProfileTab({ entity }: { entity: EntityDetail }) {
           </Typography>
           <DataTable
             columns={naicsColumns}
-            rows={entity.naicsCodes}
-            getRowId={(row: EntityNaicsDto) => row.naicsCode}
+            rows={entity.naicsCodes.map((n, i) => ({ ...n, _idx: i }))}
+            getRowId={(row: EntityNaicsDto & { _idx: number }) => `${row._idx}-${row.naicsCode}`}
           />
         </Box>
       )}

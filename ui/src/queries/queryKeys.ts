@@ -23,6 +23,7 @@ export const queryKeys = {
     all: ['subawards'] as const,
     teamingPartners: (params: Record<string, unknown>) =>
       ['subawards', 'teamingPartners', params] as const,
+    byPrime: (primePiid: string) => ['subawards', 'byPrime', primePiid] as const,
   },
   prospects: {
     all: ['prospects'] as const,

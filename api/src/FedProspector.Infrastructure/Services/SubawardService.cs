@@ -128,4 +128,41 @@ public class SubawardService : ISubawardService
             await _context.Database.CloseConnectionAsync();
         }
     }
+
+    public async Task<List<SubawardDetailDto>> GetSubawardsByPrimeContractAsync(string primePiid)
+    {
+        var sql = @"
+            SELECT sub_name, sub_uei, sub_amount, sub_date, sub_description, naics_code
+            FROM sam_subaward
+            WHERE prime_piid = @primePiid
+            ORDER BY sub_date DESC";
+
+        var connection = _context.Database.GetDbConnection();
+        try
+        {
+            await _context.Database.OpenConnectionAsync();
+            var items = new List<SubawardDetailDto>();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = sql;
+            cmd.Parameters.Add(new MySqlParameter("@primePiid", primePiid));
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                items.Add(new SubawardDetailDto
+                {
+                    SubName = reader.IsDBNull(0) ? null : reader.GetString(0),
+                    SubUei = reader.IsDBNull(1) ? null : reader.GetString(1),
+                    SubAmount = reader.IsDBNull(2) ? null : reader.GetDecimal(2),
+                    SubDate = reader.IsDBNull(3) ? null : reader.GetDateTime(3).ToString("yyyy-MM-dd"),
+                    SubDescription = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    NaicsCode = reader.IsDBNull(5) ? null : reader.GetString(5),
+                });
+            }
+            return items;
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
+    }
 }

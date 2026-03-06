@@ -5,12 +5,20 @@ import { useSnackbar } from 'notistack';
 import type { GridColDef } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import SavedSearchIcon from '@mui/icons-material/SavedSearch';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -21,6 +29,7 @@ import { TabbedDetailPage } from '@/components/shared/TabbedDetailPage';
 import { KeyFactsGrid } from '@/components/shared/KeyFactsGrid';
 import { DeadlineCountdown } from '@/components/shared/DeadlineCountdown';
 import { BurnRateChart } from '@/components/shared/BurnRateChart';
+import { BarChart } from '@mui/x-charts/BarChart';
 import { QualificationChecklist } from '@/components/shared/QualificationChecklist';
 import { DataTable } from '@/components/shared/DataTable';
 import { StatusChip } from '@/components/shared/StatusChip';
@@ -31,6 +40,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { getOpportunity } from '@/api/opportunities';
 import { getBurnRate, getMarketShare } from '@/api/awards';
 import { createProspect } from '@/api/prospects';
+import { createSavedSearch } from '@/api/savedSearches';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate, formatDateTime } from '@/utils/dateFormatters';
 import { formatCurrency } from '@/utils/formatters';
@@ -41,13 +51,18 @@ import type { OpportunityDetail, RelatedAwardDto, MarketShareDto } from '@/types
 // ---------------------------------------------------------------------------
 
 const US_TERRITORIES = ['PR', 'GU', 'VI', 'AS', 'MP'];
+const MILITARY_STATES = ['AA', 'AE', 'AP'];
 
 function getLocationIndicator(
   country: string | null | undefined,
   state: string | null | undefined,
 ): string {
   if (!country || country === 'USA' || country === 'US') {
-    if (state && US_TERRITORIES.includes(state.toUpperCase())) {
+    const upperState = state?.toUpperCase();
+    if (upperState && MILITARY_STATES.includes(upperState)) {
+      return 'Military (OCONUS)';
+    }
+    if (upperState && US_TERRITORIES.includes(upperState)) {
       return 'US Territory';
     }
     return 'CONUS';
@@ -198,9 +213,9 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
               Resource Links
             </Typography>
-            {resourceLinks.map((rl) => (
+            {resourceLinks.map((rl, idx) => (
               <Link
-                key={rl.url}
+                key={idx}
                 href={rl.url}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -550,6 +565,35 @@ function MarketShareSection({
       <Typography variant="subtitle2" sx={{ mb: 2 }}>
         Top Vendors — NAICS {naicsCode}
       </Typography>
+      <Box sx={{ width: '100%', height: Math.max(200, data.length * 40) }}>
+        <BarChart
+          dataset={data.map((d) => ({
+            vendor:
+              d.vendorName.length > 30
+                ? d.vendorName.slice(0, 27) + '...'
+                : d.vendorName,
+            value: d.totalValue,
+          }))}
+          yAxis={[{ scaleType: 'band', dataKey: 'vendor' }]}
+          xAxis={[
+            {
+              valueFormatter: (v: number) => formatCurrency(v) ?? '',
+            },
+          ]}
+          series={[
+            {
+              dataKey: 'value',
+              label: 'Total Award Value',
+              valueFormatter: (v) =>
+                formatCurrency(v as number | null) ?? '',
+            },
+          ]}
+          layout="horizontal"
+          margin={{ left: 200 }}
+          slotProps={{ legend: { hidden: true } }}
+        />
+      </Box>
+      <Divider sx={{ my: 2 }} />
       <DataTable
         columns={MARKET_SHARE_COLUMNS}
         rows={data}
@@ -631,6 +675,99 @@ function ProspectTab({
 }
 
 // ---------------------------------------------------------------------------
+// Save Search Similar Dialog
+// ---------------------------------------------------------------------------
+
+function SaveSearchSimilarDialog({
+  open,
+  onClose,
+  opp,
+}: {
+  open: boolean;
+  onClose: () => void;
+  opp: OpportunityDetail;
+}) {
+  const [name, setName] = useState('');
+  const [notifications, setNotifications] = useState(false);
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      createSavedSearch({
+        searchName: name,
+        filterCriteria: {
+          naicsCodes: opp.naicsCode ? [opp.naicsCode] : null,
+          setAsideCodes: opp.setAsideCode ? [opp.setAsideCode] : null,
+        },
+        notificationEnabled: notifications,
+      }),
+    onSuccess: () => {
+      enqueueSnackbar('Saved search created', { variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedSearches.all });
+      handleClose();
+    },
+    onError: () => {
+      enqueueSnackbar('Failed to create saved search', { variant: 'error' });
+    },
+  });
+
+  function handleClose() {
+    setName('');
+    setNotifications(false);
+    onClose();
+  }
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Save Similar Search</DialogTitle>
+      <DialogContent>
+        <TextField
+          autoFocus
+          required
+          margin="dense"
+          label="Search Name"
+          fullWidth
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Pre-populated criteria:
+          </Typography>
+          {opp.naicsCode && (
+            <Typography variant="body2">NAICS: {opp.naicsCode}</Typography>
+          )}
+          {opp.setAsideCode && (
+            <Typography variant="body2">Set-aside: {opp.setAsideCode}</Typography>
+          )}
+        </Box>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={notifications}
+              onChange={(e) => setNotifications(e.target.checked)}
+            />
+          }
+          label="Enable notifications"
+          sx={{ mt: 1 }}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose}>Cancel</Button>
+        <Button
+          onClick={() => mutation.mutate()}
+          variant="contained"
+          disabled={!name.trim() || mutation.isPending}
+        >
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Component
 // ---------------------------------------------------------------------------
 
@@ -640,6 +777,7 @@ export default function OpportunityDetailPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
+  const [saveSearchOpen, setSaveSearchOpen] = useState(false);
 
   const {
     data: opp,
@@ -747,25 +885,43 @@ export default function OpportunityDetailPage() {
         title={opp.title ?? 'Untitled Opportunity'}
         subtitle={opp.solicitationNumber ?? undefined}
         actions={
-          opp.prospect ? (
-            <Button
-              variant="outlined"
-              component={RouterLink}
-              to={`/prospects/${opp.prospect.prospectId}`}
-            >
-              View Prospect
-            </Button>
-          ) : (
-            <Button
-              variant="contained"
-              startIcon={<TrackChangesIcon />}
-              onClick={() => trackMutation.mutate()}
-              disabled={trackMutation.isPending}
-            >
-              Track as Prospect
-            </Button>
-          )
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {(opp.naicsCode || opp.setAsideCode) && (
+              <Button
+                variant="outlined"
+                startIcon={<SavedSearchIcon />}
+                onClick={() => setSaveSearchOpen(true)}
+              >
+                Save Search Similar
+              </Button>
+            )}
+            {opp.prospect ? (
+              <Button
+                variant="outlined"
+                component={RouterLink}
+                to={`/prospects/${opp.prospect.prospectId}`}
+              >
+                View Prospect
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                startIcon={<TrackChangesIcon />}
+                onClick={() => trackMutation.mutate()}
+                disabled={trackMutation.isPending}
+              >
+                Track as Prospect
+              </Button>
+            )}
+          </Box>
         }
+      />
+
+      {/* Save Search Similar Dialog */}
+      <SaveSearchSimilarDialog
+        open={saveSearchOpen}
+        onClose={() => setSaveSearchOpen(false)}
+        opp={opp}
       />
 
       {/* Summary row: deadline, chips, estimated value */}

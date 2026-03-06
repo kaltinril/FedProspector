@@ -27,4 +27,14 @@ public class SubawardsController : ApiControllerBase
         var result = await _service.GetTeamingPartnersAsync(request);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Get subawards for a specific prime contract.
+    /// </summary>
+    [HttpGet("by-prime/{primePiid}")]
+    public async Task<IActionResult> GetByPrimeContract(string primePiid)
+    {
+        var result = await _service.GetSubawardsByPrimeContractAsync(Uri.UnescapeDataString(primePiid));
+        return Ok(result);
+    }
 }

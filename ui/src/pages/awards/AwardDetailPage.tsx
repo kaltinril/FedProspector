@@ -17,11 +17,12 @@ import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getAward, getBurnRate } from '@/api/awards';
+import { getAward, getBurnRate, searchAwards } from '@/api/awards';
+import { getSubawardsByPrime } from '@/api/subawards';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate } from '@/utils/dateFormatters';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
-import type { AwardDetail, TransactionDto, MonthlySpendDto } from '@/types/api';
+import type { AwardDetail, AwardSearchResult, TransactionDto, MonthlySpendDto, SubawardDetailDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Column definitions
@@ -232,6 +233,73 @@ function VendorProfileTab({ award }: { award: AwardDetail }) {
   const navigate = useNavigate();
   const vendor = award.vendorProfile;
 
+  const {
+    data: otherAwardsData,
+    isLoading: otherAwardsLoading,
+    isError: otherAwardsError,
+    refetch: otherAwardsRefetch,
+  } = useQuery({
+    queryKey: queryKeys.awards.list({ vendorUei: award.vendorUei, pageSize: 10, sortBy: 'dateSigned', sortDescending: true }),
+    queryFn: () => searchAwards({ vendorUei: award.vendorUei!, pageSize: 10, sortBy: 'dateSigned', sortDescending: true }),
+    staleTime: 5 * 60 * 1000,
+    enabled: !!award.vendorUei,
+  });
+
+  const otherAwards = useMemo(() => {
+    if (!otherAwardsData?.items) return [];
+    return otherAwardsData.items.filter((a) => a.contractId !== award.contractId);
+  }, [otherAwardsData, award.contractId]);
+
+  const otherAwardsColumns: GridColDef<AwardSearchResult>[] = useMemo(() => [
+    {
+      field: 'contractId',
+      headerName: 'Contract ID',
+      flex: 1,
+      minWidth: 160,
+      renderCell: (params) => (
+        <Link
+          component="button"
+          variant="body2"
+          onClick={() => navigate(`/awards/${encodeURIComponent(params.value)}`)}
+        >
+          {params.value}
+        </Link>
+      ),
+    },
+    {
+      field: 'dateSigned',
+      headerName: 'Date Signed',
+      flex: 0.8,
+      minWidth: 120,
+      valueFormatter: (value: string | null | undefined) =>
+        value ? formatDate(value) : '--',
+    },
+    {
+      field: 'dollarsObligated',
+      headerName: 'Obligated',
+      flex: 1,
+      minWidth: 140,
+      align: 'right',
+      headerAlign: 'right',
+      valueFormatter: (value: number | null | undefined) => formatCurrency(value),
+    },
+    {
+      field: 'baseAndAllOptions',
+      headerName: 'Ceiling',
+      flex: 1,
+      minWidth: 140,
+      align: 'right',
+      headerAlign: 'right',
+      valueFormatter: (value: number | null | undefined) => formatCurrency(value),
+    },
+    {
+      field: 'naicsCode',
+      headerName: 'NAICS',
+      flex: 0.6,
+      minWidth: 90,
+    },
+  ], [navigate]);
+
   if (!vendor) {
     return (
       <EmptyState
@@ -272,7 +340,155 @@ function VendorProfileTab({ award }: { award: AwardDetail }) {
         </Link>
       </Box>
       <KeyFactsGrid facts={facts} columns={2} />
+
+      {/* Other Awards by Same Vendor */}
+      <Box sx={{ mt: 2 }}>
+        <Typography variant="h6" sx={{ mb: 2 }}>
+          Other Awards by This Vendor
+        </Typography>
+        {otherAwardsLoading && <LoadingState message="Loading other awards..." />}
+        {otherAwardsError && (
+          <ErrorState
+            title="Failed to load other awards"
+            message="Could not retrieve other awards for this vendor."
+            onRetry={() => otherAwardsRefetch()}
+          />
+        )}
+        {!otherAwardsLoading && !otherAwardsError && otherAwards.length === 0 && (
+          <EmptyState
+            title="No other awards"
+            message="No other awards found for this vendor."
+          />
+        )}
+        {!otherAwardsLoading && !otherAwardsError && otherAwards.length > 0 && (
+          <DataTable
+            columns={otherAwardsColumns}
+            rows={otherAwards}
+            getRowId={(row: AwardSearchResult) => row.contractId}
+          />
+        )}
+      </Box>
     </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Subcontractors
+// ---------------------------------------------------------------------------
+
+function SubcontractorsTab({
+  contractId,
+  enabled,
+}: {
+  contractId: string;
+  enabled: boolean;
+}) {
+  const navigate = useNavigate();
+
+  const subcontractorColumns: GridColDef<SubawardDetailDto & { _idx: number }>[] = useMemo(() => [
+    {
+      field: 'subName',
+      headerName: 'Sub Name',
+      flex: 1.5,
+      minWidth: 180,
+      valueGetter: (_value: unknown, row: SubawardDetailDto) =>
+        row.subName ?? '--',
+    },
+    {
+      field: 'subUei',
+      headerName: 'UEI',
+      flex: 0.8,
+      minWidth: 130,
+      renderCell: (params) => {
+        const uei = params.value as string | null | undefined;
+        if (!uei) return '--';
+        return (
+          <Link
+            component="button"
+            variant="body2"
+            onClick={() => navigate(`/entities/${encodeURIComponent(uei)}`)}
+          >
+            {uei}
+          </Link>
+        );
+      },
+    },
+    {
+      field: 'subAmount',
+      headerName: 'Amount',
+      flex: 1,
+      minWidth: 140,
+      align: 'right',
+      headerAlign: 'right',
+      valueFormatter: (value: number | null | undefined) => formatCurrency(value),
+    },
+    {
+      field: 'subDate',
+      headerName: 'Date',
+      flex: 0.8,
+      minWidth: 120,
+      valueFormatter: (value: string | null | undefined) =>
+        value ? formatDate(value) : '--',
+    },
+    {
+      field: 'subDescription',
+      headerName: 'Description',
+      flex: 2,
+      minWidth: 200,
+      valueGetter: (_value: unknown, row: SubawardDetailDto) =>
+        row.subDescription ?? '--',
+    },
+    {
+      field: 'naicsCode',
+      headerName: 'NAICS',
+      flex: 0.6,
+      minWidth: 90,
+      valueGetter: (_value: unknown, row: SubawardDetailDto) =>
+        row.naicsCode ?? '--',
+    },
+  ], [navigate]);
+
+  const {
+    data: subawards,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.subawards.byPrime(contractId),
+    queryFn: () => getSubawardsByPrime(contractId),
+    staleTime: 5 * 60 * 1000,
+    enabled,
+  });
+
+  if (isLoading) return <LoadingState message="Loading subcontractor data..." />;
+  if (isError)
+    return (
+      <ErrorState
+        title="Failed to load subcontractors"
+        message="Could not retrieve subaward data for this contract."
+        onRetry={() => refetch()}
+      />
+    );
+
+  if (!subawards || subawards.length === 0) {
+    return (
+      <EmptyState
+        title="No subcontractors"
+        message="No subaward data reported for this contract."
+      />
+    );
+  }
+
+  const rows = subawards.map((s, i) => ({ ...s, _idx: i }));
+
+  return (
+    <DataTable
+      columns={subcontractorColumns}
+      rows={rows}
+      getRowId={(row: SubawardDetailDto & { _idx: number }) =>
+        `${row._idx}-${row.subUei ?? 'unknown'}`
+      }
+    />
   );
 }
 
@@ -416,6 +632,7 @@ export default function AwardDetailPage() {
           <Tab label="Contract Details" value="details" />
           <Tab label="Financials & Burn Rate" value="financials" />
           <Tab label="Vendor Profile" value="vendor" />
+          <Tab label="Subcontractors" value="subcontractors" />
         </Tabs>
       </Box>
 
@@ -429,6 +646,12 @@ export default function AwardDetailPage() {
           />
         )}
         {activeTab === 'vendor' && <VendorProfileTab award={award} />}
+        {activeTab === 'subcontractors' && (
+          <SubcontractorsTab
+            contractId={decodedId}
+            enabled={activeTab === 'subcontractors'}
+          />
+        )}
       </Box>
     </Box>
   );

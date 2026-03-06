@@ -425,6 +425,15 @@ export interface ExclusionDto {
 // Subaward types (matching C# DTOs in Subawards/)
 // ============================================================
 
+export interface SubawardDetailDto {
+  subName?: string | null;
+  subUei?: string | null;
+  subAmount?: number | null;
+  subDate?: string | null;
+  subDescription?: string | null;
+  naicsCode?: string | null;
+}
+
 export interface TeamingPartnerDto {
   primeUei?: string | null;
   primeName?: string | null;
