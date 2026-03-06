@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
@@ -138,8 +138,16 @@ export default function TargetOpportunityPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
 
-  // --- Filter state from URL ---
-  const filterValues = useMemo(() => readFiltersFromParams(searchParams), [searchParams]);
+  // --- Filter state from URL (committed = drives the query) ---
+  const committedValues = useMemo(() => readFiltersFromParams(searchParams), [searchParams]);
+
+  // --- Local editing state (drives the input fields) ---
+  const [editingValues, setEditingValues] = useState(committedValues);
+
+  // Sync editing state when URL changes externally (browser back/forward)
+  useEffect(() => {
+    setEditingValues(committedValues);
+  }, [committedValues]);
 
   const paginationModel: GridPaginationModel = useMemo(() => ({
     page: Number(searchParams.get('page') ?? 0),
@@ -157,14 +165,15 @@ export default function TargetOpportunityPage() {
 
   // --- API params ---
   const apiParams = useMemo(
-    () => filtersToApiParams(filterValues, paginationModel, sortModel),
-    [filterValues, paginationModel, sortModel],
+    () => filtersToApiParams(committedValues, paginationModel, sortModel),
+    [committedValues, paginationModel, sortModel],
   );
 
   // --- Query ---
   const {
     data,
     isLoading,
+    isFetching,
     isError,
     refetch,
   } = useQuery({
@@ -208,44 +217,47 @@ export default function TargetOpportunityPage() {
 
   const handleFilterChange = useCallback(
     (key: string, value: unknown) => {
-      setSearchParams((prev) => {
-        const p = new URLSearchParams(prev);
+      setEditingValues((prev) => {
+        const next = { ...prev };
         if (value != null && value !== '') {
-          p.set(key, String(value));
+          next[key] = value;
         } else {
-          p.delete(key);
+          delete next[key];
         }
-        p.delete('page');
-        return p;
-      }, { replace: true });
+        return next;
+      });
     },
-    [setSearchParams],
+    [],
   );
 
   const handleClearFilters = useCallback(() => {
+    setEditingValues({});
     setSearchParams({}, { replace: true });
   }, [setSearchParams]);
 
   const handleSearch = useCallback(() => {
-    setSearchParams((prev) => {
-      const p = new URLSearchParams(prev);
-      p.delete('page');
-      return p;
-    }, { replace: true });
-  }, [setSearchParams]);
+    const params = writeFiltersToParams(editingValues);
+    // Preserve pagination size but reset to page 0
+    if (paginationModel.pageSize !== 25) params.set('pageSize', String(paginationModel.pageSize));
+    if (sortModel.length > 0) {
+      params.set('sortBy', sortModel[0].field);
+      if (sortModel[0].sort === 'desc') params.set('sortDesc', 'true');
+    }
+    setSearchParams(params, { replace: true });
+  }, [editingValues, paginationModel.pageSize, sortModel, setSearchParams]);
 
   const handlePaginationChange = useCallback(
     (model: GridPaginationModel) => {
-      updateUrl(filterValues, model, sortModel);
+      updateUrl(committedValues, model, sortModel);
     },
-    [filterValues, sortModel, updateUrl],
+    [committedValues, sortModel, updateUrl],
   );
 
   const handleSortChange = useCallback(
     (model: GridSortModel) => {
-      updateUrl(filterValues, { ...paginationModel, page: 0 }, model);
+      updateUrl(committedValues, { ...paginationModel, page: 0 }, model);
     },
-    [filterValues, paginationModel, updateUrl],
+    [committedValues, paginationModel, updateUrl],
   );
 
   const handleRowClick = useCallback(
@@ -422,7 +434,7 @@ export default function TargetOpportunityPage() {
 
       <SearchFilters
         filters={FILTER_CONFIGS}
-        values={filterValues}
+        values={editingValues}
         onChange={handleFilterChange}
         onClear={handleClearFilters}
         onSearch={handleSearch}
@@ -437,7 +449,7 @@ export default function TargetOpportunityPage() {
       <DataTable
         columns={columns}
         rows={data?.items ?? []}
-        loading={isLoading}
+        loading={isLoading || isFetching}
         rowCount={data?.totalCount ?? 0}
         paginationModel={paginationModel}
         onPaginationModelChange={handlePaginationChange}

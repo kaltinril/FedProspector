@@ -573,10 +573,8 @@ def search_entities(uei, name, naics, state, cert, active_only, limit):
         sql = (
             "SELECT /*+ NO_INDEX(e idx_entity_name) */ e.uei_sam, e.legal_business_name, e.cage_code, e.primary_naics, "
             "  e.registration_status, e.registration_expiration_date, "
-            "  ea.state_or_province "
-            "FROM entity e "
-            "LEFT JOIN entity_address ea ON e.uei_sam = ea.uei_sam "
-            "  AND ea.address_type = 'PHYSICAL' "
+            "  e.pop_state "
+            "FROM v_entity_search e "
             f"{where_sql} "
             "ORDER BY e.legal_business_name "
             "LIMIT %s"

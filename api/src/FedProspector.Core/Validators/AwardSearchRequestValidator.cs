@@ -8,6 +8,7 @@ public class AwardSearchRequestValidator : AbstractValidator<AwardSearchRequest>
     public AwardSearchRequestValidator()
     {
         Include(new PagedRequestValidator());
+        RuleFor(x => x.Piid).MaximumLength(50).When(x => !string.IsNullOrEmpty(x.Piid));
         RuleFor(x => x.MinValue).GreaterThanOrEqualTo(0).When(x => x.MinValue.HasValue);
         RuleFor(x => x.MaxValue).GreaterThanOrEqualTo(x => x.MinValue ?? 0)
             .When(x => x.MaxValue.HasValue && x.MinValue.HasValue);

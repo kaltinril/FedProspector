@@ -26,14 +26,18 @@ public class EntityService : IEntityService
         if (!string.IsNullOrWhiteSpace(request.Name))
         {
             var escapedName = EscapeLikePattern(request.Name);
-            query = query.Where(e => EF.Functions.Like(e.LegalBusinessName, $"%{escapedName}%"));
+            // Leading-wildcard LIKE can't use the B-tree index; tell MySQL not to
+            // attempt an ordered index scan (which is far slower than a table scan).
+            query = query
+                .TagWith("HINT:NO_INDEX(entity idx_entity_name)")
+                .Where(e => EF.Functions.Like(e.LegalBusinessName, $"%{escapedName}%"));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Uei))
             query = query.Where(e => e.UeiSam == request.Uei);
 
         if (!string.IsNullOrWhiteSpace(request.Naics))
-            query = query.Where(e => e.PrimaryNaics == request.Naics);
+            query = query.Where(e => _context.EntityNaicsCodes.Any(n => n.UeiSam == e.UeiSam && n.NaicsCode == request.Naics));
 
         if (!string.IsNullOrWhiteSpace(request.RegistrationStatus))
             query = query.Where(e => e.RegistrationStatus == request.RegistrationStatus);
@@ -48,7 +52,10 @@ public class EntityService : IEntityService
 
         // SbaCertification filter: EXISTS subquery on EntitySbaCertifications
         if (!string.IsNullOrWhiteSpace(request.SbaCertification))
-            query = query.Where(e => _context.EntitySbaCertifications.Any(sc => sc.UeiSam == e.UeiSam && sc.SbaTypeCode == request.SbaCertification));
+            query = query.Where(e => _context.EntitySbaCertifications.Any(sc =>
+                sc.UeiSam == e.UeiSam
+                && sc.SbaTypeCode == request.SbaCertification
+                && (sc.CertificationExitDate == null || sc.CertificationExitDate > DateOnly.FromDateTime(DateTime.UtcNow))));
 
         var totalCount = await query.CountAsync();
 
@@ -79,7 +86,7 @@ public class EntityService : IEntityService
                 PrimaryNaics = e.PrimaryNaics,
                 EntityStructureCode = e.EntityStructureCode,
                 PopState = _context.EntityAddresses
-                    .Where(a => a.UeiSam == e.UeiSam && a.AddressType == "physical")
+                    .Where(a => a.UeiSam == e.UeiSam && a.AddressType == "PHYSICAL")
                     .Select(a => a.StateOrProvince)
                     .FirstOrDefault(),
                 EntityUrl = e.EntityUrl,

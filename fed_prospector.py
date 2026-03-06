@@ -216,6 +216,7 @@ def build_ui():
         ["npm", "run", "build"],
         cwd=str(ui_dir),
         timeout=120,
+        shell=True,
     )
     if result.returncode == 0:
         print("  [UI]  Build succeeded.")

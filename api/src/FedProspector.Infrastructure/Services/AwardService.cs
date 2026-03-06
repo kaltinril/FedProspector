@@ -20,11 +20,16 @@ public class AwardService : IAwardService
 
     public async Task<PagedResponse<AwardSearchDto>> SearchAsync(AwardSearchRequest request)
     {
-        // Base awards only (modification_number = '0')
-        var query = _context.FpdsContracts.AsNoTracking()
-            .Where(c => c.ModificationNumber == "0");
+        var query = _context.FpdsContracts.AsNoTracking().AsQueryable();
+
+        // Base awards only unless searching by PIID (show all modifications)
+        if (string.IsNullOrWhiteSpace(request.Piid))
+            query = query.Where(c => c.ModificationNumber == "0");
 
         // Apply filters
+        if (!string.IsNullOrWhiteSpace(request.Piid))
+            query = query.Where(c => c.ContractId == request.Piid);
+
         if (!string.IsNullOrWhiteSpace(request.Solicitation))
             query = query.Where(c => c.SolicitationNumber == request.Solicitation);
 
@@ -34,7 +39,8 @@ public class AwardService : IAwardService
         if (!string.IsNullOrWhiteSpace(request.Agency))
         {
             var escapedAgency = EscapeLikePattern(request.Agency);
-            query = query.Where(c => c.AgencyName != null && EF.Functions.Like(c.AgencyName, $"%{escapedAgency}%"));
+            query = query.Where(c => c.AgencyId == request.Agency
+                || (c.AgencyName != null && EF.Functions.Like(c.AgencyName, $"%{escapedAgency}%")));
         }
 
         if (!string.IsNullOrWhiteSpace(request.VendorUei))

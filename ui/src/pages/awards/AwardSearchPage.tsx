@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
@@ -156,7 +156,13 @@ export default function AwardSearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const filterValues = useMemo(() => parseSearchParams(searchParams), [searchParams]);
+  const committedValues = useMemo(() => parseSearchParams(searchParams), [searchParams]);
+
+  const [editingValues, setEditingValues] = useState<Record<string, unknown>>(committedValues);
+
+  useEffect(() => {
+    setEditingValues(committedValues);
+  }, [committedValues]);
 
   const paginationModel: GridPaginationModel = useMemo(
     () => ({
@@ -174,13 +180,13 @@ export default function AwardSearchPage() {
   }, [searchParams]);
 
   const apiParams = useMemo(
-    () => filtersToApiParams(filterValues, paginationModel, sortModel),
-    [filterValues, paginationModel, sortModel],
+    () => filtersToApiParams(committedValues, paginationModel, sortModel),
+    [committedValues, paginationModel, sortModel],
   );
 
-  const hasFilters = Object.keys(filterValues).length > 0;
+  const hasFilters = Object.keys(committedValues).length > 0;
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: queryKeys.awards.list(apiParams as unknown as Record<string, unknown>),
     queryFn: () => searchAwards(apiParams),
     placeholderData: keepPreviousData,
@@ -192,31 +198,26 @@ export default function AwardSearchPage() {
 
   const handleFilterChange = useCallback(
     (key: string, value: unknown) => {
-      const updated = { ...filterValues, [key]: value };
-      // Don't update URL on every keystroke — just track in local derived state
-      // URL updates happen on search
-      setSearchParams(
-        { ...filtersToSearchParams(updated), page: '0', pageSize: String(paginationModel.pageSize) },
-        { replace: true },
-      );
+      setEditingValues((prev) => ({ ...prev, [key]: value }));
     },
-    [filterValues, paginationModel.pageSize, setSearchParams],
+    [],
   );
 
   const handleSearch = useCallback(() => {
     setSearchParams(
-      { ...filtersToSearchParams(filterValues), page: '0', pageSize: String(paginationModel.pageSize) },
+      { ...filtersToSearchParams(editingValues), page: '0', pageSize: String(paginationModel.pageSize) },
       { replace: true },
     );
-  }, [filterValues, paginationModel.pageSize, setSearchParams]);
+  }, [editingValues, paginationModel.pageSize, setSearchParams]);
 
   const handleClear = useCallback(() => {
+    setEditingValues({});
     setSearchParams({}, { replace: true });
   }, [setSearchParams]);
 
   const handlePaginationChange = useCallback(
     (model: GridPaginationModel) => {
-      const sp = filtersToSearchParams(filterValues);
+      const sp = filtersToSearchParams(committedValues);
       sp.page = String(model.page);
       sp.pageSize = String(model.pageSize);
       if (sortModel.length > 0) {
@@ -225,12 +226,12 @@ export default function AwardSearchPage() {
       }
       setSearchParams(sp, { replace: true });
     },
-    [filterValues, sortModel, setSearchParams],
+    [committedValues, sortModel, setSearchParams],
   );
 
   const handleSortChange = useCallback(
     (model: GridSortModel) => {
-      const sp = filtersToSearchParams(filterValues);
+      const sp = filtersToSearchParams(committedValues);
       sp.page = String(paginationModel.page);
       sp.pageSize = String(paginationModel.pageSize);
       if (model.length > 0) {
@@ -239,7 +240,7 @@ export default function AwardSearchPage() {
       }
       setSearchParams(sp, { replace: true });
     },
-    [filterValues, paginationModel, setSearchParams],
+    [committedValues, paginationModel, setSearchParams],
   );
 
   return (
@@ -251,7 +252,7 @@ export default function AwardSearchPage() {
 
       <SearchFilters
         filters={FILTER_CONFIGS}
-        values={filterValues}
+        values={editingValues}
         onChange={handleFilterChange}
         onClear={handleClear}
         onSearch={handleSearch}
@@ -269,7 +270,7 @@ export default function AwardSearchPage() {
         <DataTable
           columns={columns}
           rows={data?.items ?? []}
-          loading={isLoading}
+          loading={isLoading || isFetching}
           rowCount={data?.totalCount ?? 0}
           paginationModel={paginationModel}
           onPaginationModelChange={handlePaginationChange}

@@ -443,9 +443,13 @@ def _load_multi_set_aside(client, loader, load_mgr, load_id,
               help="Only show opportunities with future response deadlines")
 @click.option("--days", default=30, type=int,
               help="Show opportunities posted in last N days (default: 30)")
+@click.option("--keyword", default=None,
+              help="Filter by keyword in opportunity title (partial match)")
+@click.option("--department", default=None,
+              help="Filter by department name (partial match)")
 @click.option("--limit", default=25, type=int,
               help="Max results to show (default: 25)")
-def search(set_aside, naics, open_only, days, limit):
+def search(set_aside, naics, open_only, days, keyword, department, limit):
     """Search loaded opportunities in the local database.
 
     Queries the opportunity table (no API calls). Results are ordered by
@@ -482,6 +486,14 @@ def search(set_aside, naics, open_only, days, limit):
             where_clauses.append("o.naics_code = %s")
             params.append(naics)
 
+        if keyword:
+            where_clauses.append("o.title LIKE %s")
+            params.append(f"%{keyword}%")
+
+        if department:
+            where_clauses.append("o.department_name LIKE %s")
+            params.append(f"%{department}%")
+
         if open_only:
             where_clauses.append("o.response_deadline > NOW()")
             where_clauses.append("o.active = 'Y'")
@@ -507,6 +519,8 @@ def search(set_aside, naics, open_only, days, limit):
             click.echo("No opportunities found matching the criteria.")
             click.echo(f"  Filters: set-aside={set_aside or 'any'}, "
                        f"naics={naics or 'any'}, "
+                       f"keyword={keyword or 'any'}, "
+                       f"department={department or 'any'}, "
                        f"posted in last {days} days"
                        + (", open only" if open_only else ""))
             return
@@ -571,6 +585,8 @@ def search(set_aside, naics, open_only, days, limit):
         click.echo("")
         click.echo(f"Filters: set-aside={set_aside or 'any'}, "
                    f"naics={naics or 'any'}, "
+                   f"keyword={keyword or 'any'}, "
+                   f"department={department or 'any'}, "
                    f"posted in last {days} days"
                    + (", open only" if open_only else ""))
 

@@ -4,6 +4,7 @@ namespace FedProspector.Core.DTOs.Awards;
 
 public class AwardSearchRequest : PagedRequest
 {
+    public string? Piid { get; set; }
     public string? Solicitation { get; set; }
     public string? Naics { get; set; }
     public string? Agency { get; set; }

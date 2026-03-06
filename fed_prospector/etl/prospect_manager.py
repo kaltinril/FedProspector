@@ -534,6 +534,9 @@ class ProspectManager:
         Raises:
             ValueError: If note_type is invalid, prospect or user not found.
         """
+        if note_type == 'STATUS_CHANGE':
+            raise ValueError("STATUS_CHANGE notes are created automatically by the system and cannot be added manually.")
+
         if note_type not in self.NOTE_TYPES:
             raise ValueError(
                 f"Invalid note type '{note_type}'. Must be one of: {', '.join(self.NOTE_TYPES)}"

@@ -133,8 +133,13 @@ def load_exclusions(exclusion_type, agency, max_calls, api_key_number):
 @click.command("check-exclusion")
 @click.option("--uei", default=None, help="UEI to check for exclusions")
 @click.option("--name", default=None, help="Entity or individual name to search")
-def check_exclusion(uei, name):
+@click.option("--include-terminated", is_flag=True, default=False,
+              help="Include terminated exclusions (default: active only)")
+def check_exclusion(uei, name, include_terminated):
     """Check a specific UEI or entity name for exclusions.
+
+    By default, only shows active exclusions (not yet terminated).
+    Use --include-terminated to include expired/terminated records.
 
     Queries the local sam_exclusion table (no API calls). Run
     'python main.py load exclusions' to refresh data.
@@ -142,6 +147,7 @@ def check_exclusion(uei, name):
     Examples:
         python main.py search exclusions --uei ABC123DEF456
         python main.py search exclusions --name "Acme Corp"
+        python main.py search exclusions --name "Acme Corp" --include-terminated
     """
     logger = setup_logging()
 
@@ -150,7 +156,9 @@ def check_exclusion(uei, name):
         sys.exit(1)
 
     click.echo("Exclusion Check (local sam_exclusion table)")
-    _check_local_only(uei, name)
+    if not include_terminated:
+        click.echo("  Showing active exclusions only (use --include-terminated for all)")
+    _check_local_only(uei, name, include_terminated=include_terminated)
 
 
 @click.command("check-prospects")
@@ -204,20 +212,24 @@ def check_prospects():
         sys.exit(1)
 
 
-def _check_local_only(uei, name):
+def _check_local_only(uei, name, *, include_terminated=False):
     """Check local sam_exclusion table when API calls are unavailable."""
     from db.connection import get_connection
+
+    active_filter = ""
+    if not include_terminated:
+        active_filter = " AND (termination_date IS NULL OR termination_date > CURDATE())"
 
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
         if uei:
             cursor.execute(
-                "SELECT * FROM sam_exclusion WHERE uei = %s", (uei,)
+                f"SELECT * FROM sam_exclusion WHERE uei = %s{active_filter}", (uei,)
             )
         else:
             cursor.execute(
-                "SELECT * FROM sam_exclusion WHERE entity_name LIKE %s",
+                f"SELECT * FROM sam_exclusion WHERE entity_name LIKE %s{active_filter}",
                 (f"%{name}%",),
             )
         results = cursor.fetchall()

@@ -590,7 +590,7 @@ function MarketShareSection({
           ]}
           layout="horizontal"
           margin={{ left: 200 }}
-          slotProps={{ legend: { hidden: true } }}
+          hideLegend
         />
       </Box>
       <Divider sx={{ my: 2 }} />
