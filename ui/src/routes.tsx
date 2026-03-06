@@ -7,6 +7,15 @@ const LoginPage = lazy(() => import('@/pages/login/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/login/RegisterPage'));
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const SetupPage = lazy(() => import('@/pages/setup/SetupPage'));
+const OpportunitySearchPage = lazy(
+  () => import('@/pages/opportunities/OpportunitySearchPage'),
+);
+const TargetOpportunityPage = lazy(
+  () => import('@/pages/opportunities/TargetOpportunityPage'),
+);
+const AwardSearchPage = lazy(() => import('@/pages/awards/AwardSearchPage'));
+const EntitySearchPage = lazy(() => import('@/pages/entities/EntitySearchPage'));
+const TeamingPartnerPage = lazy(() => import('@/pages/subawards/TeamingPartnerPage'));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -37,6 +46,48 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <DashboardPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Search routes */}
+      <Route
+        path="/opportunities"
+        element={
+          <AuthenticatedLayout>
+            <OpportunitySearchPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/opportunities/targets"
+        element={
+          <AuthenticatedLayout>
+            <TargetOpportunityPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/awards"
+        element={
+          <AuthenticatedLayout>
+            <AwardSearchPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/entities"
+        element={
+          <AuthenticatedLayout>
+            <EntitySearchPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/subawards/teaming"
+        element={
+          <AuthenticatedLayout>
+            <TeamingPartnerPage />
           </AuthenticatedLayout>
         }
       />

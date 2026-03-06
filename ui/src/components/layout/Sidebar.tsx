@@ -14,6 +14,7 @@ import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import EmojiEventsOutlined from '@mui/icons-material/EmojiEventsOutlined';
 import BusinessOutlined from '@mui/icons-material/BusinessOutlined';
+import GroupsOutlined from '@mui/icons-material/GroupsOutlined';
 import TrackChangesOutlined from '@mui/icons-material/TrackChangesOutlined';
 import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
 import BookmarkBorderOutlined from '@mui/icons-material/BookmarkBorderOutlined';
@@ -57,6 +58,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Opportunities', icon: <SearchOutlined />, route: '/opportunities' },
       { label: 'Awards', icon: <EmojiEventsOutlined />, route: '/awards' },
       { label: 'Entities', icon: <BusinessOutlined />, route: '/entities' },
+      { label: 'Teaming', icon: <GroupsOutlined />, route: '/subawards/teaming' },
     ],
   },
   {
