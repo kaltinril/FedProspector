@@ -41,7 +41,7 @@ If `$ARGUMENTS` is provided and starts with `-m`, use the text after `-m` as the
 
 ### 4. Commit
 
-Use a HEREDOC for the message to preserve formatting:
+Use a HEREDOC for the message to preserve formatting. Do NOT append `Co-Authored-By` or any attribution trailers — the commit message should contain only the descriptive message.
 
 ```bash
 git commit -m "$(cat <<'EOF'
