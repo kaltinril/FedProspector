@@ -8,6 +8,10 @@ argument-hint: "[optional message override]"
 
 Automate the full git commit workflow in one shot. No user intervention needed between steps unless something looks wrong.
 
+## Important
+
+Run all git commands directly (e.g., `git status`) without prefixing `cd <path> &&`. The Bash tool already runs in the project's working directory, and the `cd` prefix breaks permission allow-list matching on `Bash(git *)`.
+
 ## Steps
 
 ### 1. Gather context (run all three in parallel)
