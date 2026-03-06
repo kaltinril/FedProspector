@@ -12,7 +12,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 | `thesolution/` | Plan documents and implementation roadmap |
 | `workdir/` | Data conversion scripts and reference CSV/MD files |
 | `api/` | **C# ASP.NET Core Web API** - backend REST API, 71 endpoints across 14 controllers (Phases 10-20) |
-| `ui/` | **Frontend web application** - Vite + React 19 + TypeScript + MUI v6 (Phase 20 complete) |
+| `ui/` | **Frontend web application** - Vite 7 + React 19 + TypeScript + MUI v7 (Phase 20 complete) |
 | `OLD_ATTEMPTS/`, `OLD_RESOURCES/` | Archived. Do not modify or reference in new code. |
 
 ## Context Management
@@ -47,7 +47,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Change Detection**: SHA-256 record hashing to detect changes between loads
 - **Data Quality**: Configurable rules in `etl_data_quality_rule` table, not hardcoded
 - **App API**: ASP.NET Core Web API with 71 endpoints across 14 controllers + auth + health (Phases 10-20 complete). httpOnly cookie auth, CSRF protection, multi-tenant org isolation.
-- **UI**: Vite + React 19 + TypeScript, MUI v6, TanStack Query, Axios (Phase 20 complete, Phases 30-70 remaining)
+- **UI**: Vite 7 + React 19 + TypeScript, MUI v7, TanStack Query, Axios (Phase 20 complete, Phases 30-70 remaining)
 - **Testing**: Python pytest + C# xUnit (Core, Api, Infrastructure). Run `/run-tests all` or see test paths below.
 - **Schema Ownership**: Python DDL owns ETL/data tables (~35 tables) + 14 new tables from Phase 9. EF Core owns application tables (app_user, prospect, saved_search, organization, organization_invite, organization_naics, organization_certification, organization_past_performance, etc.) starting Phase 10. 60 tables + 4 views total. See Phase 10 plan for details.
 

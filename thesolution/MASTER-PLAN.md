@@ -19,7 +19,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | Rate Limit Strategy | Bulk extracts first, API for incremental | Monthly extract = 1 call for all entities. |
 | Credentials | `.env` + python-dotenv | Never hardcode. |
 | Web API | ASP.NET Core (.NET 10) | Type-safe, high-perf backend. EF Core for MySQL. |
-| Frontend | Vite + React 19 + TypeScript + MUI v6 | Modern stack, enterprise component library. |
+| Frontend | Vite 7 + React 19 + TypeScript + MUI v7 | Modern stack, enterprise component library. |
 | Multi-Tenancy | Shared public data + org-isolated capture data | Government data shared; prospects/proposals private per company. |
 
 ## Phase Roadmap
@@ -61,7 +61,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 16 | Stabilization | COMPLETE | [16-STABILIZATION.md](phases/16-STABILIZATION.md) |
 | 19 | UI Phase Review | COMPLETE | [19-UI-PHASE-REVIEW.md](phases/19-UI-PHASE-REVIEW.md) |
 | 20 | UI Foundation & Layout | COMPLETE | [20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md) |
-| 20.1 | Tech Stack Upgrade | NOT STARTED | [20.1-TECH-STACK-UPGRADE.md](phases/20.1-TECH-STACK-UPGRADE.md) |
+| 20.1 | Tech Stack Upgrade | COMPLETE | [20.1-TECH-STACK-UPGRADE.md](phases/20.1-TECH-STACK-UPGRADE.md) |
 | 30 | Search & Discovery | NOT STARTED | [30-SEARCH-DISCOVERY.md](phases/30-SEARCH-DISCOVERY.md) |
 | 40 | Detail Views & Intelligence | NOT STARTED | [40-DETAIL-INTELLIGENCE.md](phases/40-DETAIL-INTELLIGENCE.md) |
 | 45 | Opportunity Intelligence | NOT STARTED | [45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md) |
