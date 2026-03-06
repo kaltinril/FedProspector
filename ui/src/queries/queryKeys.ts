@@ -10,6 +10,7 @@ export const queryKeys = {
     list: (params: Record<string, unknown>) => ['awards', 'list', params] as const,
     detail: (contractId: string) => ['awards', 'detail', contractId] as const,
     burnRate: (contractId: string) => ['awards', 'burnRate', contractId] as const,
+    marketShare: (naicsCode: string) => ['awards', 'marketShare', naicsCode] as const,
   },
   entities: {
     all: ['entities'] as const,

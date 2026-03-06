@@ -25,6 +25,21 @@ public class AwardsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("market-share")]
+    public async Task<IActionResult> GetMarketShare(
+        [FromQuery] string naicsCode,
+        [FromQuery] int limit = 10)
+    {
+        if (string.IsNullOrWhiteSpace(naicsCode))
+            return BadRequest("naicsCode is required");
+
+        if (limit < 1 || limit > 50)
+            limit = 10;
+
+        var result = await _service.GetMarketShareAsync(naicsCode, limit);
+        return Ok(result);
+    }
+
     [HttpGet("{contractId}/burn-rate")]
     public async Task<IActionResult> GetBurnRate(string contractId)
     {

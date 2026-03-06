@@ -270,6 +270,26 @@ public class AwardService : IAwardService
         };
     }
 
+    public async Task<List<MarketShareDto>> GetMarketShareAsync(string naicsCode, int limit = 10)
+    {
+        var results = await _context.Database
+            .SqlQueryRaw<MarketShareDto>(
+                "SELECT vendor_name AS VendorName, vendor_uei AS VendorUei, " +
+                "COUNT(*) AS AwardCount, " +
+                "SUM(base_and_all_options) AS TotalValue, " +
+                "AVG(base_and_all_options) AS AverageValue, " +
+                "MAX(date_signed) AS LastAwardDate " +
+                "FROM fpds_contract " +
+                "WHERE naics_code = {0} AND vendor_uei IS NOT NULL AND vendor_uei != '' " +
+                "GROUP BY vendor_uei, vendor_name " +
+                "ORDER BY TotalValue DESC " +
+                "LIMIT {1}",
+                naicsCode, limit)
+            .ToListAsync();
+
+        return results;
+    }
+
     /// <summary>
     /// Escapes LIKE special characters (%, _, \) so user input is treated as literals.
     /// </summary>

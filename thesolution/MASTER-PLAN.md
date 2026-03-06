@@ -62,8 +62,9 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 19 | UI Phase Review | COMPLETE | [19-UI-PHASE-REVIEW.md](phases/19-UI-PHASE-REVIEW.md) |
 | 20 | UI Foundation & Layout | COMPLETE | [20-UI-FOUNDATION.md](phases/20-UI-FOUNDATION.md) |
 | 20.1 | Tech Stack Upgrade | COMPLETE | [20.1-TECH-STACK-UPGRADE.md](phases/20.1-TECH-STACK-UPGRADE.md) |
-| 30 | Search & Discovery | NOT STARTED | [30-SEARCH-DISCOVERY.md](phases/30-SEARCH-DISCOVERY.md) |
-| 40 | Detail Views & Intelligence | NOT STARTED | [40-DETAIL-INTELLIGENCE.md](phases/40-DETAIL-INTELLIGENCE.md) |
+| 30 | Search & Discovery | COMPLETE | [30-SEARCH-DISCOVERY.md](phases/30-SEARCH-DISCOVERY.md) |
+| 31 | Security Audit | COMPLETE | [31-SECURITY-AUDIT.md](phases/31-SECURITY-AUDIT.md) |
+| 40 | Detail Views & Intelligence | COMPLETE | [40-DETAIL-INTELLIGENCE.md](phases/40-DETAIL-INTELLIGENCE.md) |
 | 45 | Opportunity Intelligence | NOT STARTED | [45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md) |
 | 50 | Capture Management & Pipeline | NOT STARTED | [50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md) |
 | 60 | Dashboard & Notifications | NOT STARTED | [60-DASHBOARD-NOTIFICATIONS.md](phases/60-DASHBOARD-NOTIFICATIONS.md) |

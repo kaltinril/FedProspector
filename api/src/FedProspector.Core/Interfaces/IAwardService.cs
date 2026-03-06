@@ -8,4 +8,5 @@ public interface IAwardService
     Task<PagedResponse<AwardSearchDto>> SearchAsync(AwardSearchRequest request);
     Task<AwardDetailDto?> GetDetailAsync(string contractId);
     Task<BurnRateDto?> GetBurnRateAsync(string contractId);
+    Task<List<MarketShareDto>> GetMarketShareAsync(string naicsCode, int limit = 10);
 }

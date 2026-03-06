@@ -1,6 +1,6 @@
 # Phase 40: Detail Views & Competitive Intelligence
 
-**Status**: NOT STARTED
+**Status**: COMPLETE
 **Dependencies**: Phase 30 (Search & Discovery)
 **Deliverable**: Detail pages for opportunities, awards, and entities with full intel and analytics
 **Repository**: `ui/src/pages/`
@@ -191,66 +191,66 @@ These pages are the competitive intelligence engine — the core value propositi
 ## Tasks
 
 ### 40.1 Opportunity Detail Page
-- [ ] Build tabbed detail page layout
-- [ ] Header with deadline countdown, value, action buttons
-- [ ] Overview tab: description, key facts grid, resource links
-- [ ] CONUS/OCONUS indicator based on POP country/state
-- [ ] Security clearance display
-- [ ] Qualification checklist component (pass/fail visual indicators)
-- [ ] History tab: new vs re-compete detection
-- [ ] Incumbent info panel (name, exclusion check, award details)
-- [ ] Burn rate chart for previous contract (@mui/x-charts line chart)
-- [ ] Number of offers on previous solicitation
-- [ ] Competition tab: related awards, top vendors in NAICS
-- [ ] Prospect tab: show linked prospect or "Track" CTA
-- [ ] Wire to `GET /api/v1/opportunities/{noticeId}`
+- [x] Build tabbed detail page layout
+- [x] Header with deadline countdown, value, action buttons
+- [x] Overview tab: description, key facts grid, resource links
+- [x] CONUS/OCONUS indicator based on POP country/state
+- [x] Security clearance display
+- [x] Qualification checklist component (pass/fail visual indicators)
+- [x] History tab: new vs re-compete detection
+- [x] Incumbent info panel (name, exclusion check, award details)
+- [x] Burn rate chart for previous contract (@mui/x-charts line chart)
+- [x] Number of offers on previous solicitation
+- [x] Competition tab: related awards, top vendors in NAICS
+- [x] Prospect tab: show linked prospect or "Track" CTA
+- [x] Wire to `GET /api/v1/opportunities/{noticeId}`
 
 ### 40.2 Award Detail Page
-- [ ] Build tabbed detail page layout
-- [ ] Contract details tab with key facts
-- [ ] Financials tab: burn rate chart, obligation progress bar
-- [ ] Monthly spend table
-- [ ] Transaction history table
-- [ ] Vendor profile summary card
-- [ ] Wire to `GET /api/v1/awards/{contractId}` and `GET .../burn-rate`
+- [x] Build tabbed detail page layout
+- [x] Contract details tab with key facts
+- [x] Financials tab: burn rate chart, obligation progress bar
+- [x] Monthly spend table
+- [x] Transaction history table
+- [x] Vendor profile summary card
+- [x] Wire to `GET /api/v1/awards/{contractId}` and `GET .../burn-rate`
 
 ### 40.3 Entity Detail Page
-- [ ] Build tabbed detail page layout
-- [ ] Company profile tab: certifications, NAICS, address
-- [ ] Competitor analysis tab with win metrics and recent awards
-- [ ] Exclusion check tab with prominent status badge
-- [ ] Wire to `GET /api/v1/entities/{uei}`, `GET .../competitor-profile`, `GET .../exclusion-check`
+- [x] Build tabbed detail page layout
+- [x] Company profile tab: certifications, NAICS, address
+- [x] Competitor analysis tab with win metrics and recent awards
+- [x] Exclusion check tab with prominent status badge
+- [x] Wire to `GET /api/v1/entities/{uei}`, `GET .../competitor-profile`, `GET .../exclusion-check`
 
 ### 40.4 Shared Detail Components
-- [ ] Tabbed page layout component (consistent across all detail pages)
-- [ ] Key facts grid component (label-value pairs in responsive grid)
-- [ ] Timeline/countdown component (deadline display)
-- [ ] Burn rate chart component (reused in opportunity and award detail)
-- [ ] Qualification checklist component (pass/fail visual)
-- [ ] "Back to search" navigation with preserved search state
+- [x] Tabbed page layout component (consistent across all detail pages)
+- [x] Key facts grid component (label-value pairs in responsive grid)
+- [x] Timeline/countdown component (deadline display)
+- [x] Burn rate chart component (reused in opportunity and award detail)
+- [x] Qualification checklist component (pass/fail visual)
+- [x] "Back to search" navigation with preserved search state
 
 ### 40.5 Edge Case Handling
-- [ ] Burn rate chart: handle zero transactions gracefully (show "No transaction data available" instead of empty chart)
-- [ ] CONUS/OCONUS detection: handle US territories (PR, GU, VI, AS, MP), APO/FPO addresses, and null country values
-- [ ] Cross-link integrity: if linked entity/award doesn't exist, show "Data not available" placeholder instead of 404
-- [ ] Tab lazy loading: only fetch tab data when tab is activated (TanStack Query `enabled` flag tied to active tab)
-- [ ] Registration expiration warning: highlight entities expiring within 60 days
-- [ ] Federal hierarchy tab: show "Not applicable -- commercial entity" for non-government entities
-- [ ] Handle null `NumberOfOffers` gracefully -- FPDS does not always populate this field. Display "N/A" when null.
+- [x] Burn rate chart: handle zero transactions gracefully (show "No transaction data available" instead of empty chart)
+- [x] CONUS/OCONUS detection: handle US territories (PR, GU, VI, AS, MP), APO/FPO addresses, and null country values
+- [x] Cross-link integrity: if linked entity/award doesn't exist, show "Data not available" placeholder instead of 404
+- [x] Tab lazy loading: only fetch tab data when tab is activated (TanStack Query `enabled` flag tied to active tab)
+- [x] Registration expiration warning: highlight entities expiring within 60 days
+- [x] Federal hierarchy tab: show "Not applicable -- commercial entity" for non-government entities
+- [x] Handle null `NumberOfOffers` gracefully -- FPDS does not always populate this field. Display "N/A" when null.
 
 ---
 
 ## Verification
-- [ ] Click opportunity in search → detail page loads with all tabs
-- [ ] Re-compete opportunities show incumbent info and burn rate
-- [ ] New solicitations show appropriate "new" messaging
-- [ ] CONUS/OCONUS correctly detected from POP data
-- [ ] Award detail shows burn rate chart and transaction history
-- [ ] Entity detail shows competitor analysis and exclusion status
-- [ ] All cross-links work (opportunity → award → entity → back)
-- [ ] Cross-link to missing data shows "Data not available" instead of 404
-- [ ] Burn rate chart handles zero transactions gracefully
-- [ ] CONUS/OCONUS correctly handles US territories (PR, GU, VI, AS, MP)
-- [ ] Entity detail shows POC list, CAGE code, PSC codes, and registration expiration warning
-- [ ] Federal hierarchy tab shows conditional message for commercial entities
-- [ ] "Save Search Similar" pre-populates saved search dialog with opportunity NAICS/set-aside
+- [x] Click opportunity in search → detail page loads with all tabs
+- [x] Re-compete opportunities show incumbent info and burn rate
+- [x] New solicitations show appropriate "new" messaging
+- [x] CONUS/OCONUS correctly detected from POP data
+- [x] Award detail shows burn rate chart and transaction history
+- [x] Entity detail shows competitor analysis and exclusion status
+- [x] All cross-links work (opportunity → award → entity → back)
+- [x] Cross-link to missing data shows "Data not available" instead of 404
+- [x] Burn rate chart handles zero transactions gracefully
+- [x] CONUS/OCONUS correctly handles US territories (PR, GU, VI, AS, MP)
+- [x] Entity detail shows POC list, CAGE code, PSC codes, and registration expiration warning
+- [x] Federal hierarchy tab shows conditional message for commercial entities
+- [x] "Save Search Similar" pre-populates saved search dialog with opportunity NAICS/set-aside

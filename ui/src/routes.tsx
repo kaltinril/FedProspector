@@ -15,6 +15,11 @@ const TargetOpportunityPage = lazy(
 );
 const AwardSearchPage = lazy(() => import('@/pages/awards/AwardSearchPage'));
 const EntitySearchPage = lazy(() => import('@/pages/entities/EntitySearchPage'));
+const OpportunityDetailPage = lazy(
+  () => import('@/pages/opportunities/OpportunityDetailPage'),
+);
+const AwardDetailPage = lazy(() => import('@/pages/awards/AwardDetailPage'));
+const EntityDetailPage = lazy(() => import('@/pages/entities/EntityDetailPage'));
 const TeamingPartnerPage = lazy(() => import('@/pages/subawards/TeamingPartnerPage'));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -60,6 +65,14 @@ export function AppRoutes() {
         }
       />
       <Route
+        path="/opportunities/:noticeId"
+        element={
+          <AuthenticatedLayout>
+            <OpportunityDetailPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
         path="/opportunities/targets"
         element={
           <AuthenticatedLayout>
@@ -76,10 +89,26 @@ export function AppRoutes() {
         }
       />
       <Route
+        path="/awards/:contractId"
+        element={
+          <AuthenticatedLayout>
+            <AwardDetailPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
         path="/entities"
         element={
           <AuthenticatedLayout>
             <EntitySearchPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/entities/:uei"
+        element={
+          <AuthenticatedLayout>
+            <EntityDetailPage />
           </AuthenticatedLayout>
         }
       />

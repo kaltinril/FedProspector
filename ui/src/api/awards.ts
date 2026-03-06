@@ -5,6 +5,7 @@ import type {
   AwardSearchParams,
   AwardDetail,
   BurnRateDto,
+  MarketShareDto,
 } from '@/types/api';
 
 export function searchAwards(
@@ -19,4 +20,8 @@ export function getAward(contractId: string): Promise<AwardDetail> {
 
 export function getBurnRate(contractId: string): Promise<BurnRateDto> {
   return apiClient.get(`/awards/${encodeURIComponent(contractId)}/burn-rate`).then((r) => r.data);
+}
+
+export function getMarketShare(naicsCode: string, limit = 10): Promise<MarketShareDto[]> {
+  return apiClient.get('/awards/market-share', { params: { naicsCode, limit } }).then((r) => r.data);
 }

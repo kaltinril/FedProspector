@@ -267,6 +267,15 @@ export interface MonthlySpendDto {
   transactionCount: number;
 }
 
+export interface MarketShareDto {
+  vendorName: string;
+  vendorUei: string;
+  awardCount: number;
+  totalValue: number;
+  averageValue: number;
+  lastAwardDate: string | null;
+}
+
 // ============================================================
 // Entity types (matching C# DTOs in Entities/)
 // ============================================================
