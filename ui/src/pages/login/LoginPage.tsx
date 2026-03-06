@@ -68,11 +68,15 @@ export default function LoginPage() {
         'response' in err &&
         typeof (err as Record<string, unknown>).response === 'object'
       ) {
-        const response = (err as { response: { status: number } }).response;
-        if (response.status === 401) {
+        const resp = (err as { response: { status: number; data?: { error?: string; message?: string } } }).response;
+        if (resp.status === 401) {
           setError('Invalid email or password.');
+        } else if (resp.status === 429) {
+          setError('Too many login attempts. Please try again later.');
+        } else if (resp.status === 400) {
+          setError(resp.data?.message ?? resp.data?.error ?? 'Invalid request. Please check your input.');
         } else {
-          setError('An unexpected error occurred. Please try again.');
+          setError(resp.data?.message ?? resp.data?.error ?? 'An unexpected error occurred. Please try again.');
         }
       } else {
         setError('Unable to connect to the server. Please try again later.');

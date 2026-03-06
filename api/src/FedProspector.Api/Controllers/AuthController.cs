@@ -39,6 +39,9 @@ public class AuthController : ApiControllerBase
             return BadRequest(new AuthResult { Success = false, Error = "Email and password are required." });
         }
 
+        // Clear any stale auth cookies so CSRF doesn't block returning users
+        ClearAuthCookies();
+
         var result = await _authService.LoginAsync(request.Email, request.Password);
 
         if (!result.Success)

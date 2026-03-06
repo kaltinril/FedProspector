@@ -18,6 +18,15 @@ public class CsrfMiddleware
         "POST", "PUT", "PATCH", "DELETE"
     };
 
+    // Auth endpoints exempt from CSRF — these establish/teardown sessions, not use them
+    private static readonly HashSet<string> CsrfExemptPaths = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "/api/v1/auth/login",
+        "/api/v1/auth/register",
+        "/api/v1/auth/refresh",
+        "/api/v1/auth/logout"
+    };
+
     public CsrfMiddleware(RequestDelegate next, ILogger<CsrfMiddleware> logger)
     {
         _next = next;
@@ -31,6 +40,12 @@ public class CsrfMiddleware
         // Only validate CSRF for mutating methods
         if (MutatingMethods.Contains(method))
         {
+            // Skip CSRF for unauthenticated auth endpoints
+            if (CsrfExemptPaths.Contains(context.Request.Path.Value ?? ""))
+            {
+                await _next(context);
+                return;
+            }
             var authHeader = context.Request.Headers.Authorization.ToString();
             var hasBearerToken = !string.IsNullOrEmpty(authHeader) &&
                                  authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase);
