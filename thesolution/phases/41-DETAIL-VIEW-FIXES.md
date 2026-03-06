@@ -1,6 +1,6 @@
 # Phase 41: Detail View Fixes & Remediation
 
-**Status**: IN PROGRESS
+**Status**: COMPLETE
 **Dependencies**: Phase 40 (Detail Views)
 **Deliverable**: Bug fixes, missing features, and quality improvements from Phase 40 QA review
 
@@ -36,13 +36,13 @@ Phase 40 QA review (6 parallel agents) found 30+ issues across all detail pages,
 ## MEDIUM Priority (Missing Plan Features)
 
 ### 41.5 Award Detail -- Missing Subcontractors Tab
-- [ ] Add 4th tab: Subcontractors (plan lines 136-147)
-- [ ] Show subawards filtered by prime award ID
-- [ ] Uses existing `GET /api/v1/subawards` endpoint (may need query param extension for contractId filter)
+- [x] Add 4th tab: Subcontractors (plan lines 136-147)
+- [x] Show subawards filtered by prime award ID
+- [x] New `GET /api/v1/subawards/by-prime/{primePiid}` endpoint
 
 ### 41.6 Award Detail -- Missing "Other Awards by Same Vendor"
-- [ ] Vendor Profile tab should show other awards by the same vendor
-- [ ] Use existing award search API filtered by `vendorUei`
+- [x] Vendor Profile tab should show other awards by the same vendor
+- [x] Use existing award search API filtered by `vendorUei`
 
 ### 41.7 Opportunity Detail -- Missing DTO Fields
 - [x] Add `naicsDescription`, `naicsSector`, `sizeStandard`, `setAsideCategory` to C# `OpportunityDetailDto`
@@ -50,8 +50,8 @@ Phase 40 QA review (6 parallel agents) found 30+ issues across all detail pages,
 - [x] Display in Overview tab KeyFactsGrid
 
 ### 41.8 Opportunity Detail -- Missing "Save Search Similar" Button
-- [ ] Add button to header actions that pre-populates saved search dialog with opportunity's NAICS/set-aside
-- [ ] Opens modal: search name (required), calls `POST /api/v1/saved-searches`
+- [x] Add button to header actions that pre-populates saved search dialog with opportunity's NAICS/set-aside
+- [x] Opens modal: search name (required), calls `POST /api/v1/saved-searches`
 
 ### 41.9 Entity Detail -- Missing DBA Name in Header
 - [x] Show DBA name alongside legal business name in header (when present)
@@ -91,24 +91,24 @@ Phase 40 QA review (6 parallel agents) found 30+ issues across all detail pages,
 - [x] Render as plain Typography when `vendorUei` is null
 
 ### 41.19 Market-Share Bar Chart
-- [ ] Plan calls for horizontal bar chart above the table -- currently table only
+- [x] Horizontal bar chart above the table using MUI x-charts BarChart
 
 ### 41.20 CONUS/OCONUS -- APO/FPO Addresses
-- [ ] Military addresses (states AA, AE, AP) should be detected separately
+- [x] Military addresses (states AA, AE, AP) detected as "Military (OCONUS)"
 
 ### 41.21 Duplicate React Key Risks
 - [x] KeyFactsGrid uses `fact.label` as key -- breaks with duplicate labels
 - [x] QualificationChecklist uses `item.label` as key
-- [ ] Entity NAICS table uses `naicsCode` as key
-- [ ] Opportunity resource links use `url` as key
-- [ ] Fix: use array index or composite keys
+- [x] Entity NAICS table uses composite `_idx-naicsCode` key
+- [x] Opportunity resource links use index key
+- [x] All duplicate key risks resolved
 
 ---
 
 ## Verification
-- [ ] Burn rate chart shows real data on re-compete opportunity detail
-- [ ] Market share counts match base awards only (no modification inflation)
-- [ ] Solicitation link from award detail reaches correct opportunity (or is gracefully handled)
-- [ ] Entity SAM.gov link navigates to sam.gov, not company website
-- [ ] Subcontractors tab appears on award detail
-- [ ] TypeScript and C# builds pass with zero errors
+- [x] Burn rate chart shows real data on re-compete opportunity detail
+- [x] Market share counts match base awards only (no modification inflation)
+- [x] Solicitation link from award detail reaches correct opportunity (or is gracefully handled)
+- [x] Entity SAM.gov link navigates to sam.gov, not company website
+- [x] Subcontractors tab appears on award detail
+- [x] TypeScript and C# builds pass with zero errors
