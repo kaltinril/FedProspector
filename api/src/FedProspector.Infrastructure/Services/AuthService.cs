@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using FedProspector.Core.DTOs;
 using FedProspector.Core.Interfaces;
 using FedProspector.Core.Models;
@@ -29,6 +30,8 @@ public class AuthService : IAuthService
 
     // Invite code lockout tracking (in-memory, since model doesn't have these fields)
     private const int MaxInviteAttempts = 5;
+    private const int MaxInviteTrackingEntries = 10_000;
+    private static readonly Regex InviteCodePattern = new(@"^[a-f0-9]{64}$", RegexOptions.Compiled);
     private static readonly ConcurrentDictionary<string, int> _inviteFailedAttempts = new();
 
     // Registration rate limiting: track attempts per IP
@@ -222,6 +225,12 @@ public class AuthService : IAuthService
                 return new AuthResult { Success = false, Error = "Invite code is required." };
             }
 
+            // Validate invite code format before tracking to prevent dictionary abuse
+            if (!InviteCodePattern.IsMatch(request.InviteCode))
+            {
+                return new AuthResult { Success = false, Error = "Invalid or expired invite code." };
+            }
+
             // Check invite code lockout
             if (_inviteFailedAttempts.TryGetValue(request.InviteCode, out var failCount) && failCount >= MaxInviteAttempts)
             {
@@ -236,15 +245,15 @@ public class AuthService : IAuthService
 
             if (invite is null || invite.AcceptedAt.HasValue || invite.ExpiresAt < DateTime.UtcNow)
             {
-                // Track failed attempt
-                _inviteFailedAttempts.AddOrUpdate(request.InviteCode, 1, (_, count) => count + 1);
+                // Track failed attempt (evict if dictionary is too large)
+                TrackInviteFailedAttempt(request.InviteCode);
                 return new AuthResult { Success = false, Error = "Invalid or expired invite code." };
             }
 
             // Check that the invite email matches (case-insensitive)
             if (!string.Equals(invite.Email, request.Email, StringComparison.OrdinalIgnoreCase))
             {
-                _inviteFailedAttempts.AddOrUpdate(request.InviteCode, 1, (_, count) => count + 1);
+                TrackInviteFailedAttempt(request.InviteCode);
                 return new AuthResult { Success = false, Error = "Email does not match the invitation." };
             }
 
@@ -693,5 +702,17 @@ public class AuthService : IAuthService
     private static void ClearFailedAttempts(string normalizedEmail)
     {
         _failedLoginTracker.TryRemove(normalizedEmail, out _);
+    }
+
+    /// <summary>
+    /// Track a failed invite code attempt with bounded dictionary size.
+    /// </summary>
+    private static void TrackInviteFailedAttempt(string inviteCode)
+    {
+        if (_inviteFailedAttempts.Count >= MaxInviteTrackingEntries)
+        {
+            _inviteFailedAttempts.Clear();
+        }
+        _inviteFailedAttempts.AddOrUpdate(inviteCode, 1, (_, count) => count + 1);
     }
 }

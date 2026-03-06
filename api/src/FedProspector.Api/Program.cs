@@ -151,7 +151,7 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins(corsOptions?.AllowedOrigins ?? ["http://localhost:5173"])
               .WithHeaders("Authorization", "Content-Type", "Accept", "X-XSRF-TOKEN")
-              .WithMethods("GET", "POST", "PATCH", "DELETE", "OPTIONS")
+              .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
               .AllowCredentials();
     });
 });

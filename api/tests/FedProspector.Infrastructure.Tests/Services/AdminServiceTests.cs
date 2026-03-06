@@ -183,6 +183,8 @@ public class AdminServiceTests : IDisposable
 
         result.Should().NotBeNull();
         result.Message.Should().Contain("target");
+        result.TemporaryPassword.Should().NotBeNullOrEmpty();
+        result.TemporaryPassword.Length.Should().Be(12);
 
         // Verify user was updated
         var user = await _context.AppUsers.FindAsync(target.UserId);

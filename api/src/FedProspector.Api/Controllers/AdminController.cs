@@ -27,6 +27,10 @@ public class AdminController : ApiControllerBase
     [HttpGet("etl-status")]
     public async Task<IActionResult> GetEtlStatus()
     {
+        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
+        if (!isSystemAdmin)
+            return Forbid();
+
         var result = await _service.GetEtlStatusAsync();
         return Ok(result);
     }

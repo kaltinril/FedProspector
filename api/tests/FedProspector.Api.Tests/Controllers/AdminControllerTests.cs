@@ -26,7 +26,7 @@ public class AdminControllerTests
         };
     }
 
-    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "admin", bool isAdmin = true, int orgId = 1)
+    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "admin", bool isAdmin = true, int orgId = 1, bool isSystemAdmin = false)
     {
         var claims = new List<Claim>
         {
@@ -36,19 +36,37 @@ public class AdminControllerTests
             new("is_admin", isAdmin.ToString().ToLower()),
             new("org_id", orgId.ToString())
         };
+        if (isSystemAdmin)
+            claims.Add(new Claim("is_system_admin", "true"));
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
     }
 
-    private void SetAuthenticatedAdmin(int userId = 1, int orgId = 1)
+    private void SetAuthenticatedAdmin(int userId = 1, int orgId = 1, bool isSystemAdmin = false)
     {
-        _controller.ControllerContext.HttpContext.User = CreateUser(userId, orgId: orgId);
+        _controller.ControllerContext.HttpContext.User = CreateUser(userId, orgId: orgId, isSystemAdmin: isSystemAdmin);
+    }
+
+    private void SetSystemAdmin(int userId = 1, int orgId = 1)
+    {
+        _controller.ControllerContext.HttpContext.User = CreateUser(userId, orgId: orgId, isSystemAdmin: true);
     }
 
     // --- GetEtlStatus ---
 
     [Fact]
+    public async Task GetEtlStatus_NonSystemAdmin_ReturnsForbid()
+    {
+        SetAuthenticatedAdmin();
+
+        var result = await _controller.GetEtlStatus();
+
+        result.Should().BeOfType<ForbidResult>();
+    }
+
+    [Fact]
     public async Task GetEtlStatus_ReturnsOk()
     {
+        SetSystemAdmin();
         _serviceMock.Setup(s => s.GetEtlStatusAsync())
             .ReturnsAsync(new EtlStatusDto());
 
@@ -60,6 +78,7 @@ public class AdminControllerTests
     [Fact]
     public async Task GetEtlStatus_CallsService()
     {
+        SetSystemAdmin();
         _serviceMock.Setup(s => s.GetEtlStatusAsync())
             .ReturnsAsync(new EtlStatusDto());
 
@@ -71,6 +90,7 @@ public class AdminControllerTests
     [Fact]
     public async Task GetEtlStatus_ReturnsServiceResult()
     {
+        SetSystemAdmin();
         var expected = new EtlStatusDto { Alerts = ["Test alert"] };
         _serviceMock.Setup(s => s.GetEtlStatusAsync()).ReturnsAsync(expected);
 

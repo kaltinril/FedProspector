@@ -204,7 +204,8 @@ public class AdminService : IAdminService
 
         return new ResetPasswordResponse
         {
-            Message = $"Password reset for user '{user.Username}'. Provide temporary credentials to user securely."
+            Message = $"Password reset for user '{user.Username}'. Provide temporary credentials to user securely.",
+            TemporaryPassword = tempPassword
         };
     }
 
