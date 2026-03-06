@@ -90,10 +90,7 @@ Add in the Phase Roadmap section, maintaining numerical order:
 
 2. **Update MASTER-PLAN entry**: Change `[ ] NOT STARTED` or `[ ] IN PROGRESS` to `[x] COMPLETE ({date})`, mark deliverable checkboxes as `[x]`
 
-3. **Update counts** in CLAUDE.md and MEMORY.md if the phase affected:
-   - Endpoint/controller counts
-   - Table/view counts
-   - CLI command counts
+3. **Update docs**: Run `/update-docs` to update any affected counts or conventions.
 
 ## Reference Files
 
