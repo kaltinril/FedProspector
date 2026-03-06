@@ -18,13 +18,12 @@ public class CsrfMiddleware
         "POST", "PUT", "PATCH", "DELETE"
     };
 
-    // Auth endpoints exempt from CSRF — these establish/teardown sessions, not use them
+    // Auth endpoints exempt from CSRF — these establish sessions before a token exists
     private static readonly HashSet<string> CsrfExemptPaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/api/v1/auth/login",
         "/api/v1/auth/register",
-        "/api/v1/auth/refresh",
-        "/api/v1/auth/logout"
+        "/api/v1/auth/refresh"
     };
 
     public CsrfMiddleware(RequestDelegate next, ILogger<CsrfMiddleware> logger)

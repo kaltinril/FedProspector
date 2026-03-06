@@ -245,7 +245,7 @@ public class AuthController : ApiControllerBase
             HttpOnly = false,
             Secure = true,
             SameSite = SameSiteMode.Strict,
-            Path = "/api",
+            Path = "/",
             Expires = result.ExpiresAt
         });
     }
@@ -278,7 +278,7 @@ public class AuthController : ApiControllerBase
             HttpOnly = false,
             Secure = true,
             SameSite = SameSiteMode.Strict,
-            Path = "/api",
+            Path = "/",
             MaxAge = TimeSpan.Zero
         });
     }
