@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { BrowserRouter } from 'react-router-dom';
-import { Box, CircularProgress, CssBaseline } from '@mui/material';
+import { Box, CircularProgress } from '@mui/material';
+import { ThemeProvider } from '@/theme/ThemeContext';
 import { AuthProvider } from '@/auth/AuthContext';
 import { AppRoutes } from '@/routes';
 
@@ -22,12 +23,13 @@ function LoadingFallback() {
 function App() {
   return (
     <BrowserRouter>
-      <CssBaseline />
-      <AuthProvider>
-        <Suspense fallback={<LoadingFallback />}>
-          <AppRoutes />
-        </Suspense>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <Suspense fallback={<LoadingFallback />}>
+            <AppRoutes />
+          </Suspense>
+        </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

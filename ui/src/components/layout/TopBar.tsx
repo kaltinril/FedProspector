@@ -19,7 +19,7 @@ import LogoutOutlined from '@mui/icons-material/LogoutOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
-import { useThemeMode } from '@/theme/ThemeContext';
+import { useThemeMode } from '@/theme/useThemeMode';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { SIDEBAR_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED } from '@/components/layout/Sidebar';
 

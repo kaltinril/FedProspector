@@ -13,6 +13,7 @@ export interface AuthContextType {
   refreshSession: () => Promise<void>;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 interface AuthProviderProps {

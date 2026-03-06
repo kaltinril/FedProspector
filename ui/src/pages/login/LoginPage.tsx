@@ -115,7 +115,6 @@ export default function LoginPage() {
               type="email"
               fullWidth
               autoComplete="email"
-              autoFocus
               error={!!errors.email}
               helperText={errors.email?.message}
               sx={{ mb: 2 }}

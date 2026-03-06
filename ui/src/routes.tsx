@@ -1,11 +1,20 @@
 import { lazy } from 'react';
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { AuthGuard } from '@/auth/AuthGuard';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 const LoginPage = lazy(() => import('@/pages/login/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/login/RegisterPage'));
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const SetupPage = lazy(() => import('@/pages/setup/SetupPage'));
+
+function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthGuard>
+      <AppLayout>{children}</AppLayout>
+    </AuthGuard>
+  );
+}
 
 export function AppRoutes() {
   return (
@@ -14,21 +23,21 @@ export function AppRoutes() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
 
-      {/* Authenticated routes */}
+      {/* Authenticated routes with layout */}
       <Route
         path="/setup"
         element={
-          <AuthGuard>
+          <AuthenticatedLayout>
             <SetupPage />
-          </AuthGuard>
+          </AuthenticatedLayout>
         }
       />
       <Route
         path="/dashboard"
         element={
-          <AuthGuard>
+          <AuthenticatedLayout>
             <DashboardPage />
-          </AuthGuard>
+          </AuthenticatedLayout>
         }
       />
 

@@ -1,6 +1,5 @@
 import {
   createContext,
-  useContext,
   useState,
   useMemo,
   useCallback,
@@ -12,12 +11,13 @@ import { lightTheme, darkTheme } from './theme';
 
 type ThemeMode = 'light' | 'dark';
 
-interface ThemeContextType {
+export interface ThemeContextType {
   mode: ThemeMode;
   toggleMode: () => void;
 }
 
-const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+// eslint-disable-next-line react-refresh/only-export-components
+export const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'themeMode';
 
@@ -67,10 +67,3 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
   );
 }
 
-export function useThemeMode(): ThemeContextType {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useThemeMode must be used within a ThemeProvider');
-  }
-  return context;
-}

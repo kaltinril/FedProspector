@@ -135,7 +135,6 @@ export default function RegisterPage() {
                 {...register('firstName')}
                 label="First Name"
                 fullWidth
-                autoFocus
                 error={!!errors.firstName}
                 helperText={errors.firstName?.message}
               />
