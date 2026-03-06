@@ -274,14 +274,15 @@ public class AwardService : IAwardService
     {
         var results = await _context.Database
             .SqlQueryRaw<MarketShareDto>(
-                "SELECT vendor_name AS VendorName, vendor_uei AS VendorUei, " +
+                "SELECT MAX(vendor_name) AS VendorName, vendor_uei AS VendorUei, " +
                 "COUNT(*) AS AwardCount, " +
                 "SUM(base_and_all_options) AS TotalValue, " +
                 "AVG(base_and_all_options) AS AverageValue, " +
                 "MAX(date_signed) AS LastAwardDate " +
                 "FROM fpds_contract " +
                 "WHERE naics_code = {0} AND vendor_uei IS NOT NULL AND vendor_uei != '' " +
-                "GROUP BY vendor_uei, vendor_name " +
+                "AND modification_number = '0' " +
+                "GROUP BY vendor_uei " +
                 "ORDER BY TotalValue DESC " +
                 "LIMIT {1}",
                 naicsCode, limit)

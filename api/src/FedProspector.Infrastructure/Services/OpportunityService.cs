@@ -126,6 +126,30 @@ public class OpportunityService : IOpportunityService
 
         if (opp == null) return null;
 
+        // Look up NAICS reference data
+        string? naicsDescription = null;
+        string? naicsSector = null;
+        string? sizeStandard = null;
+        if (!string.IsNullOrWhiteSpace(opp.NaicsCode))
+        {
+            var naicsRef = await _context.RefNaicsCodes.AsNoTracking()
+                .FirstOrDefaultAsync(n => n.NaicsCode == opp.NaicsCode);
+            naicsDescription = naicsRef?.Description;
+
+            var sbaRef = await _context.RefSbaSizeStandards.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.NaicsCode == opp.NaicsCode);
+            sizeStandard = sbaRef?.SizeStandard?.ToString("N0");
+        }
+
+        // Look up set-aside category
+        string? setAsideCategory = null;
+        if (!string.IsNullOrWhiteSpace(opp.SetAsideCode))
+        {
+            var saRef = await _context.RefSetAsideTypes.AsNoTracking()
+                .FirstOrDefaultAsync(sa => sa.SetAsideCode == opp.SetAsideCode);
+            setAsideCategory = saRef?.Category;
+        }
+
         // Related awards (base awards only, match on solicitation number)
         var relatedAwards = string.IsNullOrWhiteSpace(opp.SolicitationNumber)
             ? new List<RelatedAwardDto>()
@@ -204,6 +228,10 @@ public class OpportunityService : IOpportunityService
             SetAsideDescription = opp.SetAsideDescription,
             ClassificationCode = opp.ClassificationCode,
             NaicsCode = opp.NaicsCode,
+            NaicsDescription = naicsDescription,
+            NaicsSector = naicsSector,
+            SizeStandard = sizeStandard,
+            SetAsideCategory = setAsideCategory,
             PopState = opp.PopState,
             PopZip = opp.PopZip,
             PopCountry = opp.PopCountry,

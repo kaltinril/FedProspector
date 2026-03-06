@@ -53,6 +53,7 @@ export function BurnRateChart({
           <LinearProgress
             variant="determinate"
             value={progressPct}
+            aria-label="Obligation progress"
             sx={{ height: 8, borderRadius: 1 }}
           />
           <Typography

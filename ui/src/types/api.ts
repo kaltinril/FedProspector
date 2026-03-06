@@ -56,6 +56,10 @@ export interface OpportunityDetail {
   setAsideDescription?: string | null;
   classificationCode?: string | null;
   naicsCode?: string | null;
+  naicsDescription?: string | null;
+  naicsSector?: string | null;
+  sizeStandard?: string | null;
+  setAsideCategory?: string | null;
   popState?: string | null;
   popZip?: string | null;
   popCountry?: string | null;

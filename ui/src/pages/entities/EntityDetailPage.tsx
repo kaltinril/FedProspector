@@ -35,6 +35,28 @@ import type {
 } from '@/types/api';
 
 // ---------------------------------------------------------------------------
+// Business type code labels (SAM.gov reference)
+// ---------------------------------------------------------------------------
+
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  '2X': 'For-Profit Organization',
+  '23': 'Minority Owned',
+  '27': 'Self-Certified Small Disadvantaged Business',
+  'A2': 'Woman Owned Business',
+  'A5': 'Veteran Owned Business',
+  'JT': 'Joint Venture Women Owned',
+  'LJ': 'Limited Liability Corporation',
+  'MF': 'Manufacturer of Goods',
+  'OY': 'Black American Owned',
+  'QF': 'Service-Disabled Veteran Owned',
+  'XS': 'S Corporation',
+  '8E': '8(a) Joint Venture',
+  'GW': 'HUBZone Firm',
+  'A8': 'SBA Certified 8(a)',
+  '8A': 'SBA Certified 8(a) Joint Venture',
+};
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -172,7 +194,11 @@ function CompanyProfileTab({ entity }: { entity: EntityDetail }) {
           </Typography>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             {entity.businessTypes.map((bt) => (
-              <Chip key={bt.businessTypeCode} label={bt.businessTypeCode} size="small" />
+              <Chip
+                key={bt.businessTypeCode}
+                label={BUSINESS_TYPE_LABELS[bt.businessTypeCode] ?? bt.businessTypeCode}
+                size="small"
+              />
             ))}
           </Box>
         </Box>
@@ -243,10 +269,8 @@ function CompanyProfileTab({ entity }: { entity: EntityDetail }) {
           </Typography>
           <DataTable
             columns={pocColumns}
-            rows={entity.pointsOfContact}
-            getRowId={(row: EntityPocDto) =>
-              `${row.pocType}-${row.firstName}-${row.lastName}-${row.title}`
-            }
+            rows={(entity.pointsOfContact ?? []).map((p, i) => ({ ...p, _idx: i }))}
+            getRowId={(row: EntityPocDto & { _idx: number }) => row._idx}
           />
         </Box>
       )}
@@ -287,6 +311,8 @@ function CompetitorAnalysisTab({ uei }: { uei: string }) {
     { label: 'Average Contract Size', value: formatCurrency(data.averageContractSize) },
     { label: 'Win Rate', value: formatPercent(data.winRate) },
     { label: 'Most Recent Award', value: formatDate(data.mostRecentAward) },
+    { label: 'Primary NAICS', value: data.primaryNaics ? `${data.primaryNaics} — ${data.naicsDescription ?? ''}` : null },
+    { label: 'NAICS Sector', value: data.naicsSector },
   ];
 
   const awardColumns: GridColDef<RecentAwardDto>[] = [
@@ -490,7 +516,7 @@ export default function EntityDetailPage() {
 
       <PageHeader
         title={entity.legalBusinessName}
-        subtitle={`UEI: ${entity.ueiSam}`}
+        subtitle={`UEI: ${entity.ueiSam}${entity.dbaName && entity.dbaName !== entity.legalBusinessName ? ` | DBA: ${entity.dbaName}` : ''}`}
         actions={
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
             {entity.registrationStatus && (
@@ -505,16 +531,14 @@ export default function EntityDetailPage() {
             {entity.primaryNaics && (
               <Chip label={`NAICS: ${entity.primaryNaics}`} size="small" variant="outlined" />
             )}
-            {entity.entityUrl && (
-              <Link
-                href={entity.entityUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                variant="body2"
-              >
-                SAM.gov Profile
-              </Link>
-            )}
+            <Link
+              href={`https://sam.gov/entity/${entity.ueiSam}/coreData`}
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="body2"
+            >
+              SAM.gov Profile
+            </Link>
           </Box>
         }
       />

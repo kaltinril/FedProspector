@@ -26,9 +26,9 @@ export function KeyFactsGrid({ facts, columns = 2 }: KeyFactsGridProps) {
         gap: 2.5,
       }}
     >
-      {visibleFacts.map((fact) => (
+      {visibleFacts.map((fact, index) => (
         <Box
-          key={fact.label}
+          key={index}
           sx={{
             gridColumn: fact.fullWidth ? { md: `1 / -1` } : undefined,
           }}

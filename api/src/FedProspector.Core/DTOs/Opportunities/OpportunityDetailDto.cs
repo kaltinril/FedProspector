@@ -18,6 +18,10 @@ public class OpportunityDetailDto
     public string? SetAsideDescription { get; set; }
     public string? ClassificationCode { get; set; }
     public string? NaicsCode { get; set; }
+    public string? NaicsDescription { get; set; }
+    public string? NaicsSector { get; set; }
+    public string? SizeStandard { get; set; }
+    public string? SetAsideCategory { get; set; }
     public string? PopState { get; set; }
     public string? PopZip { get; set; }
     public string? PopCountry { get; set; }

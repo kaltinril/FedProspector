@@ -102,21 +102,7 @@ function buildPlaceOfPerformance(award: AwardDetail): string | null {
 // ---------------------------------------------------------------------------
 
 function ContractDetailsTab({ award }: { award: AwardDetail }) {
-  const navigate = useNavigate();
-
-  const solicitationValue = award.solicitationNumber ? (
-    <Link
-      component="button"
-      variant="body1"
-      onClick={() =>
-        navigate(
-          `/opportunities/${encodeURIComponent(award.solicitationNumber!)}`,
-        )
-      }
-    >
-      {award.solicitationNumber}
-    </Link>
-  ) : null;
+  const solicitationValue = award.solicitationNumber ?? null;
 
   const showBothCompletionDates =
     award.completionDate &&
@@ -228,9 +214,9 @@ function FinancialsTab({
         </Typography>
         <DataTable
           columns={transactionColumns}
-          rows={award.transactions ?? []}
-          getRowId={(_row: TransactionDto, index?: number) =>
-            `${_row.actionDate}-${_row.modificationNumber ?? ''}-${index ?? 0}`
+          rows={(award.transactions ?? []).map((t, i) => ({ ...t, _idx: i }))}
+          getRowId={(row: TransactionDto & { _idx: number }) =>
+            `${row._idx}-${row.actionDate}`
           }
         />
       </Box>
@@ -354,28 +340,34 @@ export default function AwardDetailPage() {
             alignItems: 'baseline',
           }}
         >
-          {award.vendorName && (
-            <Box>
-              <Typography variant="body2" color="text.secondary">
-                Vendor
-              </Typography>
+          <Box>
+            <Typography variant="body2" color="text.secondary">
+              Vendor
+            </Typography>
+            {award.vendorUei ? (
               <Link
                 component="button"
                 variant="body1"
-                onClick={() => {
-                  if (award.vendorUei) {
-                    navigate(
-                      `/entities/${encodeURIComponent(award.vendorUei)}`,
-                    );
-                  }
-                }}
-                sx={{
-                  cursor: award.vendorUei ? 'pointer' : 'default',
-                  textDecoration: award.vendorUei ? undefined : 'none',
-                }}
+                onClick={() =>
+                  navigate(
+                    `/entities/${encodeURIComponent(award.vendorUei!)}`,
+                  )
+                }
               >
                 {award.vendorName}
               </Link>
+            ) : (
+              <Typography variant="body1">
+                {award.vendorName ?? 'Unknown Vendor'}
+              </Typography>
+            )}
+          </Box>
+          {award.idvPiid && (
+            <Box>
+              <Typography variant="body2" color="text.secondary">
+                Parent Contract
+              </Typography>
+              <Typography variant="body1">{award.idvPiid}</Typography>
             </Box>
           )}
           {award.agencyName && (
@@ -384,6 +376,14 @@ export default function AwardDetailPage() {
                 Agency
               </Typography>
               <Typography variant="body1">{award.agencyName}</Typography>
+            </Box>
+          )}
+          {award.fundingAgencyName && award.fundingAgencyName !== award.agencyName && (
+            <Box>
+              <Typography variant="body2" color="text.secondary">
+                Funding Agency
+              </Typography>
+              <Typography variant="body1">{award.fundingAgencyName}</Typography>
             </Box>
           )}
           <Box>

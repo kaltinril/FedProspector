@@ -29,7 +29,7 @@ import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { getOpportunity } from '@/api/opportunities';
-import { getMarketShare } from '@/api/awards';
+import { getBurnRate, getMarketShare } from '@/api/awards';
 import { createProspect } from '@/api/prospects';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate, formatDateTime } from '@/utils/dateFormatters';
@@ -101,11 +101,23 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
       { label: 'Classification / PSC Code', value: opp.classificationCode ?? '--' },
       {
         label: 'Set-Aside',
-        value: [opp.setAsideCode, opp.setAsideDescription].filter(Boolean).join(' - ') || '--',
+        value: [opp.setAsideCode, opp.setAsideDescription, opp.setAsideCategory].filter(Boolean).join(' - ') || '--',
       },
       {
         label: 'NAICS',
-        value: opp.naicsCode ?? '--',
+        value: opp.naicsCode
+          ? opp.naicsDescription
+            ? `${opp.naicsCode} — ${opp.naicsDescription}`
+            : opp.naicsCode
+          : '--',
+      },
+      {
+        label: 'NAICS Sector',
+        value: opp.naicsSector ?? '--',
+      },
+      {
+        label: 'Size Standard',
+        value: opp.sizeStandard ?? '--',
       },
       {
         label: 'Place of Performance',
@@ -288,6 +300,14 @@ function HistoryTab({ opp }: { opp: OpportunityDetail }) {
   const incumbentUei = opp.incumbentUei ?? opp.awardeeUei;
   const incumbentName = opp.incumbentName ?? opp.awardeeName;
 
+  const firstAward = opp.relatedAwards?.[0];
+  const { data: burnRateData } = useQuery({
+    queryKey: queryKeys.awards.burnRate(firstAward?.contractId ?? ''),
+    queryFn: () => getBurnRate(firstAward!.contractId),
+    staleTime: 5 * 60 * 1000,
+    enabled: isRecompete && !!firstAward?.contractId,
+  });
+
   if (!isRecompete) {
     return (
       <EmptyState
@@ -328,13 +348,13 @@ function HistoryTab({ opp }: { opp: OpportunityDetail }) {
         <KeyFactsGrid facts={incumbentFacts} columns={2} />
       </Paper>
 
-      {/* Burn Rate Chart placeholder */}
+      {/* Burn Rate Chart */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <BurnRateChart
-          data={[]}
-          totalObligated={opp.awardAmount ?? undefined}
-          baseAndAllOptions={opp.estimatedContractValue ?? undefined}
-          title="Contract Burn Rate"
+          data={burnRateData?.monthlyBreakdown?.map(m => ({ month: m.yearMonth, amount: m.amount })) ?? []}
+          totalObligated={burnRateData?.totalObligated}
+          baseAndAllOptions={burnRateData?.baseAndAllOptions ?? undefined}
+          title="Previous Contract Burn Rate"
         />
       </Paper>
 
@@ -766,6 +786,13 @@ export default function OpportunityDetailPage() {
         )}
         {opp.departmentName && (
           <Chip label={opp.departmentName} size="small" variant="outlined" />
+        )}
+        {opp.active != null && (
+          <Chip
+            label={opp.active === 'Yes' ? 'Active' : 'Inactive'}
+            color={opp.active === 'Yes' ? 'success' : 'default'}
+            size="small"
+          />
         )}
 
         {/* Estimated value -- prominent */}

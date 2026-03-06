@@ -21,10 +21,10 @@ const STATUS_ICON_MAP: Record<
   QualificationItem['status'],
   { icon: React.ReactNode }
 > = {
-  pass: { icon: <CheckCircleIcon sx={{ color: 'success.main' }} /> },
-  fail: { icon: <CancelIcon sx={{ color: 'error.main' }} /> },
-  unknown: { icon: <HelpOutlineIcon sx={{ color: 'text.disabled' }} /> },
-  na: { icon: <RemoveIcon sx={{ color: 'text.disabled' }} /> },
+  pass: { icon: <CheckCircleIcon sx={{ color: 'success.main' }} titleAccess="Passed" /> },
+  fail: { icon: <CancelIcon sx={{ color: 'error.main' }} titleAccess="Failed" /> },
+  unknown: { icon: <HelpOutlineIcon sx={{ color: 'text.disabled' }} titleAccess="Unknown" /> },
+  na: { icon: <RemoveIcon sx={{ color: 'text.disabled' }} titleAccess="Not applicable" /> },
 };
 
 export function QualificationChecklist({
@@ -32,8 +32,8 @@ export function QualificationChecklist({
 }: QualificationChecklistProps) {
   return (
     <List disablePadding>
-      {items.map((item) => (
-        <ListItem key={item.label} disableGutters sx={{ py: 0.5 }}>
+      {items.map((item, index) => (
+        <ListItem key={index} disableGutters sx={{ py: 0.5 }}>
           <ListItemIcon sx={{ minWidth: 36 }}>
             {STATUS_ICON_MAP[item.status].icon}
           </ListItemIcon>

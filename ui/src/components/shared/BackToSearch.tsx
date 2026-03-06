@@ -14,11 +14,7 @@ export function BackToSearch({
   const navigate = useNavigate();
 
   const handleClick = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate(searchPath);
-    }
+    navigate(searchPath);
   };
 
   return (

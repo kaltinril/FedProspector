@@ -1,7 +1,7 @@
 import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import { differenceInDays, differenceInHours, format, parseISO } from 'date-fns';
+import { differenceInDays, differenceInHours, format, isValid, parseISO } from 'date-fns';
 
 interface DeadlineCountdownProps {
   deadline: string | null;
@@ -10,11 +10,10 @@ interface DeadlineCountdownProps {
 
 type ChipColor = 'success' | 'warning' | 'error' | 'default';
 
-function getCountdownInfo(deadline: string): {
+function getCountdownInfo(deadlineDate: Date): {
   label: string;
   color: ChipColor;
 } {
-  const deadlineDate = parseISO(deadline);
   const now = new Date();
   const daysLeft = differenceInDays(deadlineDate, now);
   const hoursLeft = differenceInHours(deadlineDate, now);
@@ -50,8 +49,17 @@ export function DeadlineCountdown({
     );
   }
 
-  const { label, color } = getCountdownInfo(deadline);
-  const formattedDate = format(parseISO(deadline), 'MMM d, yyyy');
+  const parsed = parseISO(deadline);
+  if (!isValid(parsed)) {
+    return (
+      <Typography variant="body2" color="text.secondary">
+        --
+      </Typography>
+    );
+  }
+
+  const { label, color } = getCountdownInfo(parsed);
+  const formattedDate = format(parsed, 'MMM d, yyyy');
 
   return (
     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
