@@ -34,6 +34,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 6. **Prefer bulk extracts over API pagination**: SAM.gov rate limits are harsh.
 7. **Test with real data**: `workdir/converted/local database/` has reference CSVs.
 8. **Ignore OLD_ATTEMPTS and OLD_RESOURCES**: Relevant data already in `workdir/converted/`.
+9. **Keep DDL files and live DB in sync**: When changing SQL schema or view files, always apply changes to the live database in the same step.
 
 ### Key Conventions
 
