@@ -14,8 +14,12 @@ public class AwardSearchDto
     public decimal? DollarsObligated { get; set; }
     public decimal? BaseAndAllOptions { get; set; }
     public string? NaicsCode { get; set; }
+    public string? NaicsDescription { get; set; }
     public string? PscCode { get; set; }
+    public string? PscDescription { get; set; }
     public string? SetAsideType { get; set; }
+    public string? SetAsideDescription { get; set; }
+    public string? SetAsideCategory { get; set; }
     public string? TypeOfContract { get; set; }
     public int? NumberOfOffers { get; set; }
     public string? ExtentCompeted { get; set; }

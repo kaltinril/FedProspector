@@ -23,8 +23,10 @@ public class OpportunityDetailDto
     public string? SizeStandard { get; set; }
     public string? SetAsideCategory { get; set; }
     public string? PopState { get; set; }
+    public string? PopStateName { get; set; }
     public string? PopZip { get; set; }
     public string? PopCountry { get; set; }
+    public string? PopCountryName { get; set; }
     public string? PopCity { get; set; }
     public string? Active { get; set; }
     public string? AwardNumber { get; set; }
@@ -32,7 +34,14 @@ public class OpportunityDetailDto
     public decimal? AwardAmount { get; set; }
     public string? AwardeeUei { get; set; }
     public string? AwardeeName { get; set; }
+    public string? AwardeeCageCode { get; set; }
+    public string? AwardeeCity { get; set; }
+    public string? AwardeeState { get; set; }
+    public string? AwardeeZip { get; set; }
+    public string? FullParentPathName { get; set; }
+    public string? FullParentPathCode { get; set; }
     public string? DescriptionUrl { get; set; }
+    public string? DescriptionText { get; set; }
     public string? Link { get; set; }
     public string? ResourceLinks { get; set; }
     public List<ResourceLinkDto> ResourceLinkDetails { get; set; } = [];

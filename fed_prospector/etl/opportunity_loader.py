@@ -167,6 +167,9 @@ class OpportunityLoader(StagingMixin):
                     else:
                         old_record = None
 
+                    # --- extract POCs before upsert (not a DB column) ----
+                    pocs = opp_data.pop("_pocs", [])
+
                     # --- upsert -------------------------------------------
                     outcome = self._upsert_opportunity(cursor, opp_data, load_id)
                     if outcome == "inserted":
@@ -175,6 +178,10 @@ class OpportunityLoader(StagingMixin):
                         stats["records_updated"] += 1
                     else:
                         stats["records_unchanged"] += 1
+
+                    # --- upsert POCs --------------------------------------
+                    if pocs:
+                        self._upsert_pocs(cursor, notice_id, pocs)
 
                     # --- history logging (updates only) --------------------
                     if old_record is not None and outcome == "updated":
@@ -303,6 +310,26 @@ class OpportunityLoader(StagingMixin):
         code_parts = [p.strip() for p in parent_code.split(".")] if parent_code else []
         contracting_office_id = code_parts[-1] if code_parts else None
 
+        # Awardee location (Item 1.2)
+        awardee_location = self._safe_get(awardee, "location") or {}
+
+        # Extract POC data (Item 1.1) — stored under _pocs, not a DB column
+        pocs = []
+        for poc in (raw.get("pointOfContact") or []):
+            if not isinstance(poc, dict):
+                continue
+            full_name = (poc.get("fullName") or "").strip()
+            if not full_name:
+                continue
+            pocs.append({
+                "full_name":    full_name,
+                "email":        (poc.get("email") or "").strip() or None,
+                "phone":        (poc.get("phone") or "").strip() or None,
+                "fax":          (poc.get("fax") or "").strip() or None,
+                "title":        (poc.get("title") or "").strip() or None,
+                "officer_type": (poc.get("type") or "").strip() or None,
+            })
+
         return {
             "notice_id":             raw.get("noticeId"),
             "title":                 raw.get("title"),
@@ -329,10 +356,17 @@ class OpportunityLoader(StagingMixin):
             "award_amount":          award_amount,
             "awardee_uei":           awardee.get("ueiSAM"),
             "awardee_name":          awardee.get("name"),
+            "awardee_cage_code":     awardee.get("cageCode"),
+            "awardee_city":          self._safe_get(awardee_location, "city", "name"),
+            "awardee_state":         self._safe_get(awardee_location, "state", "code"),
+            "awardee_zip":           awardee_location.get("zip"),
+            "full_parent_path_name": parent_path or None,
+            "full_parent_path_code": parent_code or None,
             "description_url":       raw.get("description"),
             "link":                  raw.get("uiLink"),
             "resource_links":        resource_links,
             "contracting_office_id": contracting_office_id,
+            "_pocs":                 pocs,
         }
 
     # =================================================================
@@ -361,6 +395,8 @@ class OpportunityLoader(StagingMixin):
             "active",
             "award_number", "award_date", "award_amount",
             "awardee_uei", "awardee_name",
+            "awardee_cage_code", "awardee_city", "awardee_state", "awardee_zip",
+            "full_parent_path_name", "full_parent_path_code",
             "description_url", "link", "resource_links",
             "contracting_office_id",
             "record_hash", "last_load_id",
@@ -394,6 +430,73 @@ class OpportunityLoader(StagingMixin):
         elif rc == 2:
             return "updated"
         return "unchanged"
+
+    def _upsert_pocs(self, cursor, notice_id, pocs):
+        """Upsert POC records into contracting_officer and opportunity_poc.
+
+        For each POC:
+        1. INSERT ... ON DUPLICATE KEY UPDATE into contracting_officer (dedup by full_name + email)
+        2. Link via opportunity_poc junction table (notice_id + officer_id + poc_type)
+
+        Args:
+            cursor: Active DB cursor.
+            notice_id: The opportunity notice_id.
+            pocs: List of POC dicts from _normalize_opportunity (key '_pocs').
+        """
+        if not pocs:
+            return
+
+        officer_sql = (
+            "INSERT INTO contracting_officer "
+            "(full_name, email, phone, fax, title, officer_type) "
+            "VALUES (%s, %s, %s, %s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE "
+            "phone = COALESCE(VALUES(phone), phone), "
+            "fax = COALESCE(VALUES(fax), fax), "
+            "title = COALESCE(VALUES(title), title), "
+            "officer_type = COALESCE(VALUES(officer_type), officer_type)"
+        )
+
+        poc_link_sql = (
+            "INSERT INTO opportunity_poc (notice_id, officer_id, poc_type) "
+            "VALUES (%s, %s, %s) "
+            "ON DUPLICATE KEY UPDATE poc_type = VALUES(poc_type)"
+        )
+
+        for poc in pocs:
+            # Upsert the contracting officer
+            cursor.execute(officer_sql, (
+                poc["full_name"],
+                poc["email"],
+                poc["phone"],
+                poc["fax"],
+                poc["title"],
+                poc["officer_type"],
+            ))
+
+            # Get the officer_id (either newly inserted or existing)
+            officer_id = cursor.lastrowid
+            if officer_id == 0:
+                # ON DUPLICATE KEY UPDATE: lastrowid is 0, need to look up
+                cursor.execute(
+                    "SELECT officer_id FROM contracting_officer "
+                    "WHERE full_name = %s AND email = %s",
+                    (poc["full_name"], poc["email"]),
+                )
+                row = cursor.fetchone()
+                if row is None:
+                    self.logger.warning(
+                        "Could not find officer_id for %s / %s",
+                        poc["full_name"], poc["email"],
+                    )
+                    continue
+                officer_id = row["officer_id"]
+
+            # Map POC type to uppercase for consistency
+            poc_type = (poc["officer_type"] or "PRIMARY").upper()
+
+            # Link officer to opportunity
+            cursor.execute(poc_link_sql, (notice_id, officer_id, poc_type))
 
     # =================================================================
     # History / fetch helpers
@@ -521,6 +624,134 @@ class OpportunityLoader(StagingMixin):
             if current is None:
                 return default
         return current
+
+    # =================================================================
+    # Description text caching
+    # =================================================================
+
+    def fetch_description_text(self, description_url):
+        """Fetch description text from a SAM.gov description URL.
+
+        The description endpoint returns JSON: {"description": "<html>..."}
+        Requires an API key appended as a query parameter.
+
+        Args:
+            description_url: Full SAM.gov description URL
+                (e.g. https://api.sam.gov/prod/opportunities/v1/noticedesc?noticeid=...)
+
+        Returns:
+            str: The description text (HTML), or None on failure.
+        """
+        import requests as req
+        from config import settings
+
+        if not description_url:
+            return None
+
+        # SSRF protection: only allow SAM.gov URLs
+        if not description_url.startswith("https://api.sam.gov/"):
+            self.logger.warning("Skipping non-SAM.gov description URL: %s", description_url)
+            return None
+
+        # Append API key
+        separator = "&" if "?" in description_url else "?"
+        api_key = settings.SAM_API_KEY_2 or settings.SAM_API_KEY
+        url = f"{description_url}{separator}api_key={api_key}"
+
+        try:
+            resp = req.get(url, timeout=15)
+            resp.raise_for_status()
+            data = resp.json()
+            return data.get("description")
+        except Exception as exc:
+            self.logger.warning(
+                "Failed to fetch description from %s: %s",
+                description_url, exc,
+            )
+            return None
+
+    def fetch_descriptions(self, batch_size=100, missing_only=True):
+        """Fetch and cache description text for opportunities.
+
+        Queries opportunities with description_url but no description_text,
+        fetches the description from SAM.gov, and updates the DB.
+
+        Args:
+            batch_size: Number of opportunities to process per commit batch.
+            missing_only: If True (default), only fetch for rows where
+                description_text IS NULL.
+
+        Returns:
+            dict with keys: total_found, fetched, failed
+        """
+        import time
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        stats = {"total_found": 0, "fetched": 0, "failed": 0}
+
+        try:
+            if missing_only:
+                sql = (
+                    "SELECT notice_id, description_url FROM opportunity "
+                    "WHERE description_text IS NULL AND description_url IS NOT NULL"
+                )
+            else:
+                sql = (
+                    "SELECT notice_id, description_url FROM opportunity "
+                    "WHERE description_url IS NOT NULL"
+                )
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            stats["total_found"] = len(rows)
+
+            self.logger.info(
+                "Found %d opportunities needing description fetch", len(rows),
+            )
+
+            for i, row in enumerate(rows):
+                try:
+                    text = self.fetch_description_text(row["description_url"])
+                    if text:
+                        cursor.execute(
+                            "UPDATE opportunity SET description_text = %s "
+                            "WHERE notice_id = %s",
+                            (text, row["notice_id"]),
+                        )
+                        stats["fetched"] += 1
+                    else:
+                        stats["failed"] += 1
+                except Exception as exc:
+                    self.logger.warning(
+                        "Error fetching description for %s: %s",
+                        row["notice_id"], exc,
+                    )
+                    stats["failed"] += 1
+
+                # Commit and log progress in batches
+                if (i + 1) % batch_size == 0:
+                    conn.commit()
+                    self.logger.info(
+                        "Progress: %d/%d (fetched=%d, failed=%d)",
+                        i + 1, len(rows), stats["fetched"], stats["failed"],
+                    )
+
+                # Small delay between requests to be polite
+                time.sleep(0.1)
+
+            # Final commit
+            conn.commit()
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        self.logger.info(
+            "Description fetch complete: total=%d, fetched=%d, failed=%d",
+            stats["total_found"], stats["fetched"], stats["failed"],
+        )
+        return stats
 
     # =================================================================
     # Resource link metadata enrichment
@@ -652,6 +883,113 @@ class OpportunityLoader(StagingMixin):
             return False
 
         return False
+
+    # =================================================================
+    # Opportunity relationship detection
+    # =================================================================
+
+    # Maps (parent_type_group, child_type_group) -> relationship_type
+    _RELATIONSHIP_RULES = [
+        # RFI/SRCSGT -> PRESOL or COMBINED  =>  RFI_TO_RFP
+        ({"RFI", "SRCSGT"}, {"PRESOL", "COMBINED"}, "RFI_TO_RFP"),
+        # PRESOL -> COMBINED  =>  PRESOL_TO_SOL
+        ({"PRESOL"}, {"COMBINED"}, "PRESOL_TO_SOL"),
+        # COMBINED or PRESOL -> AWARD  =>  SOL_TO_AWARD
+        ({"COMBINED", "PRESOL"}, {"AWARD"}, "SOL_TO_AWARD"),
+    ]
+
+    def populate_relationships(self):
+        """Detect and populate opportunity_relationship rows from existing data.
+
+        Finds opportunities sharing the same solicitation_number, detects
+        lifecycle progressions (RFI->RFP, PRESOL->SOL, SOL->AWARD), and
+        inserts relationship rows using INSERT IGNORE to handle re-runs.
+
+        Returns:
+            dict with counts by relationship type and total.
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        stats = {"RFI_TO_RFP": 0, "PRESOL_TO_SOL": 0, "SOL_TO_AWARD": 0, "total": 0}
+
+        try:
+            # Find all solicitation_numbers with 2+ opportunities
+            cursor.execute(
+                "SELECT solicitation_number, "
+                "       GROUP_CONCAT(notice_id ORDER BY posted_date, notice_id) AS notice_ids, "
+                "       GROUP_CONCAT(type ORDER BY posted_date, notice_id) AS types "
+                "FROM opportunity "
+                "WHERE solicitation_number IS NOT NULL "
+                "  AND solicitation_number != '' "
+                "GROUP BY solicitation_number "
+                "HAVING COUNT(*) >= 2"
+            )
+            groups = cursor.fetchall()
+            self.logger.info(
+                "Found %d solicitation_number groups with 2+ opportunities",
+                len(groups),
+            )
+
+            insert_sql = (
+                "INSERT IGNORE INTO opportunity_relationship "
+                "(parent_notice_id, child_notice_id, relationship_type) "
+                "VALUES (%s, %s, %s)"
+            )
+
+            batch_count = 0
+            for group in groups:
+                notice_ids = group["notice_ids"].split(",")
+                types = group["types"].split(",")
+
+                if len(notice_ids) != len(types):
+                    continue
+
+                # Build pairs: compare each earlier notice to each later notice
+                for i in range(len(notice_ids)):
+                    for j in range(i + 1, len(notice_ids)):
+                        parent_id = notice_ids[i]
+                        child_id = notice_ids[j]
+                        parent_type = types[i]
+                        child_type = types[j]
+
+                        # Skip if same type (e.g., two COMBINEDs = amendments)
+                        if parent_type == child_type:
+                            continue
+
+                        # Skip if same notice_id
+                        if parent_id == child_id:
+                            continue
+
+                        # Check against rules
+                        for parent_set, child_set, rel_type in self._RELATIONSHIP_RULES:
+                            if parent_type in parent_set and child_type in child_set:
+                                cursor.execute(insert_sql, (parent_id, child_id, rel_type))
+                                if cursor.rowcount > 0:
+                                    stats[rel_type] += 1
+                                    stats["total"] += 1
+                                    batch_count += 1
+                                break
+
+                if batch_count >= 500:
+                    conn.commit()
+                    batch_count = 0
+
+            conn.commit()
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        self.logger.info(
+            "Relationship population complete: RFI_TO_RFP=%d PRESOL_TO_SOL=%d "
+            "SOL_TO_AWARD=%d total=%d",
+            stats["RFI_TO_RFP"],
+            stats["PRESOL_TO_SOL"],
+            stats["SOL_TO_AWARD"],
+            stats["total"],
+        )
+        return stats
 
     # =================================================================
     # Hash fields accessor

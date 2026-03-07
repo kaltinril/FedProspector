@@ -44,11 +44,13 @@ CREATE TABLE IF NOT EXISTS contracting_officer (
     email                VARCHAR(200),
     phone                VARCHAR(50),
     fax                  VARCHAR(50),
+    title                VARCHAR(200),
     department_name      VARCHAR(200),
     office_name          VARCHAR(200),
     officer_type         VARCHAR(50),
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE INDEX idx_co_name_email (full_name(100), email(100)),
     INDEX idx_co_email (email),
     INDEX idx_co_name (full_name(50))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -146,3 +148,10 @@ CREATE TABLE IF NOT EXISTS notification (
     CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
     INDEX idx_notif_user_read (user_id, is_read, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =============================================================================
+-- Migration: Phase 44.3 Batch 1 (Item 1.1) — POC data loading
+-- Run against existing databases that already have the contracting_officer table.
+-- =============================================================================
+-- ALTER TABLE contracting_officer ADD COLUMN title VARCHAR(200) AFTER fax;
+-- ALTER TABLE contracting_officer ADD UNIQUE INDEX idx_co_name_email (full_name(100), email(100));

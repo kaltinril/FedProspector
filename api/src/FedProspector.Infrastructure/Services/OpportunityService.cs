@@ -67,6 +67,10 @@ public class OpportunityService : IOpportunityService
             from p in pJoin.DefaultIfEmpty()
             join u in _context.AppUsers on p.AssignedTo equals u.UserId into uJoin
             from u in uJoin.DefaultIfEmpty()
+            join sc in _context.RefStateCodes.Where(s => s.CountryCode == "USA") on o.PopState equals sc.StateCode into stateJoin
+            from sc in stateJoin.DefaultIfEmpty()
+            join cc in _context.RefCountryCodes on o.PopCountry equals cc.ThreeCode into countryJoin
+            from cc in countryJoin.DefaultIfEmpty()
             orderby o.ResponseDeadline ascending
             select new OpportunitySearchDto
             {
@@ -90,7 +94,10 @@ public class OpportunityService : IOpportunityService
                 BaseAndAllOptions = o.AwardAmount,
                 EstimatedContractValue = o.EstimatedContractValue,
                 PopState = o.PopState,
+                PopStateName = sc != null ? sc.StateName : o.PopState,
                 PopCity = o.PopCity,
+                PopCountry = o.PopCountry,
+                PopCountryName = cc != null ? cc.CountryName : o.PopCountry,
                 ProspectStatus = p != null ? p.Status : null,
                 AssignedUser = u != null ? u.DisplayName : null
             };
@@ -149,6 +156,23 @@ public class OpportunityService : IOpportunityService
             var saRef = await _context.RefSetAsideTypes.AsNoTracking()
                 .FirstOrDefaultAsync(sa => sa.SetAsideCode == opp.SetAsideCode);
             setAsideCategory = saRef?.Category;
+        }
+
+        // Look up state/country names
+        string? popStateName = opp.PopState; // COALESCE: fallback to raw code
+        if (!string.IsNullOrWhiteSpace(opp.PopState))
+        {
+            var stateRef = await _context.RefStateCodes.AsNoTracking()
+                .FirstOrDefaultAsync(s => s.StateCode == opp.PopState && s.CountryCode == "USA");
+            if (stateRef != null) popStateName = stateRef.StateName;
+        }
+
+        string? popCountryName = opp.PopCountry; // COALESCE: fallback to raw code
+        if (!string.IsNullOrWhiteSpace(opp.PopCountry))
+        {
+            var countryRef = await _context.RefCountryCodes.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.ThreeCode == opp.PopCountry);
+            if (countryRef != null) popCountryName = countryRef.CountryName;
         }
 
         // Related awards (base awards only, match on solicitation number)
@@ -234,8 +258,10 @@ public class OpportunityService : IOpportunityService
             SizeStandard = sizeStandard,
             SetAsideCategory = setAsideCategory,
             PopState = opp.PopState,
+            PopStateName = popStateName,
             PopZip = opp.PopZip,
             PopCountry = opp.PopCountry,
+            PopCountryName = popCountryName,
             PopCity = opp.PopCity,
             Active = opp.Active,
             AwardNumber = opp.AwardNumber,
@@ -243,7 +269,14 @@ public class OpportunityService : IOpportunityService
             AwardAmount = opp.AwardAmount,
             AwardeeUei = opp.AwardeeUei,
             AwardeeName = opp.AwardeeName,
+            AwardeeCageCode = opp.AwardeeCageCode,
+            AwardeeCity = opp.AwardeeCity,
+            AwardeeState = opp.AwardeeState,
+            AwardeeZip = opp.AwardeeZip,
+            FullParentPathName = opp.FullParentPathName,
+            FullParentPathCode = opp.FullParentPathCode,
             DescriptionUrl = opp.DescriptionUrl,
+            DescriptionText = opp.DescriptionText,
             Link = opp.Link,
             ResourceLinks = opp.ResourceLinks,
             ResourceLinkDetails = ParseResourceLinks(opp.ResourceLinks),

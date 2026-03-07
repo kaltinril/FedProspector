@@ -36,7 +36,14 @@ CREATE TABLE IF NOT EXISTS opportunity (
     award_amount         DECIMAL(15,2),
     awardee_uei          VARCHAR(12),
     awardee_name         VARCHAR(200),
+    awardee_cage_code    VARCHAR(10),
+    awardee_city         VARCHAR(100),
+    awardee_state        VARCHAR(6),
+    awardee_zip          VARCHAR(10),
+    full_parent_path_name VARCHAR(500),
+    full_parent_path_code VARCHAR(200),
     description_url      VARCHAR(500),      -- URL to fetch description text via SAM.gov API
+    description_text     LONGTEXT,          -- Cached description fetched from description_url
     link                 VARCHAR(500),
     resource_links       JSON,
     contracting_office_id VARCHAR(20),
@@ -81,3 +88,20 @@ CREATE TABLE IF NOT EXISTS opportunity_relationship (
     CONSTRAINT fk_opp_rel_parent FOREIGN KEY (parent_notice_id) REFERENCES opportunity(notice_id),
     CONSTRAINT fk_opp_rel_child FOREIGN KEY (child_notice_id) REFERENCES opportunity(notice_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- =============================================================================
+-- Migration: Phase 44.3 Batch 1 (Items 1.2, 1.3) — Awardee location + full parent path
+-- Run against existing databases that already have the opportunity table.
+-- =============================================================================
+-- ALTER TABLE opportunity ADD COLUMN awardee_cage_code VARCHAR(10) AFTER awardee_name;
+-- ALTER TABLE opportunity ADD COLUMN awardee_city VARCHAR(100) AFTER awardee_cage_code;
+-- ALTER TABLE opportunity ADD COLUMN awardee_state VARCHAR(6) AFTER awardee_city;
+-- ALTER TABLE opportunity ADD COLUMN awardee_zip VARCHAR(10) AFTER awardee_state;
+-- ALTER TABLE opportunity ADD COLUMN full_parent_path_name VARCHAR(500) AFTER awardee_zip;
+-- ALTER TABLE opportunity ADD COLUMN full_parent_path_code VARCHAR(200) AFTER full_parent_path_name;
+
+-- =============================================================================
+-- Migration: Phase 44.3 Item 3.5 — Description text caching
+-- Run against existing databases that already have the opportunity table.
+-- =============================================================================
+-- ALTER TABLE opportunity ADD COLUMN description_text LONGTEXT AFTER description_url;

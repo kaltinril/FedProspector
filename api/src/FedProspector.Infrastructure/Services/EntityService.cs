@@ -112,45 +112,59 @@ public class EntityService : IEntityService
         if (entity == null) return null;
 
         // Fetch all 6 child collections in parallel
-        var addressesTask = _context.EntityAddresses.AsNoTracking()
-            .Where(a => a.UeiSam == uei)
-            .Select(a => new EntityAddressDto
-            {
-                AddressType = a.AddressType,
-                AddressLine1 = a.AddressLine1,
-                AddressLine2 = a.AddressLine2,
-                City = a.City,
-                StateOrProvince = a.StateOrProvince,
-                ZipCode = a.ZipCode,
-                CountryCode = a.CountryCode,
-                CongressionalDistrict = a.CongressionalDistrict
-            })
+        var addressesTask = (from a in _context.EntityAddresses.AsNoTracking()
+                where a.UeiSam == uei
+                join cc in _context.RefCountryCodes on a.CountryCode equals cc.ThreeCode into countryJoin
+                from cc in countryJoin.DefaultIfEmpty()
+                select new EntityAddressDto
+                {
+                    AddressType = a.AddressType,
+                    AddressLine1 = a.AddressLine1,
+                    AddressLine2 = a.AddressLine2,
+                    City = a.City,
+                    StateOrProvince = a.StateOrProvince,
+                    ZipCode = a.ZipCode,
+                    CountryCode = a.CountryCode,
+                    CountryName = cc != null ? cc.CountryName : a.CountryCode,
+                    CongressionalDistrict = a.CongressionalDistrict
+                })
             .ToListAsync();
 
-        var naicsTask = _context.EntityNaicsCodes.AsNoTracking()
-            .Where(n => n.UeiSam == uei)
-            .Select(n => new EntityNaicsDto
-            {
-                NaicsCode = n.NaicsCode,
-                IsPrimary = n.IsPrimary,
-                SbaSmallBusiness = n.SbaSmallBusiness
-            })
+        var naicsTask = (from n in _context.EntityNaicsCodes.AsNoTracking()
+                where n.UeiSam == uei
+                join r in _context.RefNaicsCodes on n.NaicsCode equals r.NaicsCode into refJoin
+                from r in refJoin.DefaultIfEmpty()
+                select new EntityNaicsDto
+                {
+                    NaicsCode = n.NaicsCode,
+                    NaicsDescription = r != null ? r.Description : null,
+                    IsPrimary = n.IsPrimary,
+                    SbaSmallBusiness = n.SbaSmallBusiness
+                })
             .ToListAsync();
 
-        var pscTask = _context.EntityPscCodes.AsNoTracking()
-            .Where(p => p.UeiSam == uei)
-            .Select(p => new EntityPscDto
-            {
-                PscCode = p.PscCode
-            })
+        var pscTask = (from p in _context.EntityPscCodes.AsNoTracking()
+                where p.UeiSam == uei
+                select new EntityPscDto
+                {
+                    PscCode = p.PscCode,
+                    PscDescription = _context.RefPscCodes
+                        .Where(r => r.PscCode == p.PscCode)
+                        .OrderByDescending(r => r.StartDate)
+                        .Select(r => r.PscName)
+                        .FirstOrDefault()
+                })
             .ToListAsync();
 
-        var businessTypesTask = _context.EntityBusinessTypes.AsNoTracking()
-            .Where(bt => bt.UeiSam == uei)
-            .Select(bt => new EntityBusinessTypeDto
-            {
-                BusinessTypeCode = bt.BusinessTypeCode
-            })
+        var businessTypesTask = (from bt in _context.EntityBusinessTypes.AsNoTracking()
+                where bt.UeiSam == uei
+                join r in _context.RefBusinessTypes on bt.BusinessTypeCode equals r.BusinessTypeCode into refJoin
+                from r in refJoin.DefaultIfEmpty()
+                select new EntityBusinessTypeDto
+                {
+                    BusinessTypeCode = bt.BusinessTypeCode,
+                    BusinessTypeDescription = r != null ? r.Description : null
+                })
             .ToListAsync();
 
         var sbaCertsTask = _context.EntitySbaCertifications.AsNoTracking()

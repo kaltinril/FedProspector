@@ -85,29 +85,45 @@ public class AwardService : IAwardService
             };
         }
 
-        var results = await ordered
+        // Join to reference tables for descriptions
+        var enriched = from c in ordered
+            join n in _context.RefNaicsCodes on c.NaicsCode equals n.NaicsCode into naicsJoin
+            from n in naicsJoin.DefaultIfEmpty()
+            join sa in _context.RefSetAsideTypes on c.SetAsideType equals sa.SetAsideCode into saJoin
+            from sa in saJoin.DefaultIfEmpty()
+            select new { Contract = c, NaicsDesc = n != null ? n.Description : null, SetAsideDesc = sa != null ? sa.Description : null, SetAsideCategory = sa != null ? sa.Category : null };
+
+        var results = await enriched
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(c => new AwardSearchDto
+            .Select(x => new AwardSearchDto
             {
-                ContractId = c.ContractId,
-                SolicitationNumber = c.SolicitationNumber,
-                AgencyName = c.AgencyName,
-                ContractingOfficeName = c.ContractingOfficeName,
-                VendorName = c.VendorName,
-                VendorUei = c.VendorUei,
-                DateSigned = c.DateSigned,
-                EffectiveDate = c.EffectiveDate,
-                CompletionDate = c.CompletionDate,
-                DollarsObligated = c.DollarsObligated,
-                BaseAndAllOptions = c.BaseAndAllOptions,
-                NaicsCode = c.NaicsCode,
-                PscCode = c.PscCode,
-                SetAsideType = c.SetAsideType,
-                TypeOfContract = c.TypeOfContract,
-                NumberOfOffers = c.NumberOfOffers,
-                ExtentCompeted = c.ExtentCompeted,
-                Description = c.Description,
+                ContractId = x.Contract.ContractId,
+                SolicitationNumber = x.Contract.SolicitationNumber,
+                AgencyName = x.Contract.AgencyName,
+                ContractingOfficeName = x.Contract.ContractingOfficeName,
+                VendorName = x.Contract.VendorName,
+                VendorUei = x.Contract.VendorUei,
+                DateSigned = x.Contract.DateSigned,
+                EffectiveDate = x.Contract.EffectiveDate,
+                CompletionDate = x.Contract.CompletionDate,
+                DollarsObligated = x.Contract.DollarsObligated,
+                BaseAndAllOptions = x.Contract.BaseAndAllOptions,
+                NaicsCode = x.Contract.NaicsCode,
+                NaicsDescription = x.NaicsDesc,
+                PscCode = x.Contract.PscCode,
+                PscDescription = _context.RefPscCodes
+                    .Where(p => p.PscCode == x.Contract.PscCode)
+                    .OrderByDescending(p => p.StartDate)
+                    .Select(p => p.PscName)
+                    .FirstOrDefault(),
+                SetAsideType = x.Contract.SetAsideType,
+                SetAsideDescription = x.SetAsideDesc,
+                SetAsideCategory = x.SetAsideCategory,
+                TypeOfContract = x.Contract.TypeOfContract,
+                NumberOfOffers = x.Contract.NumberOfOffers,
+                ExtentCompeted = x.Contract.ExtentCompeted,
+                Description = x.Contract.Description,
                 DataSource = "fpds"
             })
             .ToListAsync();
@@ -204,6 +220,53 @@ public class AwardService : IAwardService
                 }
             }
 
+            // Look up reference descriptions for FPDS detail
+            string? naicsDescription = null;
+            string? pscDescription = null;
+            string? setAsideDescription = null;
+            string? setAsideCategory = null;
+
+            if (!string.IsNullOrWhiteSpace(contract!.NaicsCode))
+            {
+                var naicsRef = await _context.RefNaicsCodes.AsNoTracking()
+                    .FirstOrDefaultAsync(n => n.NaicsCode == contract.NaicsCode);
+                naicsDescription = naicsRef?.Description;
+            }
+
+            if (!string.IsNullOrWhiteSpace(contract.PscCode))
+            {
+                var pscRef = await _context.RefPscCodes.AsNoTracking()
+                    .Where(p => p.PscCode == contract.PscCode)
+                    .OrderByDescending(p => p.StartDate)
+                    .FirstOrDefaultAsync();
+                pscDescription = pscRef?.PscName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(contract.SetAsideType))
+            {
+                var saRef = await _context.RefSetAsideTypes.AsNoTracking()
+                    .FirstOrDefaultAsync(sa => sa.SetAsideCode == contract.SetAsideType);
+                setAsideDescription = saRef?.Description;
+                setAsideCategory = saRef?.Category;
+            }
+
+            // Look up state/country names (COALESCE: fallback to raw code)
+            string? fpdsPopStateName = contract.PopState;
+            if (!string.IsNullOrWhiteSpace(contract.PopState))
+            {
+                var stateRef = await _context.RefStateCodes.AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.StateCode == contract.PopState && s.CountryCode == "USA");
+                if (stateRef != null) fpdsPopStateName = stateRef.StateName;
+            }
+
+            string? fpdsPopCountryName = contract.PopCountry;
+            if (!string.IsNullOrWhiteSpace(contract.PopCountry))
+            {
+                var countryRef = await _context.RefCountryCodes.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.ThreeCode == contract.PopCountry);
+                if (countryRef != null) fpdsPopCountryName = countryRef.CountryName;
+            }
+
             detail = new AwardDetailDto
             {
                 ContractId = contract.ContractId,
@@ -224,13 +287,19 @@ public class AwardService : IAwardService
                 DollarsObligated = contract.DollarsObligated,
                 BaseAndAllOptions = contract.BaseAndAllOptions,
                 NaicsCode = contract.NaicsCode,
+                NaicsDescription = naicsDescription,
                 PscCode = contract.PscCode,
+                PscDescription = pscDescription,
                 SetAsideType = contract.SetAsideType,
+                SetAsideDescription = setAsideDescription,
+                SetAsideCategory = setAsideCategory,
                 TypeOfContract = contract.TypeOfContract,
                 TypeOfContractPricing = contract.TypeOfContractPricing,
                 Description = contract.Description,
                 PopState = contract.PopState,
+                PopStateName = fpdsPopStateName,
                 PopCountry = contract.PopCountry,
+                PopCountryName = fpdsPopCountryName,
                 PopZip = contract.PopZip,
                 ExtentCompeted = contract.ExtentCompeted,
                 NumberOfOffers = contract.NumberOfOffers,
@@ -263,6 +332,53 @@ public class AwardService : IAwardService
                 }
             }
 
+            // Look up reference descriptions for USASpending detail
+            string? usaNaicsDesc = null;
+            string? usaPscDesc = null;
+            string? usaSaDesc = null;
+            string? usaSaCat = null;
+
+            if (!string.IsNullOrWhiteSpace(usaAward!.NaicsCode))
+            {
+                var naicsRef = await _context.RefNaicsCodes.AsNoTracking()
+                    .FirstOrDefaultAsync(n => n.NaicsCode == usaAward.NaicsCode);
+                usaNaicsDesc = naicsRef?.Description;
+            }
+
+            if (!string.IsNullOrWhiteSpace(usaAward.PscCode))
+            {
+                var pscRef = await _context.RefPscCodes.AsNoTracking()
+                    .Where(p => p.PscCode == usaAward.PscCode)
+                    .OrderByDescending(p => p.StartDate)
+                    .FirstOrDefaultAsync();
+                usaPscDesc = pscRef?.PscName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(usaAward.TypeOfSetAside))
+            {
+                var saRef = await _context.RefSetAsideTypes.AsNoTracking()
+                    .FirstOrDefaultAsync(sa => sa.SetAsideCode == usaAward.TypeOfSetAside);
+                usaSaDesc = saRef?.Description;
+                usaSaCat = saRef?.Category;
+            }
+
+            // Look up state/country names (COALESCE: fallback to raw code)
+            string? usaPopStateName = usaAward.PopState;
+            if (!string.IsNullOrWhiteSpace(usaAward.PopState))
+            {
+                var stateRef = await _context.RefStateCodes.AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.StateCode == usaAward.PopState && s.CountryCode == "USA");
+                if (stateRef != null) usaPopStateName = stateRef.StateName;
+            }
+
+            string? usaPopCountryName = usaAward.PopCountry;
+            if (!string.IsNullOrWhiteSpace(usaAward.PopCountry))
+            {
+                var countryRef = await _context.RefCountryCodes.AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.ThreeCode == usaAward.PopCountry);
+                if (countryRef != null) usaPopCountryName = countryRef.CountryName;
+            }
+
             detail = new AwardDetailDto
             {
                 ContractId = contractId,
@@ -273,11 +389,17 @@ public class AwardService : IAwardService
                 AgencyName = usaAward.AwardingAgencyName,
                 FundingAgencyName = usaAward.FundingAgencyName,
                 NaicsCode = usaAward.NaicsCode,
+                NaicsDescription = usaNaicsDesc,
                 PscCode = usaAward.PscCode,
+                PscDescription = usaPscDesc,
                 SetAsideType = usaAward.TypeOfSetAside,
+                SetAsideDescription = usaSaDesc,
+                SetAsideCategory = usaSaCat,
                 Description = usaAward.AwardDescription,
                 PopState = usaAward.PopState,
+                PopStateName = usaPopStateName,
                 PopCountry = usaAward.PopCountry,
+                PopCountryName = usaPopCountryName,
                 PopZip = usaAward.PopZip,
                 Transactions = transactions,
                 VendorProfile = vendorProfile
@@ -488,28 +610,44 @@ public class AwardService : IAwardService
             };
         }
 
-        return await ordered
+        // Join to reference tables for descriptions
+        var usaEnriched = from ua in ordered
+            join n in _context.RefNaicsCodes on ua.NaicsCode equals n.NaicsCode into naicsJoin
+            from n in naicsJoin.DefaultIfEmpty()
+            join sa in _context.RefSetAsideTypes on ua.TypeOfSetAside equals sa.SetAsideCode into saJoin
+            from sa in saJoin.DefaultIfEmpty()
+            select new { Award = ua, NaicsDesc = n != null ? n.Description : null, SetAsideDesc = sa != null ? sa.Description : null, SetAsideCategory = sa != null ? sa.Category : null };
+
+        return await usaEnriched
             .Take(limit)
-            .Select(ua => new AwardSearchDto
+            .Select(x => new AwardSearchDto
             {
-                ContractId = ua.Piid!,
-                SolicitationNumber = ua.SolicitationIdentifier,
-                AgencyName = ua.AwardingAgencyName,
+                ContractId = x.Award.Piid!,
+                SolicitationNumber = x.Award.SolicitationIdentifier,
+                AgencyName = x.Award.AwardingAgencyName,
                 ContractingOfficeName = null,
-                VendorName = ua.RecipientName,
-                VendorUei = ua.RecipientUei,
-                DateSigned = ua.StartDate,
+                VendorName = x.Award.RecipientName,
+                VendorUei = x.Award.RecipientUei,
+                DateSigned = x.Award.StartDate,
                 EffectiveDate = null,
                 CompletionDate = null,
-                DollarsObligated = ua.TotalObligation,
-                BaseAndAllOptions = ua.BaseAndAllOptionsValue,
-                NaicsCode = ua.NaicsCode,
-                PscCode = ua.PscCode,
-                SetAsideType = ua.TypeOfSetAside,
+                DollarsObligated = x.Award.TotalObligation,
+                BaseAndAllOptions = x.Award.BaseAndAllOptionsValue,
+                NaicsCode = x.Award.NaicsCode,
+                NaicsDescription = x.NaicsDesc,
+                PscCode = x.Award.PscCode,
+                PscDescription = _context.RefPscCodes
+                    .Where(p => p.PscCode == x.Award.PscCode)
+                    .OrderByDescending(p => p.StartDate)
+                    .Select(p => p.PscName)
+                    .FirstOrDefault(),
+                SetAsideType = x.Award.TypeOfSetAside,
+                SetAsideDescription = x.SetAsideDesc,
+                SetAsideCategory = x.SetAsideCategory,
                 TypeOfContract = null,
                 NumberOfOffers = null,
                 ExtentCompeted = null,
-                Description = ua.AwardDescription,
+                Description = x.Award.AwardDescription,
                 DataSource = "usaspending"
             })
             .ToListAsync();

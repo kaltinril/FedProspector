@@ -24,6 +24,9 @@ public class ContractingOfficer
     public string? Fax { get; set; }
 
     [MaxLength(200)]
+    public string? Title { get; set; }
+
+    [MaxLength(200)]
     public string? DepartmentName { get; set; }
 
     [MaxLength(200)]

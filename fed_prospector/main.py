@@ -34,7 +34,7 @@ Modules:
     cli/schema.py         check-schema
     cli/setup.py          verify-setup
     cli/schedule_setup.py setup-schedule
-    cli/update.py         link-metadata
+    cli/update.py         link-metadata, fetch-descriptions, build-relationships
     cli/demand.py         process-requests
 """
 
@@ -142,7 +142,7 @@ from cli.admin import (
     list_org_members, disable_user, enable_user, reset_password,
 )
 from cli.demand import process_requests
-from cli.update import enrich_link_metadata
+from cli.update import enrich_link_metadata, fetch_descriptions, build_relationships
 from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
 from cli.setup import verify_setup
@@ -237,6 +237,8 @@ demand.add_command(process_requests, name="process-requests")
 # ---------------------------------------------------------------------------
 
 update.add_command(enrich_link_metadata, name="link-metadata")
+update.add_command(fetch_descriptions, name="fetch-descriptions")
+update.add_command(build_relationships, name="build-relationships")
 
 # ---------------------------------------------------------------------------
 # health group commands

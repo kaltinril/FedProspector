@@ -38,12 +38,14 @@ public class EntityAddressDto
     public string? StateOrProvince { get; set; }
     public string? ZipCode { get; set; }
     public string? CountryCode { get; set; }
+    public string? CountryName { get; set; }
     public string? CongressionalDistrict { get; set; }
 }
 
 public class EntityNaicsDto
 {
     public string NaicsCode { get; set; } = string.Empty;
+    public string? NaicsDescription { get; set; }
     public string? IsPrimary { get; set; }
     public string? SbaSmallBusiness { get; set; }
 }
@@ -51,11 +53,13 @@ public class EntityNaicsDto
 public class EntityPscDto
 {
     public string PscCode { get; set; } = string.Empty;
+    public string? PscDescription { get; set; }
 }
 
 public class EntityBusinessTypeDto
 {
     public string BusinessTypeCode { get; set; } = string.Empty;
+    public string? BusinessTypeDescription { get; set; }
 }
 
 public class EntitySbaCertificationDto

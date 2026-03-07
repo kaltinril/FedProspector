@@ -97,8 +97,28 @@ public class Opportunity
     [MaxLength(200)]
     public string? AwardeeName { get; set; }
 
+    [MaxLength(10)]
+    public string? AwardeeCageCode { get; set; }
+
+    [MaxLength(100)]
+    public string? AwardeeCity { get; set; }
+
+    [MaxLength(6)]
+    public string? AwardeeState { get; set; }
+
+    [MaxLength(10)]
+    public string? AwardeeZip { get; set; }
+
+    [MaxLength(500)]
+    public string? FullParentPathName { get; set; }
+
+    [MaxLength(200)]
+    public string? FullParentPathCode { get; set; }
+
     [MaxLength(500)]
     public string? DescriptionUrl { get; set; }
+
+    public string? DescriptionText { get; set; }
 
     [MaxLength(500)]
     public string? Link { get; set; }

@@ -20,10 +20,14 @@ public class MappingProfile : Profile
             .ForMember(d => d.RecentAwards, opt => opt.Ignore());
 
         // ----- Entity child table -> nested DTO mappings -----
-        CreateMap<EntityAddress, EntityAddressDto>();
-        CreateMap<EntityNaics, EntityNaicsDto>();
-        CreateMap<EntityPsc, EntityPscDto>();
-        CreateMap<EntityBusinessType, EntityBusinessTypeDto>();
+        CreateMap<EntityAddress, EntityAddressDto>()
+            .ForMember(d => d.CountryName, opt => opt.Ignore());
+        CreateMap<EntityNaics, EntityNaicsDto>()
+            .ForMember(d => d.NaicsDescription, opt => opt.Ignore());
+        CreateMap<EntityPsc, EntityPscDto>()
+            .ForMember(d => d.PscDescription, opt => opt.Ignore());
+        CreateMap<EntityBusinessType, EntityBusinessTypeDto>()
+            .ForMember(d => d.BusinessTypeDescription, opt => opt.Ignore());
         CreateMap<EntitySbaCertification, EntitySbaCertificationDto>();
         CreateMap<EntityPoc, EntityPocDto>();
 

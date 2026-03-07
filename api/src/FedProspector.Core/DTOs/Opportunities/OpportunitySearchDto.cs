@@ -20,7 +20,10 @@ public class OpportunitySearchDto
     public decimal? BaseAndAllOptions { get; set; }
     public decimal? EstimatedContractValue { get; set; }
     public string? PopState { get; set; }
+    public string? PopStateName { get; set; }
     public string? PopCity { get; set; }
+    public string? PopCountry { get; set; }
+    public string? PopCountryName { get; set; }
     public string? ProspectStatus { get; set; }
     public string? AssignedUser { get; set; }
 }
