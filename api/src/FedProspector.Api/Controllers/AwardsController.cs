@@ -1,4 +1,5 @@
 using FedProspector.Core.DTOs.Awards;
+using FedProspector.Core.DTOs.Intelligence;
 using FedProspector.Core.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +13,14 @@ namespace FedProspector.Api.Controllers;
 public class AwardsController : ApiControllerBase
 {
     private readonly IAwardService _service;
+    private readonly IExpiringContractService _expiringService;
+    private readonly IMarketIntelService _marketIntelService;
 
-    public AwardsController(IAwardService service)
+    public AwardsController(IAwardService service, IExpiringContractService expiringService, IMarketIntelService marketIntelService)
     {
         _service = service;
+        _expiringService = expiringService;
+        _marketIntelService = marketIntelService;
     }
 
     [HttpGet]
@@ -26,17 +31,53 @@ public class AwardsController : ApiControllerBase
     }
 
     [HttpGet("market-share")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetMarketShare(
         [FromQuery] string naicsCode,
+        [FromQuery] int years = 3,
         [FromQuery] int limit = 10)
     {
         if (string.IsNullOrWhiteSpace(naicsCode))
             return BadRequest("naicsCode is required");
 
+        if (years < 1 || years > 10)
+            years = 3;
+
         if (limit < 1 || limit > 50)
             limit = 10;
 
-        var result = await _service.GetMarketShareAsync(naicsCode, limit);
+        var result = await _marketIntelService.GetMarketShareAsync(naicsCode, years, limit);
+        return Ok(result);
+    }
+
+    [HttpGet("expiring")]
+    public async Task<ActionResult<List<ExpiringContractDto>>> GetExpiringContracts(
+        [FromQuery] int monthsAhead = 12,
+        [FromQuery] string? naicsCode = null,
+        [FromQuery] string? setAsideType = null,
+        [FromQuery] int limit = 20,
+        [FromQuery] int offset = 0)
+    {
+        var orgId = await ResolveOrganizationIdAsync();
+        if (!orgId.HasValue)
+            return Unauthorized();
+
+        if (monthsAhead < 1 || monthsAhead > 24)
+            monthsAhead = 12;
+
+        if (limit < 1 || limit > 100)
+            limit = 20;
+
+        var request = new ExpiringContractSearchRequest
+        {
+            MonthsAhead = monthsAhead,
+            NaicsCode = naicsCode,
+            SetAsideType = setAsideType,
+            Limit = limit,
+            Offset = offset
+        };
+
+        var result = await _expiringService.GetExpiringContractsAsync(orgId.Value, request);
         return Ok(result);
     }
 

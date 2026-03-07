@@ -12,11 +12,13 @@ namespace FedProspector.Api.Tests.Controllers;
 public class AwardsControllerTests
 {
     private readonly Mock<IAwardService> _serviceMock = new();
+    private readonly Mock<IExpiringContractService> _expiringServiceMock = new();
+    private readonly Mock<IMarketIntelService> _marketIntelServiceMock = new();
     private readonly AwardsController _controller;
 
     public AwardsControllerTests()
     {
-        _controller = new AwardsController(_serviceMock.Object);
+        _controller = new AwardsController(_serviceMock.Object, _expiringServiceMock.Object, _marketIntelServiceMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

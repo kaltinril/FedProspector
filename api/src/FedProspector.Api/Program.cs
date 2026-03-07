@@ -136,6 +136,11 @@ builder.Services.AddScoped<IProposalService, ProposalService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IOrganizationService, OrganizationService>();
 builder.Services.AddScoped<ICompanyProfileService, CompanyProfileService>();
+builder.Services.AddScoped<IPWinService, PWinService>();
+builder.Services.AddScoped<IExpiringContractService, ExpiringContractService>();
+builder.Services.AddScoped<IRecommendedOpportunityService, RecommendedOpportunityService>();
+builder.Services.AddScoped<IMarketIntelService, MarketIntelService>();
+builder.Services.AddScoped<IQualificationService, QualificationService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

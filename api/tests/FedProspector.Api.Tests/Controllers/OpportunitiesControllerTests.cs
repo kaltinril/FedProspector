@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using FedProspector.Api.Controllers;
 using FedProspector.Core.DTOs;
+using FedProspector.Core.DTOs.Intelligence;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
 using FluentAssertions;
@@ -14,11 +15,15 @@ namespace FedProspector.Api.Tests.Controllers;
 public class OpportunitiesControllerTests
 {
     private readonly Mock<IOpportunityService> _serviceMock = new();
+    private readonly Mock<IPWinService> _pwinServiceMock = new();
+    private readonly Mock<IRecommendedOpportunityService> _recommendedServiceMock = new();
+    private readonly Mock<IMarketIntelService> _marketIntelServiceMock = new();
+    private readonly Mock<IQualificationService> _qualificationServiceMock = new();
     private readonly OpportunitiesController _controller;
 
     public OpportunitiesControllerTests()
     {
-        _controller = new OpportunitiesController(_serviceMock.Object);
+        _controller = new OpportunitiesController(_serviceMock.Object, _pwinServiceMock.Object, _recommendedServiceMock.Object, _marketIntelServiceMock.Object, _qualificationServiceMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -278,5 +283,56 @@ public class OpportunitiesControllerTests
         var result = await _controller.ExportCsv(request);
 
         result.Should().BeOfType<FileContentResult>();
+    }
+
+    // --- GetRecommended ---
+
+    [Fact]
+    public async Task GetRecommended_NoOrgId_ReturnsUnauthorized()
+    {
+        var result = await _controller.GetRecommended();
+
+        result.Result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task GetRecommended_ValidRequest_ReturnsOk()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 10))
+            .ReturnsAsync(new List<RecommendedOpportunityDto>());
+
+        var result = await _controller.GetRecommended();
+
+        result.Result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task GetRecommended_CustomLimit_CallsServiceWithCorrectLimit()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 25))
+            .ReturnsAsync(new List<RecommendedOpportunityDto>());
+
+        await _controller.GetRecommended(limit: 25);
+
+        _recommendedServiceMock.Verify(s => s.GetRecommendedAsync(10, 25), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetRecommended_ReturnsServiceResult()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        var expected = new List<RecommendedOpportunityDto>
+        {
+            new() { NoticeId = "REC-001", PWinScore = 85.0m, PWinCategory = "High" }
+        };
+        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 10))
+            .ReturnsAsync(expected);
+
+        var result = await _controller.GetRecommended();
+
+        var okResult = result.Result as OkObjectResult;
+        okResult!.Value.Should().Be(expected);
     }
 }
