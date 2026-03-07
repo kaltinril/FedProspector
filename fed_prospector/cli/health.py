@@ -27,6 +27,12 @@ def check_health(as_json):
     hc = HealthCheck()
     results = hc.check_all()
 
+    # Save snapshot for health trends (Phase 70)
+    try:
+        hc.save_snapshot(results)
+    except Exception:
+        logger.warning("Failed to save health snapshot", exc_info=True)
+
     if as_json:
         import json
         # Convert datetime objects to strings for JSON serialization

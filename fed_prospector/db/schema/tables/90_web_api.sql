@@ -149,6 +149,47 @@ CREATE TABLE IF NOT EXISTS notification (
     INDEX idx_notif_user_read (user_id, is_read, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Company profile child tables (Phase 44.6 — consolidated from EF Core migration)
+
+CREATE TABLE IF NOT EXISTS organization_certification (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    certification_type   VARCHAR(50) NOT NULL,
+    certifying_agency    VARCHAR(100),
+    certification_number VARCHAR(100),
+    expiration_date      DATETIME,
+    is_active            VARCHAR(1) NOT NULL,
+    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_orgcert_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id) ON DELETE CASCADE,
+    INDEX idx_orgcert_org (organization_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organization_naics (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    naics_code           VARCHAR(11) NOT NULL,
+    is_primary           VARCHAR(1) NOT NULL,
+    size_standard_met    VARCHAR(1) NOT NULL,
+    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_orgnaics_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id) ON DELETE CASCADE,
+    INDEX idx_orgnaics_org (organization_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS organization_past_performance (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    contract_number      VARCHAR(50),
+    agency_name          VARCHAR(200),
+    description          TEXT,
+    naics_code           VARCHAR(11),
+    contract_value       DECIMAL(18,2),
+    period_start         DATETIME,
+    period_end           DATETIME,
+    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_orgperf_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id) ON DELETE CASCADE,
+    INDEX idx_orgperf_org (organization_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- =============================================================================
 -- Migration: Phase 44.3 Batch 1 (Item 1.1) — POC data loading
 -- Run against existing databases that already have the contracting_officer table.

@@ -11,7 +11,28 @@ CREATE TABLE IF NOT EXISTS organization (
     max_users            INT NOT NULL DEFAULT 10,
     subscription_tier    VARCHAR(50) DEFAULT 'trial',
     created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    -- Company profile fields (Phase 44.6 — consolidated from EF Core migration)
+    legal_name           VARCHAR(300),
+    dba_name             VARCHAR(300),
+    uei_sam              VARCHAR(13),
+    cage_code            VARCHAR(5),
+    ein                  VARCHAR(10),
+    entity_structure     VARCHAR(50),
+    phone                VARCHAR(20),
+    website              VARCHAR(500),
+    address_line1        VARCHAR(200),
+    address_line2        VARCHAR(200),
+    city                 VARCHAR(100),
+    state_code           VARCHAR(2),
+    zip_code             VARCHAR(10),
+    country_code         VARCHAR(3),
+    annual_revenue       DECIMAL(18,2),
+    employee_count       INT,
+    fiscal_year_end_month TINYINT UNSIGNED,
+    profile_completed    VARCHAR(1) NOT NULL DEFAULT '',
+    profile_completed_at DATETIME
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS app_user (
