@@ -47,6 +47,10 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     -- Solicitation link
     solicitation_identifier  VARCHAR(50),
 
+    -- Bulk load metadata
+    fiscal_year              SMALLINT,
+    fpds_enriched_at         DATETIME,
+
     -- ETL metadata
     record_hash              CHAR(64),
     last_load_id             INT,
@@ -60,7 +64,9 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     INDEX idx_usa_dates (start_date, end_date),
     INDEX idx_usa_modified (last_modified_date),
     INDEX idx_usa_solicitation (solicitation_identifier),
-    INDEX idx_usa_piid (piid)
+    INDEX idx_usa_piid (piid),
+    INDEX idx_usa_fy (fiscal_year),
+    INDEX idx_usa_enrich (fpds_enriched_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Transaction-level spending detail for burn rate analysis

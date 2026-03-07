@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import type { GridColDef, GridPaginationModel, GridSortModel } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
 import Link from '@mui/material/Link';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { SearchFilters } from '@/components/shared/SearchFilters';
@@ -63,6 +64,24 @@ function buildColumns(navigate: ReturnType<typeof useNavigate>): GridColDef<Awar
           {params.value}
         </Link>
       ),
+    },
+    {
+      field: 'dataSource',
+      headerName: 'Data',
+      width: 100,
+      sortable: false,
+      renderCell: (params) => {
+        const source = params.value as string | null | undefined;
+        const isFull = !source || source === 'fpds';
+        return (
+          <Chip
+            label={isFull ? 'Full' : 'Partial'}
+            color={isFull ? 'primary' : 'default'}
+            size="small"
+            variant={isFull ? 'filled' : 'outlined'}
+          />
+        );
+      },
     },
     { field: 'vendorName', headerName: 'Vendor Name', flex: 1.2, minWidth: 150 },
     { field: 'agencyName', headerName: 'Agency', flex: 1, minWidth: 140 },

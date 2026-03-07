@@ -25,6 +25,7 @@ Modules:
     cli/fedhier.py        load-hierarchy, search-agencies
     cli/exclusions.py     load-exclusions, check-exclusion, check-prospects
     cli/spending.py       load-transactions, burn-rate
+    cli/bulk_spending.py  usaspending-bulk
     cli/health.py         check-health, load-history, catchup-datasets, run-job, maintain-db, run-all-searches
     cli/subaward.py       load-subawards, search-subawards, teaming-partners
     cli/admin.py          create-sysadmin, create-org, list-orgs, invite-user,
@@ -32,6 +33,7 @@ Modules:
     cli/schema.py         check-schema
     cli/setup.py          verify-setup
     cli/schedule_setup.py setup-schedule
+    cli/demand.py         process-requests
 """
 
 import sys
@@ -97,6 +99,12 @@ def admin():
 
 
 @cli.group()
+def demand():
+    """On-demand data loading commands."""
+    pass
+
+
+@cli.group()
 def health():
     """System health checks, ETL history, job execution, and maintenance."""
     pass
@@ -125,6 +133,8 @@ from cli.admin import (
     create_sysadmin, create_org, list_orgs, invite_user,
     list_org_members, disable_user, enable_user, reset_password,
 )
+from cli.demand import process_requests
+from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
 from cli.setup import verify_setup
 from cli.schedule_setup import setup_schedule
@@ -155,6 +165,7 @@ load.add_command(load_exclusions, name="exclusions")
 load.add_command(load_transactions, name="usaspending")
 load.add_command(load_calc, name="labor-rates")
 load.add_command(load_subawards, name="subawards")
+load.add_command(usaspending_bulk, name="usaspending-bulk")
 
 # ---------------------------------------------------------------------------
 # search group commands
@@ -205,6 +216,12 @@ admin.add_command(list_org_members, name="list-org-members")
 admin.add_command(disable_user, name="disable-user")
 admin.add_command(enable_user, name="enable-user")
 admin.add_command(reset_password, name="reset-password")
+
+# ---------------------------------------------------------------------------
+# demand group commands
+# ---------------------------------------------------------------------------
+
+demand.add_command(process_requests, name="process-requests")
 
 # ---------------------------------------------------------------------------
 # health group commands

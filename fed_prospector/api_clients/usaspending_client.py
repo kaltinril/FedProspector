@@ -7,7 +7,9 @@ API docs: https://api.usaspending.gov
 """
 
 import logging
+import time
 from datetime import date, timedelta
+from pathlib import Path
 
 from api_clients.base_client import BaseAPIClient
 from config import settings
@@ -469,6 +471,88 @@ class USASpendingClient(BaseAPIClient):
             self.logger.warning("Unexpected bulk download response: %s", data)
 
         return data
+
+    # -----------------------------------------------------------------
+    # Bulk download polling and file retrieval
+    # -----------------------------------------------------------------
+
+    def poll_bulk_download(self, status_url, timeout=600, interval=10):
+        """Poll a bulk download status URL until the file is ready.
+
+        Args:
+            status_url: URL returned by request_bulk_download() to check status.
+            timeout: Maximum seconds to wait (default 600).
+            interval: Seconds between polls (default 10).
+
+        Returns:
+            dict: Response JSON containing file_url.
+
+        Raises:
+            TimeoutError: If file not ready within timeout.
+        """
+        start = time.monotonic()
+        while True:
+            elapsed = time.monotonic() - start
+            if elapsed > timeout:
+                raise TimeoutError(
+                    f"Bulk download not ready after {timeout}s: {status_url}"
+                )
+
+            self.logger.info(
+                "Polling bulk download (%.0fs elapsed): %s", elapsed, status_url
+            )
+            response = self.session.get(status_url, timeout=60)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("file_url"):
+                self.logger.info("Bulk download ready: %s", data["file_url"])
+                return data
+            if data.get("status") == "finished":
+                self.logger.info("Bulk download finished: %s", data)
+                return data
+
+            self.logger.info(
+                "Bulk download status: %s", data.get("status", "unknown")
+            )
+            time.sleep(interval)
+
+    def download_bulk_file(self, file_url, dest_dir=None):
+        """Stream-download a bulk file to local disk.
+
+        Args:
+            file_url: URL of the file to download.
+            dest_dir: Local directory to save to. Defaults to
+                settings.DOWNLOAD_DIR / "usaspending".
+
+        Returns:
+            Path: Local file path of the downloaded file.
+        """
+        if dest_dir is None:
+            dest_dir = settings.DOWNLOAD_DIR / "usaspending"
+        dest_dir = Path(dest_dir)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        # Extract filename from URL
+        filename = file_url.rsplit("/", 1)[-1]
+        if not filename:
+            filename = "bulk_download.zip"
+
+        dest_path = dest_dir / filename
+        self.logger.info("Downloading %s -> %s", file_url, dest_path)
+
+        response = self.session.get(file_url, stream=True, timeout=600)
+        response.raise_for_status()
+
+        total_bytes = 0
+        with open(dest_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+                total_bytes += len(chunk)
+
+        size_mb = total_bytes / (1024 * 1024)
+        self.logger.info("Downloaded %.1f MB to %s", size_mb, dest_path)
+        return dest_path
 
     # -----------------------------------------------------------------
     # Note: get() and _format_date() are inherited from BaseAPIClient.

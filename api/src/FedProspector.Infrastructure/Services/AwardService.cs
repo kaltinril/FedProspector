@@ -1,6 +1,7 @@
 using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Awards;
 using FedProspector.Core.Interfaces;
+using FedProspector.Core.Models;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -84,7 +85,7 @@ public class AwardService : IAwardService
             };
         }
 
-        var items = await ordered
+        var results = await ordered
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(c => new AwardSearchDto
@@ -106,32 +107,42 @@ public class AwardService : IAwardService
                 TypeOfContract = c.TypeOfContract,
                 NumberOfOffers = c.NumberOfOffers,
                 ExtentCompeted = c.ExtentCompeted,
-                Description = c.Description
+                Description = c.Description,
+                DataSource = "fpds"
             })
             .ToListAsync();
 
+        // Fallback: if FPDS returned fewer results than page size, supplement with USASpending
+        if (results.Count < request.PageSize)
+        {
+            var fpdsPoiids = results.Select(r => r.ContractId).ToHashSet();
+            var usaResults = await SearchUsaspendingAsync(request, request.PageSize - results.Count, fpdsPoiids);
+            results.AddRange(usaResults);
+            // Adjust total count
+            totalCount += await CountUsaspendingAsync(request, fpdsPoiids);
+        }
+
         return new PagedResponse<AwardSearchDto>
         {
-            Items = items,
+            Items = results,
             Page = request.Page,
             PageSize = request.PageSize,
             TotalCount = totalCount
         };
     }
 
-    public async Task<AwardDetailDto?> GetDetailAsync(string contractId)
+    public async Task<AwardDetailResponse> GetDetailAsync(string contractId)
     {
-        // Fetch base award (modification_number = '0')
+        // Fetch base award (modification_number = '0') from FPDS
         var contract = await _context.FpdsContracts.AsNoTracking()
             .FirstOrDefaultAsync(c => c.ContractId == contractId && c.ModificationNumber == "0");
 
-        if (contract == null) return null;
-
-        // Fetch USASpending transactions: find the award by Piid, then get transactions
-        var transactions = new List<TransactionDto>();
+        // Fetch USASpending award by Piid
         var usaAward = await _context.UsaspendingAwards.AsNoTracking()
             .FirstOrDefaultAsync(a => a.Piid == contractId);
 
+        // Fetch transactions if USASpending award exists
+        var transactions = new List<TransactionDto>();
         if (usaAward != null)
         {
             transactions = await _context.UsaspendingTransactions.AsNoTracking()
@@ -149,61 +160,152 @@ public class AwardService : IAwardService
                 .ToListAsync();
         }
 
-        // Fetch vendor entity profile
-        VendorSummaryDto? vendorProfile = null;
-        if (!string.IsNullOrWhiteSpace(contract.VendorUei))
-        {
-            var entity = await _context.Entities.AsNoTracking()
-                .FirstOrDefaultAsync(e => e.UeiSam == contract.VendorUei);
+        // Fetch most recent load request for this PIID
+        var loadRequest = await _context.DataLoadRequests.AsNoTracking()
+            .Where(r => r.LookupKey == contractId)
+            .OrderByDescending(r => r.RequestedAt)
+            .FirstOrDefaultAsync();
 
-            if (entity != null)
+        var hasFpds = contract != null;
+        var hasUsa = usaAward != null;
+
+        // Determine data status
+        string dataStatus;
+        if (hasFpds)
+            dataStatus = "full"; // FPDS is primary source — full regardless of USASpending
+        else if (hasUsa)
+            dataStatus = "partial"; // Only USASpending, no FPDS
+        else
+            dataStatus = "not_loaded";
+
+        // Build detail DTO
+        AwardDetailDto? detail = null;
+
+        if (hasFpds)
+        {
+            // Full detail from FPDS contract
+            VendorSummaryDto? vendorProfile = null;
+            if (!string.IsNullOrWhiteSpace(contract!.VendorUei))
             {
-                vendorProfile = new VendorSummaryDto
+                var entity = await _context.Entities.AsNoTracking()
+                    .FirstOrDefaultAsync(e => e.UeiSam == contract.VendorUei);
+
+                if (entity != null)
                 {
-                    UeiSam = entity.UeiSam,
-                    LegalBusinessName = entity.LegalBusinessName,
-                    DbaName = entity.DbaName,
-                    RegistrationStatus = entity.RegistrationStatus,
-                    PrimaryNaics = entity.PrimaryNaics,
-                    EntityUrl = entity.EntityUrl
-                };
+                    vendorProfile = new VendorSummaryDto
+                    {
+                        UeiSam = entity.UeiSam,
+                        LegalBusinessName = entity.LegalBusinessName,
+                        DbaName = entity.DbaName,
+                        RegistrationStatus = entity.RegistrationStatus,
+                        PrimaryNaics = entity.PrimaryNaics,
+                        EntityUrl = entity.EntityUrl
+                    };
+                }
             }
+
+            detail = new AwardDetailDto
+            {
+                ContractId = contract.ContractId,
+                IdvPiid = contract.IdvPiid,
+                AgencyId = contract.AgencyId,
+                AgencyName = contract.AgencyName,
+                ContractingOfficeId = contract.ContractingOfficeId,
+                ContractingOfficeName = contract.ContractingOfficeName,
+                FundingAgencyId = contract.FundingAgencyId,
+                FundingAgencyName = contract.FundingAgencyName,
+                VendorUei = contract.VendorUei,
+                VendorName = contract.VendorName,
+                DateSigned = contract.DateSigned,
+                EffectiveDate = contract.EffectiveDate,
+                CompletionDate = contract.CompletionDate,
+                UltimateCompletionDate = contract.UltimateCompletionDate,
+                LastModifiedDate = contract.LastModifiedDate,
+                DollarsObligated = contract.DollarsObligated,
+                BaseAndAllOptions = contract.BaseAndAllOptions,
+                NaicsCode = contract.NaicsCode,
+                PscCode = contract.PscCode,
+                SetAsideType = contract.SetAsideType,
+                TypeOfContract = contract.TypeOfContract,
+                TypeOfContractPricing = contract.TypeOfContractPricing,
+                Description = contract.Description,
+                PopState = contract.PopState,
+                PopCountry = contract.PopCountry,
+                PopZip = contract.PopZip,
+                ExtentCompeted = contract.ExtentCompeted,
+                NumberOfOffers = contract.NumberOfOffers,
+                SolicitationNumber = contract.SolicitationNumber,
+                SolicitationDate = contract.SolicitationDate,
+                Transactions = transactions,
+                VendorProfile = vendorProfile
+            };
+        }
+        else if (hasUsa)
+        {
+            // Partial detail from USASpending award
+            VendorSummaryDto? vendorProfile = null;
+            if (!string.IsNullOrWhiteSpace(usaAward!.RecipientUei))
+            {
+                var entity = await _context.Entities.AsNoTracking()
+                    .FirstOrDefaultAsync(e => e.UeiSam == usaAward.RecipientUei);
+
+                if (entity != null)
+                {
+                    vendorProfile = new VendorSummaryDto
+                    {
+                        UeiSam = entity.UeiSam,
+                        LegalBusinessName = entity.LegalBusinessName,
+                        DbaName = entity.DbaName,
+                        RegistrationStatus = entity.RegistrationStatus,
+                        PrimaryNaics = entity.PrimaryNaics,
+                        EntityUrl = entity.EntityUrl
+                    };
+                }
+            }
+
+            detail = new AwardDetailDto
+            {
+                ContractId = contractId,
+                VendorName = usaAward.RecipientName,
+                VendorUei = usaAward.RecipientUei,
+                DollarsObligated = usaAward.TotalObligation,
+                BaseAndAllOptions = usaAward.BaseAndAllOptionsValue,
+                AgencyName = usaAward.AwardingAgencyName,
+                FundingAgencyName = usaAward.FundingAgencyName,
+                NaicsCode = usaAward.NaicsCode,
+                PscCode = usaAward.PscCode,
+                SetAsideType = usaAward.TypeOfSetAside,
+                Description = usaAward.AwardDescription,
+                PopState = usaAward.PopState,
+                PopCountry = usaAward.PopCountry,
+                PopZip = usaAward.PopZip,
+                Transactions = transactions,
+                VendorProfile = vendorProfile
+            };
         }
 
-        return new AwardDetailDto
+        // Build load status
+        LoadRequestStatusDto? loadStatus = null;
+        if (loadRequest != null)
         {
-            ContractId = contract.ContractId,
-            IdvPiid = contract.IdvPiid,
-            AgencyId = contract.AgencyId,
-            AgencyName = contract.AgencyName,
-            ContractingOfficeId = contract.ContractingOfficeId,
-            ContractingOfficeName = contract.ContractingOfficeName,
-            FundingAgencyId = contract.FundingAgencyId,
-            FundingAgencyName = contract.FundingAgencyName,
-            VendorUei = contract.VendorUei,
-            VendorName = contract.VendorName,
-            DateSigned = contract.DateSigned,
-            EffectiveDate = contract.EffectiveDate,
-            CompletionDate = contract.CompletionDate,
-            UltimateCompletionDate = contract.UltimateCompletionDate,
-            LastModifiedDate = contract.LastModifiedDate,
-            DollarsObligated = contract.DollarsObligated,
-            BaseAndAllOptions = contract.BaseAndAllOptions,
-            NaicsCode = contract.NaicsCode,
-            PscCode = contract.PscCode,
-            SetAsideType = contract.SetAsideType,
-            TypeOfContract = contract.TypeOfContract,
-            TypeOfContractPricing = contract.TypeOfContractPricing,
-            Description = contract.Description,
-            PopState = contract.PopState,
-            PopCountry = contract.PopCountry,
-            PopZip = contract.PopZip,
-            ExtentCompeted = contract.ExtentCompeted,
-            NumberOfOffers = contract.NumberOfOffers,
-            SolicitationNumber = contract.SolicitationNumber,
-            SolicitationDate = contract.SolicitationDate,
-            Transactions = transactions,
-            VendorProfile = vendorProfile
+            loadStatus = new LoadRequestStatusDto
+            {
+                RequestId = loadRequest.RequestId,
+                RequestType = loadRequest.RequestType,
+                Status = loadRequest.Status,
+                RequestedAt = loadRequest.RequestedAt,
+                ErrorMessage = loadRequest.ErrorMessage
+            };
+        }
+
+        return new AwardDetailResponse
+        {
+            ContractId = contractId,
+            DataStatus = dataStatus,
+            HasFpdsData = hasFpds,
+            HasUsaspendingData = hasUsa,
+            Detail = detail,
+            LoadStatus = loadStatus
         };
     }
 
@@ -280,11 +382,11 @@ public class AwardService : IAwardService
     {
         var results = await _context.Database
             .SqlQueryRaw<MarketShareDto>(
-                "SELECT MAX(vendor_name) AS VendorName, vendor_uei AS VendorUei, " +
-                "COUNT(*) AS AwardCount, " +
-                "SUM(base_and_all_options) AS TotalValue, " +
-                "AVG(base_and_all_options) AS AverageValue, " +
-                "MAX(date_signed) AS LastAwardDate " +
+                "SELECT MAX(vendor_name) AS vendor_name, vendor_uei AS vendor_uei, " +
+                "COUNT(*) AS award_count, " +
+                "SUM(base_and_all_options) AS total_value, " +
+                "AVG(base_and_all_options) AS average_value, " +
+                "MAX(date_signed) AS last_award_date " +
                 "FROM fpds_contract " +
                 "WHERE naics_code = {0} AND vendor_uei IS NOT NULL AND vendor_uei != '' " +
                 "AND modification_number = '0' " +
@@ -295,6 +397,179 @@ public class AwardService : IAwardService
             .ToListAsync();
 
         return results;
+    }
+
+    public async Task<LoadRequestStatusDto> RequestLoadAsync(string contractId, string tier, int? userId)
+    {
+        // Map tier to request_type
+        var requestType = tier.ToLowerInvariant() switch
+        {
+            "fpds" => "FPDS_AWARD",
+            _ => "USASPENDING_AWARD"
+        };
+
+        // Check for existing pending/processing request
+        var existing = await _context.DataLoadRequests.FirstOrDefaultAsync(r =>
+            r.LookupKey == contractId &&
+            r.RequestType == requestType &&
+            (r.Status == "PENDING" || r.Status == "PROCESSING"));
+
+        if (existing != null)
+        {
+            return new LoadRequestStatusDto
+            {
+                RequestId = existing.RequestId,
+                RequestType = existing.RequestType,
+                Status = existing.Status,
+                RequestedAt = existing.RequestedAt,
+                ErrorMessage = existing.ErrorMessage
+            };
+        }
+
+        // Create new request
+        var request = new DataLoadRequest
+        {
+            RequestType = requestType,
+            LookupKey = contractId,
+            LookupKeyType = "PIID",
+            Status = "PENDING",
+            RequestedBy = userId,
+            RequestedAt = DateTime.UtcNow
+        };
+
+        _context.DataLoadRequests.Add(request);
+        await _context.SaveChangesAsync();
+
+        return new LoadRequestStatusDto
+        {
+            RequestId = request.RequestId,
+            RequestType = request.RequestType,
+            Status = request.Status,
+            RequestedAt = request.RequestedAt
+        };
+    }
+
+    public async Task<LoadRequestStatusDto?> GetLoadStatusAsync(string contractId)
+    {
+        var request = await _context.DataLoadRequests.AsNoTracking()
+            .Where(r => r.LookupKey == contractId)
+            .OrderByDescending(r => r.RequestedAt)
+            .FirstOrDefaultAsync();
+
+        if (request == null) return null;
+
+        return new LoadRequestStatusDto
+        {
+            RequestId = request.RequestId,
+            RequestType = request.RequestType,
+            Status = request.Status,
+            RequestedAt = request.RequestedAt,
+            ErrorMessage = request.ErrorMessage
+        };
+    }
+
+    private async Task<List<AwardSearchDto>> SearchUsaspendingAsync(
+        AwardSearchRequest request, int limit, HashSet<string> excludePiids)
+    {
+        var query = BuildUsaspendingQuery(request, excludePiids);
+
+        // Apply sort consistent with FPDS query
+        IOrderedQueryable<UsaspendingAward> ordered = query.OrderByDescending(ua => ua.StartDate);
+
+        if (!string.IsNullOrWhiteSpace(request.SortBy))
+        {
+            ordered = request.SortBy.ToLowerInvariant() switch
+            {
+                "datesigned" => request.SortDescending ? query.OrderByDescending(ua => ua.StartDate) : query.OrderBy(ua => ua.StartDate),
+                "baseandalloptionsvalue" or "value" => request.SortDescending ? query.OrderByDescending(ua => ua.BaseAndAllOptionsValue) : query.OrderBy(ua => ua.BaseAndAllOptionsValue),
+                "vendorname" => request.SortDescending ? query.OrderByDescending(ua => ua.RecipientName) : query.OrderBy(ua => ua.RecipientName),
+                "agencyname" => request.SortDescending ? query.OrderByDescending(ua => ua.AwardingAgencyName) : query.OrderBy(ua => ua.AwardingAgencyName),
+                _ => ordered
+            };
+        }
+
+        return await ordered
+            .Take(limit)
+            .Select(ua => new AwardSearchDto
+            {
+                ContractId = ua.Piid!,
+                SolicitationNumber = ua.SolicitationIdentifier,
+                AgencyName = ua.AwardingAgencyName,
+                ContractingOfficeName = null,
+                VendorName = ua.RecipientName,
+                VendorUei = ua.RecipientUei,
+                DateSigned = ua.StartDate,
+                EffectiveDate = null,
+                CompletionDate = null,
+                DollarsObligated = ua.TotalObligation,
+                BaseAndAllOptions = ua.BaseAndAllOptionsValue,
+                NaicsCode = ua.NaicsCode,
+                PscCode = ua.PscCode,
+                SetAsideType = ua.TypeOfSetAside,
+                TypeOfContract = null,
+                NumberOfOffers = null,
+                ExtentCompeted = null,
+                Description = ua.AwardDescription,
+                DataSource = "usaspending"
+            })
+            .ToListAsync();
+    }
+
+    private async Task<int> CountUsaspendingAsync(
+        AwardSearchRequest request, HashSet<string> excludePiids)
+    {
+        return await BuildUsaspendingQuery(request, excludePiids).CountAsync();
+    }
+
+    private IQueryable<UsaspendingAward> BuildUsaspendingQuery(
+        AwardSearchRequest request, HashSet<string> excludePiids)
+    {
+        var query = _context.UsaspendingAwards.AsNoTracking()
+            .Where(ua => ua.Piid != null);
+
+        if (excludePiids.Count > 0)
+            query = query.Where(ua => !excludePiids.Contains(ua.Piid!));
+
+        if (!string.IsNullOrWhiteSpace(request.Piid))
+            query = query.Where(ua => ua.Piid!.Contains(request.Piid));
+
+        if (!string.IsNullOrWhiteSpace(request.Solicitation))
+            query = query.Where(ua => ua.SolicitationIdentifier != null && ua.SolicitationIdentifier.Contains(request.Solicitation));
+
+        if (!string.IsNullOrWhiteSpace(request.Naics))
+            query = query.Where(ua => ua.NaicsCode == request.Naics);
+
+        if (!string.IsNullOrWhiteSpace(request.Agency))
+        {
+            var escapedAgency = EscapeLikePattern(request.Agency);
+            query = query.Where(ua => ua.AwardingAgencyName != null && EF.Functions.Like(ua.AwardingAgencyName, $"%{escapedAgency}%"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.VendorUei))
+            query = query.Where(ua => ua.RecipientUei == request.VendorUei);
+
+        if (!string.IsNullOrWhiteSpace(request.VendorName))
+        {
+            var escapedVendor = EscapeLikePattern(request.VendorName);
+            query = query.Where(ua => ua.RecipientName != null && EF.Functions.Like(ua.RecipientName, $"%{escapedVendor}%"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.SetAside))
+            query = query.Where(ua => ua.TypeOfSetAside == request.SetAside);
+
+        if (request.MinValue.HasValue)
+            query = query.Where(ua => ua.BaseAndAllOptionsValue >= request.MinValue);
+
+        if (request.MaxValue.HasValue)
+            query = query.Where(ua => ua.BaseAndAllOptionsValue <= request.MaxValue);
+
+        if (request.DateFrom.HasValue)
+            query = query.Where(ua => ua.StartDate >= request.DateFrom);
+
+        if (request.DateTo.HasValue)
+            query = query.Where(ua => ua.StartDate <= request.DateTo);
+
+        return query;
     }
 
     /// <summary>

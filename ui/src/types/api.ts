@@ -182,6 +182,7 @@ export interface AwardSearchResult {
   numberOfOffers?: number | null;
   extentCompeted?: string | null;
   description?: string | null;
+  dataSource?: 'fpds' | 'usaspending' | null;
 }
 
 export interface AwardSearchParams {
@@ -234,6 +235,23 @@ export interface AwardDetail {
   solicitationDate?: string | null;
   transactions: TransactionDto[];
   vendorProfile?: VendorSummaryDto | null;
+}
+
+export interface AwardDetailResponse {
+  contractId: string;
+  dataStatus: 'full' | 'partial' | 'not_loaded';
+  hasFpdsData: boolean;
+  hasUsaspendingData: boolean;
+  detail?: AwardDetail | null;
+  loadStatus?: LoadRequestStatus | null;
+}
+
+export interface LoadRequestStatus {
+  requestId?: number | null;
+  requestType?: string | null;
+  status?: string | null;
+  requestedAt?: string | null;
+  errorMessage?: string | null;
 }
 
 export interface TransactionDto {

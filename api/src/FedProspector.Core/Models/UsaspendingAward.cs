@@ -87,6 +87,10 @@ public class UsaspendingAward
     [MaxLength(50)]
     public string? SolicitationIdentifier { get; set; }
 
+    public short? FiscalYear { get; set; }
+
+    public DateTime? FpdsEnrichedAt { get; set; }
+
     [MaxLength(64)]
     public string? RecordHash { get; set; }
 
