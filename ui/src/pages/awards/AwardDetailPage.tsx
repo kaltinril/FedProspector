@@ -1,8 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { GridColDef } from '@mui/x-data-grid';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import Link from '@mui/material/Link';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
@@ -17,7 +20,7 @@ import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getAward, getBurnRate, searchAwards } from '@/api/awards';
+import { getAward, getBurnRate, searchAwards, requestAwardLoad, getAwardLoadStatus } from '@/api/awards';
 import { getSubawardsByPrime } from '@/api/subawards';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate } from '@/utils/dateFormatters';
@@ -499,12 +502,14 @@ function SubcontractorsTab({
 export default function AwardDetailPage() {
   const { contractId } = useParams<{ contractId: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const decodedId = decodeURIComponent(contractId ?? '');
 
   const [activeTab, setActiveTab] = useState<string>('details');
+  const [loadRequested, setLoadRequested] = useState(false);
 
   const {
-    data: award,
+    data: response,
     isLoading,
     isError,
     refetch,
@@ -515,6 +520,34 @@ export default function AwardDetailPage() {
     enabled: decodedId.length > 0,
   });
 
+  const award = response?.detail ?? null;
+  const dataStatus = response?.dataStatus ?? 'not_loaded';
+
+  // Poll load status while loading is in progress
+  const { data: loadStatus } = useQuery({
+    queryKey: queryKeys.awards.loadStatus(decodedId),
+    queryFn: () => getAwardLoadStatus(decodedId),
+    enabled: loadRequested || response?.loadStatus?.status === 'PENDING' || response?.loadStatus?.status === 'PROCESSING',
+    refetchInterval: 4000,
+  });
+
+  // When load completes, refresh the award detail and stop polling
+  useEffect(() => {
+    if (loadStatus?.status === 'COMPLETED') {
+      setLoadRequested(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.awards.detail(decodedId) });
+    }
+  }, [loadStatus?.status, decodedId, queryClient]);
+
+  const handleLoadRequest = async () => {
+    try {
+      await requestAwardLoad(decodedId, 'usaspending');
+      setLoadRequested(true);
+    } catch {
+      // Error handled by UI
+    }
+  };
+
   const dateRangeText = useMemo(() => {
     if (!award) return null;
     const signed = formatDate(award.dateSigned);
@@ -524,18 +557,80 @@ export default function AwardDetailPage() {
   }, [award]);
 
   if (isLoading) return <LoadingState message="Loading award details..." />;
-  if (isError || !award) {
+
+  if (isError) {
     return (
       <Box>
         <BackToSearch searchPath="/awards" />
         <ErrorState
           title="Failed to load award"
-          message="Could not retrieve award details. The contract may not exist or the server may be unavailable."
+          message="Could not connect to the server. Please try again."
           onRetry={() => refetch()}
         />
       </Box>
     );
   }
+
+  if (dataStatus === 'not_loaded') {
+    const isLoadingData = loadRequested || response?.loadStatus?.status === 'PENDING' || response?.loadStatus?.status === 'PROCESSING';
+    return (
+      <Box>
+        <BackToSearch searchPath="/awards" />
+        <PageHeader title={`Contract: ${decodedId}`} />
+        <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="h6" gutterBottom>
+            Award Not Yet Loaded
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 3 }}>
+            This contract has not been loaded into FedProspect yet.
+            Click below to fetch the data from USASpending.gov.
+          </Typography>
+          {isLoadingData ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <CircularProgress size={32} />
+              <Typography variant="body2" color="text.secondary">
+                Loading data from USASpending.gov...
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+              <Button variant="contained" onClick={handleLoadRequest}>
+                Load This Award
+              </Button>
+              <Button
+                variant="outlined"
+                href={`https://www.usaspending.gov/search/?hash=&filters=%7B%22keyword%22%3A%22${encodeURIComponent(decodedId)}%22%7D`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                View on USASpending.gov
+              </Button>
+            </Box>
+          )}
+          {loadStatus?.status === 'FAILED' && (
+            <Typography color="error" sx={{ mt: 2 }}>
+              Load failed: {loadStatus.errorMessage ?? 'Unknown error'}
+            </Typography>
+          )}
+        </Paper>
+      </Box>
+    );
+  }
+
+  if (!award) {
+    return (
+      <Box>
+        <BackToSearch searchPath="/awards" />
+        <ErrorState
+          title="No data available"
+          message="Award data is not available."
+          onRetry={() => refetch()}
+        />
+      </Box>
+    );
+  }
+
+  const showPartialBanner = dataStatus === 'partial';
 
   return (
     <Box>
@@ -545,6 +640,12 @@ export default function AwardDetailPage() {
         title={`Contract: ${award.contractId}`}
         subtitle={award.solicitationNumber ?? undefined}
       />
+
+      {showPartialBanner && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Partial data available from USASpending.gov. Full contract details from FPDS are loading in the background.
+        </Alert>
+      )}
 
       {/* Summary bar */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>

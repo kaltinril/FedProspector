@@ -85,13 +85,14 @@ public class FedProspectorDbContext : DbContext
     public DbSet<UsaspendingTransaction> UsaspendingTransactions { get; set; }
 
     // -----------------------------------------------------------------------
-    // ETL Tables (4)
+    // ETL Tables (5)
     // -----------------------------------------------------------------------
 
     public DbSet<EtlLoadLog> EtlLoadLogs { get; set; }
     public DbSet<EtlLoadError> EtlLoadErrors { get; set; }
     public DbSet<EtlDataQualityRule> EtlDataQualityRules { get; set; }
     public DbSet<EtlRateLimit> EtlRateLimits { get; set; }
+    public DbSet<DataLoadRequest> DataLoadRequests { get; set; }
 
     // -----------------------------------------------------------------------
     // Prospecting / Capture Management Tables (6)
@@ -205,6 +206,10 @@ public class FedProspectorDbContext : DbContext
 
         modelBuilder.Entity<ActivityLog>()
             .Property(e => e.Details)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<DataLoadRequest>()
+            .Property(e => e.ResultSummary)
             .HasColumnType("json");
 
         modelBuilder.Entity<Opportunity>()

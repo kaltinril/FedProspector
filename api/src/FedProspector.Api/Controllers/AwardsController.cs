@@ -51,6 +51,21 @@ public class AwardsController : ApiControllerBase
     public async Task<IActionResult> GetDetail(string contractId)
     {
         var result = await _service.GetDetailAsync(contractId);
-        return result != null ? Ok(result) : NotFound();
+        return Ok(result);
+    }
+
+    [HttpPost("{contractId}/load")]
+    public async Task<IActionResult> RequestLoad(string contractId, [FromBody] RequestLoadDto request)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _service.RequestLoadAsync(contractId, request.Tier, userId);
+        return Ok(result);
+    }
+
+    [HttpGet("{contractId}/load-status")]
+    public async Task<IActionResult> GetLoadStatus(string contractId)
+    {
+        var result = await _service.GetLoadStatusAsync(contractId);
+        return result != null ? Ok(result) : Ok(new LoadRequestStatusDto());
     }
 }

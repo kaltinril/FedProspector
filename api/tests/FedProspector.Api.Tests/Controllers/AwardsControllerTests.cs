@@ -102,7 +102,7 @@ public class AwardsControllerTests
     public async Task GetDetail_ExistingContract_ReturnsOk()
     {
         _serviceMock.Setup(s => s.GetDetailAsync("CONTRACT-001"))
-            .ReturnsAsync(new AwardDetailDto());
+            .ReturnsAsync(new AwardDetailResponse { ContractId = "CONTRACT-001", DataStatus = "full" });
 
         var result = await _controller.GetDetail("CONTRACT-001");
 
@@ -110,21 +110,24 @@ public class AwardsControllerTests
     }
 
     [Fact]
-    public async Task GetDetail_NonExistingContract_ReturnsNotFound()
+    public async Task GetDetail_NonExistingContract_ReturnsOkWithNotLoaded()
     {
         _serviceMock.Setup(s => s.GetDetailAsync("MISSING"))
-            .ReturnsAsync((AwardDetailDto?)null);
+            .ReturnsAsync(new AwardDetailResponse { ContractId = "MISSING", DataStatus = "not_loaded" });
 
         var result = await _controller.GetDetail("MISSING");
 
-        result.Should().BeOfType<NotFoundResult>();
+        result.Should().BeOfType<OkObjectResult>();
+        var okResult = (OkObjectResult)result;
+        var response = okResult.Value.Should().BeOfType<AwardDetailResponse>().Subject;
+        response.DataStatus.Should().Be("not_loaded");
     }
 
     [Fact]
     public async Task GetDetail_CallsServiceWithCorrectContractId()
     {
         _serviceMock.Setup(s => s.GetDetailAsync("C-ABC"))
-            .ReturnsAsync(new AwardDetailDto());
+            .ReturnsAsync(new AwardDetailResponse { ContractId = "C-ABC" });
 
         await _controller.GetDetail("C-ABC");
 

@@ -65,8 +65,9 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 30 | Search & Discovery | COMPLETE | [30-SEARCH-DISCOVERY.md](phases/30-SEARCH-DISCOVERY.md) |
 | 31 | Security Audit | COMPLETE | [31-SECURITY-AUDIT.md](phases/31-SECURITY-AUDIT.md) |
 | 40 | Detail Views & Intelligence | COMPLETE | [40-DETAIL-INTELLIGENCE.md](phases/40-DETAIL-INTELLIGENCE.md) |
-| 41 | Detail View Fixes | NOT STARTED | [41-DETAIL-VIEW-FIXES.md](phases/41-DETAIL-VIEW-FIXES.md) |
-| 42 | CLI/API Query Standardization | NOT STARTED | [phase-42-cli-api-standardization.md](phases/phase-42-cli-api-standardization.md) |
+| 41 | Detail View Fixes | COMPLETE | [41-DETAIL-VIEW-FIXES.md](phases/41-DETAIL-VIEW-FIXES.md) |
+| 42 | CLI/API Query Standardization | COMPLETE | [42-CLI-API-STANDARDIZATION.md](phases/42-CLI-API-STANDARDIZATION.md) |
+| 43 | On-Demand Award Loading | COMPLETE | [43-ON-DEMAND-AWARD-LOADING.md](phases/43-ON-DEMAND-AWARD-LOADING.md) |
 | 45 | Opportunity Intelligence | NOT STARTED | [45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md) |
 | 50 | Capture Management & Pipeline | NOT STARTED | [50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md) |
 | 60 | Dashboard & Notifications | NOT STARTED | [60-DASHBOARD-NOTIFICATIONS.md](phases/60-DASHBOARD-NOTIFICATIONS.md) |

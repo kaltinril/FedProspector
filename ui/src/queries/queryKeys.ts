@@ -11,6 +11,7 @@ export const queryKeys = {
     detail: (contractId: string) => ['awards', 'detail', contractId] as const,
     burnRate: (contractId: string) => ['awards', 'burnRate', contractId] as const,
     marketShare: (naicsCode: string) => ['awards', 'marketShare', naicsCode] as const,
+    loadStatus: (contractId: string) => ['awards', 'load-status', contractId] as const,
   },
   entities: {
     all: ['entities'] as const,

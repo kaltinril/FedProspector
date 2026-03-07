@@ -94,9 +94,11 @@ public class FpdsContract
 
     public int? NumberOfOffers { get; set; }
 
+    [Column("far1102_exception_code")]
     [MaxLength(2)]
     public string? Far1102ExceptionCode { get; set; }
 
+    [Column("far1102_exception_name")]
     [MaxLength(100)]
     public string? Far1102ExceptionName { get; set; }
 

@@ -23,7 +23,7 @@ class RateLimitExceeded(Exception):
 
 class BaseAPIClient:
     def __init__(self, base_url, api_key, source_name, max_daily_requests,
-                 request_delay=0.5):
+                 request_delay=0.1):
         self.base_url = base_url
         self.api_key = api_key
         self.source_name = source_name
