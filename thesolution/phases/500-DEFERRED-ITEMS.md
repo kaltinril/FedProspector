@@ -44,3 +44,62 @@ See [80-SECURITY-HARDENING.md](80-SECURITY-HARDENING.md) for full details. Items
 - Token lifetime tuning
 - HTTPS enforcement
 - CORS lockdown
+
+---
+
+### 500D: EF Core Navigation Properties (from Phase 44.5)
+
+**Original phase**: 44.5
+**Deferred because**: Pure internal refactor. `.Include()` is nicer than manual joins but changes zero user behavior. Do when touching these services for feature work.
+
+**Scope**:
+1. **Vendor/Recipient Entity navigations** (4 nav props): `FpdsContract.VendorUei`, `UsaspendingAward.RecipientUei`, `SamSubaward.SubUei`, `SamSubaward.PrimeUei` -> `Entity`
+2. **Reference table navigations** (4 ref tables, ~12 models): NAICS, SetAside, BusinessType, CountryCode. PSC and State stay manual (composite PKs).
+3. **Opportunity-to-Award chain**: `SolicitationNumber` joins — may keep manual due to non-key joins and filtering requirements.
+4. **Award-to-Subaward chain**: `PrimePiid` -> `ContractId` — needs alternate key investigation.
+5. **Contracting Office to Fed Hierarchy**: Blocked until office-level orgs loaded and code matching investigated.
+
+**What NOT to change**: No DB-level FK constraints on ETL tables, no EF migrations for ETL tables, no `[ForeignKey]` annotations (Fluent API only), no inverse collection navigations unless needed, PSC/State lookups stay manual.
+
+**Estimated effort**: ~3 days
+
+---
+
+### 500E: Entity POC Normalization (from Phase 44.10)
+
+**Original phase**: 44.10
+**Deferred because**: Data bloat and maintenance issue, not blocking any features.
+
+**Problem**: `entity_poc` table stores denormalized POC data — same person (e.g., "Teri Hamilton") duplicated across hundreds of rows (one per entity+poc_type). Table is larger than `entity` itself (~750K+ rows).
+
+**Proposed fix**: Normalize into `contact` (one row per unique person) + `entity_contact` (M:M junction with poc_type). Massive dedup, single update point, enables contact-level features.
+
+**Key risks**: Stale link detection harder with normalized data, natural key ambiguity for NULL-email contacts, migration complexity for 750K+ existing rows, loader complexity increase.
+
+**Research needed before starting**:
+- Actual dedup ratio (unique contacts vs total rows)
+- Best natural key for dedup
+- C# API / view dependencies on entity_poc
+- Orphaned contact strategy
+
+**Files affected**: DDL (new tables), `entity_loader.py` (rewrite POC loading), C# API (any entity_poc reads), migration script.
+
+**Estimated effort**: ~2-3 days
+
+---
+
+### 500F: Entity Search Performance (from Phase 44.11)
+
+**Original phase**: 44.11
+**Deferred because**: Bundled into Phase 45 work or pick up standalone when search perf becomes a priority.
+
+**Problem**: Entity search uses `LIKE '%term%'` (leading wildcard) against 700K+ rows — full table scan, runs twice (COUNT + paginated results).
+
+**Fixes**:
+1. Add `FULLTEXT INDEX ft_entity_name (legal_business_name)` on `entity` table
+2. Switch `EntityService.SearchAsync()` to `MATCH ... AGAINST` for 3+ char terms, LIKE fallback for short terms
+3. Eliminate double scan with `COUNT(*) OVER()` window function
+
+**Files**: `20_entity.sql` (DDL), `EntityService.cs` (query), live DB ALTER.
+
+**Estimated effort**: ~0.5 days

@@ -75,13 +75,10 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 44.2 | Resource Link Metadata | COMPLETE | [44.2-RESOURCE-LINK-METADATA.md](phases/completed/44.2-RESOURCE-LINK-METADATA.md) |
 | 44.3 | Data Enrichment Opportunities | COMPLETE | [44.3-DATA-ENRICHMENT-OPPORTUNITIES.md](phases/completed/44.3-DATA-ENRICHMENT-OPPORTUNITIES.md) |
 | 44.4 | USASpending Bulk Loader Fixes | COMPLETE | [44.4-USASPENDING-BULK-LOADER-FIXES.md](phases/completed/44.4-USASPENDING-BULK-LOADER-FIXES.md) |
-| 44.5 | EF Core Navigation Properties | DEFERRED | [44.5-EFCORE-NAVIGATION-PROPERTIES.md](phases/44.5-EFCORE-NAVIGATION-PROPERTIES.md) |
 | 44.6 | Schema Drift Remediation | COMPLETE | [44.6-SCHEMA-DRIFT-REMEDIATION.md](phases/completed/44.6-SCHEMA-DRIFT-REMEDIATION.md) |
 | 44.7 | Doc Cleanup & Phase Reorg | COMPLETE | [44.7-DOC-CLEANUP-PHASE-REORG.md](phases/completed/44.7-DOC-CLEANUP-PHASE-REORG.md) |
 | 44.8 | View Efficiency Fixes | COMPLETE | [44.8-VIEW-EFFICIENCY-FIXES.md](phases/completed/44.8-VIEW-EFFICIENCY-FIXES.md) |
 | 44.9 | Multi-Tenancy Code Fixes | COMPLETE | [44.9-MULTI-TENANCY-CODE-FIXES.md](phases/completed/44.9-MULTI-TENANCY-CODE-FIXES.md) |
-| 44.10 | Entity POC Normalization | DEFERRED | [44.10-ENTITY-POC-NORMALIZATION.md](phases/44.10-ENTITY-POC-NORMALIZATION.md) |
-| 44.11 | Entity Search Performance | DEFERRED | [44.11-ENTITY-SEARCH-PERFORMANCE.md](phases/44.11-ENTITY-SEARCH-PERFORMANCE.md) |
 | 45 | Opportunity Intelligence | NOT STARTED | [45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md) |
 | 50 | Capture Management & Pipeline | NOT STARTED | [50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md) |
 | 60 | Dashboard & Notifications | NOT STARTED | [60-DASHBOARD-NOTIFICATIONS.md](phases/60-DASHBOARD-NOTIFICATIONS.md) |
