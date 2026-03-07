@@ -73,6 +73,7 @@ export interface OpportunityDetail {
   descriptionUrl?: string | null;
   link?: string | null;
   resourceLinks?: string | null;
+  resourceLinkDetails?: ResourceLinkDto[];
   estimatedContractValue?: number | null;
   securityClearanceRequired?: string | null;
   incumbentUei?: string | null;
@@ -84,6 +85,12 @@ export interface OpportunityDetail {
   relatedAwards: RelatedAwardDto[];
   prospect?: OpportunityProspectSummary | null;
   usaspendingAward?: UsaspendingSummaryDto | null;
+}
+
+export interface ResourceLinkDto {
+  url: string;
+  filename: string | null;
+  contentType: string | null;
 }
 
 export interface RelatedAwardDto {

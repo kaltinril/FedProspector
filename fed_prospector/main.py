@@ -7,6 +7,7 @@ Commands are organized into 7 top-level groups:
     search    Search opportunities, entities, awards, agencies, subawards, and exclusions
     prospect  Manage the bid pipeline (prospects, searches, users, dashboard)
     analyze   Burn rate, teaming partner discovery, exclusion scanning
+    update    Update/enrich existing data (metadata backfill)
     admin     System administration (orgs, users, invitations)
     health    System health checks, ETL history, maintenance
 
@@ -33,6 +34,7 @@ Modules:
     cli/schema.py         check-schema
     cli/setup.py          verify-setup
     cli/schedule_setup.py setup-schedule
+    cli/update.py         link-metadata
     cli/demand.py         process-requests
 """
 
@@ -51,7 +53,7 @@ def cli():
 
     Gathers federal contract data from government APIs into a local MySQL
     database for WOSB/8(a) contract discovery. Commands are organized into
-    7 groups: setup, load, search, prospect, analyze, admin, health.
+    8 groups: setup, load, search, prospect, analyze, update, admin, health.
 
     Run 'python main.py GROUP --help' to list commands in a group.
     """
@@ -99,6 +101,12 @@ def admin():
 
 
 @cli.group()
+def update():
+    """Update/enrich existing data (metadata backfill, etc.)."""
+    pass
+
+
+@cli.group()
 def demand():
     """On-demand data loading commands."""
     pass
@@ -134,6 +142,7 @@ from cli.admin import (
     list_org_members, disable_user, enable_user, reset_password,
 )
 from cli.demand import process_requests
+from cli.update import enrich_link_metadata
 from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
 from cli.setup import verify_setup
@@ -222,6 +231,12 @@ admin.add_command(reset_password, name="reset-password")
 # ---------------------------------------------------------------------------
 
 demand.add_command(process_requests, name="process-requests")
+
+# ---------------------------------------------------------------------------
+# update group commands
+# ---------------------------------------------------------------------------
+
+update.add_command(enrich_link_metadata, name="link-metadata")
 
 # ---------------------------------------------------------------------------
 # health group commands

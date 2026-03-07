@@ -1,6 +1,6 @@
 # Phase 44: USASpending-First Loading Strategy
 
-**Status**: IN PROGRESS (44A + 44C complete, 44B + 44D deferred)
+**Status**: COMPLETE (44A + 44C implemented; 44B + 44D moved to Phase 500 backlog)
 **Depends on**: Phase 43 (On-Demand Award Loading)
 
 ## Context
@@ -200,12 +200,13 @@ Only SAM.gov Opportunities API has active solicitations.
 - Loader: New `usaspending_bulk_loader.py` — CSV → TSV → LOAD DATA INFILE with temp table upsert
 - CLI: `python main.py load usaspending-bulk [--years-back 5] [--fiscal-year YYYY] [--skip-download]`
 
-### 44B: Auto-FPDS Enrichment — DEFERRED
-- On-demand FPDS loading via Phase 43 demand_loader is sufficient
+### 44B: Auto-FPDS Enrichment — MOVED TO PHASE 500A
+- See [500-DEFERRED-ITEMS.md](500-DEFERRED-ITEMS.md)
 
 ### 44C: UI + API Adjustments — COMPLETE
 - C# AwardService: Fallback search queries `usaspending_award` when FPDS results are below page size
 - DTO: `DataSource` field added ("fpds" or "usaspending")
 - UI: "Data" column with Full/Partial chip badge in award search grid
 
-### 44D: Rate Budget Reallocation — DEFERRED
+### 44D: Rate Budget Reallocation — MOVED TO PHASE 500B
+- See [500-DEFERRED-ITEMS.md](500-DEFERRED-ITEMS.md)

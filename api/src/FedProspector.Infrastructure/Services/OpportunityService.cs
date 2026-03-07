@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
@@ -245,6 +246,7 @@ public class OpportunityService : IOpportunityService
             DescriptionUrl = opp.DescriptionUrl,
             Link = opp.Link,
             ResourceLinks = opp.ResourceLinks,
+            ResourceLinkDetails = ParseResourceLinks(opp.ResourceLinks),
             EstimatedContractValue = opp.EstimatedContractValue,
             SecurityClearanceRequired = opp.SecurityClearanceRequired,
             IncumbentUei = opp.IncumbentUei,
@@ -416,6 +418,46 @@ public class OpportunityService : IOpportunityService
         }
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Parses the resource_links JSON column into structured DTOs.
+    /// Handles both old format (array of URL strings) and new format (array of objects with url/filename/content_type).
+    /// </summary>
+    private static List<ResourceLinkDto> ParseResourceLinks(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var result = new List<ResourceLinkDto>();
+
+            foreach (var element in doc.RootElement.EnumerateArray())
+            {
+                if (element.ValueKind == JsonValueKind.String)
+                {
+                    // Old format: plain URL string
+                    result.Add(new ResourceLinkDto { Url = element.GetString() ?? string.Empty });
+                }
+                else if (element.ValueKind == JsonValueKind.Object)
+                {
+                    // New format: object with url, filename, content_type
+                    result.Add(new ResourceLinkDto
+                    {
+                        Url = element.TryGetProperty("url", out var urlProp) ? urlProp.GetString() ?? string.Empty : string.Empty,
+                        Filename = element.TryGetProperty("filename", out var fProp) ? fProp.GetString() : null,
+                        ContentType = element.TryGetProperty("content_type", out var ctProp) ? ctProp.GetString() : null
+                    });
+                }
+            }
+
+            return result;
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     /// <summary>

@@ -35,6 +35,7 @@ public class OpportunityDetailDto
     public string? DescriptionUrl { get; set; }
     public string? Link { get; set; }
     public string? ResourceLinks { get; set; }
+    public List<ResourceLinkDto> ResourceLinkDetails { get; set; } = [];
     public decimal? EstimatedContractValue { get; set; }
     public string? SecurityClearanceRequired { get; set; }
     public string? IncumbentUei { get; set; }

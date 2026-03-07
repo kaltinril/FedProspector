@@ -22,6 +22,11 @@ import SavedSearchIcon from '@mui/icons-material/SavedSearch';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import DescriptionIcon from '@mui/icons-material/Description';
+import TableChartIcon from '@mui/icons-material/TableChart';
+import ImageIcon from '@mui/icons-material/Image';
 
 import { PageHeader } from '@/components/shared/PageHeader';
 import { BackToSearch } from '@/components/shared/BackToSearch';
@@ -44,7 +49,7 @@ import { createSavedSearch } from '@/api/savedSearches';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate, formatDateTime } from '@/utils/dateFormatters';
 import { formatCurrency } from '@/utils/formatters';
-import type { OpportunityDetail, RelatedAwardDto, MarketShareDto } from '@/types/api';
+import type { OpportunityDetail, RelatedAwardDto, MarketShareDto, ResourceLinkDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -98,6 +103,38 @@ function parseResourceLinks(raw: string | null | undefined): { label: string; ur
   return [];
 }
 
+/** Return an MUI icon component based on content-type. */
+function getFileIcon(contentType: string | null | undefined) {
+  if (!contentType) return <InsertDriveFileIcon fontSize="small" color="action" />;
+  const ct = contentType.toLowerCase();
+  if (ct.includes('pdf')) return <PictureAsPdfIcon fontSize="small" color="error" />;
+  if (ct.includes('word') || ct.includes('msword') || ct.includes('officedocument.wordprocessing'))
+    return <DescriptionIcon fontSize="small" color="primary" />;
+  if (ct.includes('spreadsheet') || ct.includes('excel') || ct.includes('ms-excel'))
+    return <TableChartIcon fontSize="small" color="success" />;
+  if (ct.includes('image/')) return <ImageIcon fontSize="small" color="info" />;
+  return <InsertDriveFileIcon fontSize="small" color="action" />;
+}
+
+/** Build the display list of resource links, preferring enriched DTO data. */
+function getResourceLinksForDisplay(
+  opp: OpportunityDetail,
+): { label: string; url: string; contentType: string | null }[] {
+  // Prefer structured resourceLinkDetails from API (enriched data)
+  if (opp.resourceLinkDetails && opp.resourceLinkDetails.length > 0) {
+    return opp.resourceLinkDetails.map((rl: ResourceLinkDto, idx: number) => ({
+      label: rl.filename ?? `Attachment ${idx + 1}`,
+      url: rl.url,
+      contentType: rl.contentType,
+    }));
+  }
+  // Fallback: parse the raw JSON string (old/un-enriched data)
+  return parseResourceLinks(opp.resourceLinks).map((rl) => ({
+    ...rl,
+    contentType: null,
+  }));
+}
+
 // ---------------------------------------------------------------------------
 // Tab: Overview
 // ---------------------------------------------------------------------------
@@ -107,7 +144,7 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
   const description = opp.descriptionUrl ?? '';
   const isLong = description.length > 300;
   const locationIndicator = getLocationIndicator(opp.popCountry, opp.popState);
-  const resourceLinks = parseResourceLinks(opp.resourceLinks);
+  const resourceLinks = getResourceLinksForDisplay(opp);
 
   const facts = useMemo(
     () => [
@@ -219,8 +256,9 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
                 href={rl.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                sx={{ display: 'block', mb: 0.25 }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}
               >
+                {getFileIcon(rl.contentType)}
                 {rl.label}
               </Link>
             ))}

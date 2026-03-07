@@ -523,6 +523,137 @@ class OpportunityLoader(StagingMixin):
         return current
 
     # =================================================================
+    # Resource link metadata enrichment
+    # =================================================================
+
+    def enrich_resource_links(self, notice_ids=None, batch_size=100):
+        """Enrich resource_links JSON with filename/content_type metadata.
+
+        Finds opportunities whose resource_links contain plain URL strings
+        (not yet enriched objects) and HEAD-requests SAM.gov to resolve
+        filenames and content types.
+
+        Args:
+            notice_ids: Optional list of notice_ids to process. If None,
+                        processes all un-enriched opportunities.
+            batch_size: Number of opportunities to process per batch.
+
+        Returns:
+            dict with keys: opportunities_enriched, links_resolved
+        """
+        from etl.resource_link_resolver import resolve_resource_links
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        stats = {"opportunities_enriched": 0, "links_resolved": 0}
+
+        try:
+            # Find opportunities needing enrichment
+            if notice_ids:
+                placeholders = ", ".join(["%s"] * len(notice_ids))
+                sql = (
+                    f"SELECT notice_id, resource_links FROM opportunity "
+                    f"WHERE notice_id IN ({placeholders}) "
+                    f"AND resource_links IS NOT NULL"
+                )
+                cursor.execute(sql, notice_ids)
+            else:
+                sql = (
+                    "SELECT notice_id, resource_links FROM opportunity "
+                    "WHERE resource_links IS NOT NULL"
+                )
+                cursor.execute(sql)
+
+            rows = cursor.fetchall()
+            total = len(rows)
+            self.logger.info("Found %d opportunities with resource_links to check", total)
+
+            # Filter to only those needing enrichment
+            to_enrich = []
+            for row in rows:
+                if self._needs_enrichment(row["resource_links"]):
+                    to_enrich.append(row)
+
+            self.logger.info(
+                "%d of %d opportunities need resource link enrichment",
+                len(to_enrich), total,
+            )
+
+            # Process in batches
+            for i in range(0, len(to_enrich), batch_size):
+                batch = to_enrich[i : i + batch_size]
+                batch_links = 0
+
+                for row in batch:
+                    try:
+                        urls = json.loads(row["resource_links"])
+                        if not urls:
+                            continue
+
+                        enriched = resolve_resource_links(urls)
+                        enriched_json = json.dumps(enriched)
+
+                        cursor.execute(
+                            "UPDATE opportunity SET resource_links = %s WHERE notice_id = %s",
+                            (enriched_json, row["notice_id"]),
+                        )
+                        stats["opportunities_enriched"] += 1
+                        resolved_count = sum(1 for e in enriched if e.get("filename"))
+                        stats["links_resolved"] += resolved_count
+                        batch_links += len(urls)
+                    except Exception as exc:
+                        self.logger.warning(
+                            "Error enriching resource links for %s: %s",
+                            row["notice_id"], exc,
+                        )
+
+                conn.commit()
+                self.logger.info(
+                    "Enriched %d/%d opportunities (%d links resolved)",
+                    stats["opportunities_enriched"],
+                    len(to_enrich),
+                    stats["links_resolved"],
+                )
+
+                # Pause between batches to avoid overwhelming SAM.gov
+                if i + batch_size < len(to_enrich):
+                    import time
+                    time.sleep(0.5)
+
+        finally:
+            cursor.close()
+            conn.close()
+
+        return stats
+
+    @staticmethod
+    def _needs_enrichment(resource_links_json):
+        """Check if resource_links JSON needs enrichment.
+
+        Returns True if the JSON is an array of strings (old format).
+        Returns False if it's an array of dicts with "url" key (already enriched),
+        or if parsing fails / empty.
+        """
+        try:
+            data = json.loads(resource_links_json)
+        except (json.JSONDecodeError, TypeError):
+            return False
+
+        if not isinstance(data, list) or not data:
+            return False
+
+        # If first element is a string, needs enrichment
+        # If first element is a dict with "url" key, already enriched
+        first = data[0]
+        if isinstance(first, str):
+            return True
+        if isinstance(first, dict) and "url" in first:
+            return False
+
+        return False
+
+    # =================================================================
     # Hash fields accessor
     # =================================================================
 
