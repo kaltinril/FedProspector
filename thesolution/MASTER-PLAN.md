@@ -70,8 +70,8 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 43 | On-Demand Award Loading | COMPLETE | [43-ON-DEMAND-AWARD-LOADING.md](phases/43-ON-DEMAND-AWARD-LOADING.md) |
 | 44 | USASpending-First Loading | COMPLETE | [44-USASPENDING-FIRST-LOADING-STRATEGY.md](phases/44-USASPENDING-FIRST-LOADING-STRATEGY.md) |
 | 44.1 | EF Core Column Mapping Fixes | COMPLETE | [44.1-EF-CORE-COLUMN-MAPPING-FIXES.md](phases/44.1-EF-CORE-COLUMN-MAPPING-FIXES.md) |
-| 44.2 | Resource Link Metadata | IN PROGRESS | [44.2-RESOURCE-LINK-METADATA.md](phases/44.2-RESOURCE-LINK-METADATA.md) |
-| 44.3 | Data Enrichment Opportunities | IN PROGRESS | [44.3-DATA-ENRICHMENT-OPPORTUNITIES.md](phases/44.3-DATA-ENRICHMENT-OPPORTUNITIES.md) |
+| 44.2 | Resource Link Metadata | COMPLETE | [44.2-RESOURCE-LINK-METADATA.md](phases/44.2-RESOURCE-LINK-METADATA.md) |
+| 44.3 | Data Enrichment Opportunities | COMPLETE | [44.3-DATA-ENRICHMENT-OPPORTUNITIES.md](phases/44.3-DATA-ENRICHMENT-OPPORTUNITIES.md) |
 | 45 | Opportunity Intelligence | NOT STARTED | [45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md) |
 | 50 | Capture Management & Pipeline | NOT STARTED | [50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md) |
 | 60 | Dashboard & Notifications | NOT STARTED | [60-DASHBOARD-NOTIFICATIONS.md](phases/60-DASHBOARD-NOTIFICATIONS.md) |
