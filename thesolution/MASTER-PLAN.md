@@ -77,6 +77,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 44.6 | Schema Drift Remediation | COMPLETE | [44.6-SCHEMA-DRIFT-REMEDIATION.md](phases/44.6-SCHEMA-DRIFT-REMEDIATION.md) |
 | 44.7 | Doc Cleanup & Phase Reorg | IN PROGRESS | [44.7-DOC-CLEANUP-PHASE-REORG.md](phases/44.7-DOC-CLEANUP-PHASE-REORG.md) |
 | 44.8 | View Efficiency Fixes | COMPLETE | [44.8-VIEW-EFFICIENCY-FIXES.md](phases/44.8-VIEW-EFFICIENCY-FIXES.md) |
+| 44.9 | Multi-Tenancy Code Fixes | PLANNED | [44.9-MULTI-TENANCY-CODE-FIXES.md](phases/44.9-MULTI-TENANCY-CODE-FIXES.md) |
 | 45 | Opportunity Intelligence | NOT STARTED | [45-OPPORTUNITY-INTELLIGENCE.md](phases/45-OPPORTUNITY-INTELLIGENCE.md) |
 | 50 | Capture Management & Pipeline | NOT STARTED | [50-CAPTURE-MANAGEMENT.md](phases/50-CAPTURE-MANAGEMENT.md) |
 | 60 | Dashboard & Notifications | NOT STARTED | [60-DASHBOARD-NOTIFICATIONS.md](phases/60-DASHBOARD-NOTIFICATIONS.md) |
