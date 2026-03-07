@@ -517,13 +517,18 @@ class USASpendingClient(BaseAPIClient):
             )
             time.sleep(interval)
 
-    def download_bulk_file(self, file_url, dest_dir=None):
+    def download_bulk_file(self, file_url, dest_dir=None, max_retries=5):
         """Stream-download a bulk file to local disk.
+
+        Retries on HTTP 403 with exponential backoff, since USASpending's
+        CDN intermittently returns 403 for valid files that are still
+        propagating.
 
         Args:
             file_url: URL of the file to download.
             dest_dir: Local directory to save to. Defaults to
                 settings.DOWNLOAD_DIR / "usaspending".
+            max_retries: Maximum number of retries on 403 responses.
 
         Returns:
             Path: Local file path of the downloaded file.
@@ -541,8 +546,24 @@ class USASpendingClient(BaseAPIClient):
         dest_path = dest_dir / filename
         self.logger.info("Downloading %s -> %s", file_url, dest_path)
 
-        response = self.session.get(file_url, stream=True, timeout=600)
-        response.raise_for_status()
+        retry_delay = 10
+        for attempt in range(max_retries + 1):
+            response = self.session.get(file_url, stream=True, timeout=600)
+            if response.status_code == 403 and attempt < max_retries:
+                self.logger.warning(
+                    "Download returned 403 (attempt %d/%d), retrying in %ds...",
+                    attempt + 1, max_retries, retry_delay,
+                )
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 60)
+                continue
+            if response.status_code != 200:
+                body = getattr(response, "text", "")
+                self.logger.error(
+                    "Download failed: %s %s", response.status_code, body[:500]
+                )
+            response.raise_for_status()
+            break
 
         total_bytes = 0
         with open(dest_path, "wb") as f:

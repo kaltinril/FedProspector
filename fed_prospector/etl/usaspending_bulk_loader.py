@@ -315,15 +315,26 @@ class USASpendingBulkLoader:
         return result
 
     def _create_temp_table(self, cursor):
-        """Create a temporary table matching usaspending_award structure."""
+        """Create a temporary table matching usaspending_award structure.
+
+        Drops the primary key so LOAD DATA INFILE can load CSVs with
+        multiple rows per generated_unique_award_id (contract modifications).
+        """
         cursor.execute(
             "CREATE TEMPORARY TABLE IF NOT EXISTS tmp_usaspending_bulk "
             "LIKE usaspending_award"
         )
+        cursor.execute("ALTER TABLE tmp_usaspending_bulk DROP PRIMARY KEY")
 
     def _upsert_from_temp(self, cursor):
-        """Upsert rows from temp table into usaspending_award."""
+        """Upsert rows from temp table into usaspending_award.
+
+        Deduplicates the temp table first: for each generated_unique_award_id,
+        keeps only the row with the latest last_modified_date.  This handles
+        bulk CSVs that contain multiple rows per award (contract modifications).
+        """
         col_list = ", ".join(LOAD_COLUMNS)
+        prefixed_col_list = ", ".join(f"t.{c}" for c in LOAD_COLUMNS)
         update_parts = [
             f"{c} = VALUES({c})" for c in _UPDATE_COLUMNS
         ]
@@ -331,7 +342,12 @@ class USASpendingBulkLoader:
 
         sql = (
             f"INSERT INTO usaspending_award ({col_list}) "
-            f"SELECT {col_list} FROM tmp_usaspending_bulk "
+            f"SELECT {prefixed_col_list} FROM ("
+            f"  SELECT *, ROW_NUMBER() OVER ("
+            f"    PARTITION BY generated_unique_award_id "
+            f"    ORDER BY last_modified_date DESC"
+            f"  ) AS rn FROM tmp_usaspending_bulk"
+            f") t WHERE t.rn = 1 "
             f"ON DUPLICATE KEY UPDATE "
             + ", ".join(update_parts)
         )

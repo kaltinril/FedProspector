@@ -72,7 +72,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 44.1 | EF Core Column Mapping Fixes | COMPLETE | [44.1-EF-CORE-COLUMN-MAPPING-FIXES.md](phases/44.1-EF-CORE-COLUMN-MAPPING-FIXES.md) |
 | 44.2 | Resource Link Metadata | COMPLETE | [44.2-RESOURCE-LINK-METADATA.md](phases/44.2-RESOURCE-LINK-METADATA.md) |
 | 44.3 | Data Enrichment Opportunities | COMPLETE | [44.3-DATA-ENRICHMENT-OPPORTUNITIES.md](phases/44.3-DATA-ENRICHMENT-OPPORTUNITIES.md) |
-| 44.4 | USASpending Bulk Loader Fixes | PLANNED | [44.4-USASPENDING-BULK-LOADER-FIXES.md](phases/44.4-USASPENDING-BULK-LOADER-FIXES.md) |
+| 44.4 | USASpending Bulk Loader Fixes | COMPLETE | [44.4-USASPENDING-BULK-LOADER-FIXES.md](phases/44.4-USASPENDING-BULK-LOADER-FIXES.md) |
 | 44.5 | EF Core Navigation Properties | PLANNED | [44.5-EFCORE-NAVIGATION-PROPERTIES.md](phases/44.5-EFCORE-NAVIGATION-PROPERTIES.md) |
 | 44.6 | Schema Drift Remediation | COMPLETE | [44.6-SCHEMA-DRIFT-REMEDIATION.md](phases/44.6-SCHEMA-DRIFT-REMEDIATION.md) |
 | 44.7 | Doc Cleanup & Phase Reorg | IN PROGRESS | [44.7-DOC-CLEANUP-PHASE-REORG.md](phases/44.7-DOC-CLEANUP-PHASE-REORG.md) |
