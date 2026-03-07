@@ -70,19 +70,20 @@ def list_users(show_all):
 @click.command("create-prospect")
 @click.option("--notice-id", required=True, help="Opportunity notice_id")
 @click.option("--assign-to", required=True, help="Username to assign to")
+@click.option("--org", required=True, type=int, help="Organization ID")
 @click.option("--priority", default="MEDIUM",
               type=click.Choice(["LOW", "MEDIUM", "HIGH", "CRITICAL"], case_sensitive=False),
               help="Priority level (default: MEDIUM)")
 @click.option("--notes", default=None, help="Optional creation notes")
-def create_prospect(notice_id, assign_to, priority, notes):
+def create_prospect(notice_id, assign_to, org, priority, notes):
     """Create a new prospect from an opportunity in the database.
 
     Validates that the notice_id exists in the opportunity table and that
     the assigned user exists and is active.
 
     Examples:
-        python main.py prospect create --notice-id ABC123 --assign-to jdoe --priority HIGH
-        python main.py prospect create --notice-id XYZ789 --assign-to jsmith
+        python main.py prospect create --notice-id ABC123 --assign-to jdoe --org 1 --priority HIGH
+        python main.py prospect create --notice-id XYZ789 --assign-to jsmith --org 1
     """
     setup_logging()
     from etl.prospect_manager import ProspectManager
@@ -90,7 +91,8 @@ def create_prospect(notice_id, assign_to, priority, notes):
     mgr = ProspectManager()
     try:
         prospect_id = mgr.create_prospect(
-            notice_id, assign_to, priority=priority.upper(), notes=notes
+            notice_id, assign_to, organization_id=org,
+            priority=priority.upper(), notes=notes
         )
         click.echo(f"Created prospect {prospect_id} for notice_id='{notice_id}' assigned to '{assign_to}'")
     except ValueError as e:

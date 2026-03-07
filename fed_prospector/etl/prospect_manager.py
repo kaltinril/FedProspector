@@ -175,7 +175,8 @@ class ProspectManager:
     # Prospect CRUD
     # ===================================================================
 
-    def create_prospect(self, notice_id, assigned_to_username, priority="MEDIUM", notes=None):
+    def create_prospect(self, notice_id, assigned_to_username, organization_id,
+                         priority="MEDIUM", notes=None):
         """Create a new prospect from an opportunity.
 
         Validates notice_id exists in opportunity table.
@@ -186,6 +187,7 @@ class ProspectManager:
         Args:
             notice_id: The opportunity notice_id.
             assigned_to_username: Username to assign the prospect to.
+            organization_id: The organization this prospect belongs to.
             priority: Priority level (LOW, MEDIUM, HIGH, CRITICAL).
             notes: Optional creation note text.
 
@@ -207,9 +209,9 @@ class ProspectManager:
             user_id = self._get_user_id(cursor, assigned_to_username)
 
             cursor.execute(
-                "INSERT INTO prospect (notice_id, assigned_to, status, priority) "
-                "VALUES (%s, %s, 'NEW', %s)",
-                (notice_id, user_id, priority),
+                "INSERT INTO prospect (organization_id, notice_id, assigned_to, status, priority) "
+                "VALUES (%s, %s, %s, 'NEW', %s)",
+                (organization_id, notice_id, user_id, priority),
             )
             prospect_id = cursor.lastrowid
 

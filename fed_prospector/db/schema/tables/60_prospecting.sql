@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS organization (
     annual_revenue       DECIMAL(18,2),
     employee_count       INT,
     fiscal_year_end_month TINYINT UNSIGNED,
-    profile_completed    VARCHAR(1) NOT NULL DEFAULT '',
+    profile_completed    VARCHAR(1) NOT NULL DEFAULT 'N',
     profile_completed_at DATETIME
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

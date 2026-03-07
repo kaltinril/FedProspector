@@ -190,4 +190,4 @@ See individual phase docs in `thesolution/phases/` for command details per phase
 
 ## What's Next
 
-See [MASTER-PLAN.md](MASTER-PLAN.md) for the phase roadmap. Next up: Phase 20 (UI Foundation).
+See [MASTER-PLAN.md](MASTER-PLAN.md) for the phase roadmap. Next up: Phase 45 (Opportunity Intelligence).

@@ -178,7 +178,7 @@ class TestCreateProspect:
             mock_gc.return_value = mock_conn
 
             pm = _make_manager()
-            result = pm.create_prospect("N123", "jdoe", priority="HIGH")
+            result = pm.create_prospect("N123", "jdoe", organization_id=1, priority="HIGH")
 
         assert result == 100
         mock_conn.commit.assert_called_once()
@@ -194,7 +194,7 @@ class TestCreateProspect:
             mock_gc.return_value = mock_conn
 
             pm = _make_manager()
-            pm.create_prospect("N1", "jdoe", notes="Initial review")
+            pm.create_prospect("N1", "jdoe", organization_id=1, notes="Initial review")
 
         # The last execute should be the note INSERT
         note_call = mock_cursor.execute.call_args_list[-1]
@@ -210,7 +210,7 @@ class TestCreateProspect:
 
             pm = _make_manager()
             with pytest.raises(ValueError, match="not found"):
-                pm.create_prospect("BAD_NOTICE", "jdoe")
+                pm.create_prospect("BAD_NOTICE", "jdoe", organization_id=1)
 
     def test_create_prospect_invalid_user_raises(self):
         with patch("etl.prospect_manager.get_connection") as mock_gc:
@@ -223,7 +223,7 @@ class TestCreateProspect:
 
             pm = _make_manager()
             with pytest.raises(ValueError, match="not found"):
-                pm.create_prospect("N1", "baduser")
+                pm.create_prospect("N1", "baduser", organization_id=1)
 
     def test_create_prospect_default_priority(self):
         with patch("etl.prospect_manager.get_connection") as mock_gc:
@@ -233,7 +233,7 @@ class TestCreateProspect:
             mock_gc.return_value = mock_conn
 
             pm = _make_manager()
-            pm.create_prospect("N1", "jdoe")
+            pm.create_prospect("N1", "jdoe", organization_id=1)
 
         # Check that MEDIUM priority is used
         insert_call = mock_cursor.execute.call_args_list[2]  # 0=notice, 1=user, 2=INSERT

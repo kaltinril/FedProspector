@@ -122,6 +122,7 @@ class TestCreateProspect:
             "prospect", "create",
             "--notice-id", "ABC123",
             "--assign-to", "jdoe",
+            "--org", "1",
             "--priority", "HIGH",
         ])
 
@@ -129,7 +130,7 @@ class TestCreateProspect:
         assert "Created prospect 42" in result.output
         assert "ABC123" in result.output
         mock_mgr.create_prospect.assert_called_once_with(
-            "ABC123", "jdoe", priority="HIGH", notes=None
+            "ABC123", "jdoe", organization_id=1, priority="HIGH", notes=None
         )
 
     @patch("etl.prospect_manager.ProspectManager")
@@ -144,12 +145,13 @@ class TestCreateProspect:
             "prospect", "create",
             "--notice-id", "XYZ789",
             "--assign-to", "jsmith",
+            "--org", "2",
             "--notes", "Looks promising",
         ])
 
         assert result.exit_code == 0
         mock_mgr.create_prospect.assert_called_once_with(
-            "XYZ789", "jsmith", priority="MEDIUM", notes="Looks promising"
+            "XYZ789", "jsmith", organization_id=2, priority="MEDIUM", notes="Looks promising"
         )
 
     @patch("etl.prospect_manager.ProspectManager")
@@ -164,6 +166,7 @@ class TestCreateProspect:
             "prospect", "create",
             "--notice-id", "BOGUS",
             "--assign-to", "jdoe",
+            "--org", "1",
         ])
 
         assert result.exit_code == 1
@@ -175,6 +178,7 @@ class TestCreateProspect:
         result = runner.invoke(cli, [
             "prospect", "create",
             "--assign-to", "jdoe",
+            "--org", "1",
         ])
         assert result.exit_code != 0
 
@@ -185,6 +189,7 @@ class TestCreateProspect:
             "prospect", "create",
             "--notice-id", "ABC123",
             "--assign-to", "jdoe",
+            "--org", "1",
             "--priority", "BOGUS",
         ])
         assert result.exit_code != 0
