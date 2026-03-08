@@ -143,7 +143,7 @@ function getResourceLinksForDisplay(
 
 function OverviewTab({ opp }: { opp: OpportunityDetail }) {
   const [expanded, setExpanded] = useState(false);
-  const description = opp.descriptionUrl ?? '';
+  const description = opp.descriptionText ?? opp.descriptionUrl ?? '';
   const isLong = description.length > 300;
   const locationIndicator = getLocationIndicator(opp.popCountry, opp.popState);
   const resourceLinks = getResourceLinksForDisplay(opp);

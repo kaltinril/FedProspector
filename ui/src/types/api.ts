@@ -71,6 +71,7 @@ export interface OpportunityDetail {
   awardeeUei?: string | null;
   awardeeName?: string | null;
   descriptionUrl?: string | null;
+  descriptionText?: string | null;
   link?: string | null;
   resourceLinks?: string | null;
   resourceLinkDetails?: ResourceLinkDto[];
