@@ -85,8 +85,17 @@ export interface OpportunityDetail {
   firstLoadedAt?: string | null;
   lastLoadedAt?: string | null;
   relatedAwards: RelatedAwardDto[];
+  amendments?: AmendmentSummary[];
   prospect?: OpportunityProspectSummary | null;
   usaspendingAward?: UsaspendingSummaryDto | null;
+}
+
+export interface AmendmentSummary {
+  noticeId: string;
+  title?: string | null;
+  type?: string | null;
+  postedDate?: string | null;
+  responseDeadline?: string | null;
 }
 
 export interface ResourceLinkDto {

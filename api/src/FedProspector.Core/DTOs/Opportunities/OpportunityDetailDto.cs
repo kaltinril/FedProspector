@@ -58,6 +58,7 @@ public class OpportunityDetailDto
     public List<RelatedAwardDto> RelatedAwards { get; set; } = [];
     public ProspectSummaryDto? Prospect { get; set; }
     public UsaspendingSummaryDto? UsaspendingAward { get; set; }
+    public List<AmendmentSummaryDto> Amendments { get; set; } = [];
 }
 
 public class RelatedAwardDto
@@ -80,6 +81,15 @@ public class ProspectSummaryDto
     public decimal? GoNoGoScore { get; set; }
     public decimal? WinProbability { get; set; }
     public string? AssignedTo { get; set; }
+}
+
+public class AmendmentSummaryDto
+{
+    public string NoticeId { get; set; } = string.Empty;
+    public string? Title { get; set; }
+    public string? Type { get; set; }
+    public DateOnly? PostedDate { get; set; }
+    public DateTime? ResponseDeadline { get; set; }
 }
 
 public class UsaspendingSummaryDto

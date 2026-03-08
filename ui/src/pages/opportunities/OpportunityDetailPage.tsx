@@ -51,6 +51,13 @@ import { createSavedSearch } from '@/api/savedSearches';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate, formatDateTime } from '@/utils/dateFormatters';
 import { formatCurrency } from '@/utils/formatters';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+
 import type { OpportunityDetail, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -292,6 +299,48 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
           ]}
         />
       </Paper>
+
+      {/* Amendment History */}
+      {opp.amendments && opp.amendments.length > 0 && (
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Amendment History
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            This solicitation has {opp.amendments.length + 1} version{opp.amendments.length > 0 ? 's' : ''}. You are viewing the latest.
+          </Typography>
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Posted</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Response Deadline</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {opp.amendments.map((a) => (
+                  <TableRow key={a.noticeId}>
+                    <TableCell>{formatDate(a.postedDate)}</TableCell>
+                    <TableCell>{a.type ?? '--'}</TableCell>
+                    <TableCell>{formatDate(a.responseDeadline)}</TableCell>
+                    <TableCell>
+                      <Button
+                        size="small"
+                        component={RouterLink}
+                        to={`/opportunities/${encodeURIComponent(a.noticeId)}`}
+                      >
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
     </Box>
   );
 }

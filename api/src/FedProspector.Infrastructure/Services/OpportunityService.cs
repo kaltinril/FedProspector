@@ -63,6 +63,14 @@ public class OpportunityService : IOpportunityService
         if (!string.IsNullOrWhiteSpace(request.State))
             query = query.Where(o => o.PopState == request.State);
 
+        // Show only the latest notice per solicitation number (amendments supersede originals).
+        // Opportunities without a solicitation number are always shown.
+        query = query.Where(o =>
+            o.SolicitationNumber == null ||
+            o.PostedDate == _context.Opportunities
+                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber)
+                .Max(o2 => o2.PostedDate));
+
         // Count before joining (more efficient)
         var totalCount = await query.CountAsync();
 
@@ -245,6 +253,24 @@ public class OpportunityService : IOpportunityService
             }
         }
 
+        // Amendment history: other notices with the same solicitation number
+        var amendments = new List<AmendmentSummaryDto>();
+        if (!string.IsNullOrWhiteSpace(opp.SolicitationNumber))
+        {
+            amendments = await _context.Opportunities.AsNoTracking()
+                .Where(o => o.SolicitationNumber == opp.SolicitationNumber && o.NoticeId != noticeId)
+                .OrderByDescending(o => o.PostedDate)
+                .Select(o => new AmendmentSummaryDto
+                {
+                    NoticeId = o.NoticeId,
+                    Title = o.Title,
+                    Type = o.Type,
+                    PostedDate = o.PostedDate,
+                    ResponseDeadline = o.ResponseDeadline
+                })
+                .ToListAsync();
+        }
+
         return new OpportunityDetailDto
         {
             NoticeId = opp.NoticeId,
@@ -299,7 +325,8 @@ public class OpportunityService : IOpportunityService
             LastLoadedAt = opp.LastLoadedAt,
             RelatedAwards = relatedAwards,
             Prospect = prospect,
-            UsaspendingAward = usaAward
+            UsaspendingAward = usaAward,
+            Amendments = amendments
         };
     }
 
@@ -442,6 +469,14 @@ public class OpportunityService : IOpportunityService
 
         if (!string.IsNullOrWhiteSpace(request.State))
             query = query.Where(o => o.PopState == request.State);
+
+        // Show only the latest notice per solicitation number (amendments supersede originals).
+        // Opportunities without a solicitation number are always shown.
+        query = query.Where(o =>
+            o.SolicitationNumber == null ||
+            o.PostedDate == _context.Opportunities
+                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber)
+                .Max(o2 => o2.PostedDate));
 
         // Limit to 5000 rows for CSV export
         var items = await query
