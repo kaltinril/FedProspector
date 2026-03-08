@@ -106,6 +106,31 @@ See [80-SECURITY-HARDENING.md](80-SECURITY-HARDENING.md) for full details. Items
 
 ---
 
+### 500H: Database Denormalization Audit & Efficiency Pass
+
+**Original phase**: Ongoing observation
+**Deferred because**: Not blocking features, but storage/perf debt is growing.
+
+**Problem**: Multiple tables store heavily duplicated data because ETL loads denormalize everything for simplicity. Examples:
+- **entity_poc** (500E above): Same person duplicated hundreds of times across entities
+- **opportunity amendments**: Same solicitation stored as N separate full rows instead of one canonical record + lightweight amendment deltas
+- **opportunity_poc**: Likely same duplication pattern as entity_poc
+- **Department/agency/office strings**: Repeated verbatim on every opportunity and award row instead of FK to a fed_hierarchy lookup
+- **NAICS descriptions, set-aside descriptions**: Stored inline on every record instead of joined from ref tables at query time
+
+**Proposed approach**:
+1. Audit all tables for row counts vs unique logical entities
+2. Identify top 5 worst offenders by wasted storage
+3. Normalize iteratively: contacts first (500E), then agency strings, then opportunity amendments
+4. Update loaders to upsert into normalized structure
+5. Update C# API queries to join instead of reading denormalized columns
+
+**Key constraint**: ETL tables have no EF migrations — DDL is owned by Python. C# reads via raw model mappings.
+
+**Estimated effort**: ~5-7 days total (spread across multiple iterations)
+
+---
+
 ### 500G: Wire Qualification Checklist to Org Profile (from Phase 45/50)
 
 **Original phase**: Gap between Phase 20 (org profile setup), Phase 45 (intelligence endpoints), and Overview tab
