@@ -32,8 +32,11 @@ public class OpportunityService : IOpportunityService
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
-            var escapedKeyword = EscapeLikePattern(request.Keyword);
-            query = query.Where(o => o.Title != null && EF.Functions.Like(o.Title, $"%{escapedKeyword}%"));
+            var kw = EscapeLikePattern(request.Keyword);
+            query = query.Where(o =>
+                (o.Title != null && EF.Functions.Like(o.Title, $"%{kw}%")) ||
+                (o.SolicitationNumber != null && EF.Functions.Like(o.SolicitationNumber, $"%{kw}%")) ||
+                (o.NoticeId != null && EF.Functions.Like(o.NoticeId, $"%{kw}%")));
         }
 
         if (request.DaysOut.HasValue)
@@ -403,8 +406,11 @@ public class OpportunityService : IOpportunityService
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
-            var escapedKeyword = EscapeLikePattern(request.Keyword);
-            query = query.Where(o => o.Title != null && EF.Functions.Like(o.Title, $"%{escapedKeyword}%"));
+            var kw = EscapeLikePattern(request.Keyword);
+            query = query.Where(o =>
+                (o.Title != null && EF.Functions.Like(o.Title, $"%{kw}%")) ||
+                (o.SolicitationNumber != null && EF.Functions.Like(o.SolicitationNumber, $"%{kw}%")) ||
+                (o.NoticeId != null && EF.Functions.Like(o.NoticeId, $"%{kw}%")));
         }
 
         if (request.DaysOut.HasValue)
