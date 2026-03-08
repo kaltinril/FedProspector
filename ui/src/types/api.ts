@@ -30,6 +30,7 @@ export interface OpportunitySearchParams {
   setAside?: string;
   naics?: string;
   keyword?: string;
+  solicitation?: string;
   daysOut?: number;
   openOnly?: boolean;
   department?: string;

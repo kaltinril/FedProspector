@@ -30,6 +30,12 @@ public class OpportunityService : IOpportunityService
         if (!string.IsNullOrWhiteSpace(request.Naics))
             query = query.Where(o => o.NaicsCode == request.Naics);
 
+        if (!string.IsNullOrWhiteSpace(request.Solicitation))
+        {
+            var sol = EscapeLikePattern(request.Solicitation);
+            query = query.Where(o => o.SolicitationNumber != null && EF.Functions.Like(o.SolicitationNumber, $"%{sol}%"));
+        }
+
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {
             var kw = EscapeLikePattern(request.Keyword);
@@ -403,6 +409,12 @@ public class OpportunityService : IOpportunityService
 
         if (!string.IsNullOrWhiteSpace(request.Naics))
             query = query.Where(o => o.NaicsCode == request.Naics);
+
+        if (!string.IsNullOrWhiteSpace(request.Solicitation))
+        {
+            var sol = EscapeLikePattern(request.Solicitation);
+            query = query.Where(o => o.SolicitationNumber != null && EF.Functions.Like(o.SolicitationNumber, $"%{sol}%"));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
         {

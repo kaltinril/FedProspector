@@ -71,6 +71,7 @@ const OPEN_ONLY_OPTIONS = [
 
 const FILTER_CONFIGS: FilterConfig[] = [
   { key: 'keyword', label: 'Keyword', type: 'text' },
+  { key: 'solicitation', label: 'Solicitation #', type: 'text' },
   { key: 'naics', label: 'NAICS Code', type: 'text' },
   { key: 'setAside', label: 'Set-Aside', type: 'select', options: SET_ASIDE_OPTIONS },
   { key: 'department', label: 'Department', type: 'text' },
@@ -83,7 +84,7 @@ const FILTER_CONFIGS: FilterConfig[] = [
 // URL <-> filter helpers
 // ---------------------------------------------------------------------------
 
-const FILTER_KEYS = ['keyword', 'naics', 'setAside', 'department', 'state', 'daysOut', 'openOnly'] as const;
+const FILTER_KEYS = ['keyword', 'solicitation', 'naics', 'setAside', 'department', 'state', 'daysOut', 'openOnly'] as const;
 
 function readFiltersFromParams(params: URLSearchParams): Record<string, unknown> {
   const values: Record<string, unknown> = {};
@@ -125,6 +126,7 @@ function filtersToApiParams(
   };
 
   if (values.keyword) params.keyword = String(values.keyword);
+  if (values.solicitation) params.solicitation = String(values.solicitation);
   if (values.naics) params.naics = String(values.naics);
   if (values.setAside) params.setAside = String(values.setAside);
   if (values.department) params.department = String(values.department);
