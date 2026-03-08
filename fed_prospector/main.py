@@ -141,6 +141,7 @@ from cli.admin import (
     create_sysadmin, create_org, list_orgs, invite_user,
     list_org_members, disable_user, enable_user, reset_password,
 )
+from cli.load_batch import load_daily, load_weekly, load_monthly
 from cli.demand import process_requests
 from cli.update import enrich_link_metadata, fetch_descriptions, build_relationships
 from cli.bulk_spending import usaspending_bulk
@@ -175,6 +176,9 @@ load.add_command(load_transactions, name="usaspending")
 load.add_command(load_calc, name="labor-rates")
 load.add_command(load_subawards, name="subawards")
 load.add_command(usaspending_bulk, name="usaspending-bulk")
+load.add_command(load_daily, name="daily")
+load.add_command(load_weekly, name="weekly")
+load.add_command(load_monthly, name="monthly")
 
 # ---------------------------------------------------------------------------
 # search group commands

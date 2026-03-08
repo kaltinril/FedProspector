@@ -1,6 +1,6 @@
 # Phase 61: Daily Load CLI Command
 
-**Status**: NOT STARTED
+**Status**: IN PROGRESS
 **Dependencies**: Phase 6 (Scheduler), Phase 50 (Capture Management)
 **Deliverable**: `load daily` CLI command that runs a curated sequence of loads for the day
 **Repository**: `fed_prospector/`
@@ -101,6 +101,8 @@ Override with `--force` to ignore freshness and run everything.
 ---
 
 ## Tasks
+
+> **Implementation approach:** shared `_run_batch()` helper in `cli/load_batch.py`, all three commands reuse it. `subawards` job added to JOBS dict in scheduler.py.
 
 ### 61.1 Add `load-daily` command
 - [ ] Add `load-daily` Click command to `cli/load_batch.py`

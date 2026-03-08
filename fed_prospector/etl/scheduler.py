@@ -100,6 +100,16 @@ JOBS = {
         "catchup_safe": True,
         "estimated_api_calls": 20,  # Default --max-calls
     },
+    "subawards": {
+        "description": "Refresh subaward data from USASpending",
+        "command": ["python", "main.py", "load-subawards"],
+        "source_system": "SAM_SUBAWARD",
+        "schedule": "Saturday 04:00",
+        "staleness_hours": 336,  # 14 days
+        "priority": "Medium",
+        "catchup_safe": True,
+        "estimated_api_calls": 20,
+    },
     "saved_searches": {
         "description": "Run all active saved searches",
         "command": ["python", "main.py", "run-all-searches"],
