@@ -41,8 +41,8 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 
 - **Terminology**: In this project, "Vendor API" = external government data sources (SAM.gov, USASpending.gov, GSA CALC+), called only by Python `load` commands, rate-limited. "App API" = FedProspect's own C# ASP.NET Core backend, consumed by the React UI, queries local DB only.
 - **Language**: Python 3.14 for all data gathering, transformation, and loading
-- **Database**: MySQL 8.0+ with InnoDB engine, utf8mb4 charset
-- **Config**: `.env` file with `python-dotenv`, never commit `.env` to git
+- **Database**: MySQL 8.0+ with InnoDB engine, utf8mb4 charset. DB name: `fed_contracts`, user: `fed_app`
+- **Config**: `fed_prospector/.env` file with `python-dotenv`, never commit `.env` to git
 - **Logging**: Python `logging` module, structured output
 - **API Clients**: One class per data source, all inherit from `BaseAPIClient`
 - **Vendor API Key Selection**: SAM.gov supports 2 API keys (--key=1 or --key=2 on CLI). Key 2 has 1000/day limit.

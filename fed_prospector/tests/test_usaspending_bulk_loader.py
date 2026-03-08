@@ -374,7 +374,7 @@ class TestCheckpointMethods:
 
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.fetchone.return_value = None  # No existing checkpoint
+        mock_cursor.fetchone.return_value = None  # No existing checkpoint (both queries)
         mock_cursor.lastrowid = 42
         mock_conn.cursor.return_value = mock_cursor
 
@@ -391,8 +391,8 @@ class TestCheckpointMethods:
         assert result["total_rows_loaded"] == 0
         mock_conn.commit.assert_called_once()
 
-        # Verify INSERT was called with correct params
-        insert_call = mock_cursor.execute.call_args_list[1]
+        # Verify: 1st call = cross-load COMPLETE check, 2nd = current load_id check, 3rd = INSERT
+        insert_call = mock_cursor.execute.call_args_list[2]
         assert "INSERT INTO usaspending_load_checkpoint" in insert_call[0][0]
         assert insert_call[0][1] == (1, 2026, "Contracts_2026.csv", "abc123:1024")
 
@@ -416,11 +416,12 @@ class TestCheckpointMethods:
             result = loader._get_or_create_checkpoint(
                 load_id=1, fiscal_year=2026,
                 csv_file_name="Contracts_2026.csv",
+                archive_hash="abc123:1024",
             )
 
         assert result == existing
-        # Should NOT have called INSERT
-        assert mock_cursor.execute.call_count == 1  # Only the SELECT
+        # Should NOT have called INSERT — found on first query (cross-load check)
+        assert mock_cursor.execute.call_count == 1
 
     def test_update_checkpoint_batch(self):
         loader = _make_loader()

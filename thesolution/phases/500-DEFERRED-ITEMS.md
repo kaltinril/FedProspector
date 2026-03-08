@@ -144,3 +144,92 @@ See [80-SECURITY-HARDENING.md](80-SECURITY-HARDENING.md) for full details. Items
 **Files**: `ui/src/pages/opportunities/OpportunityDetailPage.tsx` (Overview tab), qualification endpoint in C# backend.
 
 **Estimated effort**: ~0.5 days
+
+---
+
+### 500I: Dynamic Index Discovery for Bulk Loaders
+
+**Original phase**: Phase 65 review
+**Deferred because**: Current hardcoded approach works, but index definitions are duplicated.
+
+**Problem**: `USASpendingBulkLoader.SECONDARY_INDEXES` duplicates the 10 index definitions from `70_usaspending.sql`. If someone adds, renames, or modifies an index in the DDL, the Python constant silently goes stale — dropping/recreating the wrong indexes.
+
+**Proposed fix**:
+1. Query `INFORMATION_SCHEMA.STATISTICS` at runtime to discover secondary indexes on a given table
+2. Build `DROP INDEX` and `CREATE INDEX` statements dynamically from the schema metadata
+3. Extract into a shared utility (e.g., `etl_utils.py` or new `index_manager.py`) so any loader can use it
+4. Remove `SECONDARY_INDEXES` constant from `USASpendingBulkLoader`
+
+**Benefit**: Single source of truth (DDL), zero maintenance for index lists, reusable by other loaders.
+
+**Estimated effort**: ~0.5 days
+
+---
+
+### 500J: Shared Checkpoint/Resume Infrastructure
+
+**Original phase**: Phase 65 review
+**Deferred because**: Only USASpending bulk loader needs resume today. Generalizing before a second consumer exists is premature.
+
+**Problem**: Phase 65's checkpoint/resume (table, methods, skip logic) is tightly coupled to `USASpendingBulkLoader`. If entity bulk loads grow slow enough to need resume, or if new bulk data sources appear, we'd duplicate the pattern.
+
+**Proposed fix** (when needed):
+1. Create a generic `etl_checkpoint` table replacing `usaspending_load_checkpoint` (add `source_system` column, rename `csv_file_name` to `segment_name`)
+2. Extract checkpoint methods into a `CheckpointMixin` or standalone `CheckpointManager` class
+3. Provide a `--resume` pattern that any CLI command can opt into
+4. Migrate existing USASpending checkpoint data to the generic table
+
+**Trigger**: Defer until a second loader needs checkpoint/resume capability.
+
+**Estimated effort**: ~1 day
+
+---
+
+### 500K: Index Drop/Recreate for Other High-Index Tables
+
+**Original phase**: Phase 65 review
+**Deferred because**: Only USASpending does large bulk loads today. Other loaders use incremental upserts.
+
+**Problem**: Several tables have many secondary indexes that slow down bulk inserts:
+- `fpds_contract`: 12 indexes (11 secondary + 1 composite PK) — highest in the schema
+- `opportunity`: 9 indexes (8 secondary + 1 PK)
+- `entity`: 6 indexes (5 secondary + 1 PK)
+
+Currently only `usaspending_award` gets index optimization via `--fast` mode.
+
+**When to act**:
+- If `fpds_contract` ever gets a bulk CSV loader (currently API-only, 500 batch)
+- If entity full-refresh (`BulkLoader`) becomes slow — it already does TRUNCATE + reload of 300K+ entities with 8 child tables
+- If `opportunity` ever gets a bulk historical backfill
+
+**Proposed fix**: Combine with 500I (dynamic index discovery) — once indexes are discovered at runtime, any loader can drop/recreate for any table via a `--fast` flag.
+
+**Estimated effort**: ~0.5 days (if 500I is done first)
+
+---
+
+### ~~500K.1: Crash-Safe Index Rebuild for --fast Mode~~ — DONE (Phase 65)
+
+Implemented as `_check_and_rebuild_indexes()` in `USASpendingBulkLoader`. Runs on every startup, queries `INFORMATION_SCHEMA.STATISTICS` to detect missing indexes from a prior crashed `--fast` run, and rebuilds them automatically before proceeding.
+
+---
+
+### 500L: Entity BulkLoader Improvements
+
+**Original phase**: Phase 65 review
+**Deferred because**: Entity full-refresh works but lacks the optimizations added to USASpending in Phase 65.
+
+**Problem**: `bulk_loader.py` (entity bulk loader) has several gaps vs the USASpending bulk loader:
+1. **No checkpoint/resume**: A failed entity full-refresh (300K+ entities, 8 child tables) requires starting over from scratch
+2. **No index management**: Doesn't drop secondary indexes during TRUNCATE + reload
+3. **No progress reporting**: No ETA, no per-table timing summaries, no overall progress percentage
+4. **No archive hash dedup**: Re-processes the same DAT file on every run even if nothing changed
+5. **FK checks toggled but no index optimization**: Disables FK checks (good) but doesn't drop indexes (missed optimization)
+
+**Proposed fixes** (pick as needed):
+1. Add progress logging with ETA (low effort, high value) — model on USASpending bulk loader's `_format_duration()` and per-batch logging
+2. Add `--fast` flag to drop entity + child table indexes during full refresh
+3. Add DAT file hash check to skip unchanged files
+4. Checkpoint/resume is lower priority since TRUNCATE makes partial state unrecoverable — would need to switch from TRUNCATE to upsert pattern first
+
+**Estimated effort**: ~1-2 days (progress + index mgmt); ~3 days if adding checkpoint/resume

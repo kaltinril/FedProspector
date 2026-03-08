@@ -232,6 +232,82 @@ class USASpendingBulkLoader:
     # Index management (--fast mode)
     # ------------------------------------------------------------------
 
+    def _check_and_rebuild_indexes(self):
+        """Check for missing secondary indexes and rebuild them.
+
+        Detects indexes left dropped by a previous crashed --fast load
+        and recreates them before proceeding.
+
+        Returns:
+            int: Number of indexes that were rebuilt (0 if all present).
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT DISTINCT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS "
+                "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'usaspending_award' "
+                "AND INDEX_NAME != 'PRIMARY'"
+            )
+            existing = {row[0] for row in cursor.fetchall()}
+        except Exception as exc:
+            self.logger.warning(
+                "Could not check indexes on usaspending_award (table may not "
+                "exist yet): %s", exc,
+            )
+            return 0
+        finally:
+            cursor.close()
+            conn.close()
+
+        missing = [
+            (name, ddl) for name, ddl in self.SECONDARY_INDEXES
+            if name not in existing
+        ]
+
+        if not missing:
+            self.logger.debug(
+                "All secondary indexes present on usaspending_award"
+            )
+            return 0
+
+        self.logger.warning(
+            "Detected %d missing secondary indexes on usaspending_award "
+            "(likely from a previous crashed --fast load). Rebuilding...",
+            len(missing),
+        )
+
+        total_start = time.monotonic()
+        rebuilt = 0
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            for index_name, create_sql in missing:
+                try:
+                    t0 = time.monotonic()
+                    cursor.execute(create_sql)
+                    conn.commit()
+                    elapsed = time.monotonic() - t0
+                    self.logger.info(
+                        "Rebuilt index %s in %.1fs", index_name, elapsed
+                    )
+                    rebuilt += 1
+                except Exception as exc:
+                    conn.rollback()
+                    self.logger.warning(
+                        "Failed to rebuild index %s: %s", index_name, exc
+                    )
+        finally:
+            cursor.close()
+            conn.close()
+
+        total_elapsed = time.monotonic() - total_start
+        self.logger.info(
+            "Index rebuild complete: %d indexes rebuilt in %.1fs",
+            rebuilt, total_elapsed,
+        )
+        return rebuilt
+
     def _drop_secondary_indexes(self):
         """Drop all secondary indexes on usaspending_award for faster bulk loading."""
         conn = get_connection()
@@ -613,6 +689,27 @@ class USASpendingBulkLoader:
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
+            # Check across ALL loads for this FY + CSV (not just current load_id)
+            # so that re-running without --resume still skips completed CSVs
+            cursor.execute(
+                "SELECT checkpoint_id, status, completed_batches, "
+                "total_rows_loaded "
+                "FROM usaspending_load_checkpoint "
+                "WHERE fiscal_year = %s AND csv_file_name = %s "
+                "AND archive_hash = %s AND status = 'COMPLETE' "
+                "ORDER BY checkpoint_id DESC LIMIT 1",
+                (fiscal_year, csv_file_name, archive_hash),
+            )
+            row = cursor.fetchone()
+
+            if row is not None:
+                self.logger.info(
+                    "Found COMPLETE checkpoint %d for %s from a previous load",
+                    row["checkpoint_id"], csv_file_name,
+                )
+                return row
+
+            # Check current load_id for in-progress resume
             cursor.execute(
                 "SELECT checkpoint_id, status, completed_batches, "
                 "total_rows_loaded "

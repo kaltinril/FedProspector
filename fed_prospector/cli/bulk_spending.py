@@ -15,9 +15,7 @@ from config.logging_config import setup_logging
               help="Download source: archive (pre-built, fast) or api (on-demand, slow)")
 @click.option("--fast", is_flag=True, default=False,
               help="Drop secondary indexes before load, rebuild after (faster bulk inserts)")
-@click.option("--resume", is_flag=True, default=False,
-              help="Resume the most recent failed/in-progress bulk load (skips completed CSVs and batches)")
-def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast, resume):
+def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast):
     """Bulk load USASpending award data from CSV downloads.
 
     Downloads fiscal-year bulk CSV archives from USASpending.gov and loads
@@ -60,31 +58,6 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast, resum
         )
         click.echo("WARNING: Fast mode enabled — secondary indexes will be dropped during load.")
 
-    # Resume mode: find the most recent in-progress or failed load_id
-    resume_load_id = None
-    if resume:
-        from db.connection import get_connection
-        conn = get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "SELECT load_id FROM etl_load_log "
-                "WHERE source_system='USASPENDING_BULK' "
-                "AND status IN ('RUNNING', 'FAILED') "
-                "ORDER BY load_id DESC LIMIT 1"
-            )
-            row = cursor.fetchone()
-        finally:
-            cursor.close()
-            conn.close()
-
-        if row:
-            resume_load_id = row[0]
-            click.echo(f"Resuming load_id={resume_load_id}")
-        else:
-            click.echo("ERROR: No in-progress or failed bulk load found to resume.")
-            return
-
     total_stats = {
         "records_read": 0,
         "records_inserted": 0,
@@ -99,14 +72,11 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast, resum
         for fy in fiscal_years:
             click.echo(f"\n--- FY{fy} ---")
 
-            if resume_load_id:
-                load_id = resume_load_id
-            else:
-                load_id = load_manager.start_load(
-                    source_system="USASPENDING_BULK",
-                    load_type="FULL",
-                    parameters={"fiscal_year": fy},
-                )
+            load_id = load_manager.start_load(
+                source_system="USASPENDING_BULK",
+                load_type="FULL",
+                parameters={"fiscal_year": fy},
+            )
 
             try:
                 if skip_download:
@@ -168,8 +138,12 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast, resum
                 click.echo(f"  FY{fy} FAILED: {exc}")
 
     finally:
+        # Always rebuild indexes if --fast was used, regardless of how we exit
+        # (success, exception, Ctrl+C / click.Abort)
         if fast:
+            click.echo("Rebuilding secondary indexes...")
             loader._recreate_secondary_indexes()
+            click.echo("Secondary indexes rebuilt.")
 
     click.echo(f"\n=== Summary ===")
     click.echo(f"Fiscal years loaded: {total_stats['fiscal_years_loaded']}")
