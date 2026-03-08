@@ -1,6 +1,6 @@
 # Phase 61: Daily Load CLI Command
 
-**Status**: IN PROGRESS
+**Status**: COMPLETE
 **Dependencies**: Phase 6 (Scheduler), Phase 50 (Capture Management)
 **Deliverable**: `load daily` CLI command that runs a curated sequence of loads for the day
 **Repository**: `fed_prospector/`
@@ -105,34 +105,45 @@ Override with `--force` to ignore freshness and run everything.
 > **Implementation approach:** shared `_run_batch()` helper in `cli/load_batch.py`, all three commands reuse it. `subawards` job added to JOBS dict in scheduler.py.
 
 ### 61.1 Add `load-daily` command
-- [ ] Add `load-daily` Click command to `cli/load_batch.py`
-- [ ] Options: `--key`, `--full`, `--skip`, `--dry-run`, `--continue-on-failure`, `--force`
-- [ ] Define `DAILY_SEQUENCE` and `FULL_SEQUENCE` as ordered job lists
-- [ ] Freshness check: query `etl_load_log` per job before running
-- [ ] Real-time streaming output via `run_job_streaming()`
-- [ ] Per-job timing and summary line
-- [ ] Final summary table with totals
-- [ ] Register commands in `main.py` load group
+- [x] Add `load-daily` Click command to `cli/load_batch.py`
+- [x] Options: `--key`, `--full`, `--skip`, `--dry-run`, `--continue-on-failure`, `--force`
+- [x] Define `DAILY_SEQUENCE` and `FULL_SEQUENCE` as ordered job lists
+- [x] Freshness check: query `etl_load_log` per job before running
+- [x] Real-time streaming output via `run_job_streaming()`
+- [x] Per-job timing and summary line
+- [x] Final summary table with totals
+- [x] Register commands in `main.py` load group
 
 ### 61.2 Add `load-weekly` and `load-monthly` commands
-- [ ] `load weekly`: runs hierarchy + awards + exclusions + entity refresh + subawards
-- [ ] `load monthly`: runs calc_rates + usaspending + everything in weekly
-- [ ] Same options as `load-daily` (--key, --skip, --dry-run, --continue-on-failure, --force)
-- [ ] Same output format and freshness-aware skipping
+- [x] `load weekly`: runs hierarchy + awards + exclusions + entity refresh + subawards
+- [x] `load monthly`: runs calc_rates + usaspending + everything in weekly
+- [x] Same options as `load-daily` (--key, --skip, --dry-run, --continue-on-failure, --force)
+- [x] Same output format and freshness-aware skipping
 
 ### 61.3 JobRunner enhancements
-- [ ] Add `run_job_streaming()` return of records summary (parse from load output or query etl_load_log after completion)
-- [ ] Add `get_freshness(job_name)` method — returns hours since last successful load and whether it's fresh
+- [x] Add `run_job_streaming()` return of records summary (parse from load output or query etl_load_log after completion)
+- [x] Add `get_freshness(job_name)` method — returns hours since last successful load and whether it's fresh
 
 ---
 
 ## Verification
 
-- [ ] `python main.py load daily --dry-run` shows planned sequence without executing
-- [ ] `python main.py load daily` runs all 4 default jobs in order with streaming output
-- [ ] `python main.py load daily --full` includes entity/hierarchy/subawards
-- [ ] `python main.py load daily --skip exclusions` skips exclusions
-- [ ] Fresh data is auto-skipped (run twice — second run skips already-loaded jobs)
-- [ ] `--force` overrides freshness check
-- [ ] `--continue-on-failure` keeps going after a job failure
-- [ ] Summary table shows correct stats at the end
+- [x] `python main.py load daily --dry-run` shows planned sequence without executing
+- [x] `python main.py load daily` runs all 4 default jobs in order with streaming output
+- [x] `python main.py load daily --full` includes entity/hierarchy/subawards
+- [x] `python main.py load daily --skip exclusions` skips exclusions
+- [x] Fresh data is auto-skipped (run twice — second run skips already-loaded jobs)
+- [x] `--force` overrides freshness check
+- [x] `--continue-on-failure` keeps going after a job failure
+- [x] Summary table shows correct stats at the end
+
+---
+
+## Completion Notes
+
+- Implemented in commit 2aeea3a
+- New file: `cli/load_batch.py` with shared `_run_batch()` helper
+- Three commands: `load daily`, `load weekly`, `load monthly`
+- Added `subawards` job to JOBS dict in `etl/scheduler.py`
+- All dry-run tests verified: daily (4 jobs), weekly (6 jobs), monthly (9 jobs)
+- Options: --key, --full, --skip, --dry-run, --continue-on-failure, --force
