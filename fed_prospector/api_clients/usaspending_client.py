@@ -11,6 +11,8 @@ import time
 from datetime import date, timedelta
 from pathlib import Path
 
+import click
+
 from api_clients.base_client import BaseAPIClient
 from config import settings
 
@@ -565,11 +567,118 @@ class USASpendingClient(BaseAPIClient):
             response.raise_for_status()
             break
 
+        content_length = response.headers.get("Content-Length")
+        total_size_mb = int(content_length) / (1024 * 1024) if content_length else None
+        next_report_bytes = 50 * 1024 * 1024  # Report every 50MB
+
         total_bytes = 0
         with open(dest_path, "wb") as f:
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
                 total_bytes += len(chunk)
+                if total_bytes >= next_report_bytes:
+                    dl_mb = total_bytes / (1024 * 1024)
+                    if total_size_mb:
+                        pct = total_bytes * 100 / int(content_length)
+                        click.echo(f"  Downloaded {dl_mb:,.0f}MB / {total_size_mb:,.0f}MB ({pct:.0f}%)")
+                    else:
+                        click.echo(f"  Downloaded {dl_mb:,.0f}MB")
+                    next_report_bytes += 50 * 1024 * 1024
+
+        size_mb = total_bytes / (1024 * 1024)
+        self.logger.info("Downloaded %.1f MB to %s", size_mb, dest_path)
+        return dest_path
+
+    # -----------------------------------------------------------------
+    # Archive downloads (pre-built fiscal year files)
+    # -----------------------------------------------------------------
+
+    ARCHIVE_LIST_ENDPOINT = "/api/v2/bulk_download/list_monthly_files/"
+
+    def list_archive_files(self, fiscal_year):
+        """List available archive files for a fiscal year.
+
+        Args:
+            fiscal_year: Federal fiscal year (e.g. 2025).
+
+        Returns:
+            dict: API response with monthly_files list containing
+                file_name, url, updated_date, etc.
+        """
+        body = {
+            "agency": "all",
+            "fiscal_year": fiscal_year,
+            "type": "contracts",
+        }
+
+        self.logger.info("Listing archive files for FY%d", fiscal_year)
+        response = self.post(self.ARCHIVE_LIST_ENDPOINT, json_body=body, timeout=60)
+        return response.json()
+
+    def download_archive_file(self, fiscal_year):
+        """Download the full archive file for a fiscal year.
+
+        Finds the "Full" file from the archive listing and streams it
+        to the local download directory. Skips download if the file
+        already exists locally.
+
+        Args:
+            fiscal_year: Federal fiscal year (e.g. 2025).
+
+        Returns:
+            Path: Local file path of the downloaded archive.
+
+        Raises:
+            RuntimeError: If no Full archive file is found for the year.
+        """
+        data = self.list_archive_files(fiscal_year)
+        monthly_files = data.get("monthly_files", [])
+
+        # Find the "Full" file
+        full_file = None
+        for entry in monthly_files:
+            if "_Full_" in entry.get("file_name", ""):
+                full_file = entry
+                break
+
+        if not full_file:
+            raise RuntimeError(
+                f"No Full archive file found for FY{fiscal_year}. "
+                f"Available files: {[f.get('file_name') for f in monthly_files]}"
+            )
+
+        file_name = full_file["file_name"]
+        file_url = full_file["url"]
+
+        dest_dir = Path(settings.DOWNLOAD_DIR) / "usaspending"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / file_name
+
+        if dest_path.exists():
+            self.logger.info("Already downloaded: %s", dest_path)
+            return dest_path
+
+        self.logger.info("Downloading archive %s -> %s", file_url, dest_path)
+        response = self.session.get(file_url, stream=True, timeout=600)
+        response.raise_for_status()
+
+        content_length = response.headers.get("Content-Length")
+        total_size_mb = int(content_length) / (1024 * 1024) if content_length else None
+        next_report_bytes = 50 * 1024 * 1024  # Report every 50MB
+
+        total_bytes = 0
+        with open(dest_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+                total_bytes += len(chunk)
+                if total_bytes >= next_report_bytes:
+                    dl_mb = total_bytes / (1024 * 1024)
+                    if total_size_mb:
+                        pct = total_bytes * 100 / int(content_length)
+                        click.echo(f"  Downloaded {dl_mb:,.0f}MB / {total_size_mb:,.0f}MB ({pct:.0f}%)")
+                    else:
+                        click.echo(f"  Downloaded {dl_mb:,.0f}MB")
+                    next_report_bytes += 50 * 1024 * 1024
 
         size_mb = total_bytes / (1024 * 1024)
         self.logger.info("Downloaded %.1f MB to %s", size_mb, dest_path)

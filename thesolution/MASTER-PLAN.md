@@ -83,6 +83,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 50 | Capture Management & Pipeline | COMPLETE | [50-CAPTURE-MANAGEMENT.md](phases/completed/50-CAPTURE-MANAGEMENT.md) |
 | 60 | Dashboard & Notifications | COMPLETE | [60-DASHBOARD-NOTIFICATIONS.md](phases/completed/60-DASHBOARD-NOTIFICATIONS.md) |
 | 61 | Daily Load CLI | COMPLETE | [61-DAILY-LOAD-CLI.md](phases/completed/61-DAILY-LOAD-CLI.md) |
+| 65 | USASpending Bulk Loader Improvements | NOT STARTED | [65-USASPENDING-BULK-LOADER-IMPROVEMENTS.md](phases/65-USASPENDING-BULK-LOADER-IMPROVEMENTS.md) |
 | 70 | Admin & Organization | NOT STARTED | [70-ADMIN-POLISH.md](phases/70-ADMIN-POLISH.md) |
 | 75 | Production Polish | NOT STARTED | [75-PRODUCTION-POLISH.md](phases/75-PRODUCTION-POLISH.md) |
 | 80 | Security Hardening | DEFERRED | [80-SECURITY-HARDENING.md](phases/80-SECURITY-HARDENING.md) |

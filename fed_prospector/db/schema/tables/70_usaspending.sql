@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     psc_code                 VARCHAR(10),
 
     -- Set-aside
-    type_of_set_aside        VARCHAR(50),
+    type_of_set_aside        VARCHAR(100),
     type_of_set_aside_description VARCHAR(200),
 
     -- Place of Performance

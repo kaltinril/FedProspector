@@ -11,7 +11,9 @@ from config.logging_config import setup_logging
 @click.option("--years-back", default=5, type=int, help="Number of recent fiscal years to load")
 @click.option("--fiscal-year", type=int, help="Load a single fiscal year (overrides --years-back)")
 @click.option("--skip-download", is_flag=True, help="Use previously downloaded files")
-def usaspending_bulk(years_back, fiscal_year, skip_download):
+@click.option("--source", type=click.Choice(["archive", "api"]), default="archive",
+              help="Download source: archive (pre-built, fast) or api (on-demand, slow)")
+def usaspending_bulk(years_back, fiscal_year, skip_download, source):
     """Bulk load USASpending award data from CSV downloads.
 
     Downloads fiscal-year bulk CSV archives from USASpending.gov and loads
@@ -74,21 +76,26 @@ def usaspending_bulk(years_back, fiscal_year, skip_download):
                 zip_path = zip_files[-1]  # Most recent
                 click.echo(f"  Using existing: {zip_path.name}")
             else:
-                # Request, poll, and download
-                click.echo(f"  Requesting bulk download for FY{fy}...")
-                result = client.request_bulk_download(fy)
-
-                if result.get("file_url"):
-                    file_url = result["file_url"]
-                elif result.get("status_url"):
-                    click.echo(f"  Polling for download readiness...")
-                    poll_result = client.poll_bulk_download(result["status_url"])
-                    file_url = poll_result["file_url"]
+                if source == "archive":
+                    click.echo(f"  Downloading FY{fy} archive...")
+                    zip_path = client.download_archive_file(fy)
+                    click.echo(f"  Downloaded: {zip_path.name}")
                 else:
-                    raise RuntimeError(f"Unexpected API response: {result}")
+                    # On-demand API flow
+                    click.echo(f"  Requesting bulk download for FY{fy}...")
+                    result = client.request_bulk_download(fy)
 
-                click.echo(f"  Downloading...")
-                zip_path = client.download_bulk_file(file_url)
+                    if result.get("file_url"):
+                        file_url = result["file_url"]
+                    elif result.get("status_url"):
+                        click.echo(f"  Polling for download readiness...")
+                        poll_result = client.poll_bulk_download(result["status_url"])
+                        file_url = poll_result["file_url"]
+                    else:
+                        raise RuntimeError(f"Unexpected API response: {result}")
+
+                    click.echo(f"  Downloading...")
+                    zip_path = client.download_bulk_file(file_url)
 
             # Load the ZIP
             click.echo(f"  Loading CSV data...")

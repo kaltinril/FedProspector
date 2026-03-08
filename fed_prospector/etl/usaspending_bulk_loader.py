@@ -73,6 +73,8 @@ LOAD_COLUMNS = [
 # Non-PK columns for the ON DUPLICATE KEY UPDATE clause
 _UPDATE_COLUMNS = [c for c in LOAD_COLUMNS if c != "generated_unique_award_id"]
 
+BATCH_SIZE = 50_000
+
 
 class USASpendingBulkLoader:
     """Loads USASpending bulk CSV downloads into usaspending_award."""
@@ -154,7 +156,11 @@ class USASpendingBulkLoader:
     # ------------------------------------------------------------------
 
     def _load_csv(self, csv_path, fiscal_year, load_id):
-        """Process one CSV file: normalize, write TSV, LOAD DATA INFILE, upsert.
+        """Process one CSV file: normalize, write batched TSVs, LOAD DATA INFILE, upsert.
+
+        Rows are written to TSV files in batches of BATCH_SIZE.  Each batch
+        gets its own temp-table lifecycle (create -> load -> upsert -> commit
+        -> drop) so InnoDB never has to handle a million-row upsert at once.
 
         Args:
             csv_path: Path to the CSV file.
@@ -164,104 +170,153 @@ class USASpendingBulkLoader:
         Returns:
             dict with stats.
         """
+        import shutil
+
         stats = {
             "records_read": 0,
             "records_inserted": 0,
             "records_errored": 0,
         }
 
-        tsv_path = None
+        tsv_dir = None
         logged_unmapped = False
 
         try:
-            tsv_fd, tsv_path = tempfile.mkstemp(suffix=".tsv", prefix="usa_bulk_")
-            os.close(tsv_fd)
+            tsv_dir = tempfile.mkdtemp(prefix="usa_bulk_tsv_")
+            batch_num = 0
+            batch_rows = 0
+            tsv_file = None
+            tsv_paths = []
+
+            csv_read_start = time.monotonic()
 
             with open(csv_path, "r", encoding="utf-8-sig", newline="") as csv_file:
                 reader = csv.DictReader(csv_file)
 
-                with open(tsv_path, "w", encoding="utf-8", newline="") as tsv_file:
-                    for row in reader:
-                        stats["records_read"] += 1
+                for row in reader:
+                    stats["records_read"] += 1
 
-                        # Log unmapped columns on first row
-                        if not logged_unmapped and reader.fieldnames:
-                            unmapped = [
-                                c for c in reader.fieldnames
-                                if c not in CSV_COLUMN_MAP
-                            ]
-                            if unmapped:
-                                self.logger.debug(
-                                    "Unmapped CSV columns (%d): %s",
-                                    len(unmapped),
-                                    ", ".join(unmapped[:20]),
-                                )
-                            logged_unmapped = True
+                    if stats["records_read"] % 100_000 == 0:
+                        self.logger.info(
+                            "Reading CSV: %s rows processed...",
+                            f"{stats['records_read']:,}",
+                        )
 
-                        try:
-                            normalized = self._normalize_csv_row(row, fiscal_year)
-                            if normalized is None:
-                                stats["records_errored"] += 1
-                                continue
-                            normalized["last_load_id"] = load_id
+                    # Log unmapped columns on first row
+                    if not logged_unmapped and reader.fieldnames:
+                        unmapped = [
+                            c for c in reader.fieldnames
+                            if c not in CSV_COLUMN_MAP
+                        ]
+                        if unmapped:
+                            self.logger.debug(
+                                "Unmapped CSV columns (%d): %s",
+                                len(unmapped),
+                                ", ".join(unmapped[:20]),
+                            )
+                        logged_unmapped = True
 
-                            values = [
-                                escape_tsv_value(normalized.get(col))
-                                for col in LOAD_COLUMNS
-                            ]
-                            tsv_file.write("\t".join(values) + "\n")
-                        except Exception as exc:
+                    try:
+                        normalized = self._normalize_csv_row(row, fiscal_year)
+                        if normalized is None:
                             stats["records_errored"] += 1
-                            if stats["records_errored"] <= 10:
-                                self.logger.warning(
-                                    "Error normalizing row #%d: %s",
-                                    stats["records_read"], exc,
-                                )
+                            continue
+                        normalized["last_load_id"] = load_id
+
+                        # Start new batch file when needed
+                        if tsv_file is None or batch_rows >= BATCH_SIZE:
+                            if tsv_file is not None:
+                                tsv_file.close()
+                            batch_num += 1
+                            tsv_path = os.path.join(tsv_dir, f"batch_{batch_num}.tsv")
+                            tsv_paths.append(tsv_path)
+                            tsv_file = open(tsv_path, "w", encoding="utf-8", newline="")
+                            batch_rows = 0
+
+                        values = [
+                            escape_tsv_value(normalized.get(col))
+                            for col in LOAD_COLUMNS
+                        ]
+                        tsv_file.write("\t".join(values) + "\n")
+                        batch_rows += 1
+
+                    except Exception as exc:
+                        stats["records_errored"] += 1
+                        if stats["records_errored"] <= 10:
+                            self.logger.warning(
+                                "Error normalizing row #%d: %s",
+                                stats["records_read"], exc,
+                            )
+
+            if tsv_file is not None:
+                tsv_file.close()
 
             if stats["records_read"] == 0:
                 self.logger.warning("CSV file was empty: %s", csv_path)
                 return stats
 
-            # Load TSV into temp table, then upsert
+            # Process each batch
+            total_batches = len(tsv_paths)
+            self.logger.info(
+                "Processing %d rows in %d batches of %d",
+                stats["records_read"] - stats["records_errored"],
+                total_batches, BATCH_SIZE,
+            )
+
             conn = get_connection()
             cursor = conn.cursor()
+            batch_wall_start = time.monotonic()
             try:
-                self._create_temp_table(cursor)
+                for i, batch_tsv in enumerate(tsv_paths, 1):
+                    t_start = time.monotonic()
 
-                mysql_path = tsv_path.replace("\\", "/")
-                col_list = ", ".join(LOAD_COLUMNS)
+                    self._create_temp_table(cursor)
 
-                sql = (
-                    f"LOAD DATA INFILE '{mysql_path}' "
-                    f"INTO TABLE tmp_usaspending_bulk "
-                    f"FIELDS TERMINATED BY '\\t' "
-                    f"LINES TERMINATED BY '\\n' "
-                    f"({col_list})"
-                )
+                    mysql_path = batch_tsv.replace("\\", "/")
+                    col_list = ", ".join(LOAD_COLUMNS)
 
-                t_start = time.monotonic()
-                cursor.execute(sql)
-                loaded = cursor.rowcount
-                self.logger.info(
-                    "LOAD DATA INFILE: %d rows in %.1fs",
-                    loaded, time.monotonic() - t_start,
-                )
+                    sql = (
+                        f"LOAD DATA INFILE '{mysql_path}' "
+                        f"INTO TABLE tmp_usaspending_bulk "
+                        f"FIELDS TERMINATED BY '\\t' "
+                        f"LINES TERMINATED BY '\\n' "
+                        f"({col_list})"
+                    )
+                    cursor.execute(sql)
+                    loaded = cursor.rowcount
 
-                # Upsert from temp into main table
-                t_start = time.monotonic()
-                self._upsert_from_temp(cursor)
-                upserted = cursor.rowcount
-                conn.commit()
-                self.logger.info(
-                    "Upsert: %d affected rows in %.1fs",
-                    upserted, time.monotonic() - t_start,
-                )
+                    self._upsert_from_temp(cursor)
+                    upserted = cursor.rowcount
+                    conn.commit()
 
-                stats["records_inserted"] = loaded
+                    cursor.execute("DROP TEMPORARY TABLE IF EXISTS tmp_usaspending_bulk")
 
-                # Clean up temp table for next CSV
-                cursor.execute("DROP TEMPORARY TABLE IF EXISTS tmp_usaspending_bulk")
-                conn.commit()
+                    elapsed = time.monotonic() - t_start
+                    stats["records_inserted"] += loaded
+
+                    # Calculate ETA based on wall time and batches completed
+                    wall_elapsed = time.monotonic() - batch_wall_start
+                    batches_remaining = total_batches - i
+                    if i > 0 and batches_remaining > 0:
+                        avg_per_batch = wall_elapsed / i
+                        eta_seconds = avg_per_batch * batches_remaining
+                        eta_min = int(eta_seconds) // 60
+                        eta_sec = int(eta_seconds) % 60
+                        eta_str = f" (ETA: ~{eta_min}m {eta_sec:02d}s remaining)"
+                    else:
+                        eta_str = ""
+
+                    self.logger.info(
+                        "Batch %d/%d: %d loaded, %d upserted in %.1fs%s",
+                        i, total_batches, loaded, upserted, elapsed, eta_str,
+                    )
+
+                    # Free disk space immediately
+                    try:
+                        os.unlink(batch_tsv)
+                    except OSError:
+                        pass
+
             except Exception:
                 conn.rollback()
                 raise
@@ -270,11 +325,8 @@ class USASpendingBulkLoader:
                 conn.close()
 
         finally:
-            if tsv_path and os.path.exists(tsv_path):
-                try:
-                    os.unlink(tsv_path)
-                except OSError:
-                    pass
+            if tsv_dir and os.path.exists(tsv_dir):
+                shutil.rmtree(tsv_dir, ignore_errors=True)
 
         return stats
 
