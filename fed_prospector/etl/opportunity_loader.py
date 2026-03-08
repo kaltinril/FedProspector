@@ -629,6 +629,10 @@ class OpportunityLoader(StagingMixin):
     # Description text caching
     # =================================================================
 
+    class RateLimitError(Exception):
+        """Raised when SAM.gov returns 429 Too Many Requests."""
+        pass
+
     def fetch_description_text(self, description_url):
         """Fetch description text from a SAM.gov description URL.
 
@@ -660,9 +664,15 @@ class OpportunityLoader(StagingMixin):
 
         try:
             resp = req.get(url, timeout=15)
+            if resp.status_code == 429:
+                raise self.RateLimitError(
+                    f"SAM.gov rate limit (429) hit fetching {description_url}"
+                )
             resp.raise_for_status()
             data = resp.json()
             return data.get("description")
+        except self.RateLimitError:
+            raise
         except Exception as exc:
             self.logger.warning(
                 "Failed to fetch description from %s: %s",
@@ -721,11 +731,31 @@ class OpportunityLoader(StagingMixin):
                         )
                         stats["fetched"] += 1
                     else:
+                        # Mark as empty string so --missing-only won't retry
+                        cursor.execute(
+                            "UPDATE opportunity SET description_text = '' "
+                            "WHERE notice_id = %s",
+                            (row["notice_id"],),
+                        )
                         stats["failed"] += 1
+                except self.RateLimitError:
+                    self.logger.error(
+                        "SAM.gov rate limit (429) hit after %d requests — "
+                        "stopping description fetch. Fetched=%d, failed=%d.",
+                        i, stats["fetched"], stats["failed"],
+                    )
+                    conn.commit()
+                    break
                 except Exception as exc:
                     self.logger.warning(
                         "Error fetching description for %s: %s",
                         row["notice_id"], exc,
+                    )
+                    # Mark as empty string so --missing-only won't retry
+                    cursor.execute(
+                        "UPDATE opportunity SET description_text = '' "
+                        "WHERE notice_id = %s",
+                        (row["notice_id"],),
                     )
                     stats["failed"] += 1
 
@@ -739,9 +769,9 @@ class OpportunityLoader(StagingMixin):
 
                 # Small delay between requests to be polite
                 time.sleep(0.1)
-
-            # Final commit
-            conn.commit()
+            else:
+                # Final commit (only if loop completed without break)
+                conn.commit()
 
         finally:
             cursor.close()

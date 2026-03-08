@@ -364,7 +364,7 @@ public class ProspectService : IProspectService
                 PopCountry = opp.PopCountry,
                 Active = opp.Active,
                 AwardAmount = opp.AwardAmount,
-                Link = opp.Link
+                Link = OpportunityService.NormalizeSamGovLink(opp.Link)
             } : null,
             Notes = notes,
             TeamMembers = teamMembers,

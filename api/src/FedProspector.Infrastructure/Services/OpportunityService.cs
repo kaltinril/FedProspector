@@ -277,7 +277,7 @@ public class OpportunityService : IOpportunityService
             FullParentPathCode = opp.FullParentPathCode,
             DescriptionUrl = opp.DescriptionUrl,
             DescriptionText = opp.DescriptionText,
-            Link = opp.Link,
+            Link = NormalizeSamGovLink(opp.Link),
             ResourceLinks = opp.ResourceLinks,
             ResourceLinkDetails = ParseResourceLinks(opp.ResourceLinks),
             EstimatedContractValue = opp.EstimatedContractValue,
@@ -375,6 +375,10 @@ public class OpportunityService : IOpportunityService
                 AssignedTo = t.AssignedTo
             })
             .ToListAsync();
+
+        // Transform workspace URLs to public SAM.gov URLs
+        foreach (var item in items)
+            item.Link = NormalizeSamGovLink(item.Link);
 
         return new PagedResponse<TargetOpportunityDto>
         {
@@ -506,6 +510,16 @@ public class OpportunityService : IOpportunityService
     /// Formats a value for CSV output. Quotes all fields and neutralizes formula injection
     /// by prefixing values that start with =, +, -, or @ with a single quote.
     /// </summary>
+    /// <summary>
+    /// Transforms SAM.gov workspace URLs (which require login) to public URLs.
+    /// e.g. /workspace/contract/opp/{id}/view -> /opp/{id}/view
+    /// </summary>
+    internal static string? NormalizeSamGovLink(string? link)
+    {
+        if (string.IsNullOrEmpty(link)) return link;
+        return link.Replace("/workspace/contract/opp/", "/opp/");
+    }
+
     private static string CsvField(object? value)
     {
         var s = value?.ToString() ?? "";
