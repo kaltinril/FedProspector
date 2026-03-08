@@ -16,7 +16,6 @@ import EmojiEventsOutlined from '@mui/icons-material/EmojiEventsOutlined';
 import BusinessOutlined from '@mui/icons-material/BusinessOutlined';
 import GroupsOutlined from '@mui/icons-material/GroupsOutlined';
 import TrackChangesOutlined from '@mui/icons-material/TrackChangesOutlined';
-import DescriptionOutlined from '@mui/icons-material/DescriptionOutlined';
 import BookmarkBorderOutlined from '@mui/icons-material/BookmarkBorderOutlined';
 import CorporateFareOutlined from '@mui/icons-material/CorporateFareOutlined';
 import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
@@ -67,7 +66,6 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Pipeline',
     items: [
       { label: 'Prospects', icon: <TrackChangesOutlined />, route: '/prospects' },
-      { label: 'Proposals', icon: <DescriptionOutlined />, route: '/proposals' },
     ],
   },
   {

@@ -34,7 +34,7 @@ import { TabbedDetailPage } from '@/components/shared/TabbedDetailPage';
 import { KeyFactsGrid } from '@/components/shared/KeyFactsGrid';
 import { DeadlineCountdown } from '@/components/shared/DeadlineCountdown';
 import { BurnRateChart } from '@/components/shared/BurnRateChart';
-import { BarChart } from '@mui/x-charts/BarChart';
+
 import { QualificationChecklist } from '@/components/shared/QualificationChecklist';
 import { DataTable } from '@/components/shared/DataTable';
 import { StatusChip } from '@/components/shared/StatusChip';
@@ -45,13 +45,13 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import QualificationPWinTab from './QualificationPWinTab';
 import CompetitiveIntelTab from './CompetitiveIntelTab';
 import { getOpportunity } from '@/api/opportunities';
-import { getBurnRate, getMarketShare } from '@/api/awards';
+import { getBurnRate } from '@/api/awards';
 import { createProspect } from '@/api/prospects';
 import { createSavedSearch } from '@/api/savedSearches';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate, formatDateTime } from '@/utils/dateFormatters';
 import { formatCurrency } from '@/utils/formatters';
-import type { OpportunityDetail, RelatedAwardDto, MarketShareDto, ResourceLinkDto } from '@/types/api';
+import type { OpportunityDetail, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -434,219 +434,6 @@ function HistoryTab({ opp }: { opp: OpportunityDetail }) {
         </Paper>
       )}
     </Box>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Tab: Competition
-// ---------------------------------------------------------------------------
-
-const MARKET_SHARE_COLUMNS: GridColDef<MarketShareDto>[] = [
-  {
-    field: 'vendorName',
-    headerName: 'Vendor',
-    flex: 2,
-    minWidth: 200,
-  },
-  { field: 'vendorUei', headerName: 'UEI', flex: 1, minWidth: 130 },
-  { field: 'awardCount', headerName: 'Awards', width: 90, type: 'number' },
-  {
-    field: 'totalValue',
-    headerName: 'Total Value',
-    width: 140,
-    type: 'number',
-    renderCell: ({ value }) => <CurrencyDisplay value={value} compact />,
-  },
-  {
-    field: 'averageValue',
-    headerName: 'Avg Value',
-    width: 130,
-    type: 'number',
-    renderCell: ({ value }) => <CurrencyDisplay value={value} compact />,
-  },
-  {
-    field: 'lastAwardDate',
-    headerName: 'Last Award',
-    width: 120,
-    renderCell: ({ value }) => (value ? formatDate(value) : '--'),
-  },
-];
-
-function CompetitionTab({ opp }: { opp: OpportunityDetail }) {
-  const navigate = useNavigate();
-  const summary = opp.usaspendingAward;
-
-  const summaryFacts = summary
-    ? [
-        { label: 'Award ID', value: summary.generatedUniqueAwardId },
-        { label: 'Recipient', value: summary.recipientName ?? '--' },
-        { label: 'Recipient UEI', value: summary.recipientUei ?? '--' },
-        { label: 'Total Obligation', value: formatCurrency(summary.totalObligation) },
-        { label: 'Ceiling', value: formatCurrency(summary.baseAndAllOptionsValue) },
-        {
-          label: 'Period',
-          value:
-            summary.startDate || summary.endDate
-              ? `${formatDate(summary.startDate)} - ${formatDate(summary.endDate)}`
-              : '--',
-        },
-      ]
-    : [];
-
-  return (
-    <Box>
-      {/* USAspending summary */}
-      {summary ? (
-        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle2" sx={{ mb: 2 }}>
-            USAspending Summary
-          </Typography>
-          <KeyFactsGrid facts={summaryFacts} columns={2} />
-        </Paper>
-      ) : (
-        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-          <EmptyState
-            title="No USAspending Data"
-            message="No USAspending summary available for this opportunity."
-          />
-        </Paper>
-      )}
-
-      {/* Related awards by NAICS */}
-      {opp.relatedAwards.length > 0 ? (
-        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle2" sx={{ mb: 2 }}>
-            Related Awards
-          </Typography>
-          <DataTable
-            columns={RELATED_AWARD_COLUMNS}
-            rows={opp.relatedAwards}
-            getRowId={(row: RelatedAwardDto) => row.contractId}
-            onRowClick={(params) => {
-              navigate(`/awards/${encodeURIComponent(params.row.contractId)}`);
-            }}
-          />
-        </Paper>
-      ) : (
-        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-          <EmptyState
-            title="No Related Awards"
-            message="No related awards found for this opportunity."
-          />
-        </Paper>
-      )}
-
-      {/* Market share by NAICS */}
-      <MarketShareSection naicsCode={opp.naicsCode} navigate={navigate} />
-    </Box>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Market Share Section (within Competition tab)
-// ---------------------------------------------------------------------------
-
-function MarketShareSection({
-  naicsCode,
-  navigate,
-}: {
-  naicsCode?: string | null;
-  navigate: ReturnType<typeof useNavigate>;
-}) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: queryKeys.awards.marketShare(naicsCode ?? ''),
-    queryFn: () => getMarketShare(naicsCode!, 10),
-    staleTime: 5 * 60 * 1000,
-    enabled: !!naicsCode,
-  });
-
-  if (!naicsCode) {
-    return (
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <EmptyState
-          title="No NAICS Code"
-          message="Cannot show market share without a NAICS code."
-        />
-      </Paper>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Market Share — NAICS {naicsCode}
-        </Typography>
-        <LoadingState message="Loading market share data..." />
-      </Paper>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <EmptyState
-          title="Market Share Unavailable"
-          message="Could not load market share data."
-        />
-      </Paper>
-    );
-  }
-
-  if (data.length < 3) {
-    return (
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <EmptyState
-          title={`Insufficient Data for NAICS ${naicsCode}`}
-          message="Fewer than 3 vendors found. Award data coverage depends on ETL load history."
-        />
-      </Paper>
-    );
-  }
-
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="subtitle2" sx={{ mb: 2 }}>
-        Top Vendors — NAICS {naicsCode}
-      </Typography>
-      <Box sx={{ width: '100%', height: Math.max(200, data.length * 40) }}>
-        <BarChart
-          dataset={data.map((d) => ({
-            vendor:
-              d.vendorName.length > 30
-                ? d.vendorName.slice(0, 27) + '...'
-                : d.vendorName,
-            value: d.totalValue,
-          }))}
-          yAxis={[{ scaleType: 'band', dataKey: 'vendor' }]}
-          xAxis={[
-            {
-              valueFormatter: (v: number) => formatCurrency(v) ?? '',
-            },
-          ]}
-          series={[
-            {
-              dataKey: 'value',
-              label: 'Total Award Value',
-              valueFormatter: (v) =>
-                formatCurrency(v as number | null) ?? '',
-            },
-          ]}
-          layout="horizontal"
-          margin={{ left: 200 }}
-          hideLegend
-        />
-      </Box>
-      <Divider sx={{ my: 2 }} />
-      <DataTable
-        columns={MARKET_SHARE_COLUMNS}
-        rows={data}
-        getRowId={(row: MarketShareDto) => row.vendorUei}
-        onRowClick={(params) => {
-          navigate(`/entities/${encodeURIComponent(params.row.vendorUei)}`);
-        }}
-      />
-    </Paper>
   );
 }
 

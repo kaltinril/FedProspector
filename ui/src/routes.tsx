@@ -22,6 +22,9 @@ const OpportunityDetailPage = lazy(
 const AwardDetailPage = lazy(() => import('@/pages/awards/AwardDetailPage'));
 const EntityDetailPage = lazy(() => import('@/pages/entities/EntityDetailPage'));
 const TeamingPartnerPage = lazy(() => import('@/pages/subawards/TeamingPartnerPage'));
+const ProspectPipelinePage = lazy(() => import('@/pages/prospects/ProspectPipelinePage'));
+const ProspectDetailPage = lazy(() => import('@/pages/prospects/ProspectDetailPage'));
+const ProposalDetailPage = lazy(() => import('@/pages/prospects/ProposalDetailPage'));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -126,6 +129,32 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <TeamingPartnerPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Prospect pipeline */}
+      <Route
+        path="/prospects"
+        element={
+          <AuthenticatedLayout>
+            <ProspectPipelinePage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/prospects/:id"
+        element={
+          <AuthenticatedLayout>
+            <ProspectDetailPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/prospects/:id/proposals/:proposalId"
+        element={
+          <AuthenticatedLayout>
+            <ProposalDetailPage />
           </AuthenticatedLayout>
         }
       />
