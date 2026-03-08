@@ -13,7 +13,11 @@ from config.logging_config import setup_logging
 @click.option("--skip-download", is_flag=True, help="Use previously downloaded files")
 @click.option("--source", type=click.Choice(["archive", "api"]), default="archive",
               help="Download source: archive (pre-built, fast) or api (on-demand, slow)")
-def usaspending_bulk(years_back, fiscal_year, skip_download, source):
+@click.option("--fast", is_flag=True, default=False,
+              help="Drop secondary indexes before load, rebuild after (faster bulk inserts)")
+@click.option("--resume", is_flag=True, default=False,
+              help="Resume the most recent failed/in-progress bulk load (skips completed CSVs and batches)")
+def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast, resume):
     """Bulk load USASpending award data from CSV downloads.
 
     Downloads fiscal-year bulk CSV archives from USASpending.gov and loads
@@ -45,9 +49,41 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source):
     click.echo(f"Fiscal years to load: {fiscal_years}")
 
     client = USASpendingClient()
-    loader = USASpendingBulkLoader()
+    loader = USASpendingBulkLoader(fast_mode=fast)
     load_manager = LoadManager()
     download_dir = settings.DOWNLOAD_DIR / "usaspending"
+
+    if fast:
+        logger.warning(
+            "Fast mode: secondary indexes will be dropped during load. "
+            "Queries against usaspending_award will be slow until rebuild completes."
+        )
+        click.echo("WARNING: Fast mode enabled — secondary indexes will be dropped during load.")
+
+    # Resume mode: find the most recent in-progress or failed load_id
+    resume_load_id = None
+    if resume:
+        from db.connection import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT load_id FROM etl_load_log "
+                "WHERE source_system='USASPENDING_BULK' "
+                "AND status IN ('RUNNING', 'FAILED') "
+                "ORDER BY load_id DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if row:
+            resume_load_id = row[0]
+            click.echo(f"Resuming load_id={resume_load_id}")
+        else:
+            click.echo("ERROR: No in-progress or failed bulk load found to resume.")
+            return
 
     total_stats = {
         "records_read": 0,
@@ -56,73 +92,84 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source):
         "fiscal_years_loaded": 0,
     }
 
-    for fy in fiscal_years:
-        click.echo(f"\n--- FY{fy} ---")
+    if fast:
+        loader._drop_secondary_indexes()
 
-        load_id = load_manager.start_load(
-            source_system="USASPENDING_BULK",
-            load_type="FULL",
-            parameters={"fiscal_year": fy},
-        )
+    try:
+        for fy in fiscal_years:
+            click.echo(f"\n--- FY{fy} ---")
 
-        try:
-            if skip_download:
-                # Find existing ZIP for this FY
-                zip_files = sorted(download_dir.glob(f"*{fy}*.zip")) if download_dir.exists() else []
-                if not zip_files:
-                    click.echo(f"  No existing ZIP found for FY{fy}, skipping")
-                    load_manager.fail_load(load_id, f"No ZIP file found for FY{fy}")
-                    continue
-                zip_path = zip_files[-1]  # Most recent
-                click.echo(f"  Using existing: {zip_path.name}")
+            if resume_load_id:
+                load_id = resume_load_id
             else:
-                if source == "archive":
-                    click.echo(f"  Downloading FY{fy} archive...")
-                    zip_path = client.download_archive_file(fy)
-                    click.echo(f"  Downloaded: {zip_path.name}")
+                load_id = load_manager.start_load(
+                    source_system="USASPENDING_BULK",
+                    load_type="FULL",
+                    parameters={"fiscal_year": fy},
+                )
+
+            try:
+                if skip_download:
+                    # Find existing ZIP for this FY
+                    zip_files = sorted(download_dir.glob(f"*{fy}*.zip")) if download_dir.exists() else []
+                    if not zip_files:
+                        click.echo(f"  No existing ZIP found for FY{fy}, skipping")
+                        load_manager.fail_load(load_id, f"No ZIP file found for FY{fy}")
+                        continue
+                    zip_path = zip_files[-1]  # Most recent
+                    click.echo(f"  Using existing: {zip_path.name}")
                 else:
-                    # On-demand API flow
-                    click.echo(f"  Requesting bulk download for FY{fy}...")
-                    result = client.request_bulk_download(fy)
-
-                    if result.get("file_url"):
-                        file_url = result["file_url"]
-                    elif result.get("status_url"):
-                        click.echo(f"  Polling for download readiness...")
-                        poll_result = client.poll_bulk_download(result["status_url"])
-                        file_url = poll_result["file_url"]
+                    if source == "archive":
+                        click.echo(f"  Downloading FY{fy} archive...")
+                        zip_path = client.download_archive_file(fy)
+                        click.echo(f"  Downloaded: {zip_path.name}")
                     else:
-                        raise RuntimeError(f"Unexpected API response: {result}")
+                        # On-demand API flow
+                        click.echo(f"  Requesting bulk download for FY{fy}...")
+                        result = client.request_bulk_download(fy)
 
-                    click.echo(f"  Downloading...")
-                    zip_path = client.download_bulk_file(file_url)
+                        if result.get("file_url"):
+                            file_url = result["file_url"]
+                        elif result.get("status_url"):
+                            click.echo(f"  Polling for download readiness...")
+                            poll_result = client.poll_bulk_download(result["status_url"])
+                            file_url = poll_result["file_url"]
+                        else:
+                            raise RuntimeError(f"Unexpected API response: {result}")
 
-            # Load the ZIP
-            click.echo(f"  Loading CSV data...")
-            stats = loader.load_fiscal_year(zip_path, fy, load_id)
+                        click.echo(f"  Downloading...")
+                        zip_path = client.download_bulk_file(file_url)
 
-            load_manager.complete_load(
-                load_id,
-                records_read=stats["records_read"],
-                records_inserted=stats["records_inserted"],
-                records_errored=stats["records_errored"],
-            )
+                # Load the ZIP
+                click.echo(f"  Loading CSV data...")
+                stats = loader.load_fiscal_year(zip_path, fy, load_id)
 
-            total_stats["records_read"] += stats["records_read"]
-            total_stats["records_inserted"] += stats["records_inserted"]
-            total_stats["records_errored"] += stats["records_errored"]
-            total_stats["fiscal_years_loaded"] += 1
+                load_manager.complete_load(
+                    load_id,
+                    records_read=stats["records_read"],
+                    records_inserted=stats["records_inserted"],
+                    records_errored=stats["records_errored"],
+                )
 
-            click.echo(
-                f"  FY{fy}: {stats['records_read']:,} read, "
-                f"{stats['records_inserted']:,} upserted, "
-                f"{stats['records_errored']:,} errors"
-            )
+                total_stats["records_read"] += stats["records_read"]
+                total_stats["records_inserted"] += stats["records_inserted"]
+                total_stats["records_errored"] += stats["records_errored"]
+                total_stats["fiscal_years_loaded"] += 1
 
-        except Exception as exc:
-            logger.exception("Failed to load FY%d", fy)
-            load_manager.fail_load(load_id, str(exc))
-            click.echo(f"  FY{fy} FAILED: {exc}")
+                click.echo(
+                    f"  FY{fy}: {stats['records_read']:,} read, "
+                    f"{stats['records_inserted']:,} upserted, "
+                    f"{stats['records_errored']:,} errors"
+                )
+
+            except Exception as exc:
+                logger.exception("Failed to load FY%d", fy)
+                load_manager.fail_load(load_id, str(exc))
+                click.echo(f"  FY{fy} FAILED: {exc}")
+
+    finally:
+        if fast:
+            loader._recreate_secondary_indexes()
 
     click.echo(f"\n=== Summary ===")
     click.echo(f"Fiscal years loaded: {total_stats['fiscal_years_loaded']}")
