@@ -103,3 +103,19 @@ See [80-SECURITY-HARDENING.md](80-SECURITY-HARDENING.md) for full details. Items
 **Files**: `20_entity.sql` (DDL), `EntityService.cs` (query), live DB ALTER.
 
 **Estimated effort**: ~0.5 days
+
+---
+
+### 500G: Wire Qualification Checklist to Org Profile (from Phase 45/50)
+
+**Original phase**: Gap between Phase 20 (org profile setup), Phase 45 (intelligence endpoints), and Overview tab
+**Deferred because**: Tab 2 (Qualification & pWin) already calls the real endpoint. Overview tab still has hardcoded placeholder.
+
+**Scope**:
+1. Replace hardcoded `QualificationChecklist` in `OpportunityDetailPage.tsx` Overview tab with a call to `GET /opportunities/{noticeId}/qualification`
+2. Show loading/error states inline while the endpoint responds
+3. Investigate whether org profile data (NAICS, certifications, past performance from setup wizard) is actually being used by the qualification endpoint or if it's also returning placeholder data
+
+**Files**: `ui/src/pages/opportunities/OpportunityDetailPage.tsx` (Overview tab), qualification endpoint in C# backend.
+
+**Estimated effort**: ~0.5 days
