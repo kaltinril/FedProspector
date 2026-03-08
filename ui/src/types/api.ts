@@ -926,3 +926,130 @@ export interface CreateOwnerRequest {
   password?: string | null;
   displayName?: string | null;
 }
+
+// ============================================================
+// Intelligence types (Phase 45)
+// ============================================================
+
+export interface PWinFactorDto {
+  name: string;
+  score: number;
+  weight: number;
+  weightedScore: number;
+  detail: string;
+}
+
+export interface PWinResultDto {
+  prospectId: number | null;
+  noticeId: string;
+  score: number;
+  category: string;  // "High" | "Medium" | "Low" | "VeryLow"
+  factors: PWinFactorDto[];
+  suggestions: string[];
+}
+
+export interface QualificationItemDto {
+  name: string;
+  category: string;  // "Certification" | "Experience" | "Compliance" | "Logistics"
+  status: string;    // "Pass" | "Fail" | "Warning" | "Unknown"
+  detail: string;
+}
+
+export interface QualificationCheckDto {
+  noticeId: string;
+  passCount: number;
+  failCount: number;
+  warningCount: number;
+  totalChecks: number;
+  overallStatus: string;  // "Qualified" | "Partially Qualified" | "Not Qualified"
+  checks: QualificationItemDto[];
+}
+
+export interface IncumbentAnalysisDto {
+  noticeId: string;
+  hasIncumbent: boolean;
+  incumbentUei: string | null;
+  incumbentName: string | null;
+  contractId: string | null;
+  contractValue: number | null;
+  dollarsObligated: number | null;
+  periodStart: string | null;
+  periodEnd: string | null;
+  monthsRemaining: number | null;
+  monthlyBurnRate: number | null;
+  percentSpent: number | null;
+  registrationStatus: string | null;
+  registrationExpiration: string | null;
+  isExcluded: boolean;
+  exclusionType: string | null;
+  totalContractsInNaics: number;
+  consecutiveWins: number;
+  vulnerabilitySignals: string[];
+}
+
+export interface VendorShareDto {
+  vendorUei: string | null;
+  vendorName: string | null;
+  contractCount: number;
+  totalValue: number;
+  marketSharePercent: number;
+}
+
+export interface IntelMarketShareDto {
+  naicsCode: string;
+  naicsDescription: string | null;
+  yearsAnalyzed: number;
+  totalContracts: number;
+  totalValue: number;
+  averageAwardValue: number;
+  topVendors: VendorShareDto[];
+}
+
+export interface RecommendedOpportunityDto {
+  noticeId: string;
+  title: string | null;
+  solicitationNumber: string | null;
+  departmentName: string | null;
+  subTier: string | null;
+  setAsideCode: string | null;
+  setAsideDescription: string | null;
+  naicsCode: string | null;
+  naicsDescription: string | null;
+  classificationCode: string | null;
+  noticeType: string | null;
+  awardAmount: number | null;
+  postedDate: string | null;
+  responseDeadline: string | null;
+  daysRemaining: number | null;
+  popState: string | null;
+  popCity: string | null;
+  popCountry: string | null;
+  pWinScore: number;
+  pWinCategory: string;
+  isRecompete: boolean;
+  incumbentName: string | null;
+}
+
+export interface ExpiringContractDto {
+  piid: string;
+  description: string | null;
+  naicsCode: string | null;
+  setAsideType: string | null;
+  vendorUei: string | null;
+  vendorName: string | null;
+  agencyName: string | null;
+  officeName: string | null;
+  contractValue: number | null;
+  dollarsObligated: number | null;
+  completionDate: string | null;
+  dateSigned: string | null;
+  monthsRemaining: number | null;
+  registrationStatus: string | null;
+  registrationExpiration: string | null;
+  isExcluded: boolean;
+  exclusionType: string | null;
+  monthlyBurnRate: number | null;
+  percentSpent: number | null;
+  resolicitationNoticeId: string | null;
+  resolicitationStatus: string;
+}

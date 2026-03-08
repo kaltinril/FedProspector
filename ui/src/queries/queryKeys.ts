@@ -4,6 +4,10 @@ export const queryKeys = {
     list: (params: Record<string, unknown>) => ['opportunities', 'list', params] as const,
     detail: (noticeId: string) => ['opportunities', 'detail', noticeId] as const,
     targets: (params: Record<string, unknown>) => ['opportunities', 'targets', params] as const,
+    pwin: (noticeId: string) => ['opportunities', 'pwin', noticeId] as const,
+    qualification: (noticeId: string) => ['opportunities', 'qualification', noticeId] as const,
+    incumbent: (noticeId: string) => ['opportunities', 'incumbent', noticeId] as const,
+    recommended: (limit: number) => ['opportunities', 'recommended', limit] as const,
   },
   awards: {
     all: ['awards'] as const,
@@ -11,6 +15,7 @@ export const queryKeys = {
     detail: (contractId: string) => ['awards', 'detail', contractId] as const,
     burnRate: (contractId: string) => ['awards', 'burnRate', contractId] as const,
     marketShare: (naicsCode: string) => ['awards', 'marketShare', naicsCode] as const,
+    expiring: (params: Record<string, unknown>) => ['awards', 'expiring', params] as const,
     loadStatus: (contractId: string) => ['awards', 'load-status', contractId] as const,
   },
   entities: {

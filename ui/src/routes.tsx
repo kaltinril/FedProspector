@@ -14,6 +14,7 @@ const TargetOpportunityPage = lazy(
   () => import('@/pages/opportunities/TargetOpportunityPage'),
 );
 const AwardSearchPage = lazy(() => import('@/pages/awards/AwardSearchPage'));
+const ExpiringContractsPage = lazy(() => import('@/pages/awards/ExpiringContractsPage'));
 const EntitySearchPage = lazy(() => import('@/pages/entities/EntitySearchPage'));
 const OpportunityDetailPage = lazy(
   () => import('@/pages/opportunities/OpportunityDetailPage'),
@@ -85,6 +86,14 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <AwardSearchPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/awards/expiring"
+        element={
+          <AuthenticatedLayout>
+            <ExpiringContractsPage />
           </AuthenticatedLayout>
         }
       />

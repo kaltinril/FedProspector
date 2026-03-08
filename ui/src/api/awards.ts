@@ -7,6 +7,8 @@ import type {
   LoadRequestStatus,
   BurnRateDto,
   MarketShareDto,
+  IntelMarketShareDto,
+  ExpiringContractDto,
 } from '@/types/api';
 
 export function searchAwards(
@@ -33,4 +35,12 @@ export function getBurnRate(contractId: string): Promise<BurnRateDto> {
 
 export function getMarketShare(naicsCode: string, limit = 10): Promise<MarketShareDto[]> {
   return apiClient.get('/awards/market-share', { params: { naicsCode, limit } }).then((r) => r.data);
+}
+
+export function getIntelMarketShare(naicsCode: string, years: number = 3, limit: number = 10): Promise<IntelMarketShareDto> {
+  return apiClient.get('/awards/market-share', { params: { naicsCode, years, limit } }).then((r) => r.data);
+}
+
+export function getExpiringContracts(params: { monthsAhead?: number; naicsCode?: string; setAsideType?: string; limit?: number; offset?: number }): Promise<ExpiringContractDto[]> {
+  return apiClient.get('/awards/expiring', { params }).then((r) => r.data);
 }

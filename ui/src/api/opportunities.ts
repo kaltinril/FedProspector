@@ -6,6 +6,10 @@ import type {
   OpportunityDetail,
   TargetOpportunityDto,
   TargetSearchParams,
+  PWinResultDto,
+  QualificationCheckDto,
+  IncumbentAnalysisDto,
+  RecommendedOpportunityDto,
 } from '@/types/api';
 
 export function searchOpportunities(
@@ -28,4 +32,20 @@ export function exportOpportunities(params: OpportunitySearchParams): Promise<Bl
   return apiClient
     .get('/opportunities/export', { params, responseType: 'blob' })
     .then((r) => r.data);
+}
+
+export function getPWin(noticeId: string): Promise<PWinResultDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/pwin`).then((r) => r.data);
+}
+
+export function getQualification(noticeId: string): Promise<QualificationCheckDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/qualification`).then((r) => r.data);
+}
+
+export function getIncumbentAnalysis(noticeId: string): Promise<IncumbentAnalysisDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/incumbent`).then((r) => r.data);
+}
+
+export function getRecommendedOpportunities(limit: number = 10): Promise<RecommendedOpportunityDto[]> {
+  return apiClient.get('/opportunities/recommended', { params: { limit } }).then((r) => r.data);
 }

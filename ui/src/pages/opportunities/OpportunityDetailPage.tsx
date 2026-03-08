@@ -42,6 +42,8 @@ import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
+import QualificationPWinTab from './QualificationPWinTab';
+import CompetitiveIntelTab from './CompetitiveIntelTab';
 import { getOpportunity } from '@/api/opportunities';
 import { getBurnRate, getMarketShare } from '@/api/awards';
 import { createProspect } from '@/api/prospects';
@@ -276,13 +278,17 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
           unknown for now.
         </Typography>
         <QualificationChecklist
-          items={[
-            { label: 'Set-aside eligibility', status: 'unknown', detail: 'Requires organization profile' },
-            { label: 'NAICS code match', status: 'unknown', detail: 'Requires organization profile' },
-            { label: 'Size standard compliance', status: 'unknown', detail: 'Requires organization profile' },
-            { label: 'Security clearance', status: 'unknown', detail: 'Requires organization profile' },
-            { label: 'Past performance', status: 'unknown', detail: 'Requires organization profile' },
-            { label: 'Geographic eligibility', status: 'unknown', detail: 'Requires organization profile' },
+          overallStatus="Unknown"
+          passCount={0}
+          failCount={0}
+          warningCount={0}
+          checks={[
+            { name: 'Set-aside eligibility', category: 'Certification', status: 'Unknown', detail: 'Requires organization profile' },
+            { name: 'NAICS code match', category: 'Experience', status: 'Unknown', detail: 'Requires organization profile' },
+            { name: 'Size standard compliance', category: 'Compliance', status: 'Unknown', detail: 'Requires organization profile' },
+            { name: 'Security clearance', category: 'Compliance', status: 'Unknown', detail: 'Requires organization profile' },
+            { name: 'Past performance', category: 'Experience', status: 'Unknown', detail: 'Requires organization profile' },
+            { name: 'Geographic eligibility', category: 'Logistics', status: 'Unknown', detail: 'Requires organization profile' },
           ]}
         />
       </Paper>
@@ -891,17 +897,22 @@ export default function OpportunityDetailPage() {
       content: <OverviewTab opp={opp} />,
     },
     {
-      label: 'History & Incumbent Intel',
+      label: 'Qualification & pWin',
+      value: 'qualification',
+      content: <QualificationPWinTab opp={opp} />,
+    },
+    {
+      label: 'Competitive Intel',
+      value: 'competitive',
+      content: <CompetitiveIntelTab opp={opp} />,
+    },
+    {
+      label: 'History & Awards',
       value: 'history',
       content: <HistoryTab opp={opp} />,
     },
     {
-      label: 'Competition',
-      value: 'competition',
-      content: <CompetitionTab opp={opp} />,
-    },
-    {
-      label: 'Prospect',
+      label: 'Actions',
       value: 'prospect',
       content: (
         <ProspectTab
