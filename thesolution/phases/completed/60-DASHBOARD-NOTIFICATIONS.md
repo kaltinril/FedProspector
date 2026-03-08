@@ -1,6 +1,6 @@
 # Phase 60: Dashboard, Saved Searches & Notifications
 
-**Status**: NOT STARTED
+**Status**: COMPLETE
 **Dependencies**: Phase 50 (Capture Management)
 **Deliverable**: Executive dashboard, saved search management with alerts, notification center
 **Repository**: `ui/src/pages/`
@@ -142,49 +142,60 @@ Build the "home base" experience — the dashboard users see when they log in, t
 ## Tasks
 
 ### 60.1 Dashboard Page
-- [ ] Build card-based dashboard layout
-- [ ] Key metrics stat cards (open prospects, due this week, win rate, pipeline value)
-- [ ] Pipeline stage bar chart (@mui/x-charts horizontal bar chart) — @mui/x-charts does not support funnel charts; horizontal stacked bar effectively shows stage progression
-- [ ] Due this week table (sortable by deadline)
-- [ ] Workload by assignee bar chart
-- [ ] Win/loss metrics chart
-- [ ] Recent saved searches with result counts
-- [ ] Wire to `GET /api/v1/dashboard`
-- [ ] Auto-refresh via TanStack Query `refetchInterval: 300000` (5 minutes) with `refetchIntervalInBackground: false`. Pauses when browser tab is not visible.
+- [x] Build card-based dashboard layout
+- [x] Key metrics stat cards (open prospects, due this week, win rate, pipeline value)
+- [x] Pipeline stage bar chart (@mui/x-charts horizontal bar chart) — @mui/x-charts does not support funnel charts; horizontal stacked bar effectively shows stage progression
+- [x] Due this week table (sortable by deadline)
+- [x] Workload by assignee bar chart
+- [x] Win/loss metrics chart
+- [x] Recent saved searches with result counts
+- [x] Wire to `GET /api/v1/dashboard`
+- [x] Auto-refresh via TanStack Query `refetchInterval: 300000` (5 minutes) with `refetchIntervalInBackground: false`. Pauses when browser tab is not visible.
 
 ### 60.2 Saved Search Management
-- [ ] Saved search list page
-- [ ] Create saved search dialog with filter builder
-- [ ] Reuse filter components from opportunity search
-- [ ] Run saved search → display results
-- [ ] Notification enabled toggle
-- [ ] Delete saved search with confirmation
-- [ ] Wire to saved search API endpoints
+- [x] Saved search list page
+- [x] Create saved search dialog with filter builder
+- [x] Reuse filter components from opportunity search
+- [x] Run saved search → display results
+- [x] Notification enabled toggle
+- [x] Delete saved search with confirmation
+- [x] Wire to saved search API endpoints
 
 ### 60.3 Notification Center
-- [ ] Notification feed page (paginated)
-- [ ] Notification card component (icon, title, message, timestamp)
-- [ ] Click → navigate to relevant entity
-- [ ] Mark as read (individual + all)
-- [ ] Filter by unread/type
-- [ ] Wire to notification API endpoints
+- [x] Notification feed page (paginated)
+- [x] Notification card component (icon, title, message, timestamp)
+- [x] Click → navigate to relevant entity
+- [x] Mark as read (individual + all)
+- [x] Filter by unread/type
+- [x] Wire to notification API endpoints
 
 ### 60.4 Top Bar Notification Widget
-- [ ] Bell icon with unread count badge
-- [ ] Dropdown with last 5 notifications
-- [ ] "View all" link to notification center
-- [ ] Poll for new notifications (or use SignalR later)
+- [x] Bell icon with unread count badge
+- [x] Dropdown with last 5 notifications
+- [x] "View all" link to notification center
+- [x] Poll for new notifications (or use SignalR later)
 
 ---
 
 ## Verification
-- [ ] Dashboard loads with real data from API
-- [ ] Dashboard stat card computations are correct (win rate handles zero division, pipeline value sums correctly)
-- [ ] Pipeline chart clickable → navigates to filtered pipeline
-- [ ] Saved search create/run/delete flow works end-to-end
-- [ ] Saved search filter criteria matches API DTO (`SetAsideCodes`, `NaicsCodes`, `States`, etc.)
-- [ ] Notifications display and mark-as-read works
-- [ ] Notification empty state shows "You're all caught up!" message
-- [ ] Notification bell shows correct unread count
-- [ ] Notification click routes to correct entity based on `EntityType` + `EntityId`
-- [ ] Due this week shows correct opportunities
+- [x] Dashboard loads with real data from API
+- [x] Dashboard stat card computations are correct (win rate handles zero division, pipeline value sums correctly)
+- [x] Pipeline chart clickable → navigates to filtered pipeline
+- [x] Saved search create/run/delete flow works end-to-end
+- [x] Saved search filter criteria matches API DTO (`SetAsideCodes`, `NaicsCodes`, `States`, etc.)
+- [x] Notifications display and mark-as-read works
+- [x] Notification empty state shows "You're all caught up!" message
+- [x] Notification bell shows correct unread count
+- [x] Notification click routes to correct entity based on `EntityType` + `EntityId`
+- [x] Due this week shows correct opportunities
+
+---
+
+## Completion Notes
+
+- Implemented in commit `94015f7`
+- All backend infrastructure (controllers, services, DTOs) was already in place from Phase 14.5
+- Frontend pages implemented: `DashboardPage`, `SavedSearchesPage`, `NotificationCenterPage`
+- TopBar notification bell widget with unread count badge and popover
+- Routes added for `/dashboard`, `/saved-searches`, `/notifications`
+- TanStack Query hooks with auto-refresh (dashboard 5min, notifications 60s polling)
