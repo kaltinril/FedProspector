@@ -8,5 +8,7 @@ export function useDashboard() {
     queryFn: getDashboard,
     staleTime: 60 * 1000,
     refetchOnWindowFocus: true,
+    refetchInterval: 5 * 60 * 1000,
+    refetchIntervalInBackground: false,
   });
 }

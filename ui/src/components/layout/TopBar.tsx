@@ -9,7 +9,14 @@ import MenuItem from '@mui/material/MenuItem';
 import Divider from '@mui/material/Divider';
 import Typography from '@mui/material/Typography';
 import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
 import ListItemIcon from '@mui/material/ListItemIcon';
+import Popover from '@mui/material/Popover';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
+import Button from '@mui/material/Button';
 import Brightness4 from '@mui/icons-material/Brightness4';
 import Brightness7 from '@mui/icons-material/Brightness7';
 import NotificationsOutlined from '@mui/icons-material/NotificationsOutlined';
@@ -20,6 +27,9 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
 import { useThemeMode } from '@/theme/useThemeMode';
+import { useUnreadCount, useNotifications, useMarkRead } from '@/queries/useNotifications';
+import type { NotificationDto } from '@/types/api';
+import { formatRelative } from '@/utils/dateFormatters';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { SIDEBAR_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED } from '@/components/layout/Sidebar';
 
@@ -35,6 +45,39 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
+
+  const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
+  const notifOpen = Boolean(notifAnchorEl);
+
+  const { data: unreadData } = useUnreadCount();
+  const unreadCount = unreadData?.count ?? 0;
+  const { data: notifData } = useNotifications({ pageSize: 5, unreadOnly: false });
+  const recentNotifications = notifData?.notifications?.items ?? [];
+  const markRead = useMarkRead();
+
+  function getNotificationRoute(notif: NotificationDto): string | null {
+    const { entityType, entityId } = notif;
+    if (!entityType || !entityId) return null;
+    switch (entityType.toLowerCase()) {
+      case 'opportunity': return `/opportunities/${entityId}`;
+      case 'award': return `/awards/${entityId}`;
+      case 'entity': return `/entities/${entityId}`;
+      case 'prospect': return `/prospects/${entityId}`;
+      case 'saved_search': return '/saved-searches';
+      default: return null;
+    }
+  }
+
+  function handleNotificationClick(notif: NotificationDto) {
+    if (!notif.isRead) {
+      markRead.mutate(notif.notificationId);
+    }
+    setNotifAnchorEl(null);
+    const route = getNotificationRoute(notif);
+    if (route) {
+      navigate(route);
+    }
+  }
 
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
@@ -102,11 +145,60 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
           </IconButton>
 
           {/* Notifications */}
-          <IconButton size="small" aria-label="Notifications">
-            <Badge badgeContent={0} color="error">
+          <IconButton
+            size="small"
+            aria-label="Notifications"
+            onClick={(e) => setNotifAnchorEl(e.currentTarget)}
+          >
+            <Badge badgeContent={unreadCount} color="error">
               <NotificationsOutlined />
             </Badge>
           </IconButton>
+          <Popover
+            open={notifOpen}
+            anchorEl={notifAnchorEl}
+            onClose={() => setNotifAnchorEl(null)}
+            anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+            transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+            slotProps={{ paper: { sx: { mt: 1 } } }}
+          >
+            <Box sx={{ width: 360, maxHeight: 400 }}>
+              <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Typography variant="subtitle1" fontWeight={600}>Notifications</Typography>
+                {unreadCount > 0 && <Chip label={`${unreadCount} unread`} size="small" color="primary" />}
+              </Box>
+              <Divider />
+              {recentNotifications.length === 0 ? (
+                <Box sx={{ p: 3, textAlign: 'center' }}>
+                  <Typography variant="body2" color="text.secondary">No notifications</Typography>
+                </Box>
+              ) : (
+                <List disablePadding>
+                  {recentNotifications.map((notif) => (
+                    <ListItem key={notif.notificationId} disablePadding>
+                      <ListItemButton
+                        onClick={() => handleNotificationClick(notif)}
+                        sx={{ bgcolor: notif.isRead ? 'transparent' : 'action.hover' }}
+                      >
+                        <ListItemText
+                          primary={notif.title}
+                          secondary={formatRelative(notif.createdAt)}
+                          primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem' }}
+                          secondaryTypographyProps={{ fontSize: '0.75rem' }}
+                        />
+                      </ListItemButton>
+                    </ListItem>
+                  ))}
+                </List>
+              )}
+              <Divider />
+              <Box sx={{ p: 1, textAlign: 'center' }}>
+                <Button size="small" onClick={() => { setNotifAnchorEl(null); navigate('/notifications'); }}>
+                  View all notifications
+                </Button>
+              </Box>
+            </Box>
+          </Popover>
 
           {/* User menu */}
           <IconButton

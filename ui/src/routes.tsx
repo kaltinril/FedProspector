@@ -25,6 +25,10 @@ const TeamingPartnerPage = lazy(() => import('@/pages/subawards/TeamingPartnerPa
 const ProspectPipelinePage = lazy(() => import('@/pages/prospects/ProspectPipelinePage'));
 const ProspectDetailPage = lazy(() => import('@/pages/prospects/ProspectDetailPage'));
 const ProposalDetailPage = lazy(() => import('@/pages/prospects/ProposalDetailPage'));
+const SavedSearchesPage = lazy(() => import('@/pages/saved-searches/SavedSearchesPage'));
+const NotificationCenterPage = lazy(
+  () => import('@/pages/notifications/NotificationCenterPage'),
+);
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -155,6 +159,26 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <ProposalDetailPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Saved searches */}
+      <Route
+        path="/saved-searches"
+        element={
+          <AuthenticatedLayout>
+            <SavedSearchesPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Notifications */}
+      <Route
+        path="/notifications"
+        element={
+          <AuthenticatedLayout>
+            <NotificationCenterPage />
           </AuthenticatedLayout>
         }
       />
