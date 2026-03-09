@@ -81,20 +81,27 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
 
         job_def = JOBS[job_name]
 
-        # Freshness check: skip if recently loaded (unless --force)
+        # Freshness check: skip if recently loaded successfully (unless --force)
         if not force and job_def.get("source_system") and job_def.get("staleness_hours"):
             status_info = runner.get_job_status(job_name)
             if status_info and status_info.get("hours_since_last_run") is not None:
-                threshold = job_def["staleness_hours"] / 2
+                threshold = job_def.get("daily_freshness_hours", job_def["staleness_hours"] / 2)
                 hours_ago = status_info["hours_since_last_run"]
-                if hours_ago < threshold:
+                last_status = status_info.get("last_status")
+                if last_status == "COMPLETED" and hours_ago < threshold:
                     pad = "." * max(1, 25 - len(job_name))
                     click.echo(
                         f"  [{i}/{len(jobs)}] {job_name} {pad} "
-                        f"SKIP (fresh - loaded {hours_ago:.0f}h ago)"
+                        f"SKIP (fresh — completed {hours_ago:.0f}h ago)"
                     )
                     skipped += 1
                     continue
+                if last_status and last_status != "COMPLETED":
+                    pad = "." * max(1, 25 - len(job_name))
+                    click.echo(
+                        f"  [{i}/{len(jobs)}] {job_name} {pad} "
+                        f"(last run {last_status.lower()} {hours_ago:.0f}h ago — re-running)"
+                    )
 
         # Apply key override for SAM jobs that have --key in their command
         original_command = None

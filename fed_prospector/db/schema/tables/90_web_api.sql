@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS organization_invite (
 
 CREATE TABLE IF NOT EXISTS contracting_officer (
     officer_id           INT AUTO_INCREMENT PRIMARY KEY,
-    full_name            VARCHAR(200) NOT NULL,
+    full_name            VARCHAR(500) NOT NULL,
     email                VARCHAR(200),
     phone                VARCHAR(50),
     fax                  VARCHAR(50),

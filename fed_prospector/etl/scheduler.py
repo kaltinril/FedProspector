@@ -36,6 +36,7 @@ JOBS = {
         "source_system": "SAM_OPPORTUNITY",
         "schedule": "Every 4 hours",
         "staleness_hours": 6,
+        "daily_freshness_hours": 4,
         "priority": "Critical",
         "catchup_safe": True,
         "estimated_api_calls": 5,   # 4 set-aside types, ~1 page each
@@ -46,6 +47,7 @@ JOBS = {
         "source_system": "SAM_ENTITY",
         "schedule": "Tue-Sat 06:00",
         "staleness_hours": 48,  # 2 days (skip weekends)
+        "daily_freshness_hours": 20,
         "priority": "High",
         "catchup_safe": True,
         "estimated_api_calls": 1,   # Single file download
@@ -56,6 +58,7 @@ JOBS = {
         "source_system": "SAM_FEDHIER",
         "schedule": "Sunday 02:00",
         "staleness_hours": 336,  # 14 days
+        "daily_freshness_hours": 144,
         "priority": "Medium",
         "catchup_safe": True,
         "estimated_api_calls": 50,  # ~5K orgs at 100/page
@@ -66,6 +69,7 @@ JOBS = {
         "source_system": "SAM_AWARDS",
         "schedule": "Saturday 03:00",
         "staleness_hours": 336,  # 14 days
+        "daily_freshness_hours": 24,
         "priority": "Medium",
         "catchup_safe": True,
         "estimated_api_calls": 10,  # Default --max-calls
@@ -76,6 +80,7 @@ JOBS = {
         "source_system": "GSA_CALC",
         "schedule": "1st of month 04:00",
         "staleness_hours": 1080,  # 45 days
+        "daily_freshness_hours": 504,
         "priority": "Low",
         "catchup_safe": True,
         "estimated_api_calls": 0,   # GSA API, no SAM key
@@ -86,6 +91,7 @@ JOBS = {
         "source_system": "USASPENDING",
         "schedule": "1st of month 05:00",
         "staleness_hours": 1080,  # 45 days
+        "daily_freshness_hours": 504,
         "priority": "Medium",
         "catchup_safe": False,
         "estimated_api_calls": 0,   # Separate API, no SAM key
@@ -96,6 +102,7 @@ JOBS = {
         "source_system": "SAM_EXCLUSIONS",
         "schedule": "Monday 06:00",
         "staleness_hours": 336,  # 14 days
+        "daily_freshness_hours": 24,
         "priority": "High",
         "catchup_safe": True,
         "estimated_api_calls": 20,  # Default --max-calls
@@ -106,6 +113,7 @@ JOBS = {
         "source_system": None,  # No staleness tracking
         "schedule": "Daily 07:00",
         "staleness_hours": None,
+        "daily_freshness_hours": 1,
         "priority": "Medium",
         "catchup_safe": False,
         "estimated_api_calls": 0,   # Local DB queries only

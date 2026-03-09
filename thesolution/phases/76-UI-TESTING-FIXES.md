@@ -81,7 +81,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 ## Code Review Issues
 
-### 76-7: Daily load scheduler commands broken — wrong CLI format
+### 76-7: Daily load scheduler commands broken — wrong CLI format ✅ FIXED
 
 **Symptom**: `python main.py load daily` fails immediately with `Error: No such command 'load-opportunities'.` (exit code 2, 0 seconds).
 
@@ -91,7 +91,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Update all `"command"` entries to use group-based CLI format (e.g., `["python", "main.py", "load", "opportunities", "--key", "2"]`). Verify each mapping against `add_command` registrations in `main.py`.
 
-### 76-8: "API calls used" summary is misleading — shows estimate, not actual
+### 76-8: "API calls used" summary is misleading — shows estimate, not actual ✅ FIXED
 
 **Symptom**: After a failed daily load (0 jobs ran), summary shows `API calls used: ~35` — implying 35 calls were consumed when zero were actually made.
 
@@ -100,6 +100,31 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 **File**: `fed_prospector/cli/load_batch.py` (lines ~51, ~150)
 
 **Fix**: Only sum estimates for jobs that actually succeeded. Rename label to clarify it's still an estimate (e.g., `Est. API calls used`).
+
+### 76-9: Daily load freshness skip thresholds too generous + ignores failed runs
+
+**Symptom**: `load daily` reports awards as `SKIP (fresh - loaded 57h ago)` and exclusions as `SKIP (fresh - loaded 119h ago)`. 119h (5 days) is not fresh for a daily batch. Summary shows "Skipped: 2, Failed: 0" — hiding stale data.
+
+**Root Cause**: Three sub-bugs:
+1. **Thresholds derived from staleness_hours/2**: Awards/exclusions have `staleness_hours=336` (14-day health alarm), so skip threshold = 168h (7 days). Far too generous for daily runs.
+2. **Ignores last run status**: `get_job_status()` returns `hours_since_last_run` based on `started_at` regardless of whether that run COMPLETED or FAILED. A failed run 2h ago still counts as "fresh."
+3. **Misleading message**: Says "loaded Xh ago" but checks `started_at`, not `completed_at`. And 119h is clearly not "fresh."
+
+**Files**:
+- `fed_prospector/cli/load_batch.py` (lines ~84-97 — freshness check logic)
+- `fed_prospector/etl/scheduler.py` (JOBS dict — need per-job `daily_freshness_hours`)
+
+**Fix**: Add `daily_freshness_hours` to JOBS dict (e.g., 24h for awards/exclusions). Only skip if last run was COMPLETED and within the freshness window. Improve skip message to show status context.
+
+### 76-10: full_name column too short for SAM.gov contracting officer names
+
+**Symptom**: `Error processing aaae5bd96e1a479aaecc1e9a02b6c444: 1406 (22001): Data too long for column 'full_name' at row 1`
+
+**Root Cause**: `contracting_officer.full_name` is VARCHAR(200). Some SAM.gov POC names exceed this (possibly long titles, suffixes, or concatenated names).
+
+**File**: `fed_prospector/db/schema/tables/90_web_api.sql` (line ~43)
+
+**Fix**: ALTER TABLE to VARCHAR(500). Update DDL file to match. The unique index uses a 100-char prefix so it's unaffected.
 
 ## Code Review Issues
 
@@ -156,3 +181,108 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 **File**: `ui/src/types/api.ts`
 
 **Fix**: Change fields from `string | null` to `string` (required, non-nullable).
+
+## Admin Page Audit Issues
+
+### 76-A1: Temp password never shown after reset (HIGH)
+
+**Problem**: TS `ResetPasswordResponse` is missing `temporaryPassword` field. UI shows the message string instead of the actual generated password. Admin cannot give users their new credentials.
+
+**Files**:
+- `ui/src/types/api.ts` — `ResetPasswordResponse` missing `temporaryPassword`
+- `ui/src/pages/admin/UserManagementTab.tsx:79` — `setTempPassword(resp.message)` should be `resp.temporaryPassword`
+- `api/src/FedProspector.Core/DTOs/Admin/ResetPasswordResponse.cs` — has both `Message` and `TemporaryPassword`
+
+**Fix**: Add `temporaryPassword: string` to TS type, change UI to display `resp.temporaryPassword`.
+
+### 76-A2: Load history pagination completely broken (HIGH)
+
+**Problem**: UI sends `page`/`pageSize` query params but backend expects `limit`/`offset`. Admin always sees only the first 20 records regardless of page navigation.
+
+**Files**:
+- `ui/src/api/admin.ts:52` — sends `page` and `pageSize`
+- `ui/src/types/api.ts:1095-1101` — `LoadHistoryParams` has `page`/`pageSize`
+- `api/src/FedProspector.Api/Controllers/AdminController.cs:44-45` — expects `limit`/`offset`
+
+**Fix**: Either change UI to send `limit`/`offset`, or change backend to accept `page`/`pageSize`. Align the TS `LoadHistoryResponse` type too — it expects `page`, `pageSize`, `totalPages` that the backend never sends.
+
+### 76-A3: Health tab renders ETL data as [object Object] (MEDIUM)
+
+**Problem**: `HealthController` puts nested anonymous objects into the ETL freshness data dictionary. `HealthTab.tsx` renders values with `String(value)` which produces `[object Object]` for nested objects.
+
+**Files**:
+- `api/src/FedProspector.Api/Controllers/HealthController.cs:106-112` — nested `new { lastLoad, age, totalLoads }`
+- `ui/src/pages/admin/HealthTab.tsx:73-78, 108-113` — `String(value ?? '--')`
+- `ui/src/types/api.ts:1113` — `Record<string, string | number | boolean | null>` doesn't account for nested objects
+
+**Fix**: Either flatten the backend response (preferred) or handle nested objects in the UI renderer.
+
+### 76-A4: ETL Status + Load History tabs visible to org admins but 403-blocked (MEDIUM)
+
+**Problem**: These tabs are visible to all admins but the backend endpoints require SystemAdmin policy. Org admins see a loading spinner then a generic error.
+
+**Files**:
+- `ui/src/pages/admin/AdminPage.tsx:22-27` — tabs shown to all admins
+- `api/src/FedProspector.Api/Controllers/AdminController.cs` — ETL/LoadHistory endpoints are SystemAdmin-only
+
+**Fix**: Hide ETL Status, Load History tabs for non-system-admins (same pattern as Organizations tab).
+
+### 76-A5: Create org/owner 409 error messages swallowed (MEDIUM)
+
+**Problem**: Backend now returns 409 Conflict with specific messages (duplicate slug, existing owner, duplicate email) but UI shows generic "Failed to create organization/owner" regardless.
+
+**Files**:
+- `ui/src/pages/admin/OrganizationsTab.tsx:53-54, 70-71` — generic error messages
+
+**Fix**: Extract error message from Axios error response and display it.
+
+### 76-A6: No validation on org create/owner create forms (MEDIUM)
+
+**Problem**: No min/max length validation on name/slug fields. No email format validation. No password minimum length/complexity. Backend also has no validation annotations.
+
+**Files**:
+- `ui/src/pages/admin/OrganizationsTab.tsx` — form fields have `required` but no length/format validation
+- `api/src/FedProspector.Core/DTOs/Admin/CreateOrganizationRequest.cs` — no data annotations
+- `api/src/FedProspector.Core/DTOs/Admin/CreateOwnerRequest.cs` — no data annotations
+
+**Fix**: Add FluentValidation validators on backend. Add matching client-side validation.
+
+### 76-A7: /health endpoint may miss Vite proxy (MEDIUM)
+
+**Problem**: `admin.ts` calls `/health` with raw axios instead of `apiClient`. If Vite dev proxy only forwards `/api/*`, the health call hits the Vite dev server and gets a 404 or HTML page.
+
+**File**: `ui/src/api/admin.ts:57`
+
+**Fix**: Verify Vite proxy config forwards `/health`. Or change backend route to `/api/v1/health` and use `apiClient`.
+
+### 76-A8: 3 backend endpoints have no UI (LOW)
+
+**Problem**: `GET /api/v1/admin/health-snapshots`, `GET /api/v1/admin/api-keys`, `GET /api/v1/admin/jobs` exist in AdminController but no UI tab or component consumes them.
+
+**File**: `api/src/FedProspector.Api/Controllers/AdminController.cs`
+
+**Fix**: Either add UI for these (health trends chart, per-key tracking, job-level view) or document as intentionally API-only.
+
+### 76-A9: Admin can demote themselves to USER role (MEDIUM)
+
+**Problem**: User management allows changing any user's role including the logged-in admin. Backend partially blocks `isAdmin: false` on self but may still apply `role: USER`, creating inconsistent state.
+
+**File**: `ui/src/pages/admin/UserManagementTab.tsx:57-71`
+
+**Fix**: Disable role dropdown for the currently logged-in user, or add backend guard to reject self-demotion entirely.
+
+### 76-A10: Organizations list has no error state (LOW)
+
+**Problem**: If the organizations API call fails, the component renders as if there are zero orgs rather than showing an error.
+
+**File**: `ui/src/pages/admin/OrganizationsTab.tsx:99-158`
+
+**Fix**: Add `isError` check like other admin tabs.
+
+### 76-A11: staleTime missing on useListOrganizations (LOW)
+
+**Problem**: `useListOrganizations` has no `staleTime`, causing refetch on every mount/focus. Other admin hooks use 30s-120s staleTime.
+
+**File**: `ui/src/queries/useAdmin.ts`
+
+**Fix**: Add `staleTime: 60 * 1000` to match other admin queries.
