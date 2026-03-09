@@ -27,7 +27,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 ### When Working on This Project
 
 1. **Read the master plan first**: [thesolution/MASTER-PLAN.md](thesolution/MASTER-PLAN.md)
-2. **Update the plan as you work**: Mark tasks done in `thesolution/phases/`.
+2. **Update the plan as you work**: Mark tasks done in `thesolution/phases/`. **When adding, completing, or changing phase status, ALWAYS update the phase table in `thesolution/MASTER-PLAN.md` in the same commit.**
 3. **Follow the phase order**: Do not skip ahead unless told to.
 4. **Record data quality issues**: Document in relevant phase file under "Known Issues".
 5. **Never hardcode credentials**: Use `.env` + `python-dotenv`. See `thesolution/credentials.yml`.
