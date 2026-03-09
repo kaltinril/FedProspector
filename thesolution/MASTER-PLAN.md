@@ -92,7 +92,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 76 | UI Testing & Bug Fixes | COMPLETE | [76-UI-TESTING-FIXES.md](phases/completed/76-UI-TESTING-FIXES.md) |
 | 77 | USASpending Delta Loader | COMPLETE | [77-USASPENDING-DELTA-LOADER.md](phases/completed/77-USASPENDING-DELTA-LOADER.md) |
 | 78 | Entity CLI Consolidation | COMPLETE | [78-entity-cli-consolidation.md](phases/completed/78-entity-cli-consolidation.md) |
-| 80 | Security Hardening | DEFERRED | [80-SECURITY-HARDENING.md](phases/80-SECURITY-HARDENING.md) |
+| 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 
 ## Success Criteria
