@@ -684,6 +684,80 @@ class USASpendingClient(BaseAPIClient):
         self.logger.info("Downloaded %.1f MB to %s", size_mb, dest_path)
         return dest_path
 
+    def download_delta_file(self, download_dir=None):
+        """Download the latest delta file for all fiscal years.
+
+        Discovers the most recent delta file from the archive listing
+        endpoint and streams it to the local download directory. Skips
+        download if the file already exists locally.
+
+        Delta files cover all fiscal years (FY "All") and contain
+        incremental changes since the last full archive. The archive
+        listing returns them with "_Delta_" in the filename.
+
+        Args:
+            download_dir: Local directory to save to. Defaults to
+                settings.DOWNLOAD_DIR / "usaspending".
+
+        Returns:
+            Path: Local file path of the downloaded delta ZIP.
+
+        Raises:
+            RuntimeError: If no delta file is found in the archive listing.
+        """
+        # Delta files use fiscal_year=0 to represent "All" in the listing API
+        # Try current FY first, then fall back — the API returns delta files
+        # alongside full files in the monthly listing
+        current_fy = self._current_fiscal_year()
+        data = self.list_archive_files(current_fy)
+        monthly_files = data.get("monthly_files", [])
+
+        # Find all delta files and pick the most recent one
+        delta_files = [
+            entry for entry in monthly_files
+            if "_Delta_" in entry.get("file_name", "")
+        ]
+
+        if not delta_files:
+            raise RuntimeError(
+                f"No Delta file found in FY{current_fy} archive listing. "
+                f"Available files: {[f.get('file_name') for f in monthly_files]}"
+            )
+
+        # Sort by updated_date descending to get the latest
+        delta_files.sort(
+            key=lambda f: f.get("updated_date", ""), reverse=True
+        )
+        latest_delta = delta_files[0]
+
+        file_name = latest_delta["file_name"]
+        file_url = latest_delta["url"]
+
+        if download_dir is None:
+            dest_dir = Path(settings.DOWNLOAD_DIR) / "usaspending"
+        else:
+            dest_dir = Path(download_dir)
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest_path = dest_dir / file_name
+
+        if dest_path.exists():
+            self.logger.info("Already downloaded: %s", dest_path)
+            return dest_path
+
+        self.logger.info("Downloading delta %s -> %s", file_url, dest_path)
+        return self.download_bulk_file(file_url, dest_dir=dest_dir)
+
+    def _current_fiscal_year(self):
+        """Return the current federal fiscal year.
+
+        Federal FY starts October 1, so Oct-Dec of calendar year N
+        is FY N+1.
+        """
+        today = date.today()
+        if today.month >= 10:
+            return today.year + 1
+        return today.year
+
     # -----------------------------------------------------------------
     # Note: get() and _format_date() are inherited from BaseAPIClient.
     # BaseAPIClient.get() skips api_key injection when self.api_key is

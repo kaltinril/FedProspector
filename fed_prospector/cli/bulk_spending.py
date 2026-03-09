@@ -10,12 +10,15 @@ from config.logging_config import setup_logging
 @click.command("usaspending-bulk")
 @click.option("--years-back", default=5, type=int, help="Number of recent fiscal years to load")
 @click.option("--fiscal-year", type=int, help="Load a single fiscal year (overrides --years-back)")
+@click.option("--delta", is_flag=True, default=False,
+              help="Download and process the monthly delta file instead of a full fiscal year "
+                   "archive. Mutually exclusive with --fiscal-year and --years-back.")
 @click.option("--skip-download", is_flag=True, help="Use previously downloaded files")
 @click.option("--source", type=click.Choice(["archive", "api"]), default="archive",
               help="Download source: archive (pre-built, fast) or api (on-demand, slow)")
 @click.option("--fast", is_flag=True, default=False,
               help="Drop secondary indexes before load, rebuild after (faster bulk inserts)")
-def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast):
+def usaspending_bulk(years_back, fiscal_year, delta, skip_download, source, fast):
     """Bulk load USASpending award data from CSV downloads.
 
     Downloads fiscal-year bulk CSV archives from USASpending.gov and loads
@@ -25,15 +28,27 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast):
         python main.py load usaspending-bulk
         python main.py load usaspending-bulk --fiscal-year 2025
         python main.py load usaspending-bulk --years-back 3
+        python main.py load usaspending-bulk --delta
         python main.py load usaspending-bulk --skip-download
     """
     logger = setup_logging()
+
+    # Mutual exclusivity: --delta cannot be combined with --fiscal-year or --years-back
+    if delta and fiscal_year:
+        raise click.UsageError("--delta and --fiscal-year are mutually exclusive.")
+    if delta and years_back != 5:
+        # years_back has default=5; only error if user explicitly passed it
+        raise click.UsageError("--delta and --years-back are mutually exclusive.")
 
     from pathlib import Path
     from api_clients.usaspending_client import USASpendingClient
     from config import settings
     from etl.load_manager import LoadManager
     from etl.usaspending_bulk_loader import USASpendingBulkLoader
+
+    if delta:
+        _run_delta_load(logger, skip_download, fast)
+        return
 
     # Determine fiscal years
     today = date.today()
@@ -161,3 +176,81 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast):
     click.echo(f"Total records read:  {total_stats['records_read']:,}")
     click.echo(f"Total upserted:      {total_stats['records_inserted']:,}")
     click.echo(f"Total errors:        {total_stats['records_errored']:,}")
+
+
+def _run_delta_load(logger, skip_download, fast):
+    """Download and load the latest USASpending monthly delta file."""
+    from api_clients.usaspending_client import USASpendingClient
+    from config import settings
+    from etl.load_manager import LoadManager
+    from etl.usaspending_bulk_loader import USASpendingBulkLoader
+
+    client = USASpendingClient()
+    loader = USASpendingBulkLoader(fast_mode=fast)
+    load_manager = LoadManager()
+    download_dir = settings.DOWNLOAD_DIR / "usaspending"
+
+    if fast:
+        logger.warning(
+            "Fast mode: secondary indexes will be dropped during load. "
+            "Queries against usaspending_award will be slow until rebuild completes."
+        )
+        click.echo("WARNING: Fast mode enabled — secondary indexes will be dropped during load.")
+
+    loader._check_buffer_pool_size()
+
+    load_id = load_manager.start_load(
+        source_system="USASPENDING_BULK",
+        load_type="DELTA",
+        parameters={"delta": True},
+    )
+
+    if fast:
+        loader._drop_secondary_indexes()
+    else:
+        rebuilt = loader._check_and_rebuild_indexes()
+        if rebuilt:
+            click.echo(f"  Rebuilt {rebuilt} missing secondary indexes from a prior crash.")
+
+    try:
+        if skip_download:
+            # Find existing delta ZIP
+            delta_zips = sorted(download_dir.glob("*Delta*.zip")) if download_dir.exists() else []
+            if not delta_zips:
+                raise RuntimeError("No existing delta ZIP found. Run without --skip-download first.")
+            zip_path = delta_zips[-1]
+            click.echo(f"  Using existing delta: {zip_path.name}")
+        else:
+            click.echo("  Downloading latest delta file...")
+            zip_path = client.download_delta_file(download_dir)
+            click.echo(f"  Downloaded: {zip_path.name}")
+
+        click.echo("  Loading delta CSV data...")
+        stats = loader.load_delta(zip_path, load_id=load_id)
+
+        load_manager.complete_load(
+            load_id,
+            records_read=stats["records_read"],
+            records_inserted=stats["records_inserted"],
+            records_errored=stats["records_errored"],
+        )
+
+        click.echo(
+            f"  Delta: {stats['records_read']:,} read, "
+            f"{stats['records_inserted']:,} upserted, "
+            f"{stats['records_deleted']:,} deleted, "
+            f"{stats['records_errored']:,} errors"
+        )
+
+    except Exception as exc:
+        logger.exception("Failed to load delta file")
+        load_manager.fail_load(load_id, str(exc))
+        click.echo(f"  Delta load FAILED: {exc}")
+
+    finally:
+        loader._restore_bulk_session_options()
+
+        if fast:
+            click.echo("Rebuilding secondary indexes...")
+            loader._recreate_secondary_indexes()
+            click.echo("Secondary indexes rebuilt.")

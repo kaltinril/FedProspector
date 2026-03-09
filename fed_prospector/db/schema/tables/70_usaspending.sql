@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     pop_city                 VARCHAR(100),
 
     -- Solicitation link
-    solicitation_identifier  VARCHAR(50),
+    solicitation_identifier  VARCHAR(100),
 
     -- Bulk load metadata
     fiscal_year              SMALLINT,
@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     last_load_id             INT,
     first_loaded_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at               DATETIME NULL,
 
     INDEX idx_usa_naics (naics_code),
     INDEX idx_usa_recipient (recipient_uei),
@@ -75,7 +76,7 @@ CREATE TABLE IF NOT EXISTS usaspending_transaction (
     id                          BIGINT AUTO_INCREMENT PRIMARY KEY,
     award_id                    VARCHAR(100) NOT NULL,
     action_date                 DATE NOT NULL,
-    modification_number         VARCHAR(20) NOT NULL DEFAULT '',
+    modification_number         VARCHAR(25) NOT NULL DEFAULT '',
     action_type                 VARCHAR(5),
     action_type_description     VARCHAR(100),
     federal_action_obligation   DECIMAL(15,2),

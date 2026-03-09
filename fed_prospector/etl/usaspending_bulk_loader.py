@@ -79,7 +79,14 @@ BATCH_SIZE = 50_000
 
 
 class USASpendingBulkLoader:
-    """Loads USASpending bulk CSV downloads into usaspending_award."""
+    """Loads USASpending bulk CSV downloads into usaspending_award.
+
+    Supports two modes:
+    - **Full mode** (default): Loads fiscal-year bulk ZIPs. Requires fiscal_year.
+    - **Delta mode** (delta=True): Loads delta ZIPs containing only changed/deleted
+      records since the last monthly archive. Handles ``correction_delete_ind``
+      column to soft-delete removed awards.
+    """
 
     # Secondary indexes on usaspending_award (excludes PRIMARY KEY).
     # Used by --fast mode to drop indexes before bulk loading and recreate after.
@@ -266,6 +273,128 @@ class USASpendingBulkLoader:
             "FY%d details: %s upserted, %s errors",
             fiscal_year,
             f"{aggregate['records_inserted']:,}",
+            f"{aggregate['records_errored']:,}",
+        )
+        return aggregate
+
+    def load_delta(self, zip_path, load_id):
+        """Load a delta CSV ZIP (all FYs, with correction/delete handling).
+
+        Delta files have the same 299-column format as Full files plus an
+        extra ``correction_delete_ind`` column at index 0.  Rows marked
+        ``"D"`` are soft-deleted (``deleted_at = NOW()``); blank or ``"C"``
+        rows are upserted normally.
+
+        Args:
+            zip_path: Path to the downloaded delta ZIP file.
+            load_id: ETL load log ID.
+
+        Returns:
+            dict with aggregate stats including ``records_deleted``.
+        """
+        delta_filename = os.path.basename(zip_path)
+        self.logger.info(
+            "Loading delta file %s (load_id=%d)", delta_filename, load_id
+        )
+
+        # Use fiscal_year=0 as sentinel for delta loads
+        DELTA_FY = 0
+
+        archive_hash = self._compute_archive_hash(zip_path)
+        if self._is_fy_already_loaded(DELTA_FY, archive_hash):
+            self.logger.info(
+                "Delta file already fully loaded, skipping: %s", delta_filename
+            )
+            return {
+                "records_read": 0, "records_inserted": 0,
+                "records_errored": 0, "records_deleted": 0,
+                "csv_files": 0, "skipped": True,
+            }
+
+        aggregate = {
+            "records_read": 0,
+            "records_inserted": 0,
+            "records_errored": 0,
+            "records_deleted": 0,
+            "csv_files": 0,
+        }
+
+        extract_dir = tempfile.mkdtemp(prefix="usa_delta_")
+        try:
+            self._extract_zip(zip_path, extract_dir)
+
+            csv_files = glob.glob(
+                os.path.join(extract_dir, "**", "*Contracts*.csv"), recursive=True
+            )
+            if not csv_files:
+                csv_files = glob.glob(
+                    os.path.join(extract_dir, "**", "*.csv"), recursive=True
+                )
+
+            self.logger.info("Found %d CSV files in delta archive", len(csv_files))
+
+            total_csvs = len(csv_files)
+            delta_start_time = time.time()
+
+            for csv_idx, csv_path in enumerate(csv_files, 1):
+                csv_name = os.path.basename(csv_path)
+
+                checkpoint = self._get_or_create_checkpoint(
+                    load_id, DELTA_FY, csv_name, archive_hash,
+                )
+                if checkpoint["status"] == "COMPLETE":
+                    self.logger.info("Skipping %s (already loaded)", csv_name)
+                    aggregate["csv_files"] += 1
+                    aggregate["records_read"] += checkpoint["total_rows_loaded"]
+                    aggregate["records_inserted"] += checkpoint["total_rows_loaded"]
+                    continue
+
+                self.logger.info(
+                    "Processing delta CSV %s (%d/%d)",
+                    csv_name, csv_idx, total_csvs,
+                )
+                csv_start_time = time.time()
+                stats = self._load_delta_csv(
+                    csv_path, load_id,
+                    csv_index=csv_idx, total_csvs=total_csvs,
+                    checkpoint=checkpoint,
+                )
+                csv_elapsed = time.time() - csv_start_time
+
+                aggregate["records_read"] += stats["records_read"]
+                aggregate["records_inserted"] += stats["records_inserted"]
+                aggregate["records_errored"] += stats["records_errored"]
+                aggregate["records_deleted"] += stats["records_deleted"]
+                aggregate["csv_files"] += 1
+
+                rows = stats["records_read"]
+                rows_per_sec = rows / csv_elapsed if csv_elapsed > 0 else 0
+                self.logger.info(
+                    'Delta CSV "%s" complete: %s rows (%s upserted, %s deleted) '
+                    'in %s (%s rows/sec)',
+                    csv_name,
+                    f"{rows:,}",
+                    f"{stats['records_inserted']:,}",
+                    f"{stats['records_deleted']:,}",
+                    self._format_duration(csv_elapsed),
+                    f"{rows_per_sec:,.0f}",
+                )
+
+        finally:
+            import shutil
+            shutil.rmtree(extract_dir, ignore_errors=True)
+
+        delta_elapsed = time.time() - delta_start_time
+        self.logger.info(
+            "Delta load complete: %d CSVs, %s total rows in %s",
+            aggregate["csv_files"],
+            f"{aggregate['records_read']:,}",
+            self._format_duration(delta_elapsed),
+        )
+        self.logger.info(
+            "Delta details: %s upserted, %s soft-deleted, %s errors",
+            f"{aggregate['records_inserted']:,}",
+            f"{aggregate['records_deleted']:,}",
             f"{aggregate['records_errored']:,}",
         )
         return aggregate
@@ -742,6 +871,331 @@ class USASpendingBulkLoader:
 
         return stats
 
+    def _load_delta_csv(self, csv_path, load_id,
+                        csv_index=None, total_csvs=None, checkpoint=None):
+        """Process one delta CSV: separate D-rows, upsert non-D, soft-delete.
+
+        Like ``_load_csv`` but handles the ``correction_delete_ind`` column
+        that appears only in delta files.  Rows with ``"D"`` are collected
+        for soft-delete; all others are upserted normally.
+
+        Args:
+            csv_path: Path to the CSV file.
+            load_id: ETL load log ID.
+            csv_index: 1-based index of this CSV within the delta (for progress).
+            total_csvs: Total number of CSVs in the delta (for progress).
+            checkpoint: Optional checkpoint dict for resume support.
+
+        Returns:
+            dict with stats including ``records_deleted``.
+        """
+        import shutil
+        from collections import Counter
+
+        stats = {
+            "records_read": 0,
+            "records_inserted": 0,
+            "records_errored": 0,
+            "records_deleted": 0,
+        }
+
+        delete_piids = set()
+        fy_counter = Counter()
+        tsv_dir = None
+
+        try:
+            tsv_dir = tempfile.mkdtemp(prefix="usa_delta_tsv_")
+            batch_num = 0
+            batch_rows = 0
+            tsv_file = None
+            tsv_paths = []
+
+            with open(csv_path, "r", encoding="utf-8-sig", newline="") as csv_file:
+                reader = csv.reader(csv_file)
+                header = next(reader)
+                col_idx = {name: i for i, name in enumerate(header)}
+
+                # Locate the correction_delete_ind and award_id_piid columns
+                cdi_index = col_idx.get("correction_delete_ind")
+                piid_index = col_idx.get("award_id_piid")
+
+                if cdi_index is None:
+                    self.logger.warning(
+                        "correction_delete_ind column not found in header — "
+                        "processing all rows as upserts"
+                    )
+                if piid_index is None:
+                    self.logger.warning(
+                        "award_id_piid column not found in header — "
+                        "cannot process delete rows"
+                    )
+
+                for row in reader:
+                    stats["records_read"] += 1
+
+                    if stats["records_read"] % 100_000 == 0:
+                        self.logger.info(
+                            "Reading delta CSV: %s rows processed...",
+                            f"{stats['records_read']:,}",
+                        )
+
+                    # Check correction_delete_ind
+                    cdi_value = ""
+                    if cdi_index is not None and cdi_index < len(row):
+                        cdi_value = row[cdi_index].strip()
+
+                    if cdi_value == "D":
+                        # Collect PIID for soft-delete; skip upsert pipeline
+                        if piid_index is not None and piid_index < len(row):
+                            piid_val = row[piid_index].strip()
+                            if piid_val:
+                                delete_piids.add(piid_val)
+                        continue
+
+                    # Normal row (blank or "C") — upsert pipeline
+                    try:
+                        # Derive fiscal year from start_date for delta rows
+                        start_date_idx = col_idx.get(
+                            "period_of_performance_start_date"
+                        )
+                        fy = self._derive_fiscal_year(row, start_date_idx)
+                        fy_counter[fy] += 1
+
+                        normalized = self._normalize_csv_row(
+                            row, fy, col_idx,
+                        )
+                        if normalized is None:
+                            stats["records_errored"] += 1
+                            continue
+                        normalized["last_load_id"] = load_id
+
+                        # Start new batch file when needed
+                        if tsv_file is None or batch_rows >= BATCH_SIZE:
+                            if tsv_file is not None:
+                                tsv_file.close()
+                            batch_num += 1
+                            tsv_path = os.path.join(
+                                tsv_dir, f"batch_{batch_num}.tsv"
+                            )
+                            tsv_paths.append(tsv_path)
+                            tsv_file = open(
+                                tsv_path, "w", encoding="utf-8", newline=""
+                            )
+                            batch_rows = 0
+
+                        values = [
+                            escape_tsv_value(normalized.get(col))
+                            for col in LOAD_COLUMNS
+                        ]
+                        tsv_file.write("\t".join(values) + "\n")
+                        batch_rows += 1
+
+                    except Exception as exc:
+                        stats["records_errored"] += 1
+                        if stats["records_errored"] <= 10:
+                            self.logger.warning(
+                                "Error normalizing delta row #%d: %s",
+                                stats["records_read"], exc,
+                            )
+
+            if tsv_file is not None:
+                tsv_file.close()
+
+            # Log fiscal year distribution
+            if fy_counter:
+                fy_summary = ", ".join(
+                    f"FY{fy}: {count:,}" for fy, count in
+                    sorted(fy_counter.items())
+                )
+                self.logger.info("Delta FY distribution: %s", fy_summary)
+
+            # Log D-row stats
+            self.logger.info(
+                "Delta D-rows: %d unique PIIDs to soft-delete",
+                len(delete_piids),
+            )
+
+            # --- Upsert pass (same as _load_csv) ---
+            upsert_rows = stats["records_read"] - stats["records_errored"] - len(delete_piids)
+            # delete_piids count may exceed actual D-rows due to dedup, but
+            # the D-rows were already excluded from TSV writing above
+
+            if tsv_paths:
+                total_batches = len(tsv_paths)
+                approx_upsert_rows = (
+                    batch_rows + (batch_num - 1) * BATCH_SIZE
+                )
+                self.logger.info(
+                    "Processing ~%s upsert rows in %d batches of %d",
+                    f"{approx_upsert_rows:,}",
+                    total_batches, BATCH_SIZE,
+                )
+
+                skip_batches = 0
+                if checkpoint and checkpoint["completed_batches"] > 0:
+                    skip_batches = checkpoint["completed_batches"]
+                    self.logger.info(
+                        "Resuming from batch %d (skipping %d completed batches)",
+                        skip_batches + 1, skip_batches,
+                    )
+                    stats["records_inserted"] += checkpoint["total_rows_loaded"]
+
+                conn = get_connection()
+                self._set_bulk_session_options(conn)
+                cursor = conn.cursor()
+                batch_wall_start = time.monotonic()
+                try:
+                    for i, batch_tsv in enumerate(tsv_paths, 1):
+                        if i <= skip_batches:
+                            try:
+                                os.unlink(batch_tsv)
+                            except OSError:
+                                pass
+                            continue
+
+                        t_start = time.monotonic()
+                        self._create_temp_table(cursor)
+
+                        mysql_path = batch_tsv.replace("\\", "/")
+                        col_list = ", ".join(LOAD_COLUMNS)
+                        sql = (
+                            f"LOAD DATA INFILE '{mysql_path}' "
+                            f"INTO TABLE tmp_usaspending_bulk "
+                            f"FIELDS TERMINATED BY '\\t' "
+                            f"LINES TERMINATED BY '\\n' "
+                            f"({col_list})"
+                        )
+                        cursor.execute(sql)
+                        loaded = cursor.rowcount
+
+                        self._upsert_from_temp(cursor)
+                        upserted = cursor.rowcount
+                        conn.commit()
+
+                        cursor.execute(
+                            "DROP TEMPORARY TABLE IF EXISTS tmp_usaspending_bulk"
+                        )
+
+                        elapsed = time.monotonic() - t_start
+                        stats["records_inserted"] += loaded
+
+                        if checkpoint:
+                            self._update_checkpoint_batch(
+                                checkpoint["checkpoint_id"], i,
+                                stats["records_inserted"],
+                            )
+
+                        self.logger.info(
+                            "Batch %d/%d: %d loaded, %d upserted in %.1fs",
+                            i, total_batches, loaded, upserted, elapsed,
+                        )
+
+                        try:
+                            os.unlink(batch_tsv)
+                        except OSError:
+                            pass
+
+                except Exception:
+                    conn.rollback()
+                    if checkpoint:
+                        self._fail_checkpoint(checkpoint["checkpoint_id"])
+                    raise
+                finally:
+                    cursor.close()
+                    conn.close()
+
+            # --- Soft-delete pass ---
+            if delete_piids:
+                deleted_count = self._soft_delete_piids(delete_piids)
+                stats["records_deleted"] = deleted_count
+
+            # Mark checkpoint done
+            if checkpoint:
+                self._complete_checkpoint(checkpoint["checkpoint_id"])
+
+        finally:
+            if tsv_dir and os.path.exists(tsv_dir):
+                shutil.rmtree(tsv_dir, ignore_errors=True)
+
+        return stats
+
+    @staticmethod
+    def _derive_fiscal_year(row, start_date_idx):
+        """Derive federal fiscal year from a row's start_date.
+
+        Federal FY: Oct-Dec of year N belong to FY N+1.
+        Falls back to 0 if the date is missing or unparseable.
+
+        Args:
+            row: CSV row as a list.
+            start_date_idx: Index of the start date column, or None.
+
+        Returns:
+            int fiscal year, or 0 if unknown.
+        """
+        if start_date_idx is None or start_date_idx >= len(row):
+            return 0
+        raw = row[start_date_idx].strip()
+        if not raw:
+            return 0
+        try:
+            parsed = parse_date(raw)
+            if parsed is None:
+                return 0
+            # parse_date returns a string "YYYY-MM-DD"
+            parts = str(parsed).split("-")
+            year = int(parts[0])
+            month = int(parts[1])
+            return year + 1 if month >= 10 else year
+        except Exception:
+            return 0
+
+    def _soft_delete_piids(self, piids):
+        """Soft-delete awards by setting deleted_at for matching PIIDs.
+
+        Args:
+            piids: Set of PIID strings to soft-delete.
+
+        Returns:
+            int: Number of rows actually updated.
+        """
+        if not piids:
+            return 0
+
+        self.logger.info(
+            "Soft-deleting %d unique PIIDs...", len(piids),
+        )
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        total_affected = 0
+        try:
+            # Process in batches to avoid overly large IN clauses
+            piid_list = list(piids)
+            batch_size = 1000
+            for start in range(0, len(piid_list), batch_size):
+                batch = piid_list[start:start + batch_size]
+                placeholders = ", ".join(["%s"] * len(batch))
+                sql = (
+                    f"UPDATE usaspending_award SET deleted_at = NOW() "
+                    f"WHERE piid IN ({placeholders}) AND deleted_at IS NULL"
+                )
+                cursor.execute(sql, batch)
+                total_affected += cursor.rowcount
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
+        self.logger.info(
+            "Soft-deleted %d rows across %d unique PIIDs",
+            total_affected, len(piids),
+        )
+        return total_affected
+
     @staticmethod
     def _format_duration(seconds):
         """Format a duration in seconds as 'Xm Ys' or 'Xs'."""
@@ -818,6 +1272,7 @@ class USASpendingBulkLoader:
             f"{c} = VALUES({c})" for c in _UPDATE_COLUMNS
         ]
         update_parts.append("last_loaded_at = NOW()")
+        update_parts.append("deleted_at = NULL")
 
         sql = (
             f"INSERT INTO usaspending_award ({col_list}) "
