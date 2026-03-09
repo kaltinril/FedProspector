@@ -12,6 +12,7 @@ import type {
   LoadHistoryParams,
   HealthResponse,
 } from '@/types/api';
+import type { OrganizationDto } from '@/types/organization';
 
 export function getEtlStatus(): Promise<EtlStatusDto> {
   return apiClient.get('/admin/etl-status').then((r) => r.data);
@@ -41,6 +42,10 @@ export function createOrganizationOwner(
   data: CreateOwnerRequest,
 ): Promise<void> {
   return apiClient.post(`/admin/organizations/${orgId}/owner`, data).then((r) => r.data);
+}
+
+export function listOrganizations(): Promise<OrganizationDto[]> {
+  return apiClient.get<OrganizationDto[]>('/admin/organizations').then((r) => r.data);
 }
 
 export function getLoadHistory(params?: LoadHistoryParams): Promise<LoadHistoryResponse> {

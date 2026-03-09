@@ -7,6 +7,7 @@ import {
   resetUserPassword,
   createOrganization,
   createOrganizationOwner,
+  listOrganizations,
   getLoadHistory,
   getHealth,
 } from '@/api/admin';
@@ -47,18 +48,33 @@ export function useResetUserPassword() {
   });
 }
 
+export function useListOrganizations() {
+  return useQuery({
+    queryKey: queryKeys.admin.organizations,
+    queryFn: () => listOrganizations(),
+  });
+}
+
 export function useCreateOrganization() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateOrganizationRequest) => createOrganization(data),
     retry: 0,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.organizations });
+    },
   });
 }
 
 export function useCreateOrganizationOwner() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ orgId, data }: { orgId: number; data: CreateOwnerRequest }) =>
       createOrganizationOwner(orgId, data),
     retry: 0,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.organizations });
+    },
   });
 }
 

@@ -45,6 +45,7 @@ export interface UserProfileDto {
   email?: string | null;
   role: string;
   isAdmin: boolean;
+  isSystemAdmin: boolean;
   lastLoginAt?: string | null;
   createdAt?: string | null;
 }

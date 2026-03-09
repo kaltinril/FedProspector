@@ -109,7 +109,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         };
     });
 
-// --- Authorization with OrgAdmin policy ---
+// --- Authorization with OrgAdmin and SystemAdmin policies ---
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("OrgAdmin", policy =>
@@ -118,6 +118,9 @@ builder.Services.AddAuthorization(options =>
             var orgRole = context.User.FindFirst("org_role")?.Value;
             return orgRole is "owner" or "admin";
         }));
+
+    options.AddPolicy("SystemAdmin", policy =>
+        policy.RequireClaim("is_system_admin", "true"));
 });
 
 // --- Application services ---

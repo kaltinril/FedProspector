@@ -233,3 +233,21 @@ Implemented as `_check_and_rebuild_indexes()` in `USASpendingBulkLoader`. Runs o
 4. Checkpoint/resume is lower priority since TRUNCATE makes partial state unrecoverable — would need to switch from TRUNCATE to upsert pattern first
 
 **Estimated effort**: ~1-2 days (progress + index mgmt); ~3 days if adding checkpoint/resume
+
+---
+
+### 500M: Admin Page Restructuring
+
+**Original phase**: 76
+**Deferred because**: Larger UX rethink — not a quick bug fix.
+
+**Problem**: The current "Admin" page mixes two concerns:
+1. **System admin operations** — ETL status, load history, health checks, API keys, jobs, organization management. Only relevant to the platform operator (system admin).
+2. **Org admin operations** — User management tab. Relevant to any organization owner/admin managing their team.
+
+**Scope**:
+1. Move the Users tab to the Organization page (where org owners/admins manage their team)
+2. Rename "Admin" to "System Admin" and restrict the entire page + sidebar link to `isSystemAdmin` users only
+3. Consider adding richer org-level admin features to the Organization page (audit log, settings, billing)
+
+**Estimated effort**: ~0.5 day

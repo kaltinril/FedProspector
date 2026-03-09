@@ -1,124 +1,154 @@
-using FedProspector.Core.Constants;
-using FedProspector.Core.DTOs.Health;
 using FedProspector.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 
 namespace FedProspector.Api.Controllers;
 
-[ApiController]
 [Route("health")]
-[AllowAnonymous]
-[EnableRateLimiting("search")]
+[ApiController]
 public class HealthController : ControllerBase
 {
-    private readonly FedProspectorDbContext _db;
-    private static readonly DateTime StartTime = DateTime.UtcNow;
+    private readonly FedProspectorDbContext _context;
+    private readonly ILogger<HealthController> _logger;
 
-    // Shared with AdminService — single source of truth in EtlStalenessThresholds.All
-    private static readonly Dictionary<string, (string Label, double ThresholdHours)> StalenessThresholds
-        = EtlStalenessThresholds.All;
-
-    public HealthController(FedProspectorDbContext db)
+    public HealthController(FedProspectorDbContext context, ILogger<HealthController> logger)
     {
-        _db = db;
+        _context = context;
+        _logger = logger;
     }
 
     [HttpGet]
+    [AllowAnonymous]
     public async Task<IActionResult> GetHealth()
     {
-        var result = new HealthResponse
+        var dbStatus = await CheckDatabaseAsync();
+        var etlStatus = await CheckEtlFreshnessAsync();
+
+        var overallStatus = (dbStatus.Status, etlStatus.Status) switch
         {
-            Uptime = (DateTime.UtcNow - StartTime).ToString(@"d\.hh\:mm\:ss")
+            ("Healthy", "Healthy") => "Healthy",
+            _ when dbStatus.Status == "Unhealthy" => "Unhealthy",
+            _ => "Degraded"
         };
 
-        // Check MySQL connectivity
-        try
+        return Ok(new
         {
-            await _db.Database.ExecuteSqlRawAsync("SELECT 1");
-            result.Database = "connected";
-        }
-        catch (Exception)
-        {
-            result.Database = "disconnected";
-            result.Status = "unhealthy";
-        }
-
-        // Check ETL data freshness
-        try
-        {
-            var lastLoad = await _db.Database
-                .SqlQueryRaw<DateTime?>(
-                    "SELECT MAX(completed_at) AS Value FROM etl_load_log WHERE status = 'SUCCESS'")
-                .FirstOrDefaultAsync();
-
-            result.LastEtlLoad = lastLoad?.ToString("o");
-        }
-        catch (Exception)
-        {
-            result.LastEtlLoad = "unknown";
-        }
-
-        // Per-source freshness check
-        if (result.Database == "connected")
-        {
-            try
-            {
-                result.Sources = await GetSourceHealthAsync();
-
-                // If any source is stale and DB is still up, mark as degraded
-                if (result.Status == "healthy" && result.Sources.Any(s => s.Status == "stale"))
-                {
-                    result.Status = "degraded";
-                }
-            }
-            catch (Exception)
-            {
-                // Source checks are best-effort; don't fail the health endpoint
-            }
-        }
-
-        return result.Status == "healthy" ? Ok(result) : StatusCode(503, result);
+            status = overallStatus,
+            database = dbStatus,
+            etlFreshness = etlStatus
+        });
     }
 
-    private async Task<List<SourceHealthDto>> GetSourceHealthAsync()
+    private async Task<HealthComponent> CheckDatabaseAsync()
     {
-        var latestLoads = await _db.Database
-            .SqlQueryRaw<SourceLoadResult>(
-                "SELECT source_system, MAX(completed_at) AS last_load FROM etl_load_log WHERE status = 'SUCCESS' GROUP BY source_system")
-            .ToListAsync();
-
-        var sources = new List<SourceHealthDto>();
-        // Python ETL stores timestamps in local time, so compare with local time
-        var now = DateTime.Now;
-
-        foreach (var (key, (label, threshold)) in StalenessThresholds)
+        try
         {
-            var load = latestLoads.FirstOrDefault(l => l.SourceSystem == key);
-            double? hoursSince = load?.LastLoad != null
-                ? (now - load.LastLoad.Value).TotalHours
-                : null;
-
-            string status;
-            if (load?.LastLoad == null)
-                status = "unknown";
-            else if (hoursSince > threshold)
-                status = "stale";
-            else if (hoursSince > threshold * 0.8)
-                status = "warning";
-            else
-                status = "healthy";
-
-            sources.Add(new SourceHealthDto
+            await _context.Database.ExecuteSqlRawAsync("SELECT 1");
+            return new HealthComponent
             {
-                Name = label,
-                Status = status,
-                LastLoad = load?.LastLoad
-            });
+                Status = "Healthy",
+                Description = "Database connection successful"
+            };
         }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Health check: database connection failed");
+            return new HealthComponent
+            {
+                Status = "Unhealthy",
+                Description = "Database connection failed"
+            };
+        }
+    }
 
-        return sources;
+    private async Task<HealthComponent> CheckEtlFreshnessAsync()
+    {
+        try
+        {
+            await _context.Database.OpenConnectionAsync();
+            try
+            {
+                var connection = _context.Database.GetDbConnection();
+                await using var cmd = connection.CreateCommand();
+                cmd.CommandText =
+                    "SELECT source_system, MAX(completed_at) AS last_load, COUNT(*) AS total_loads " +
+                    "FROM etl_load_log WHERE status = 'SUCCESS' GROUP BY source_system ORDER BY source_system";
+
+                var sources = new List<(string Source, DateTime? LastLoad, int TotalLoads)>();
+                await using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    sources.Add((
+                        reader.GetString(0),
+                        reader.IsDBNull(1) ? null : reader.GetDateTime(1),
+                        reader.GetInt32(2)
+                    ));
+                }
+
+                if (sources.Count == 0)
+                {
+                    return new HealthComponent
+                    {
+                        Status = "Degraded",
+                        Description = "No successful ETL loads found"
+                    };
+                }
+
+                var now = DateTime.UtcNow;
+                var staleCount = sources.Count(s => s.LastLoad.HasValue && (now - s.LastLoad.Value).TotalHours > 168);
+                var status = staleCount == 0 ? "Healthy" : staleCount < sources.Count ? "Degraded" : "Unhealthy";
+
+                var data = new Dictionary<string, object?>();
+                foreach (var (source, lastLoad, totalLoads) in sources)
+                {
+                    var age = lastLoad.HasValue ? now - lastLoad.Value : (TimeSpan?)null;
+                    data[source] = new
+                    {
+                        lastLoad = lastLoad?.ToString("yyyy-MM-dd HH:mm") ?? "never",
+                        age = FormatAge(age),
+                        totalLoads
+                    };
+                }
+
+                var mostRecent = sources.Where(s => s.LastLoad.HasValue).Max(s => s.LastLoad!.Value);
+                var mostRecentAge = now - mostRecent;
+
+                return new HealthComponent
+                {
+                    Status = status,
+                    Description = $"{sources.Count} data sources — most recent load {FormatAge(mostRecentAge)} ago",
+                    Data = data
+                };
+            }
+            finally
+            {
+                await _context.Database.CloseConnectionAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Health check: could not check ETL freshness");
+            return new HealthComponent
+            {
+                Status = "Degraded",
+                Description = "Could not check ETL freshness"
+            };
+        }
+    }
+
+    private static string FormatAge(TimeSpan? age)
+    {
+        if (age == null) return "never";
+        if (age.Value.TotalHours < 1) return $"{age.Value.TotalMinutes:F0}m";
+        if (age.Value.TotalHours < 48) return $"{age.Value.TotalHours:F0}h";
+        return $"{age.Value.TotalDays:F0}d";
+    }
+
+    private sealed class HealthComponent
+    {
+        public required string Status { get; init; }
+        public string? Description { get; init; }
+        public Dictionary<string, object?>? Data { get; init; }
     }
 }

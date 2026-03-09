@@ -8,6 +8,7 @@ public class UserProfileDto
     public string? Email { get; set; }
     public string Role { get; set; } = string.Empty;
     public bool IsAdmin { get; set; }
+    public bool IsSystemAdmin { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public DateTime? CreatedAt { get; set; }
 }

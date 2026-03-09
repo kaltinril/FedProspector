@@ -192,6 +192,24 @@ public class OrganizationService : IOrganizationService
         _logger.LogInformation("Invite {InviteId} revoked from org {OrgId}", inviteId, orgId);
     }
 
+    public async Task<List<OrganizationDto>> ListOrganizationsAsync()
+    {
+        return await _context.Organizations
+            .AsNoTracking()
+            .OrderBy(o => o.Name)
+            .Select(o => new OrganizationDto
+            {
+                Id = o.OrganizationId,
+                Name = o.Name,
+                Slug = o.Slug,
+                IsActive = o.IsActive == "Y",
+                MaxUsers = o.MaxUsers,
+                SubscriptionTier = o.SubscriptionTier,
+                CreatedAt = o.CreatedAt
+            })
+            .ToListAsync();
+    }
+
     public async Task<OrganizationDto> CreateOrganizationAsync(string name, string slug)
     {
         // Check slug uniqueness

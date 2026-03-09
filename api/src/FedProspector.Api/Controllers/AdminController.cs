@@ -22,15 +22,12 @@ public class AdminController : ApiControllerBase
     }
 
     /// <summary>
-    /// Get ETL pipeline status, API usage, and recent errors. Admin only.
+    /// Get ETL pipeline status, API usage, and recent errors. System Admin only.
     /// </summary>
     [HttpGet("etl-status")]
+    [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> GetEtlStatus()
     {
-        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
-        if (!isSystemAdmin)
-            return Forbid();
-
         var result = await _service.GetEtlStatusAsync();
         return Ok(result);
     }
@@ -39,6 +36,7 @@ public class AdminController : ApiControllerBase
     /// Get paginated ETL load history with optional filters. System Admin only.
     /// </summary>
     [HttpGet("load-history")]
+    [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> GetLoadHistory(
         [FromQuery] string? source = null,
         [FromQuery] string? status = null,
@@ -46,10 +44,6 @@ public class AdminController : ApiControllerBase
         [FromQuery] int limit = 20,
         [FromQuery] int offset = 0)
     {
-        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
-        if (!isSystemAdmin)
-            return Forbid();
-
         var result = await _service.GetLoadHistoryAsync(source, status, days, limit, offset);
         return Ok(result);
     }
@@ -58,12 +52,9 @@ public class AdminController : ApiControllerBase
     /// Get health check snapshots. System Admin only.
     /// </summary>
     [HttpGet("health-snapshots")]
+    [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> GetHealthSnapshots([FromQuery] int days = 30)
     {
-        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
-        if (!isSystemAdmin)
-            return Forbid();
-
         var result = await _service.GetHealthSnapshotsAsync(days);
         return Ok(result);
     }
@@ -72,12 +63,9 @@ public class AdminController : ApiControllerBase
     /// Get API key usage status from rate limit tracking. System Admin only.
     /// </summary>
     [HttpGet("api-keys")]
+    [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> GetApiKeys()
     {
-        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
-        if (!isSystemAdmin)
-            return Forbid();
-
         var result = await _service.GetApiKeyStatusAsync();
         return Ok(result);
     }
@@ -86,12 +74,9 @@ public class AdminController : ApiControllerBase
     /// Get ETL job definitions with last-run status. System Admin only.
     /// </summary>
     [HttpGet("jobs")]
+    [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> GetJobs()
     {
-        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
-        if (!isSystemAdmin)
-            return Forbid();
-
         var result = await _service.GetJobStatusAsync();
         return Ok(result);
     }
@@ -142,30 +127,49 @@ public class AdminController : ApiControllerBase
     }
 
     /// <summary>
+    /// List all organizations. System Admin only.
+    /// </summary>
+    [HttpGet("organizations")]
+    [Authorize(Policy = "SystemAdmin")]
+    public async Task<IActionResult> ListOrganizations()
+    {
+        var result = await _orgService.ListOrganizationsAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Create a new organization. System Admin only.
     /// </summary>
     [HttpPost("organizations")]
+    [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> CreateOrganization([FromBody] CreateOrganizationRequest request)
     {
-        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
-        if (!isSystemAdmin)
-            return Forbid();
-
-        var result = await _orgService.CreateOrganizationAsync(request.Name, request.Slug);
-        return StatusCode(201, result);
+        try
+        {
+            var result = await _orgService.CreateOrganizationAsync(request.Name, request.Slug);
+            return StatusCode(201, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
     }
 
     /// <summary>
     /// Create the initial owner user for an organization. System Admin only.
     /// </summary>
     [HttpPost("organizations/{id:int}/owner")]
+    [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> CreateOwner(int id, [FromBody] CreateOwnerRequest request)
     {
-        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
-        if (!isSystemAdmin)
-            return Forbid();
-
-        var result = await _orgService.CreateOwnerAsync(id, request.Email, request.Password, request.DisplayName);
-        return StatusCode(201, result);
+        try
+        {
+            var result = await _orgService.CreateOwnerAsync(id, request.Email, request.Password, request.DisplayName);
+            return StatusCode(201, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
     }
 }

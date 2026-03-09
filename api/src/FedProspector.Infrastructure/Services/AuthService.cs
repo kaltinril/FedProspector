@@ -613,6 +613,7 @@ public class AuthService : IAuthService
             Email = user.Email,
             Role = user.Role ?? "USER",
             IsAdmin = user.IsAdmin == "Y",
+            IsSystemAdmin = user.IsSystemAdmin,
             LastLoginAt = user.LastLoginAt,
             CreatedAt = user.CreatedAt
         };

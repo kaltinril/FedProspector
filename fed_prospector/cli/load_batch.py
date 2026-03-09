@@ -69,6 +69,7 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
     ran = 0
     skipped = 0
     failed = 0
+    succeeded_jobs = []
     batch_start = time.time()
 
     for i, job_name in enumerate(jobs, 1):
@@ -133,6 +134,7 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
                     f"  [{i}/{len(jobs)}] {job_name} {pad} OK  ({duration_str})"
                 )
             ran += 1
+            succeeded_jobs.append(job_name)
         else:
             click.echo(
                 f"  [{i}/{len(jobs)}] {job_name} {pad} FAILED  ({duration_str})"
@@ -147,7 +149,8 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
     click.echo(f"\n=== Summary ===")
     click.echo(f"  Ran: {ran}    Skipped: {skipped}    Failed: {failed}")
     click.echo(f"  Total time: {_format_duration(total_elapsed)}")
-    click.echo(f"  API calls used: ~{total_est}")
+    actual_est = sum(JOBS[j].get("estimated_api_calls", 0) for j in succeeded_jobs if j in JOBS)
+    click.echo(f"  Est. API calls used: ~{actual_est}")
 
 
 @click.command("load-daily")

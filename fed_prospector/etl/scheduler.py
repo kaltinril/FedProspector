@@ -1,19 +1,19 @@
 """Job scheduler definitions and runner.
 
 Defines all automated jobs with their schedules, commands, and dependencies.
-Jobs are triggered via CLI (`run-job`) or Windows Task Scheduler.
+Jobs are triggered via CLI (`health run-job`) or Windows Task Scheduler.
 This is NOT a daemon - each invocation runs one job and exits.
 
 Windows Task Scheduler setup commands:
-  schtasks /create /tn "FedContract_Opportunities" /tr "python main.py load-opportunities --key 2" /sc HOURLY /mo 4
-  schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py refresh-entities --type daily" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
-  schtasks /create /tn "FedContract_Hierarchy" /tr "python main.py load-hierarchy --full-refresh --key 2" /sc WEEKLY /d SUN /st 02:00
-  schtasks /create /tn "FedContract_Awards" /tr "python main.py load-awards --key 2" /sc WEEKLY /d SAT /st 03:00
-  schtasks /create /tn "FedContract_CalcRates" /tr "python main.py load-calc" /sc MONTHLY /d 1 /st 04:00
-  schtasks /create /tn "FedContract_Exclusions" /tr "python main.py load-exclusions --key 2" /sc WEEKLY /d MON /st 06:00
-  schtasks /create /tn "FedContract_HealthCheck" /tr "python main.py check-health" /sc DAILY /st 09:00
-  schtasks /create /tn "FedContract_SavedSearches" /tr "python main.py run-all-searches" /sc DAILY /st 07:00
-  schtasks /create /tn "FedContract_Maintenance" /tr "python main.py maintain-db" /sc MONTHLY /d 1 /st 01:00
+  schtasks /create /tn "FedContract_Opportunities" /tr "python main.py load opportunities --key 2" /sc HOURLY /mo 4
+  schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py load entities-refresh --type daily" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
+  schtasks /create /tn "FedContract_Hierarchy" /tr "python main.py load hierarchy --full-refresh --key 2" /sc WEEKLY /d SUN /st 02:00
+  schtasks /create /tn "FedContract_Awards" /tr "python main.py load awards --key 2" /sc WEEKLY /d SAT /st 03:00
+  schtasks /create /tn "FedContract_CalcRates" /tr "python main.py load labor-rates" /sc MONTHLY /d 1 /st 04:00
+  schtasks /create /tn "FedContract_Exclusions" /tr "python main.py load exclusions --key 2" /sc WEEKLY /d MON /st 06:00
+  schtasks /create /tn "FedContract_HealthCheck" /tr "python main.py health check" /sc DAILY /st 09:00
+  schtasks /create /tn "FedContract_SavedSearches" /tr "python main.py health run-all-searches" /sc DAILY /st 07:00
+  schtasks /create /tn "FedContract_Maintenance" /tr "python main.py health maintain-db" /sc MONTHLY /d 1 /st 01:00
 """
 
 import logging
@@ -32,7 +32,7 @@ logger = logging.getLogger("fed_prospector.scheduler")
 JOBS = {
     "opportunities": {
         "description": "Refresh contract opportunities from SAM.gov",
-        "command": ["python", "main.py", "load-opportunities", "--key", "2"],
+        "command": ["python", "main.py", "load", "opportunities", "--key", "2"],
         "source_system": "SAM_OPPORTUNITY",
         "schedule": "Every 4 hours",
         "staleness_hours": 6,
@@ -42,7 +42,7 @@ JOBS = {
     },
     "entity_daily": {
         "description": "Download and load daily entity extract",
-        "command": ["python", "main.py", "refresh-entities", "--type", "daily"],
+        "command": ["python", "main.py", "load", "entities-refresh", "--type", "daily"],
         "source_system": "SAM_ENTITY",
         "schedule": "Tue-Sat 06:00",
         "staleness_hours": 48,  # 2 days (skip weekends)
@@ -52,7 +52,7 @@ JOBS = {
     },
     "hierarchy": {
         "description": "Refresh federal org hierarchy",
-        "command": ["python", "main.py", "load-hierarchy", "--full-refresh", "--key", "2"],
+        "command": ["python", "main.py", "load", "hierarchy", "--full-refresh", "--key", "2"],
         "source_system": "SAM_FEDHIER",
         "schedule": "Sunday 02:00",
         "staleness_hours": 336,  # 14 days
@@ -62,7 +62,7 @@ JOBS = {
     },
     "awards": {
         "description": "Refresh contract awards data",
-        "command": ["python", "main.py", "load-awards", "--key", "2"],
+        "command": ["python", "main.py", "load", "awards", "--key", "2"],
         "source_system": "SAM_AWARDS",
         "schedule": "Saturday 03:00",
         "staleness_hours": 336,  # 14 days
@@ -72,7 +72,7 @@ JOBS = {
     },
     "calc_rates": {
         "description": "Refresh GSA CALC+ labor rates",
-        "command": ["python", "main.py", "load-calc"],
+        "command": ["python", "main.py", "load", "labor-rates"],
         "source_system": "GSA_CALC",
         "schedule": "1st of month 04:00",
         "staleness_hours": 1080,  # 45 days
@@ -82,7 +82,7 @@ JOBS = {
     },
     "usaspending": {
         "description": "Refresh USASpending data",
-        "command": ["python", "main.py", "load-transactions"],
+        "command": ["python", "main.py", "load", "usaspending"],
         "source_system": "USASPENDING",
         "schedule": "1st of month 05:00",
         "staleness_hours": 1080,  # 45 days
@@ -92,7 +92,7 @@ JOBS = {
     },
     "exclusions": {
         "description": "Refresh SAM.gov exclusions data",
-        "command": ["python", "main.py", "load-exclusions", "--key", "2"],
+        "command": ["python", "main.py", "load", "exclusions", "--key", "2"],
         "source_system": "SAM_EXCLUSIONS",
         "schedule": "Monday 06:00",
         "staleness_hours": 336,  # 14 days
@@ -102,7 +102,7 @@ JOBS = {
     },
     "saved_searches": {
         "description": "Run all active saved searches",
-        "command": ["python", "main.py", "run-all-searches"],
+        "command": ["python", "main.py", "health", "run-all-searches"],
         "source_system": None,  # No staleness tracking
         "schedule": "Daily 07:00",
         "staleness_hours": None,

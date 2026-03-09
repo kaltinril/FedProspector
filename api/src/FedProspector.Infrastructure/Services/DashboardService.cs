@@ -21,26 +21,24 @@ public class DashboardService : IDashboardService
 
     public async Task<DashboardDto> GetDashboardAsync(int organizationId)
     {
-        var statusCountsTask = GetProspectsByStatusAsync(organizationId);
-        var dueThisWeekTask = GetDueThisWeekAsync(organizationId);
-        var workloadTask = GetWorkloadByAssigneeAsync(organizationId);
-        var winLossTask = GetWinLossMetricsAsync(organizationId);
-        var savedSearchTask = GetRecentSavedSearchesAsync(organizationId);
-        var totalOpenTask = GetTotalOpenProspectsAsync(organizationId);
-        var pipelineValueTask = GetPipelineValueAsync(organizationId);
-
-        await Task.WhenAll(statusCountsTask, dueThisWeekTask, workloadTask,
-            winLossTask, savedSearchTask, totalOpenTask, pipelineValueTask);
+        // EF Core DbContext is not thread-safe — queries must run sequentially
+        var statusCounts = await GetProspectsByStatusAsync(organizationId);
+        var dueThisWeek = await GetDueThisWeekAsync(organizationId);
+        var workload = await GetWorkloadByAssigneeAsync(organizationId);
+        var winLoss = await GetWinLossMetricsAsync(organizationId);
+        var savedSearches = await GetRecentSavedSearchesAsync(organizationId);
+        var totalOpen = await GetTotalOpenProspectsAsync(organizationId);
+        var pipelineValue = await GetPipelineValueAsync(organizationId);
 
         return new DashboardDto
         {
-            ProspectsByStatus = await statusCountsTask,
-            DueThisWeek = await dueThisWeekTask,
-            WorkloadByAssignee = await workloadTask,
-            WinLossMetrics = await winLossTask,
-            RecentSavedSearches = await savedSearchTask,
-            TotalOpenProspects = await totalOpenTask,
-            PipelineValue = await pipelineValueTask
+            ProspectsByStatus = statusCounts,
+            DueThisWeek = dueThisWeek,
+            WorkloadByAssignee = workload,
+            WinLossMetrics = winLoss,
+            RecentSavedSearches = savedSearches,
+            TotalOpenProspects = totalOpen,
+            PipelineValue = pipelineValue
         };
     }
 

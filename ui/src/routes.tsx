@@ -1,5 +1,6 @@
 import { lazy } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AdminGuard } from '@/auth/AdminGuard';
 import { AuthGuard } from '@/auth/AuthGuard';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
@@ -48,6 +49,9 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 export function AppRoutes() {
   return (
     <Routes>
+      {/* Root redirect */}
+      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
@@ -213,7 +217,9 @@ export function AppRoutes() {
         path="/admin"
         element={
           <AuthenticatedLayout>
-            <AdminPage />
+            <AdminGuard>
+              <AdminPage />
+            </AdminGuard>
           </AuthenticatedLayout>
         }
       />

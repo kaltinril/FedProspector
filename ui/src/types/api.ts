@@ -928,14 +928,14 @@ export interface ResetPasswordResponse {
 }
 
 export interface CreateOrganizationRequest {
-  name?: string | null;
-  slug?: string | null;
+  name: string;
+  slug: string;
 }
 
 export interface CreateOwnerRequest {
-  email?: string | null;
-  password?: string | null;
-  displayName?: string | null;
+  email: string;
+  password: string;
+  displayName: string;
 }
 
 // ============================================================

@@ -52,16 +52,8 @@ public class AdminControllerTests
     }
 
     // --- GetEtlStatus ---
-
-    [Fact]
-    public async Task GetEtlStatus_NonSystemAdmin_ReturnsForbid()
-    {
-        SetAuthenticatedAdmin();
-
-        var result = await _controller.GetEtlStatus();
-
-        result.Should().BeOfType<ForbidResult>();
-    }
+    // Note: SystemAdmin policy enforcement is tested via integration tests.
+    // The [Authorize(Policy = "SystemAdmin")] attribute handles non-system-admin rejection.
 
     [Fact]
     public async Task GetEtlStatus_ReturnsOk()

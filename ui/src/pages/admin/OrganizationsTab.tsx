@@ -1,21 +1,32 @@
 import { useState, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 import AddIcon from '@mui/icons-material/Add';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useSnackbar } from 'notistack';
 
-import { useCreateOrganization, useCreateOrganizationOwner } from '@/queries/useAdmin';
+import { useCreateOrganization, useCreateOrganizationOwner, useListOrganizations } from '@/queries/useAdmin';
 import type { CreateOrganizationRequest, CreateOwnerRequest } from '@/types/api';
 
 export default function OrganizationsTab() {
   const { enqueueSnackbar } = useSnackbar();
+  const { data: orgs, isLoading } = useListOrganizations();
   const createOrg = useCreateOrganization();
   const createOwner = useCreateOrganizationOwner();
 
@@ -85,12 +96,67 @@ export default function OrganizationsTab() {
         </Button>
       </Box>
 
-      <Paper sx={{ p: 4, textAlign: 'center' }}>
-        <Typography variant="body1" color="text.secondary">
-          Organization listing will be available once the list endpoint is implemented.
-          Use the buttons above to create new organizations and assign owners.
-        </Typography>
-      </Paper>
+      {isLoading ? (
+        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+          <CircularProgress />
+        </Box>
+      ) : (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>ID</TableCell>
+                <TableCell>Name</TableCell>
+                <TableCell>Slug</TableCell>
+                <TableCell>Tier</TableCell>
+                <TableCell>Max Users</TableCell>
+                <TableCell>Active</TableCell>
+                <TableCell>Created</TableCell>
+                <TableCell>Actions</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {orgs && orgs.length > 0 ? (
+                orgs.map((org) => (
+                  <TableRow key={org.id}>
+                    <TableCell>{org.id}</TableCell>
+                    <TableCell>{org.name}</TableCell>
+                    <TableCell>{org.slug}</TableCell>
+                    <TableCell>{org.subscriptionTier ?? '—'}</TableCell>
+                    <TableCell>{org.maxUsers}</TableCell>
+                    <TableCell>
+                      <Chip
+                        label={org.isActive ? 'Active' : 'Inactive'}
+                        color={org.isActive ? 'success' : 'default'}
+                        size="small"
+                      />
+                    </TableCell>
+                    <TableCell>{new Date(org.createdAt).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <Button
+                        size="small"
+                        startIcon={<PersonAddIcon />}
+                        onClick={() => {
+                          setOwnerOrgId(org.id);
+                          setOwnerDialogOpen(true);
+                        }}
+                      >
+                        Add Owner
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={8} align="center">
+                    <Typography color="text.secondary">No organizations found.</Typography>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
       {/* Create Organization Dialog */}
       <Dialog
@@ -146,15 +212,20 @@ export default function OrganizationsTab() {
         <DialogTitle>Create Organization Owner</DialogTitle>
         <DialogContent>
           <TextField
-            label="Organization ID"
-            type="number"
+            label="Organization"
+            select
             value={ownerOrgId ?? ''}
-            onChange={(e) => setOwnerOrgId(parseInt(e.target.value, 10) || null)}
+            onChange={(e) => setOwnerOrgId(e.target.value ? Number(e.target.value) : null)}
             fullWidth
             margin="normal"
             required
-            helperText="Enter the numeric ID of the organization"
-          />
+          >
+            {orgs?.map((org) => (
+              <MenuItem key={org.id} value={org.id}>
+                {org.name} ({org.slug})
+              </MenuItem>
+            ))}
+          </TextField>
           <TextField
             label="Email"
             type="email"
