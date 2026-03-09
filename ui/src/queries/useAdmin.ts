@@ -52,6 +52,7 @@ export function useListOrganizations() {
   return useQuery({
     queryKey: queryKeys.admin.organizations,
     queryFn: () => listOrganizations(),
+    staleTime: 60_000,
   });
 }
 

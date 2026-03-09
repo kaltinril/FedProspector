@@ -22,6 +22,7 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { formatDateTime } from '@/utils/dateFormatters';
+import { useAuth } from '@/auth/useAuth';
 import type { UserListDto } from '@/types/api';
 
 export default function UserManagementTab() {
@@ -30,6 +31,7 @@ export default function UserManagementTab() {
   const [confirmResetUser, setConfirmResetUser] = useState<UserListDto | null>(null);
   const [tempPassword, setTempPassword] = useState<string | null>(null);
 
+  const { user: currentUser } = useAuth();
   const { enqueueSnackbar } = useSnackbar();
   const { data, isLoading, isError, refetch } = useAdminUsers({ page, pageSize });
   const updateUser = useUpdateUser();
@@ -76,7 +78,7 @@ export default function UserManagementTab() {
     resetPassword.mutate(confirmResetUser.userId, {
       onSuccess: (resp) => {
         setConfirmResetUser(null);
-        setTempPassword(resp.message);
+        setTempPassword(resp.temporaryPassword);
       },
       onError: () => {
         enqueueSnackbar('Failed to reset password', { variant: 'error' });
@@ -112,6 +114,7 @@ export default function UserManagementTab() {
             value={user.role}
             size="small"
             variant="standard"
+            disabled={user.userId === currentUser?.userId}
             onChange={(e: SelectChangeEvent) => handleRoleChange(user, e.target.value)}
             sx={{ minWidth: 90 }}
           >

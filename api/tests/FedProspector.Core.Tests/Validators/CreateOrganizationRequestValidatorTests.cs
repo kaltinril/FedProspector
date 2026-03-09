@@ -38,16 +38,25 @@ public class CreateOrganizationRequestValidatorTests
     public void Validate_NameTooLong_ShouldFail()
     {
         var request = ValidRequest();
-        request.Name = new string('x', 201);
+        request.Name = new string('x', 101);
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Name);
     }
 
     [Fact]
-    public void Validate_NameExactly200_ShouldPass()
+    public void Validate_NameTooShort_ShouldFail()
     {
         var request = ValidRequest();
-        request.Name = new string('x', 200);
+        request.Name = "x";
+        var result = _validator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.Name);
+    }
+
+    [Fact]
+    public void Validate_NameExactly100_ShouldPass()
+    {
+        var request = ValidRequest();
+        request.Name = new string('x', 100);
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveValidationErrorFor(x => x.Name);
     }
@@ -69,16 +78,25 @@ public class CreateOrganizationRequestValidatorTests
     public void Validate_SlugTooLong_ShouldFail()
     {
         var request = ValidRequest();
-        request.Slug = new string('a', 101);
+        request.Slug = new string('a', 51);
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Slug);
     }
 
     [Fact]
-    public void Validate_SlugExactly100_ShouldPass()
+    public void Validate_SlugTooShort_ShouldFail()
     {
         var request = ValidRequest();
-        request.Slug = new string('a', 100);
+        request.Slug = "a";
+        var result = _validator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.Slug);
+    }
+
+    [Fact]
+    public void Validate_SlugExactly50_ShouldPass()
+    {
+        var request = ValidRequest();
+        request.Slug = new string('a', 50);
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveValidationErrorFor(x => x.Slug);
     }
@@ -87,7 +105,7 @@ public class CreateOrganizationRequestValidatorTests
     [InlineData("valid-slug")]
     [InlineData("abc123")]
     [InlineData("my-org-2026")]
-    [InlineData("a")]
+    [InlineData("ab")]
     public void Validate_SlugValidFormat_ShouldPass(string slug)
     {
         var request = ValidRequest();

@@ -1,7 +1,8 @@
 # Phase 76: UI Testing & Bug Fixes
 
-**Status**: In Progress
+**Status**: Complete
 **Started**: 2026-03-08
+**Completed**: 2026-03-09
 
 ## Purpose
 
@@ -10,8 +11,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 ## Summary
 - **10 bugs**: 10/10 fixed ✅
 - **6 code review**: 6/6 fixed ✅
-- **11 admin audit**: 1 fixed, 1 partial, 9 open
-- **Remaining work**: 10 admin audit items (2 HIGH, 4 MEDIUM, 2 LOW + 1 partial MEDIUM)
+- **11 admin audit**: 11/11 fixed ✅
 
 ## Issues
 
@@ -188,7 +188,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 ## Admin Page Audit Issues
 
-### 76-A1: Temp password never shown after reset (HIGH) 🔲 OPEN
+### 76-A1: Temp password never shown after reset (HIGH) ✅ FIXED
 
 **Problem**: TS `ResetPasswordResponse` is missing `temporaryPassword` field. UI shows the message string instead of the actual generated password. Admin cannot give users their new credentials.
 
@@ -199,7 +199,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Add `temporaryPassword: string` to TS type, change UI to display `resp.temporaryPassword`.
 
-### 76-A2: Load history pagination completely broken (HIGH) 🔲 OPEN
+### 76-A2: Load history pagination completely broken (HIGH) ✅ FIXED
 
 **Problem**: UI sends `page`/`pageSize` query params but backend expects `limit`/`offset`. Admin always sees only the first 20 records regardless of page navigation.
 
@@ -210,7 +210,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Either change UI to send `limit`/`offset`, or change backend to accept `page`/`pageSize`. Align the TS `LoadHistoryResponse` type too — it expects `page`, `pageSize`, `totalPages` that the backend never sends.
 
-### 76-A3: Health tab renders ETL data as [object Object] (MEDIUM) 🔲 OPEN
+### 76-A3: Health tab renders ETL data as [object Object] (MEDIUM) ✅ FIXED
 
 **Problem**: `HealthController` puts nested anonymous objects into the ETL freshness data dictionary. `HealthTab.tsx` renders values with `String(value)` which produces `[object Object]` for nested objects.
 
@@ -221,7 +221,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Either flatten the backend response (preferred) or handle nested objects in the UI renderer.
 
-### 76-A4: ETL Status + Load History tabs visible to org admins but 403-blocked (MEDIUM) 🔲 OPEN
+### 76-A4: ETL Status + Load History tabs visible to org admins but 403-blocked (MEDIUM) ✅ FIXED
 
 **Problem**: These tabs are visible to all admins but the backend endpoints require SystemAdmin policy. Org admins see a loading spinner then a generic error.
 
@@ -231,7 +231,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Hide ETL Status, Load History tabs for non-system-admins (same pattern as Organizations tab).
 
-### 76-A5: Create org/owner 409 error messages swallowed (MEDIUM) 🔲 OPEN
+### 76-A5: Create org/owner 409 error messages swallowed (MEDIUM) ✅ FIXED
 
 **Problem**: Backend now returns 409 Conflict with specific messages (duplicate slug, existing owner, duplicate email) but UI shows generic "Failed to create organization/owner" regardless.
 
@@ -240,7 +240,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Extract error message from Axios error response and display it.
 
-### 76-A6: No validation on org create/owner create forms (MEDIUM) ⚠️ PARTIAL
+### 76-A6: No validation on org create/owner create forms (MEDIUM) ✅ FIXED
 
 **Problem**: No min/max length validation on name/slug fields. No email format validation. No password minimum length/complexity. Backend also has no validation annotations.
 
@@ -259,7 +259,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Verify Vite proxy config forwards `/health`. Or change backend route to `/api/v1/health` and use `apiClient`.
 
-### 76-A8: 3 backend endpoints have no UI (LOW) 🔲 OPEN
+### 76-A8: 3 backend endpoints have no UI (LOW) ✅ FIXED
 
 **Problem**: `GET /api/v1/admin/health-snapshots`, `GET /api/v1/admin/api-keys`, `GET /api/v1/admin/jobs` exist in AdminController but no UI tab or component consumes them.
 
@@ -267,7 +267,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Either add UI for these (health trends chart, per-key tracking, job-level view) or document as intentionally API-only.
 
-### 76-A9: Admin can demote themselves to USER role (MEDIUM) 🔲 OPEN
+### 76-A9: Admin can demote themselves to USER role (MEDIUM) ✅ FIXED
 
 **Problem**: User management allows changing any user's role including the logged-in admin. Backend partially blocks `isAdmin: false` on self but may still apply `role: USER`, creating inconsistent state.
 
@@ -275,7 +275,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Disable role dropdown for the currently logged-in user, or add backend guard to reject self-demotion entirely.
 
-### 76-A10: Organizations list has no error state (LOW) 🔲 OPEN
+### 76-A10: Organizations list has no error state (LOW) ✅ FIXED
 
 **Problem**: If the organizations API call fails, the component renders as if there are zero orgs rather than showing an error.
 
@@ -283,7 +283,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Add `isError` check like other admin tabs.
 
-### 76-A11: staleTime missing on useListOrganizations (LOW) 🔲 OPEN
+### 76-A11: staleTime missing on useListOrganizations (LOW) ✅ FIXED
 
 **Problem**: `useListOrganizations` has no `staleTime`, causing refetch on every mount/focus. Other admin hooks use 30s-120s staleTime.
 

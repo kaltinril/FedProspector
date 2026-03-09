@@ -10,7 +10,7 @@ public class CreateOwnerRequestValidator : AbstractValidator<CreateOwnerRequest>
         RuleFor(x => x.Email)
             .NotEmpty()
             .EmailAddress()
-            .MaximumLength(200);
+            .MaximumLength(255);
 
         RuleFor(x => x.Password)
             .NotEmpty()
@@ -22,6 +22,7 @@ public class CreateOwnerRequestValidator : AbstractValidator<CreateOwnerRequest>
 
         RuleFor(x => x.DisplayName)
             .NotEmpty()
+            .MinimumLength(2)
             .MaximumLength(100);
     }
 }

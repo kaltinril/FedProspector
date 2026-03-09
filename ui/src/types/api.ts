@@ -925,6 +925,7 @@ export interface UpdateUserRequest {
 
 export interface ResetPasswordResponse {
   message: string;
+  temporaryPassword: string;
 }
 
 export interface CreateOrganizationRequest {

@@ -239,11 +239,12 @@ public class AdminService : IAdminService
         return new string(password);
     }
 
-    public async Task<LoadHistoryResponse> GetLoadHistoryAsync(string? source, string? status, int days, int limit, int offset)
+    public async Task<LoadHistoryResponse> GetLoadHistoryAsync(string? source, string? status, int days, int page, int pageSize)
     {
         days = days < 1 ? 7 : days;
-        limit = limit < 1 ? 1 : limit > 100 ? 100 : limit;
-        offset = offset < 0 ? 0 : offset;
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 1 : pageSize > 100 ? 100 : pageSize;
+        var offset = (page - 1) * pageSize;
 
         var cutoff = DateTime.Now.AddDays(-days);
 
@@ -261,7 +262,7 @@ public class AdminService : IAdminService
         var items = await query
             .OrderByDescending(l => l.StartedAt)
             .Skip(offset)
-            .Take(limit)
+            .Take(pageSize)
             .Select(l => new LoadHistoryDto
             {
                 LoadId = l.LoadId,
@@ -284,7 +285,10 @@ public class AdminService : IAdminService
         return new LoadHistoryResponse
         {
             Items = items,
-            TotalCount = totalCount
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
         };
     }
 

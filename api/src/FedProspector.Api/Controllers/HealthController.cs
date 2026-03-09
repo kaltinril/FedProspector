@@ -103,12 +103,9 @@ public class HealthController : ControllerBase
                 foreach (var (source, lastLoad, totalLoads) in sources)
                 {
                     var age = lastLoad.HasValue ? now - lastLoad.Value : (TimeSpan?)null;
-                    data[source] = new
-                    {
-                        lastLoad = lastLoad?.ToString("yyyy-MM-dd HH:mm") ?? "never",
-                        age = FormatAge(age),
-                        totalLoads
-                    };
+                    data[$"{source}_lastLoad"] = lastLoad?.ToString("yyyy-MM-dd HH:mm") ?? "never";
+                    data[$"{source}_age"] = FormatAge(age);
+                    data[$"{source}_totalLoads"] = totalLoads.ToString();
                 }
 
                 var mostRecent = sources.Where(s => s.LastLoad.HasValue).Max(s => s.LastLoad!.Value);

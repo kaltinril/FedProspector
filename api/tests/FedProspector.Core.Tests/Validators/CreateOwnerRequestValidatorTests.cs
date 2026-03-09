@@ -48,20 +48,17 @@ public class CreateOwnerRequestValidatorTests
     public void Validate_EmailTooLong_ShouldFail()
     {
         var request = ValidRequest();
-        request.Email = new string('a', 192) + "@test.com";
+        request.Email = new string('a', 247) + "@test.com"; // 256 chars
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.Email);
     }
 
     [Fact]
-    public void Validate_EmailExactly200_ShouldPass()
+    public void Validate_EmailExactly255_ShouldPass()
     {
         var request = ValidRequest();
-        // 200 chars total: local part + @ + domain
-        request.Email = new string('a', 189) + "@test.com";
-        // "a" * 189 + "@test.com" = 189 + 9 = 198 chars -- under limit
-        // We need exactly 200: "a" * 191 + "@test.com" = 191 + 9 = 200
-        request.Email = new string('a', 191) + "@test.com";
+        // 255 chars total: "a" * 246 + "@test.com" = 246 + 9 = 255
+        request.Email = new string('a', 246) + "@test.com";
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveValidationErrorFor(x => x.Email);
     }
@@ -166,6 +163,15 @@ public class CreateOwnerRequestValidatorTests
     {
         var request = ValidRequest();
         request.DisplayName = name!;
+        var result = _validator.TestValidate(request);
+        result.ShouldHaveValidationErrorFor(x => x.DisplayName);
+    }
+
+    [Fact]
+    public void Validate_DisplayNameTooShort_ShouldFail()
+    {
+        var request = ValidRequest();
+        request.DisplayName = "x";
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.DisplayName);
     }

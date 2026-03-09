@@ -21,10 +21,20 @@ interface TabDef {
 
 const BASE_TABS: TabDef[] = [
   { label: 'Health', subtitle: 'System health overview', component: HealthTab },
-  { label: 'ETL Status', subtitle: 'Data source status and API usage', component: EtlStatusTab },
-  { label: 'Load History', subtitle: 'ETL load execution history', component: LoadHistoryTab },
   { label: 'Users', subtitle: 'User account management', component: UserManagementTab },
 ];
+
+const ETL_STATUS_TAB: TabDef = {
+  label: 'ETL Status',
+  subtitle: 'Data source status and API usage',
+  component: EtlStatusTab,
+};
+
+const LOAD_HISTORY_TAB: TabDef = {
+  label: 'Load History',
+  subtitle: 'ETL load execution history',
+  component: LoadHistoryTab,
+};
 
 const ORGS_TAB: TabDef = {
   label: 'Organizations',
@@ -37,7 +47,10 @@ export default function AdminPage() {
   const { isSystemAdmin } = useAuth();
 
   const tabs = useMemo(
-    () => (isSystemAdmin ? [...BASE_TABS, ORGS_TAB] : BASE_TABS),
+    () =>
+      isSystemAdmin
+        ? [...BASE_TABS, ETL_STATUS_TAB, LOAD_HISTORY_TAB, ORGS_TAB]
+        : BASE_TABS,
     [isSystemAdmin],
   );
 

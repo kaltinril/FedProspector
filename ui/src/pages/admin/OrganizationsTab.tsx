@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -26,7 +27,7 @@ import type { CreateOrganizationRequest, CreateOwnerRequest } from '@/types/api'
 
 export default function OrganizationsTab() {
   const { enqueueSnackbar } = useSnackbar();
-  const { data: orgs, isLoading } = useListOrganizations();
+  const { data: orgs, isLoading, isError } = useListOrganizations();
   const createOrg = useCreateOrganization();
   const createOwner = useCreateOrganizationOwner();
 
@@ -50,8 +51,9 @@ export default function OrganizationsTab() {
         setOrgDialogOpen(false);
         setOrgForm({ name: '', slug: '' });
       },
-      onError: () => {
-        enqueueSnackbar('Failed to create organization', { variant: 'error' });
+      onError: (error: any) => {
+        const msg = error?.response?.data?.error || 'Failed to create organization';
+        enqueueSnackbar(msg, { variant: 'error' });
       },
     });
   }, [orgForm, createOrg, enqueueSnackbar]);
@@ -67,8 +69,9 @@ export default function OrganizationsTab() {
           setOwnerForm({ email: '', displayName: '', password: '' });
           setOwnerOrgId(null);
         },
-        onError: () => {
-          enqueueSnackbar('Failed to create owner', { variant: 'error' });
+        onError: (error: any) => {
+          const msg = error?.response?.data?.error || 'Failed to create owner';
+          enqueueSnackbar(msg, { variant: 'error' });
         },
       },
     );
@@ -96,7 +99,9 @@ export default function OrganizationsTab() {
         </Button>
       </Box>
 
-      {isLoading ? (
+      {isError ? (
+        <Alert severity="error">Failed to load organizations</Alert>
+      ) : isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
           <CircularProgress />
         </Box>
@@ -174,6 +179,7 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
+            inputProps={{ minLength: 2, maxLength: 100 }}
           />
           <TextField
             label="Slug"
@@ -187,6 +193,7 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
+            inputProps={{ minLength: 2, maxLength: 50, pattern: '[a-z0-9-]+' }}
             helperText="URL-friendly identifier (lowercase letters, numbers, hyphens)"
           />
         </DialogContent>
@@ -242,6 +249,7 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
+            inputProps={{ minLength: 2, maxLength: 100 }}
           />
           <TextField
             label="Password"
@@ -251,6 +259,7 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
+            inputProps={{ minLength: 8 }}
           />
         </DialogContent>
         <DialogActions>

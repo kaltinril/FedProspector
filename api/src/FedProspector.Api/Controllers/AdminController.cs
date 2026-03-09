@@ -41,16 +41,17 @@ public class AdminController : ApiControllerBase
         [FromQuery] string? source = null,
         [FromQuery] string? status = null,
         [FromQuery] int days = 7,
-        [FromQuery] int limit = 20,
-        [FromQuery] int offset = 0)
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
-        var result = await _service.GetLoadHistoryAsync(source, status, days, limit, offset);
+        var result = await _service.GetLoadHistoryAsync(source, status, days, page, pageSize);
         return Ok(result);
     }
 
     /// <summary>
     /// Get health check snapshots. System Admin only.
     /// </summary>
+    // API-only endpoint — no UI consumer yet (Phase 76-A8)
     [HttpGet("health-snapshots")]
     [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> GetHealthSnapshots([FromQuery] int days = 30)
@@ -62,6 +63,7 @@ public class AdminController : ApiControllerBase
     /// <summary>
     /// Get API key usage status from rate limit tracking. System Admin only.
     /// </summary>
+    // API-only endpoint — no UI consumer yet (Phase 76-A8)
     [HttpGet("api-keys")]
     [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> GetApiKeys()
@@ -73,6 +75,7 @@ public class AdminController : ApiControllerBase
     /// <summary>
     /// Get ETL job definitions with last-run status. System Admin only.
     /// </summary>
+    // API-only endpoint — no UI consumer yet (Phase 76-A8)
     [HttpGet("jobs")]
     [Authorize(Policy = "SystemAdmin")]
     public async Task<IActionResult> GetJobs()

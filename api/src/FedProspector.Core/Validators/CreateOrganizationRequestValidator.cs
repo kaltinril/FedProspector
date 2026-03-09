@@ -9,11 +9,13 @@ public class CreateOrganizationRequestValidator : AbstractValidator<CreateOrgani
     {
         RuleFor(x => x.Name)
             .NotEmpty()
-            .MaximumLength(200);
+            .MinimumLength(2)
+            .MaximumLength(100);
 
         RuleFor(x => x.Slug)
             .NotEmpty()
-            .MaximumLength(100)
+            .MinimumLength(2)
+            .MaximumLength(50)
             .Matches("^[a-z0-9-]+$")
             .WithMessage("Slug must contain only lowercase letters, numbers, and hyphens.");
     }
