@@ -111,6 +111,46 @@ class USASpendingBulkLoader:
         self.fast_mode = fast_mode
 
     # ------------------------------------------------------------------
+    # Pre-load checks
+    # ------------------------------------------------------------------
+
+    def _check_buffer_pool_size(self):
+        """Check InnoDB buffer pool size and warn if below 1 GB.
+
+        A small buffer pool causes PK lookups to spill to disk during
+        large upsert loads, making batch times grow as the table fills.
+        """
+        ONE_GB = 1024 * 1024 * 1024
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SHOW VARIABLES LIKE 'innodb_buffer_pool_size'")
+            row = cursor.fetchone()
+            if row is None:
+                self.logger.debug("Could not read innodb_buffer_pool_size")
+                return
+            pool_bytes = int(row[1])
+            pool_mb = pool_bytes / (1024 * 1024)
+            if pool_bytes < ONE_GB:
+                self.logger.warning(
+                    "innodb_buffer_pool_size is %.0f MB (%.2f GB). "
+                    "For bulk loads, 1 GB+ is recommended to keep PK lookups "
+                    "in memory. Increase with: SET GLOBAL "
+                    "innodb_buffer_pool_size = 1073741824;",
+                    pool_mb, pool_bytes / ONE_GB,
+                )
+            else:
+                self.logger.info(
+                    "innodb_buffer_pool_size: %.0f MB (%.2f GB) — OK",
+                    pool_mb, pool_bytes / ONE_GB,
+                )
+        except Exception as exc:
+            self.logger.debug("Could not check buffer pool size: %s", exc)
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
@@ -538,25 +578,26 @@ class USASpendingBulkLoader:
                     else:
                         eta_str = ""
 
-                    self.logger.info(
-                        "Batch %d/%d: %d loaded, %d upserted in %.1fs%s",
-                        i, total_batches, loaded, upserted, elapsed, eta_str,
-                    )
-
-                    # Log overall FY progress every 5 batches
+                    # Build overall FY progress prefix if we have CSV context
+                    progress_str = ""
                     if (csv_index is not None and total_csvs is not None
-                            and total_csvs > 0 and i % 5 == 0):
+                            and total_csvs > 0):
                         completed_csvs = csv_index - 1
                         overall_pct = (
                             (completed_csvs * total_batches + i)
                             / (total_csvs * total_batches)
                             * 100
                         )
-                        self.logger.info(
-                            "FY%d progress: CSV %d/%d, Batch %d/%d, overall: %.0f%%",
-                            fiscal_year, csv_index, total_csvs,
-                            i, total_batches, overall_pct,
+                        progress_str = (
+                            f" | CSV {csv_index}/{total_csvs}, "
+                            f"overall: {overall_pct:.0f}%"
                         )
+
+                    self.logger.info(
+                        "Batch %d/%d: %d loaded, %d upserted in %.1fs%s%s",
+                        i, total_batches, loaded, upserted, elapsed,
+                        eta_str, progress_str,
+                    )
 
                     # Free disk space immediately
                     try:

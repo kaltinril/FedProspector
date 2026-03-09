@@ -58,6 +58,12 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast):
         )
         click.echo("WARNING: Fast mode enabled — secondary indexes will be dropped during load.")
 
+    # Pre-load checks: buffer pool warning and crash-safe index rebuild
+    loader._check_buffer_pool_size()
+    rebuilt = loader._check_and_rebuild_indexes()
+    if rebuilt:
+        click.echo(f"  Rebuilt {rebuilt} missing secondary indexes from a prior crash.")
+
     total_stats = {
         "records_read": 0,
         "records_inserted": 0,

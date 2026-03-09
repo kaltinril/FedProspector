@@ -1,6 +1,6 @@
 # Phase 65: USASpending Bulk Loader Improvements
 
-**Status**: NOT STARTED
+**Status**: IN PROGRESS
 **Priority**: High
 **Depends on**: Phase 44 (original bulk loader)
 
@@ -96,3 +96,58 @@ The USASpending bulk loader works but is slow and not resumable:
 - Batching at 50K rows per batch already implemented (Phase 65 prep work)
 - The `--source archive` flag is already the default (smaller, faster files)
 - Index rebuild after load is a one-time cost (~2-5 min for millions of rows) but saves cumulative time across all batches
+
+## Resolved: FY Archive Scope (2026-03-08)
+
+**Answer**: Archives are **NOT** scoped per-FY. They contain overlapping award IDs across fiscal years. Delete-then-insert is **NOT safe**.
+
+**Test results**:
+
+1. After FY2021 load: `SELECT fiscal_year, COUNT(*) FROM usaspending_award GROUP BY fiscal_year;`
+   - FY2021: **5,682,188**
+   - FY2026: 289,940 (from a prior accidental load)
+
+2. After FY2022 load:
+   - FY2021: **5,324,574** (dropped by ~358K — FY2022 archive overwrote FY2021 records)
+   - FY2022: 5,855,671
+   - FY2026: 282,876 (also changed slightly)
+
+**Conclusion**: The FY2022 archive contains award IDs that also appear in FY2021 data. Upserts updated those rows, changing their `fiscal_year` value. This means:
+- Must keep `INSERT ... ON DUPLICATE KEY UPDATE` (upserts)
+- Cannot use `DELETE WHERE fiscal_year = X` + pure INSERT
+- Fiscal year partitioning would NOT help (rows move between partitions)
+- **Applicable optimizations**: Options 1-4 below (buffer pool tuning, staging table, larger batches, parallel pipeline)
+
+**Observed batch slowdown**: FY2021 batches started at ~10s per 50K rows and grew to ~30s as the table filled. This is the PK B-tree getting larger, not secondary index overhead. `--fast` mode (dropping secondary indexes) does not help with this.
+
+## Performance Options (if archives are NOT per-FY scoped)
+
+If the FY test shows archives are cumulative (overlapping award IDs across FYs), we can't use delete-then-insert. These options address the PK lookup bottleneck while keeping upsert semantics:
+
+### Option 1: InnoDB buffer pool tuning (try first — free perf)
+Check `innodb_buffer_pool_size`. If it's smaller than the PK index + table data, MySQL does disk reads for every PK lookup during upsert. Bumping it to cover the full index in memory keeps lookups fast regardless of table size. Just a MySQL config change, no code.
+
+### Option 2: Staging table pattern (best code-level fix)
+Load each CSV into an empty temp table (constant speed, no PK conflicts), then bulk merge into the main table in one shot:
+```sql
+LOAD DATA INFILE ... INTO usaspending_staging;
+INSERT INTO usaspending_award SELECT * FROM usaspending_staging
+ON DUPLICATE KEY UPDATE col1=VALUES(col1), ...;
+TRUNCATE usaspending_staging;
+```
+Still O(n log n) for the merge, but one merge per CSV instead of 20 per CSV. MySQL optimizes a single large merge better — buffer pool stays hot, fewer transaction commits.
+
+### Option 3: Larger batch size
+Increase from 50K to 500K+ rows per batch. Fewer transactions, fewer checkpoint updates, MySQL sorts the insert buffer more efficiently. Tradeoff: coarser checkpoint granularity (more re-work on resume).
+
+### Option 4: Parallel read + load pipeline
+Producer thread reads/parses CSV into temp files, consumer thread runs LOAD DATA. Overlaps I/O with DB work. ~20-30% improvement but doesn't fix the fundamental PK lookup cost. More complex error handling and checkpoint ordering.
+
+### Option 5: Reduce PK overhead
+`generated_unique_award_id` is VARCHAR(100) — every B-tree comparison is a string compare. A surrogate `BIGINT AUTO_INCREMENT` PK with the award ID as a UNIQUE index wouldn't speed up upserts (still needs the unique lookup), but would shrink every secondary index since they all carry the PK implicitly.
+
+### Recommended order
+1. Buffer pool tuning (Option 1) — check and fix first, zero code changes
+2. Staging table (Option 2) — biggest code-level win
+3. Larger batches (Option 3) — easy tweak if staging isn't enough
+4. Pipeline / PK reduction only if still needed
