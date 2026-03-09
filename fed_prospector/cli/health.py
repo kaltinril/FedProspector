@@ -1,6 +1,7 @@
 """CLI commands for system health, monitoring, and maintenance (Phase 6).
 
-Commands: check-health, load-history, catchup-datasets, run-job, maintain-db, run-all-searches
+Commands: check-health, load-history, catchup-datasets, run-job,
+          maintain-app-data, maintain-db, run-all-searches
 """
 
 import sys
@@ -414,12 +415,10 @@ def run_job(job_name, list_jobs):
         click.echo(f"\nOutput:\n{output}")
 
 
-@click.command("maintain-db")
+@click.command("maintain-app-data")
 @click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
-@click.option("--analyze", is_flag=True, help="Run ANALYZE TABLE on all tables")
-@click.option("--sizes", is_flag=True, help="Show table sizes in MB")
-def maintain_db(dry_run, analyze, sizes):
-    """Run database maintenance tasks (cleanup old data, update stats).
+def maintain_app_data(dry_run):
+    """Clean up old application data (history, staging, errors).
 
     Cleans up:
     - Entity/opportunity history records older than 1 year
@@ -427,20 +426,64 @@ def maintain_db(dry_run, analyze, sizes):
     - Load error records older than 90 days
 
     Use --dry-run to preview what would be cleaned up.
-    Use --analyze to update table statistics for the query optimizer.
-    Use --sizes to show table sizes.
 
     Examples:
-        python main.py health maintain-db --dry-run
-        python main.py health maintain-db
-        python main.py health maintain-db --analyze
-        python main.py health maintain-db --sizes
+        python main.py health maintain-app-data --dry-run
+        python main.py health maintain-app-data
     """
     logger = setup_logging()
     from etl.db_maintenance import DatabaseMaintenance
 
     maint = DatabaseMaintenance()
 
+    prefix = "[DRY RUN] " if dry_run else ""
+    click.echo(f"{prefix}Running application data maintenance...")
+
+    summary = maint.run_all(dry_run=dry_run)
+
+    click.echo(f"\n{prefix}Maintenance summary:")
+    for task, count in summary.items():
+        verb = "would be " if dry_run else ""
+        click.echo(f"  {task:40s} {count:>8,d} records {verb}deleted")
+
+
+@click.command("maintain-db")
+@click.option("--optimize", is_flag=True, default=False,
+              help="Include OPTIMIZE TABLE (off by default; rebuilds indexes, can be slow)")
+@click.option("--skip-analyze", is_flag=True, default=False,
+              help="Skip ANALYZE TABLE (on by default)")
+@click.option("--purge-binlog-days", type=int, default=None,
+              help="Purge binary logs older than N days")
+@click.option("--tables", default=None,
+              help="Comma-separated list of tables to operate on (default: all)")
+@click.option("--sizes", is_flag=True, default=False,
+              help="Show table sizes in MB")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Show what would be done without making changes")
+def maintain_db(optimize, skip_analyze, purge_binlog_days, tables, sizes, dry_run):
+    """Run engine-level MySQL maintenance (analyze, optimize, purge logs).
+
+    By default runs ANALYZE TABLE on all tables to update optimizer statistics.
+    Use --optimize to also defragment tables and rebuild indexes (slow on large tables).
+    Use --purge-binlog-days N to purge old binary logs.
+
+    Examples:
+        python main.py health maintain-db                    # analyze all tables
+        python main.py health maintain-db --optimize         # analyze + optimize
+        python main.py health maintain-db --dry-run          # preview
+        python main.py health maintain-db --purge-binlog-days 7
+        python main.py health maintain-db --tables stg_entity_raw,stg_opportunity_raw --optimize
+        python main.py health maintain-db --sizes
+    """
+    logger = setup_logging()
+    from db.connection import get_connection
+    from config import settings
+    from etl.db_maintenance import DatabaseMaintenance
+
+    prefix = "[DRY RUN] " if dry_run else ""
+    maint = DatabaseMaintenance()
+
+    # --- Show table sizes ---
     if sizes:
         click.echo("=== Table Sizes ===")
         table_sizes = maint.get_table_sizes()
@@ -455,23 +498,160 @@ def maintain_db(dry_run, analyze, sizes):
             f"  {'TOTAL':35s} {total_data:>8.1f} MB data  "
             f"{total_idx:>8.1f} MB index"
         )
-        return
+        if not (optimize or not skip_analyze or purge_binlog_days):
+            return
 
-    if analyze:
-        click.echo("Running ANALYZE TABLE on all tables...")
-        maint.analyze_tables()
-        click.echo("Done.")
-        return
+    # --- Resolve table list ---
+    if tables:
+        table_list = [t.strip() for t in tables.split(",")]
+    else:
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT TABLE_NAME FROM information_schema.TABLES "
+                "WHERE TABLE_SCHEMA = %s AND TABLE_TYPE = 'BASE TABLE' "
+                "ORDER BY TABLE_NAME",
+                (settings.DB_NAME,),
+            )
+            table_list = [row[0] for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+            conn.close()
 
-    prefix = "[DRY RUN] " if dry_run else ""
-    click.echo(f"{prefix}Running database maintenance...")
+    # --- ANALYZE TABLE ---
+    if not skip_analyze:
+        click.echo(f"\n{prefix}=== ANALYZE TABLE ({len(table_list)} tables) ===")
+        if not dry_run:
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                for tbl in table_list:
+                    cursor.execute(f"ANALYZE TABLE `{tbl}`")
+                    logger.info("Analyzed table: %s", tbl)
+                    click.echo(f"  Analyzed: {tbl}")
+            finally:
+                cursor.close()
+                conn.close()
+        else:
+            for tbl in table_list:
+                click.echo(f"  Would analyze: {tbl}")
 
-    summary = maint.run_all(dry_run=dry_run)
+    # --- OPTIMIZE TABLE ---
+    if optimize:
+        click.echo(f"\n{prefix}=== OPTIMIZE TABLE ({len(table_list)} tables) ===")
+        click.echo("  (This also rebuilds indexes; may take a while on large tables)")
+        if not dry_run:
+            # Get before sizes for comparison
+            before_sizes = {ts["table_name"]: ts for ts in maint.get_table_sizes()}
 
-    click.echo(f"\n{prefix}Maintenance summary:")
-    for task, count in summary.items():
-        verb = "would be " if dry_run else ""
-        click.echo(f"  {task:40s} {count:>8,d} records {verb}deleted")
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                for tbl in table_list:
+                    before = before_sizes.get(tbl)
+                    before_mb = before["data_mb"] + before["index_mb"] if before else 0
+                    click.echo(f"  Optimizing: {tbl}...", nl=False)
+                    cursor.execute(f"OPTIMIZE TABLE `{tbl}`")
+                    logger.info("Optimized table: %s", tbl)
+                    click.echo(" done")
+            finally:
+                cursor.close()
+                conn.close()
+
+            # Show before/after sizes
+            after_sizes = {ts["table_name"]: ts for ts in maint.get_table_sizes()}
+            click.echo(f"\n{prefix}=== Size Changes ===")
+            for tbl in table_list:
+                before = before_sizes.get(tbl)
+                after = after_sizes.get(tbl)
+                if before and after:
+                    b_total = before["data_mb"] + before["index_mb"]
+                    a_total = after["data_mb"] + after["index_mb"]
+                    diff = a_total - b_total
+                    sign = "+" if diff >= 0 else ""
+                    click.echo(
+                        f"  {tbl:35s} {b_total:>8.1f} MB -> {a_total:>8.1f} MB "
+                        f"({sign}{diff:.1f} MB)"
+                    )
+        else:
+            for tbl in table_list:
+                click.echo(f"  Would optimize: {tbl}")
+
+    # --- Binary log purge ---
+    if purge_binlog_days is not None:
+        click.echo(f"\n{prefix}=== Binary Log Purge ===")
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SHOW VARIABLES LIKE 'log_bin'")
+            row = cursor.fetchone()
+            log_bin_enabled = row and row[1].upper() == "ON"
+
+            if not log_bin_enabled:
+                click.echo("  Binary logging is NOT enabled. Skipping purge.")
+            else:
+                if dry_run:
+                    click.echo(
+                        f"  Would purge binary logs older than {purge_binlog_days} days"
+                    )
+                else:
+                    cursor.execute(
+                        f"PURGE BINARY LOGS BEFORE NOW() - INTERVAL {purge_binlog_days} DAY"
+                    )
+                    click.echo(
+                        f"  Purged binary logs older than {purge_binlog_days} days"
+                    )
+                    logger.info("Purged binary logs older than %d days", purge_binlog_days)
+        finally:
+            cursor.close()
+            conn.close()
+
+    # --- InnoDB undo log truncation status ---
+    click.echo(f"\n{prefix}=== InnoDB Status ===")
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        # Undo log truncation
+        cursor.execute("SHOW VARIABLES LIKE 'innodb_undo_log_truncate'")
+        row = cursor.fetchone()
+        undo_status = row[1] if row else "unknown"
+        click.echo(f"  innodb_undo_log_truncate: {undo_status}")
+
+        # Buffer pool size
+        cursor.execute("SHOW VARIABLES LIKE 'innodb_buffer_pool_size'")
+        row = cursor.fetchone()
+        if row:
+            pool_bytes = int(row[1])
+            pool_mb = pool_bytes / (1024 * 1024)
+            click.echo(f"  innodb_buffer_pool_size:  {pool_mb:.0f} MB")
+
+        # Redo log
+        cursor.execute("SHOW VARIABLES LIKE 'innodb_redo_log_capacity'")
+        row = cursor.fetchone()
+        if row:
+            redo_bytes = int(row[1])
+            redo_mb = redo_bytes / (1024 * 1024)
+            click.echo(f"  innodb_redo_log_capacity: {redo_mb:.0f} MB")
+
+        # Undo tablespaces
+        cursor.execute(
+            "SELECT TABLESPACE_NAME, FILE_NAME, "
+            "ROUND(TOTAL_EXTENTS * EXTENT_SIZE / 1024 / 1024, 1) AS size_mb "
+            "FROM information_schema.FILES "
+            "WHERE FILE_TYPE = 'UNDO LOG' "
+            "ORDER BY TABLESPACE_NAME"
+        )
+        undo_rows = cursor.fetchall()
+        if undo_rows:
+            click.echo("  Undo tablespaces:")
+            for urow in undo_rows:
+                click.echo(f"    {urow[0]}: {urow[2]} MB ({urow[1]})")
+    finally:
+        cursor.close()
+        conn.close()
+
+    click.echo(f"\n{prefix}Engine maintenance complete.")
 
 
 @click.command("run-all-searches")

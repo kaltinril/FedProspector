@@ -1,6 +1,6 @@
 # Phase 66: MySQL Performance Tuning (Percona Best Practices)
 
-**Status**: NOT STARTED
+**Status**: IN PROGRESS (configs updated, restart needed for static settings)
 **Priority**: Medium
 **Depends on**: Phase 65/65B (bulk loader improvements)
 
@@ -81,16 +81,40 @@ MySQL is running with mostly default settings. With 17M+ rows in `usaspending_aw
 
 ### Task 1: Update my.ini with Percona-recommended settings
 
-- [ ] Determine storage type (NVMe vs SATA SSD vs HDD) to set correct io_capacity values
-- [ ] Determine total system RAM to size buffer pool correctly
-- [ ] Update `D:\mysql\my.ini` with all recommended settings
-- [ ] Update `thesolution/reference/mysql-my.ini` reference config with same settings + comments
-- [ ] Restart MySQL to apply static settings
+- [x] Determine storage type — assumed NVMe (modern Win11 dev machine, io_capacity=10000). Comment in config notes SATA SSD alternative values.
+- [x] Determine total system RAM — 4G buffer pool already correct for 16GB RAM machine (per reference sizing table).
+- [x] Update `D:\mysql\my.ini` with all recommended settings (2026-03-08)
+- [x] Update `thesolution/reference/mysql-my.ini` reference config with same settings + detailed comments (2026-03-08)
+- [ ] Restart MySQL to apply static settings (`innodb_buffer_pool_instances=8`, `innodb_read/write_io_threads=8`)
 
 ### Task 2: Apply dynamic settings (no restart needed)
 
-- [ ] `SET GLOBAL innodb_redo_log_capacity = 2147483648` (2GB — dynamic, takes effect immediately)
-- [ ] Verify with `SHOW VARIABLES LIKE 'innodb_redo_log_capacity'`
+After restart (or immediately if MySQL is running), run these to apply dynamic settings without waiting for restart:
+
+```sql
+SET GLOBAL innodb_redo_log_capacity = 2147483648;
+SET GLOBAL innodb_io_capacity = 10000;
+SET GLOBAL innodb_io_capacity_max = 20000;
+SET GLOBAL innodb_change_buffering = 'none';
+SET GLOBAL innodb_adaptive_hash_index = OFF;
+SET GLOBAL innodb_sort_buffer_size = 4194304;
+SET GLOBAL tmp_table_size = 67108864;
+SET GLOBAL max_heap_table_size = 67108864;
+SET GLOBAL max_connections = 100;
+```
+
+Verify:
+```sql
+SHOW VARIABLES WHERE Variable_name IN (
+  'innodb_redo_log_capacity', 'innodb_io_capacity', 'innodb_io_capacity_max',
+  'innodb_change_buffering', 'innodb_adaptive_hash_index', 'innodb_sort_buffer_size',
+  'tmp_table_size', 'max_heap_table_size', 'max_connections',
+  'innodb_buffer_pool_instances', 'innodb_read_io_threads', 'innodb_write_io_threads'
+);
+```
+
+- [ ] Apply dynamic settings via MySQL CLI
+- [ ] Verify all settings match expected values
 
 ### Task 3: Validate performance improvement
 
@@ -101,9 +125,9 @@ MySQL is running with mostly default settings. With 17M+ rows in `usaspending_aw
 
 ### Task 4: Document final configuration
 
+- [x] Update reference my.ini as the "production-ready" config template (2026-03-08)
 - [ ] Record before/after batch times in this doc
 - [ ] Note any settings that needed adjustment for this specific workload
-- [ ] Update reference my.ini as the "production-ready" config template
 
 ## Proposed my.ini (complete)
 

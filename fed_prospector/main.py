@@ -27,7 +27,7 @@ Modules:
     cli/exclusions.py     load-exclusions, check-exclusion, check-prospects
     cli/spending.py       load-transactions, burn-rate
     cli/bulk_spending.py  usaspending-bulk
-    cli/health.py         check-health, load-history, catchup-datasets, run-job, maintain-db, run-all-searches
+    cli/health.py         check-health, load-history, catchup-datasets, run-job, maintain-app-data, maintain-db, run-all-searches
     cli/subaward.py       load-subawards, search-subawards, teaming-partners
     cli/admin.py          create-sysadmin, create-org, list-orgs, invite-user,
                           list-org-members, disable-user, enable-user, reset-password
@@ -135,7 +135,7 @@ from cli.awards import load_awards, search_awards
 from cli.fedhier import load_hierarchy, search_agencies
 from cli.exclusions import load_exclusions, check_exclusion, check_prospects
 from cli.spending import load_transactions, burn_rate
-from cli.health import check_health, load_history, catchup_datasets, run_job, maintain_db, run_all_searches
+from cli.health import check_health, load_history, catchup_datasets, run_job, maintain_app_data, maintain_db, run_all_searches
 from cli.subaward import load_subawards, search_subawards, teaming_partners
 from cli.admin import (
     create_sysadmin, create_org, list_orgs, invite_user,
@@ -252,6 +252,7 @@ health.add_command(status, name="status")
 health.add_command(check_health, name="check")
 health.add_command(load_history, name="load-history")
 health.add_command(catchup_datasets, name="catchup")
+health.add_command(maintain_app_data, name="maintain-app-data")
 health.add_command(maintain_db, name="maintain-db")
 health.add_command(run_job, name="run-job")
 health.add_command(run_all_searches, name="run-all-searches")
