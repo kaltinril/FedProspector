@@ -7,6 +7,12 @@
 
 Track and fix bugs found during manual UI testing of the FedProspect web application.
 
+## Summary
+- **10 bugs**: 10/10 fixed ✅
+- **6 code review**: 6/6 fixed ✅
+- **11 admin audit**: 1 fixed, 1 partial, 9 open
+- **Remaining work**: 10 admin audit items (2 HIGH, 4 MEDIUM, 2 LOW + 1 partial MEDIUM)
+
 ## Issues
 
 ### 76-1: Dashboard DbContext concurrent access crash ✅ FIXED
@@ -126,7 +132,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 ## Code Review Issues
 
-### 76-R1: Health endpoint leaks internal error details (Medium/Security)
+### 76-R1: Health endpoint leaks internal error details (Medium/Security) ✅ FIXED
 
 **Problem**: HealthController is `[AllowAnonymous]` but returns raw `ex.Message` from database exceptions in the `Description` field. Can leak hostnames, connection strings, driver versions.
 
@@ -134,7 +140,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Replace `ex.Message` with generic error strings in health check failure descriptions.
 
-### 76-R2: InvalidOperationException returns 500 instead of 400 (Medium)
+### 76-R2: InvalidOperationException returns 500 instead of 400 (Medium) ✅ FIXED
 
 **Problem**: `OrganizationService` throws `InvalidOperationException` for business rule violations (duplicate slug, existing owner, duplicate email). These likely bubble up as 500 errors instead of 400/409. Users get "Failed to create organization" with no explanation.
 
@@ -144,7 +150,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Catch `InvalidOperationException` in AdminController and return 400/409 with the validation message.
 
-### 76-R3: Repeated system-admin authorization check (Medium/Architecture)
+### 76-R3: Repeated system-admin authorization check (Medium/Architecture) ✅ FIXED
 
 **Problem**: The same 2-line `HasClaim("is_system_admin") + Forbid()` check is copy-pasted 8 times in AdminController. Fragile — new endpoints could miss it.
 
@@ -154,7 +160,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Register a `"SystemAdmin"` authorization policy in Program.cs and use `[Authorize(Policy = "SystemAdmin")]` on the endpoints.
 
-### 76-R4: No AdminGuard on /admin route (Low/UX)
+### 76-R4: No AdminGuard on /admin route (Low/UX) ✅ FIXED
 
 **Problem**: Non-admin users can navigate to `/admin` and see the page shell before backend 403s kick in. Backend is secure but UX is poor.
 
@@ -162,7 +168,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Wrap the admin route with `AdminGuard` for defense-in-depth.
 
-### 76-R5: Inconsistent query key pattern (Low/Code Quality)
+### 76-R5: Inconsistent query key pattern (Low/Code Quality) ✅ FIXED
 
 **Problem**: `useListOrganizations` hardcodes `['admin', 'organizations']` instead of using the centralized `queryKeys.admin.*` pattern. Cache invalidation in OrganizationsTab also uses the hardcoded key.
 
@@ -172,7 +178,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Add `organizations` key to `queryKeys.admin` and use it consistently.
 
-### 76-R6: TypeScript DTOs too permissive for required fields (Low/Types)
+### 76-R6: TypeScript DTOs too permissive for required fields (Low/Types) ✅ FIXED
 
 **Problem**: `CreateOrganizationRequest` and `CreateOwnerRequest` mark required fields as `string | null` in TypeScript when C# requires them non-null. Form guards against it at runtime but types don't enforce it.
 
@@ -182,7 +188,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 ## Admin Page Audit Issues
 
-### 76-A1: Temp password never shown after reset (HIGH)
+### 76-A1: Temp password never shown after reset (HIGH) 🔲 OPEN
 
 **Problem**: TS `ResetPasswordResponse` is missing `temporaryPassword` field. UI shows the message string instead of the actual generated password. Admin cannot give users their new credentials.
 
@@ -193,7 +199,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Add `temporaryPassword: string` to TS type, change UI to display `resp.temporaryPassword`.
 
-### 76-A2: Load history pagination completely broken (HIGH)
+### 76-A2: Load history pagination completely broken (HIGH) 🔲 OPEN
 
 **Problem**: UI sends `page`/`pageSize` query params but backend expects `limit`/`offset`. Admin always sees only the first 20 records regardless of page navigation.
 
@@ -204,7 +210,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Either change UI to send `limit`/`offset`, or change backend to accept `page`/`pageSize`. Align the TS `LoadHistoryResponse` type too — it expects `page`, `pageSize`, `totalPages` that the backend never sends.
 
-### 76-A3: Health tab renders ETL data as [object Object] (MEDIUM)
+### 76-A3: Health tab renders ETL data as [object Object] (MEDIUM) 🔲 OPEN
 
 **Problem**: `HealthController` puts nested anonymous objects into the ETL freshness data dictionary. `HealthTab.tsx` renders values with `String(value)` which produces `[object Object]` for nested objects.
 
@@ -215,7 +221,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Either flatten the backend response (preferred) or handle nested objects in the UI renderer.
 
-### 76-A4: ETL Status + Load History tabs visible to org admins but 403-blocked (MEDIUM)
+### 76-A4: ETL Status + Load History tabs visible to org admins but 403-blocked (MEDIUM) 🔲 OPEN
 
 **Problem**: These tabs are visible to all admins but the backend endpoints require SystemAdmin policy. Org admins see a loading spinner then a generic error.
 
@@ -225,7 +231,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Hide ETL Status, Load History tabs for non-system-admins (same pattern as Organizations tab).
 
-### 76-A5: Create org/owner 409 error messages swallowed (MEDIUM)
+### 76-A5: Create org/owner 409 error messages swallowed (MEDIUM) 🔲 OPEN
 
 **Problem**: Backend now returns 409 Conflict with specific messages (duplicate slug, existing owner, duplicate email) but UI shows generic "Failed to create organization/owner" regardless.
 
@@ -234,7 +240,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Extract error message from Axios error response and display it.
 
-### 76-A6: No validation on org create/owner create forms (MEDIUM)
+### 76-A6: No validation on org create/owner create forms (MEDIUM) ⚠️ PARTIAL
 
 **Problem**: No min/max length validation on name/slug fields. No email format validation. No password minimum length/complexity. Backend also has no validation annotations.
 
@@ -245,7 +251,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Add FluentValidation validators on backend. Add matching client-side validation.
 
-### 76-A7: /health endpoint may miss Vite proxy (MEDIUM)
+### 76-A7: /health endpoint may miss Vite proxy (MEDIUM) ✅ FIXED
 
 **Problem**: `admin.ts` calls `/health` with raw axios instead of `apiClient`. If Vite dev proxy only forwards `/api/*`, the health call hits the Vite dev server and gets a 404 or HTML page.
 
@@ -253,7 +259,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Verify Vite proxy config forwards `/health`. Or change backend route to `/api/v1/health` and use `apiClient`.
 
-### 76-A8: 3 backend endpoints have no UI (LOW)
+### 76-A8: 3 backend endpoints have no UI (LOW) 🔲 OPEN
 
 **Problem**: `GET /api/v1/admin/health-snapshots`, `GET /api/v1/admin/api-keys`, `GET /api/v1/admin/jobs` exist in AdminController but no UI tab or component consumes them.
 
@@ -261,7 +267,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Either add UI for these (health trends chart, per-key tracking, job-level view) or document as intentionally API-only.
 
-### 76-A9: Admin can demote themselves to USER role (MEDIUM)
+### 76-A9: Admin can demote themselves to USER role (MEDIUM) 🔲 OPEN
 
 **Problem**: User management allows changing any user's role including the logged-in admin. Backend partially blocks `isAdmin: false` on self but may still apply `role: USER`, creating inconsistent state.
 
@@ -269,7 +275,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Disable role dropdown for the currently logged-in user, or add backend guard to reject self-demotion entirely.
 
-### 76-A10: Organizations list has no error state (LOW)
+### 76-A10: Organizations list has no error state (LOW) 🔲 OPEN
 
 **Problem**: If the organizations API call fails, the component renders as if there are zero orgs rather than showing an error.
 
@@ -277,7 +283,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Add `isError` check like other admin tabs.
 
-### 76-A11: staleTime missing on useListOrganizations (LOW)
+### 76-A11: staleTime missing on useListOrganizations (LOW) 🔲 OPEN
 
 **Problem**: `useListOrganizations` has no `staleTime`, causing refetch on every mount/focus. Other admin hooks use 30s-120s staleTime.
 
