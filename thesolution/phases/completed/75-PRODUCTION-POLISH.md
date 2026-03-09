@@ -1,6 +1,6 @@
 # Phase 75: Production Polish
 
-**Status**: NOT STARTED
+**Status**: COMPLETE
 **Dependencies**: Phase 70 (Admin & Organization Management) -- COMPLETE
 **Split from**: Old Phase 70 (see [19-UI-PHASE-REVIEW.md](completed/19-UI-PHASE-REVIEW.md) for rationale)
 
@@ -120,6 +120,21 @@ Bundle analysis tooling is in place (`npm run analyze`). This task establishes a
 4. Verify `date-fns` is tree-shaken (only specific functions imported, not the whole package)
 5. Consider lazy-loading `@mui/x-charts` and `@mui/x-data-grid` vendor chunks only on pages that use them (currently they are separate chunks but loaded eagerly when the chunk is referenced)
 6. Document target sizes and add a CI check if desired
+
+**Bundle Size Baseline (2026-03-08)**
+| Chunk | Raw | Gzipped |
+|-------|-----|---------|
+| vendor-mui | 428 kB | 129 kB |
+| vendor-datagrid | 394 kB | 119 kB |
+| index (app core) | 295 kB | 97 kB |
+| vendor-charts | 273 kB | 81 kB |
+| schemas (zod) | 89 kB | 27 kB |
+| ProspectPipelinePage | 61 kB | 20 kB |
+| vendor-react | 49 kB | 17 kB |
+| vendor-query | 36 kB | 11 kB |
+| **Total (gzipped)** | — | **~500 kB** |
+
+All page chunks are 1-7 kB gzipped (code-split, lazy-loaded).
 
 ### 75.5 Browser Compatibility Testing
 **Owner**: qa
