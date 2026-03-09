@@ -89,8 +89,9 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 66B | MySQL NVMe Migration | COMPLETE | [66B-MYSQL-NVME-MIGRATION.md](phases/completed/66B-MYSQL-NVME-MIGRATION.md) |
 | 70 | Admin & Organization | COMPLETE | [70-ADMIN-POLISH.md](phases/completed/70-ADMIN-POLISH.md) |
 | 75 | Production Polish | COMPLETE | [75-PRODUCTION-POLISH.md](phases/completed/75-PRODUCTION-POLISH.md) |
-| 76 | UI Testing & Bug Fixes | COMPLETE | [76-UI-TESTING-FIXES.md](phases/76-UI-TESTING-FIXES.md) |
-| 77 | USASpending Delta Loader | NOT STARTED | [77-USASPENDING-DELTA-LOADER.md](phases/77-USASPENDING-DELTA-LOADER.md) |
+| 76 | UI Testing & Bug Fixes | COMPLETE | [76-UI-TESTING-FIXES.md](phases/completed/76-UI-TESTING-FIXES.md) |
+| 77 | USASpending Delta Loader | COMPLETE | [77-USASPENDING-DELTA-LOADER.md](phases/completed/77-USASPENDING-DELTA-LOADER.md) |
+| 78 | Entity CLI Consolidation | COMPLETE | [78-entity-cli-consolidation.md](phases/completed/78-entity-cli-consolidation.md) |
 | 80 | Security Hardening | DEFERRED | [80-SECURITY-HARDENING.md](phases/80-SECURITY-HARDENING.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 

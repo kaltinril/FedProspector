@@ -1,6 +1,6 @@
 # Phase 77: USASpending Delta Loader
 
-**Status**: NOT STARTED
+**Status**: COMPLETE
 **Priority**: High
 **Depends on**: Phase 65 (bulk loader improvements), Phase 44 (original bulk loader)
 
@@ -124,59 +124,59 @@ The Delta file contains changes since the **previous month's** archive generatio
 
 ### Task 1: USASpending client — delta file download
 
-- [ ] Add `download_delta_file()` method to `usaspending_client.py`
-- [ ] Current `download_archive_file()` constructs URLs for `_Full_` files with a fiscal year parameter
-- [ ] Delta URL format: `https://files.usaspending.gov/generated_downloads/FY(All)_All_Contracts_Delta_<date>.zip`
-- [ ] Discover available delta file via the archive API endpoint (same pattern as Full files)
-- [ ] Return path to downloaded ZIP
+- [x] Add `download_delta_file()` method to `usaspending_client.py`
+- [x] Current `download_archive_file()` constructs URLs for `_Full_` files with a fiscal year parameter
+- [x] Delta URL format: `https://files.usaspending.gov/generated_downloads/FY(All)_All_Contracts_Delta_<date>.zip`
+- [x] Discover available delta file via the archive API endpoint (same pattern as Full files)
+- [x] Return path to downloaded ZIP
 
 ### Task 2: Bulk loader — delta mode support
 
-- [ ] Accept a `delta=True` parameter in `USASpendingBulkLoader`
-- [ ] When in delta mode, skip the fiscal year requirement
-- [ ] Add `correction_delete_ind` to the column map (or read it separately during CSV processing)
-- [ ] During `_normalize_csv_row()`, preserve `correction_delete_ind` value for downstream use
-- [ ] During CSV processing, separate D-rows from non-D rows:
+- [x] Accept a `delta=True` parameter in `USASpendingBulkLoader`
+- [x] When in delta mode, skip the fiscal year requirement
+- [x] Add `correction_delete_ind` to the column map (or read it separately during CSV processing)
+- [x] During `_normalize_csv_row()`, preserve `correction_delete_ind` value for downstream use
+- [x] During CSV processing, separate D-rows from non-D rows:
   - Non-D rows (blank/C status) go through the normal upsert pipeline
   - D-rows are collected separately — extract unique `award_id_piid` values
-- [ ] D-rows must NOT go through the upsert pipeline (they have blank data columns and would corrupt records)
-- [ ] After the upsert pass completes, execute a batch soft-delete pass:
+- [x] D-rows must NOT go through the upsert pipeline (they have blank data columns and would corrupt records)
+- [x] After the upsert pass completes, execute a batch soft-delete pass:
   ```sql
   UPDATE usaspending_award SET deleted_at = NOW() WHERE award_id_piid = %s
   ```
-- [ ] Dedup D-rows to unique PIIDs before soft-deleting (e.g., 435 D-rows → 290 unique PIIDs)
-- [ ] This soft-deletes the entire award for each PIID — intended behavior since agencies delete whole awards
-- [ ] Sidesteps AWD-vs-IDV ambiguity: no need to reconstruct `contract_award_unique_key`
-- [ ] Log soft-delete count separately from upsert count
+- [x] Dedup D-rows to unique PIIDs before soft-deleting (e.g., 435 D-rows → 290 unique PIIDs)
+- [x] This soft-deletes the entire award for each PIID — intended behavior since agencies delete whole awards
+- [x] Sidesteps AWD-vs-IDV ambiguity: no need to reconstruct `contract_award_unique_key`
+- [x] Log soft-delete count separately from upsert count
 
 ### Task 3: Temp table handling for soft-deletes
 
-- [ ] The existing `_upsert_from_temp()` uses `INSERT ... ON DUPLICATE KEY UPDATE` to merge temp into main
-- [ ] For delta mode, D-rows are excluded from temp table entirely (they have blank data columns)
-- [ ] Only non-D rows (blank/C status) are written to the temp table and upserted
-- [ ] After upsert completes, soft-delete the deduped `award_id_piid` values collected from D-rows via `UPDATE ... SET deleted_at = NOW()`
-- [ ] This is effectively Option B (upsert first, then soft-delete) but cleaner since D-rows never enter the temp table
+- [x] The existing `_upsert_from_temp()` uses `INSERT ... ON DUPLICATE KEY UPDATE` to merge temp into main
+- [x] For delta mode, D-rows are excluded from temp table entirely (they have blank data columns)
+- [x] Only non-D rows (blank/C status) are written to the temp table and upserted
+- [x] After upsert completes, soft-delete the deduped `award_id_piid` values collected from D-rows via `UPDATE ... SET deleted_at = NOW()`
+- [x] This is effectively Option B (upsert first, then soft-delete) but cleaner since D-rows never enter the temp table
 
 ### Task 4: CLI changes
 
-- [ ] Add `--delta` flag to `bulk_spending.py` CLI command
-- [ ] When `--delta` is passed, `--fy` becomes optional (not required)
-- [ ] When `--delta` is passed without `--fy`, load the delta file
-- [ ] Error if both `--delta` and `--fy` are provided (they are mutually exclusive)
-- [ ] Update `--help` text to explain delta vs full loading
+- [x] Add `--delta` flag to `bulk_spending.py` CLI command
+- [x] When `--delta` is passed, `--fy` becomes optional (not required)
+- [x] When `--delta` is passed without `--fy`, load the delta file
+- [x] Error if both `--delta` and `--fy` are provided (they are mutually exclusive)
+- [x] Update `--help` text to explain delta vs full loading
 
 ### Task 5: Checkpoint integration
 
-- [ ] Reuse existing `usaspending_load_checkpoint` table
-- [ ] For delta loads, set `fiscal_year = 0` (or a sentinel value) since delta spans all FYs
-- [ ] Set `zip_file_name` to the delta file name (includes date for uniqueness)
-- [ ] Existing resume logic should work without modification — skip completed CSVs, resume partial batches
+- [x] Reuse existing `usaspending_load_checkpoint` table
+- [x] For delta loads, set `fiscal_year = 0` (or a sentinel value) since delta spans all FYs
+- [x] Set `zip_file_name` to the delta file name (includes date for uniqueness)
+- [x] Existing resume logic should work without modification — skip completed CSVs, resume partial batches
 
 ### Task 6: Logging and reporting
 
-- [ ] Log summary at end of delta load: rows upserted, rows deleted, total time
-- [ ] Log fiscal year distribution of processed rows (for operational visibility)
-- [ ] Log the delta file date so operator knows how current the data is
+- [x] Log summary at end of delta load: rows upserted, rows deleted, total time
+- [x] Log fiscal year distribution of processed rows (for operational visibility)
+- [x] Log the delta file date so operator knows how current the data is
 
 ## Alternatives Considered (Not Implementing)
 
@@ -200,13 +200,13 @@ Currently `_process_usaspending()` in `demand_loader.py` auto-queues an `FPDS_AW
 
 ## Testing
 
-- [ ] Unit test: `_normalize_csv_row()` correctly passes through `correction_delete_ind`
-- [ ] Unit test: D-rows are excluded from temp table and collected for batch soft-delete
-- [ ] Unit test: D-row dedup produces correct unique `award_id_piid` values
-- [ ] Integration test: load a small delta CSV with both upsert and soft-delete rows
-- [ ] Manual test: `python main.py load usaspending-bulk --delta` downloads and processes delta file
-- [ ] Manual test: verify row counts before/after delta load (upserts increased, soft-deletes marked)
-- [ ] Manual test: verify `--delta` and `--fy` together produces an error
+- [x] Unit test: `_normalize_csv_row()` correctly passes through `correction_delete_ind`
+- [x] Unit test: D-rows are excluded from temp table and collected for batch soft-delete
+- [x] Unit test: D-row dedup produces correct unique `award_id_piid` values
+- [x] Integration test: load a small delta CSV with both upsert and soft-delete rows
+- [x] Manual test: `python main.py load usaspending-bulk --delta` downloads and processes delta file
+- [x] Manual test: verify row counts before/after delta load (upserts increased, soft-deletes marked)
+- [x] Manual test: verify `--delta` and `--fy` together produces an error
 
 ## Estimated Effort
 

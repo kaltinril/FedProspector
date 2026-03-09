@@ -1,6 +1,6 @@
 # Phase 78: Entity CLI Consolidation
 
-**Status**: IN PROGRESS
+**Status**: COMPLETE
 **Priority**: Medium
 **Depends on**: Phase 44 (entity bulk loader), Phase 65 (bulk loader improvements)
 
@@ -163,10 +163,10 @@ These files may reference the old command names in strings, comments, or docs:
 
 ### Task 1: Rewrite `cli/entities.py` -- unified `load_entities` command
 
-- [ ] Define new Click command with all options (type, date, year, month, file, key, uei, name, naics, set-aside, status, max-calls, force)
-- [ ] Implement routing: `--file` -> local file load, `--type=monthly` -> bulk monthly, `--type=api` -> filtered API query
-- [ ] Warn and ignore filter options when type is not `api`
-- [ ] Keep `search_entities` CLI command unchanged (it's under `search`, not `load`)
+- [x] Define new Click command with all options (type, date, year, month, file, key, uei, name, naics, set-aside, status, max-calls, force)
+- [x] Implement routing: `--file` -> local file load, `--type=monthly` -> bulk monthly, `--type=api` -> filtered API query
+- [x] Warn and ignore filter options when type is not `api`
+- [x] Keep `search_entities` CLI command unchanged (it's under `search`, not `load`)
 
 ### Task 2: ~~Wire `--type=daily` to bulk extract~~ — REMOVED (N/A)
 
@@ -174,50 +174,50 @@ These files may reference the old command names in strings, comments, or docs:
 
 ### Task 3: Wire `--type=api` with filters
 
-- [ ] Build SAM.gov query params from CLI options (uei, name, naics, set-aside, status, date)
-- [ ] Handle comma-separated `--naics` by splitting into multiple API queries
-- [ ] Handle `--set-aside` mapping to `businessTypeCode` or `sbaBusinessTypeCode` (A4 -> sbaBusinessTypeCode, others -> businessTypeCode)
-- [ ] Use `search_entities(**filters)` from sam_entity_client.py
-- [ ] Enforce `--max-calls` safety cap (default 100)
-- [ ] Keep resume support from existing `_refresh_daily` for partial API loads
-- [ ] Load results via `EntityLoader.load_from_api_response()` or `load_entity_batch()`
+- [x] Build SAM.gov query params from CLI options (uei, name, naics, set-aside, status, date)
+- [x] Handle comma-separated `--naics` by splitting into multiple API queries
+- [x] Handle `--set-aside` mapping to `businessTypeCode` or `sbaBusinessTypeCode` (A4 -> sbaBusinessTypeCode, others -> businessTypeCode)
+- [x] Use `search_entities(**filters)` from sam_entity_client.py
+- [x] Enforce `--max-calls` safety cap (default 100)
+- [x] Keep resume support from existing `_refresh_daily` for partial API loads
+- [x] Load results via `EntityLoader.load_from_api_response()` or `load_entity_batch()`
 
 ### Task 4: Clean up `--type=monthly` (keep existing logic)
 
-- [ ] Move `_refresh_monthly` logic into the unified command
-- [ ] No functional changes needed -- already works correctly
+- [x] Move `_refresh_monthly` logic into the unified command
+- [x] No functional changes needed -- already works correctly
 
 ### Task 5: Clean up `--file` option (keep existing logic)
 
-- [ ] Move `load_entities` file-loading logic into unified command
-- [ ] Auto-detect .dat vs .json format
-- [ ] .dat -> BulkLoader, .json -> EntityLoader
+- [x] Move `load_entities` file-loading logic into unified command
+- [x] Auto-detect .dat vs .json format
+- [x] .dat -> BulkLoader, .json -> EntityLoader
 
 ### Task 6: Update main.py registrations
 
-- [ ] Remove `entities-download` and `entities-refresh` from `load.add_command()`
-- [ ] Remove imports for `download_extract`, `refresh_entities`
-- [ ] Keep single `load.add_command(load_entities, name="entities")`
+- [x] Remove `entities-download` and `entities-refresh` from `load.add_command()`
+- [x] Remove imports for `download_extract`, `refresh_entities`
+- [x] Keep single `load.add_command(load_entities, name="entities")`
 
 ### Task 7: Update downstream references
 
-- [ ] Update `etl/scheduler.py` -- change `entities-refresh` to `entities --type=api`
-- [ ] Update `cli/schedule_setup.py` -- change `entities-refresh` to `entities --type=api`
-- [ ] Grep for any other references to `entities-refresh` or `entities-download` in code and docs
+- [x] Update `etl/scheduler.py` -- change `entities-refresh` to `entities --type=api`
+- [x] Update `cli/schedule_setup.py` -- change `entities-refresh` to `entities --type=api`
+- [x] Grep for any other references to `entities-refresh` or `entities-download` in code and docs
 
 ### Task 8: Update tests
 
-- [ ] Update `tests/test_cli_load.py` for new unified command
-- [ ] Test `--type=monthly`, `--type=api`, `--file` paths
-- [ ] Test filter validation (warn on filters with non-api type)
-- [ ] Test comma-separated NAICS splitting
+- [x] Update `tests/test_cli_load.py` for new unified command
+- [x] Test `--type=monthly`, `--type=api`, `--file` paths
+- [x] Test filter validation (warn on filters with non-api type)
+- [x] Test comma-separated NAICS splitting
 
 ### Task 9: Delete dead code
 
-- [ ] Remove `download_extract` function from entities.py
-- [ ] Remove `refresh_entities` function from entities.py
-- [ ] Remove old `_refresh_daily` (paginated API version)
-- [ ] Clean up any orphaned helper functions
+- [x] Remove `download_extract` function from entities.py
+- [x] Remove `refresh_entities` function from entities.py
+- [x] Remove old `_refresh_daily` (paginated API version)
+- [x] Clean up any orphaned helper functions
 
 ## Risks
 
