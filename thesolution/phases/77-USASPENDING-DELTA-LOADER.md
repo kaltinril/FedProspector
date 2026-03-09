@@ -25,13 +25,56 @@ The FY Full files contain transaction-level data — one row per contract modifi
   - blank = **Added** (new record)
   - `"C"` = **Corrected** (modified record — treat as upsert)
   - `"D"` = **Deleted** (remove from local copy — agency corrections, duplicates, errors)
-- D rows: 435 in ~2M rows (0.02%). ALL have blank `contract_award_unique_key` and empty dollar values
-- D rows do have PIIDs and `contract_transaction_unique_key`, but NOT the award-level key we use as PK
-- Verified: 3 of 5 sampled D-row PIIDs exist in our DB with proper award keys (e.g., PIID `70Z03825PN0000210` → `CONT_AWD_70Z03825PN0000210_7008_-NONE-_-NONE-`), but the D row's award key field is blank
-- Cannot reliably reconstruct award key from transaction key — fails for delivery/task orders under IDVs where parent award info is needed
-- **Practical impact**: D rows are a no-op for our pipeline since blank keys can't match any PK in `usaspending_award`
+- Note: No "C" rows appeared in the Feb 2026 file — corrections appear with blank status
+- D rows: 435 in ~2M rows (0.04%), covering 290 unique PIIDs
+- D rows have ALL metadata blanked out — not just `contract_award_unique_key`, but also `award_or_idv_flag`, `award_type`, `idv_type`, and all dollar columns. Only populated fields: transaction key, PIID, modification_number, agency_id, and parent fields
+- D rows DO have `award_id_piid` and `agency_id` populated — sufficient for matching in `usaspending_award`
+- Multiple D-rows per PIID are common (one per modification being deleted): e.g., W911QY23C0039 (30 mods), FA862224FB003 (23 mods), 1331L522F13230035 (15 mods)
+- **Practical impact**: D rows are actionable — soft-delete by matching `award_id_piid` via the existing `idx_usa_piid` index, sidestepping composite key reconstruction
 - Spans ALL fiscal years in one file (FY1979 through FY2026)
 - Heavy on recent years: FY2026 ~590K rows, FY2025 ~485K rows
+
+### Key Research Findings
+
+**Transaction key format** (100% consistent across all 985,358 data rows):
+```
+{agency_id}_{parent_agency}_{piid}_{modification}_{parent_piid}_{sequence}
+```
+- PIID is ALWAYS at segment position [2]
+- `-NONE-` used as placeholder for absent parent/agency fields
+
+**Award key format** (two patterns):
+
+| Prefix | Segments | Count | Pattern |
+|--------|----------|-------|---------|
+| `CONT_AWD` | 6 | 934,022 | `CONT_AWD_{piid}_{agency}_{parent_agency}_{parent_piid}` |
+| `CONT_IDV` | 4 | 50,901 | `CONT_IDV_{piid}_{agency}` |
+| *(blank)* | — | 435 | All D-rows |
+
+`CONT_IDV` rows always have `-NONE-` for both parent fields in the transaction key (all 50,901).
+
+**D-row parent info analysis** (435 rows):
+- 279 of 435 have a real parent PIID in the transaction key → definitely `CONT_AWD`
+- 156 of 435 have `-NONE-` parents → ambiguous (could be `CONT_AWD` or `CONT_IDV`)
+
+**PIID position 9 instrument code is NOT reliable for AWD-vs-IDV classification:**
+- Tested against all 974,987 non-blank award_key rows: only 99.2% accurate
+- Many instrument codes (especially numeric 0-9, and A, B, G, S, T) appear under both `CONT_AWD` and `CONT_IDV`
+
+**Recommended delete strategy — soft-delete via `deleted_at` column:**
+Add a `deleted_at DATETIME NULL` column to `usaspending_award`. D-rows trigger a soft-delete UPDATE instead of a hard DELETE:
+```sql
+UPDATE usaspending_award SET deleted_at = NOW() WHERE award_id_piid = ?
+```
+`idx_usa_piid` already exists on `award_id_piid`, so this UPDATE is indexed. No need to match on `agency_id` — PIID matching via the existing index is sufficient.
+
+Benefits of soft-delete over hard DELETE:
+- **Reversible** — set `deleted_at = NULL` to restore a record
+- **Cheap** — UPDATE in-place, no row movement in InnoDB (avoids page splits and fragmentation on a 29 GB table)
+- **Auditable** — `deleted_at` timestamp shows when the deletion was applied
+- **No cascading risk** — row stays in place, foreign key references remain valid
+
+All queries filtering active records add `WHERE deleted_at IS NULL`. This is a small follow-up for existing queries in the UI, prospect manager, and views — not part of this phase's core work, but noted here for tracking.
 
 ### Data semantics — cumulative vs incremental
 
@@ -73,7 +116,7 @@ The Delta file contains changes since the **previous month's** archive generatio
 ## Goals
 
 1. **Delta loading** — add `--delta` flag to `load usaspending-bulk` to download and process the delta file instead of a Full file
-2. **Delete handling** — process `correction_delete_ind = "D"` rows by deleting them from `usaspending_award`
+2. **Delete handling** — process `correction_delete_ind = "D"` rows by matching on `award_id_piid` to soft-delete in `usaspending_award` (set `deleted_at = NOW()`)
 3. **No fiscal year required** — delta file spans all FYs, so `--fy` should not be required when `--delta` is used
 4. **Reuse existing pipeline** — leverage `_normalize_csv_row()`, `_upsert_from_temp()`, and checkpoint infrastructure
 
@@ -93,32 +136,26 @@ The Delta file contains changes since the **previous month's** archive generatio
 - [ ] When in delta mode, skip the fiscal year requirement
 - [ ] Add `correction_delete_ind` to the column map (or read it separately during CSV processing)
 - [ ] During `_normalize_csv_row()`, preserve `correction_delete_ind` value for downstream use
-- [ ] After the standard upsert pipeline runs, execute a DELETE pass for rows where `correction_delete_ind = "D"`
-- [ ] DELETE query must use windowed dedup (same as upsert) to only delete awards where the LATEST modification is D-flagged:
+- [ ] During CSV processing, separate D-rows from non-D rows:
+  - Non-D rows (blank/C status) go through the normal upsert pipeline
+  - D-rows are collected separately — extract unique `award_id_piid` values
+- [ ] D-rows must NOT go through the upsert pipeline (they have blank data columns and would corrupt records)
+- [ ] After the upsert pass completes, execute a batch soft-delete pass:
   ```sql
-  DELETE FROM usaspending_award WHERE generated_unique_award_id IN (
-      SELECT generated_unique_award_id FROM (
-          SELECT *, ROW_NUMBER() OVER (
-              PARTITION BY generated_unique_award_id
-              ORDER BY last_modified_date DESC
-          ) AS rn FROM tmp_usaspending_bulk
-      ) t WHERE t.rn = 1 AND t.correction_delete_ind = 'D'
-  )
+  UPDATE usaspending_award SET deleted_at = NOW() WHERE award_id_piid = %s
   ```
-- [ ] In practice all 435 D rows in Feb 2026 delta had blank `contract_award_unique_key` — the delete query matches zero rows
-- [ ] Log a warning for D rows with blank keys and skip them; only attempt delete for D rows with populated keys
-- [ ] If future deltas provide populated keys, the windowed delete query handles them correctly
-- [ ] Log delete count separately from upsert count
+- [ ] Dedup D-rows to unique PIIDs before soft-deleting (e.g., 435 D-rows → 290 unique PIIDs)
+- [ ] This soft-deletes the entire award for each PIID — intended behavior since agencies delete whole awards
+- [ ] Sidesteps AWD-vs-IDV ambiguity: no need to reconstruct `contract_award_unique_key`
+- [ ] Log soft-delete count separately from upsert count
 
-### Task 3: Temp table handling for deletes
+### Task 3: Temp table handling for soft-deletes
 
 - [ ] The existing `_upsert_from_temp()` uses `INSERT ... ON DUPLICATE KEY UPDATE` to merge temp into main
-- [ ] For delta mode, split processing: upsert non-delete rows first, then delete "D" rows
-- [ ] Option A: Filter in temp table (add WHERE clause to upsert SQL)
-- [ ] Option B: Process deletes after upsert (simpler — upsert all, then delete "D" rows)
-- [ ] Choose Option B for simplicity — upsert all rows first (including D-flagged), then delete
-- [ ] D rows with blank award keys are skipped during upsert (no PK = can't insert) and skipped during delete (no PK = can't match)
-- [ ] If future deltas provide populated keys, the windowed delete query handles them correctly
+- [ ] For delta mode, D-rows are excluded from temp table entirely (they have blank data columns)
+- [ ] Only non-D rows (blank/C status) are written to the temp table and upserted
+- [ ] After upsert completes, soft-delete the deduped `award_id_piid` values collected from D-rows via `UPDATE ... SET deleted_at = NOW()`
+- [ ] This is effectively Option B (upsert first, then soft-delete) but cleaner since D-rows never enter the temp table
 
 ### Task 4: CLI changes
 
@@ -159,20 +196,22 @@ Currently `_process_usaspending()` in `demand_loader.py` auto-queues an `FPDS_AW
 | `fed_prospector/api_clients/usaspending_client.py` | Add `download_delta_file()` method |
 | `fed_prospector/etl/usaspending_bulk_loader.py` | Delta mode: handle `correction_delete_ind`, delete pass, no FY requirement |
 | `fed_prospector/cli/bulk_spending.py` | Add `--delta` flag, make `--fy` optional when delta is used |
+| `fed_prospector/db/schema/tables/70_usaspending.sql` | Add `deleted_at DATETIME NULL` column to `usaspending_award` |
 
 ## Testing
 
 - [ ] Unit test: `_normalize_csv_row()` correctly passes through `correction_delete_ind`
-- [ ] Unit test: delete query removes correct rows from temp table
-- [ ] Integration test: load a small delta CSV with both upsert and delete rows
+- [ ] Unit test: D-rows are excluded from temp table and collected for batch soft-delete
+- [ ] Unit test: D-row dedup produces correct unique `award_id_piid` values
+- [ ] Integration test: load a small delta CSV with both upsert and soft-delete rows
 - [ ] Manual test: `python main.py load usaspending-bulk --delta` downloads and processes delta file
-- [ ] Manual test: verify row counts before/after delta load (upserts increased, deletes removed)
+- [ ] Manual test: verify row counts before/after delta load (upserts increased, soft-deletes marked)
 - [ ] Manual test: verify `--delta` and `--fy` together produces an error
 
 ## Estimated Effort
 
 - Delta download method: ~30 minutes
-- Bulk loader delta mode: ~2 hours (most complexity is in delete handling and temp table logic)
+- Bulk loader delta mode: ~2 hours (most complexity is in soft-delete handling and temp table logic)
 - CLI changes: ~15 minutes
 - Testing: ~1 hour
 - **Total: ~4 hours**
@@ -183,3 +222,7 @@ Currently `_process_usaspending()` in `demand_loader.py` auto-queues an `FPDS_AW
 - Recommended schedule: run `--delta` monthly after the 15th when USASpending publishes new archives
 - Delta loads should complete in minutes (2M rows) vs hours (35-40M rows for full reload)
 - The `--fast` flag (index dropping) from Phase 65 is likely unnecessary for delta loads given the smaller row count, but remains compatible
+
+## Follow-up: Soft-Delete Query Filter
+
+After this phase lands, existing queries that read from `usaspending_award` will need `WHERE deleted_at IS NULL` added to exclude soft-deleted rows. Affected areas include UI search/list endpoints, prospect manager scoring queries, and any views or reports that aggregate award data. This is a small, mechanical follow-up — not part of this phase's core scope.
