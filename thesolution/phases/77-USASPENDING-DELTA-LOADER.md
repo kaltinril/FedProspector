@@ -19,12 +19,42 @@ The FY Full files contain transaction-level data — one row per contract modifi
 ### Delta file structure
 
 - File: `FY(All)_All_Contracts_Delta_<date>.zip`
-- Contains 2 CSVs, ~2M total rows
-- Same 299-column format as Full files, plus `correction_delete_ind`
-- `correction_delete_ind` values: blank (upserts, ~99.98% of rows), `"D"` (deletes, ~0.02%)
+- Contains 2 CSVs, ~2M total rows (Feb 2026: 1M + 985K)
+- Same 299-column format as Full files, plus `correction_delete_ind` (column 0)
+- `correction_delete_ind` values per USASpending docs:
+  - blank = **Added** (new record)
+  - `"C"` = **Corrected** (modified record — treat as upsert)
+  - `"D"` = **Deleted** (remove from local copy — agency corrections, duplicates, errors)
+- D rows: 435 in ~2M rows (0.02%). ALL have blank `contract_award_unique_key` and empty dollar values
+- D rows do have PIIDs and `contract_transaction_unique_key`, but NOT the award-level key we use as PK
+- Verified: 3 of 5 sampled D-row PIIDs exist in our DB with proper award keys (e.g., PIID `70Z03825PN0000210` → `CONT_AWD_70Z03825PN0000210_7008_-NONE-_-NONE-`), but the D row's award key field is blank
+- Cannot reliably reconstruct award key from transaction key — fails for delivery/task orders under IDVs where parent award info is needed
+- **Practical impact**: D rows are a no-op for our pipeline since blank keys can't match any PK in `usaspending_award`
 - Spans ALL fiscal years in one file (FY1979 through FY2026)
 - Heavy on recent years: FY2026 ~590K rows, FY2025 ~485K rows
-- Mix of base awards (778K) and modifications (1.2M)
+
+### Data semantics — cumulative vs incremental
+
+The CSV files are transaction-level (one row per contract modification). Dollar columns have different semantics:
+
+| Column | Semantics | In our column map? |
+|--------|-----------|-------------------|
+| `federal_action_obligation` | **Incremental** — just this modification's amount | No (not mapped) |
+| `total_dollars_obligated` | **Cumulative** — running total through this mod | Yes → `total_obligation` |
+| `current_total_value_of_award` | **Cumulative** — current ceiling including options | Yes → `base_and_all_options_value` |
+
+Because we map only cumulative columns, keeping the latest modification per award (via `ROW_NUMBER() ... ORDER BY last_modified_date DESC`) is correct. No summation across modifications is needed.
+
+Verified against real data: award `CONT_IDV_03310323D0072_0300` shows `federal_action_obligation` of $3000, -$3000, $0... while `total_dollars_obligated` stays at the running total.
+
+### Delta vs Full file timing
+
+The Full and Delta files for the same month are generated from the **same data snapshot**. The Feb 2026 files (`20260206`) share the same date — loading the Full files means the same-month Delta is redundant.
+
+The Delta file contains changes since the **previous month's** archive generation. So:
+- We loaded Feb 6 Full files → our DB is current as of Feb 6
+- The Feb 6 Delta covers Jan→Feb changes → already included in the Feb Full files
+- Our first useful Delta will be the **March** file (~Mar 15), covering Feb 6→Mar ~6 changes
 
 ### Current table sizes
 
@@ -64,7 +94,20 @@ The FY Full files contain transaction-level data — one row per contract modifi
 - [ ] Add `correction_delete_ind` to the column map (or read it separately during CSV processing)
 - [ ] During `_normalize_csv_row()`, preserve `correction_delete_ind` value for downstream use
 - [ ] After the standard upsert pipeline runs, execute a DELETE pass for rows where `correction_delete_ind = "D"`
-- [ ] DELETE query: `DELETE FROM usaspending_award WHERE generated_unique_award_id IN (SELECT generated_unique_award_id FROM temp_table WHERE correction_delete_ind = 'D')`
+- [ ] DELETE query must use windowed dedup (same as upsert) to only delete awards where the LATEST modification is D-flagged:
+  ```sql
+  DELETE FROM usaspending_award WHERE generated_unique_award_id IN (
+      SELECT generated_unique_award_id FROM (
+          SELECT *, ROW_NUMBER() OVER (
+              PARTITION BY generated_unique_award_id
+              ORDER BY last_modified_date DESC
+          ) AS rn FROM tmp_usaspending_bulk
+      ) t WHERE t.rn = 1 AND t.correction_delete_ind = 'D'
+  )
+  ```
+- [ ] In practice all 435 D rows in Feb 2026 delta had blank `contract_award_unique_key` — the delete query matches zero rows
+- [ ] Log a warning for D rows with blank keys and skip them; only attempt delete for D rows with populated keys
+- [ ] If future deltas provide populated keys, the windowed delete query handles them correctly
 - [ ] Log delete count separately from upsert count
 
 ### Task 3: Temp table handling for deletes
@@ -73,7 +116,9 @@ The FY Full files contain transaction-level data — one row per contract modifi
 - [ ] For delta mode, split processing: upsert non-delete rows first, then delete "D" rows
 - [ ] Option A: Filter in temp table (add WHERE clause to upsert SQL)
 - [ ] Option B: Process deletes after upsert (simpler — upsert all, then delete "D" rows)
-- [ ] Choose Option B for simplicity — the upsert of "D" rows is harmless since they get deleted immediately after
+- [ ] Choose Option B for simplicity — upsert all rows first (including D-flagged), then delete
+- [ ] D rows with blank award keys are skipped during upsert (no PK = can't insert) and skipped during delete (no PK = can't match)
+- [ ] If future deltas provide populated keys, the windowed delete query handles them correctly
 
 ### Task 4: CLI changes
 
@@ -134,7 +179,7 @@ Currently `_process_usaspending()` in `demand_loader.py` auto-queues an `FPDS_AW
 
 ## Operational Notes
 
-- Delta file is regenerated monthly by USASpending, typically on or near the 1st of each month
-- Recommended schedule: run `--delta` monthly after USASpending publishes new archives
+- Delta file is regenerated monthly by USASpending, published by the 15th of each month
+- Recommended schedule: run `--delta` monthly after the 15th when USASpending publishes new archives
 - Delta loads should complete in minutes (2M rows) vs hours (35-40M rows for full reload)
 - The `--fast` flag (index dropping) from Phase 65 is likely unnecessary for delta loads given the smaller row count, but remains compatible
