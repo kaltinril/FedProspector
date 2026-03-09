@@ -89,6 +89,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 66B | MySQL NVMe Migration | COMPLETE | [66B-MYSQL-NVME-MIGRATION.md](phases/completed/66B-MYSQL-NVME-MIGRATION.md) |
 | 70 | Admin & Organization | COMPLETE | [70-ADMIN-POLISH.md](phases/completed/70-ADMIN-POLISH.md) |
 | 75 | Production Polish | NOT STARTED | [75-PRODUCTION-POLISH.md](phases/75-PRODUCTION-POLISH.md) |
+| 77 | USASpending Delta Loader | NOT STARTED | [77-USASPENDING-DELTA-LOADER.md](phases/77-USASPENDING-DELTA-LOADER.md) |
 | 80 | Security Hardening | DEFERRED | [80-SECURITY-HARDENING.md](phases/80-SECURITY-HARDENING.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 
