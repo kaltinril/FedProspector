@@ -12,8 +12,10 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
     <Box
       sx={{
         display: 'flex',
+        flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
+        gap: 1,
         mb: 3,
       }}
     >

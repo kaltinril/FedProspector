@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
 
     INDEX idx_usa_naics (naics_code),
     INDEX idx_usa_recipient (recipient_uei),
+    INDEX idx_usa_recipient_name (recipient_name(40)),
     INDEX idx_usa_agency (awarding_agency_name(50)),
     INDEX idx_usa_setaside (type_of_set_aside),
     INDEX idx_usa_dates (start_date, end_date),

@@ -107,7 +107,7 @@ export default function RegisterPage() {
       }}
     >
       <Card sx={{ maxWidth: 480, width: '100%' }}>
-        <CardContent sx={{ p: 4 }}>
+        <CardContent sx={{ p: { xs: 2, sm: 4 } }}>
           <Box sx={{ textAlign: 'center', mb: 4 }}>
             <Typography variant="h4" component="h1" fontWeight={700}>
               FedProspect

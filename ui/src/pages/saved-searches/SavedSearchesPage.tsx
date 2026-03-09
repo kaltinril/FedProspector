@@ -616,6 +616,7 @@ export default function SavedSearchesPage() {
                 <IconButton
                   size="small"
                   color="primary"
+                  aria-label="Run search"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleRun(row);
@@ -628,6 +629,7 @@ export default function SavedSearchesPage() {
               <Tooltip title="Edit">
                 <IconButton
                   size="small"
+                  aria-label="Edit search"
                   onClick={(e) => {
                     e.stopPropagation();
                     setEditingSearch(row);
@@ -640,6 +642,7 @@ export default function SavedSearchesPage() {
                 <IconButton
                   size="small"
                   color="error"
+                  aria-label="Delete search"
                   onClick={(e) => {
                     e.stopPropagation();
                     setDeleteTarget(row);

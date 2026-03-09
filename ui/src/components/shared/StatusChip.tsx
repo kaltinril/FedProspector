@@ -45,6 +45,8 @@ export function StatusChip({ status, size = 'small' }: StatusChipProps) {
       size={size}
       color={getChipColor(status)}
       variant="filled"
+      role="status"
+      aria-label={`Status: ${status}`}
     />
   );
 }

@@ -152,7 +152,7 @@ export default function DashboardPage() {
   // ---- Empty state ----
   if (data.totalOpenProspects === 0) {
     return (
-      <Box sx={{ p: 4 }}>
+      <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
         <PageHeader title="Dashboard" />
         <Box
           sx={{
@@ -197,11 +197,11 @@ export default function DashboardPage() {
   }));
 
   return (
-    <Box sx={{ p: 4 }}>
+    <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
       <PageHeader title="Dashboard" subtitle="Pipeline overview and key metrics" />
 
       {/* Row 1: Key Metrics */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+      <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total Open Prospects"
@@ -238,12 +238,12 @@ export default function DashboardPage() {
       </Grid>
 
       {/* Row 2: Pipeline Overview */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           Pipeline Overview
         </Typography>
         {pipelineDataset.length > 0 ? (
-          <Box sx={{ width: '100%', height: Math.max(250, pipelineDataset.length * 45) }}>
+          <Box sx={{ width: '100%', height: Math.max(250, pipelineDataset.length * 45), overflowX: 'auto' }}>
             <BarChart
               dataset={pipelineDataset}
               yAxis={[{ scaleType: 'band', dataKey: 'status' }]}
@@ -271,7 +271,7 @@ export default function DashboardPage() {
       </Paper>
 
       {/* Row 3: Due This Week + Workload */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
+      <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, md: 7 }}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>
@@ -294,7 +294,7 @@ export default function DashboardPage() {
               Workload by Assignee
             </Typography>
             {workloadDataset.length > 0 ? (
-              <Box sx={{ width: '100%', height: Math.max(250, workloadDataset.length * 45) }}>
+              <Box sx={{ width: '100%', height: Math.max(250, workloadDataset.length * 45), overflowX: 'auto' }}>
                 <BarChart
                   dataset={workloadDataset}
                   yAxis={[{ scaleType: 'band', dataKey: 'name' }]}
@@ -319,7 +319,7 @@ export default function DashboardPage() {
       </Grid>
 
       {/* Row 4: Win/Loss + Recent Saved Searches */}
-      <Grid container spacing={3}>
+      <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }}>
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ p: 3 }}>
             <Typography variant="h6" sx={{ mb: 2 }}>

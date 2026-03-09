@@ -1064,3 +1064,51 @@ export interface ExpiringContractDto {
   resolicitationNoticeId: string | null;
   resolicitationStatus: string;
 }
+
+// ============================================================
+// Admin Load History types (Phase 70)
+// ============================================================
+
+export interface LoadHistoryDto {
+  loadId: number;
+  sourceSystem: string;
+  loadType: string;
+  status: string;
+  startedAt: string;
+  completedAt?: string | null;
+  durationSeconds?: number | null;
+  recordsRead: number;
+  recordsInserted: number;
+  recordsUpdated: number;
+  recordsErrored: number;
+  errorMessage?: string | null;
+}
+
+export interface LoadHistoryResponse {
+  items: LoadHistoryDto[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}
+
+export interface LoadHistoryParams {
+  source?: string;
+  status?: string;
+  days?: number;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface HealthResponse {
+  status: string;
+  database: HealthComponentDto;
+  etlFreshness: HealthComponentDto;
+  details?: Record<string, string>;
+}
+
+export interface HealthComponentDto {
+  status: string;
+  description?: string | null;
+  data?: Record<string, string | number | boolean | null>;
+}

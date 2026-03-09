@@ -36,6 +36,67 @@ public class AdminController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get paginated ETL load history with optional filters. System Admin only.
+    /// </summary>
+    [HttpGet("load-history")]
+    public async Task<IActionResult> GetLoadHistory(
+        [FromQuery] string? source = null,
+        [FromQuery] string? status = null,
+        [FromQuery] int days = 7,
+        [FromQuery] int limit = 20,
+        [FromQuery] int offset = 0)
+    {
+        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
+        if (!isSystemAdmin)
+            return Forbid();
+
+        var result = await _service.GetLoadHistoryAsync(source, status, days, limit, offset);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get health check snapshots. System Admin only.
+    /// </summary>
+    [HttpGet("health-snapshots")]
+    public async Task<IActionResult> GetHealthSnapshots([FromQuery] int days = 30)
+    {
+        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
+        if (!isSystemAdmin)
+            return Forbid();
+
+        var result = await _service.GetHealthSnapshotsAsync(days);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get API key usage status from rate limit tracking. System Admin only.
+    /// </summary>
+    [HttpGet("api-keys")]
+    public async Task<IActionResult> GetApiKeys()
+    {
+        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
+        if (!isSystemAdmin)
+            return Forbid();
+
+        var result = await _service.GetApiKeyStatusAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get ETL job definitions with last-run status. System Admin only.
+    /// </summary>
+    [HttpGet("jobs")]
+    public async Task<IActionResult> GetJobs()
+    {
+        var isSystemAdmin = User.HasClaim("is_system_admin", "true");
+        if (!isSystemAdmin)
+            return Forbid();
+
+        var result = await _service.GetJobStatusAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
     /// List users in the admin's organization. Admin only.
     /// </summary>
     [HttpGet("users")]

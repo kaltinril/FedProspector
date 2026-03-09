@@ -26,6 +26,7 @@ interface DataTableProps {
   getRowId?: (row: AnyRow) => string | number;
   slots?: Partial<GridSlotsComponent>;
   sx?: SxProps<Theme>;
+  'aria-label'?: string;
 }
 
 function NoRowsOverlay() {
@@ -45,10 +46,12 @@ export function DataTable({
   getRowId,
   slots,
   sx,
+  'aria-label': ariaLabel,
 }: DataTableProps) {
   return (
-    <Box sx={{ width: '100%', ...sx }}>
+    <Box sx={{ width: '100%', overflowX: 'auto', ...sx }}>
       <DataGrid
+        aria-label={ariaLabel ?? 'Data table'}
         columns={columns}
         rows={rows}
         loading={loading}

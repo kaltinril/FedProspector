@@ -7,8 +7,10 @@ import {
   resetUserPassword,
   createOrganization,
   createOrganizationOwner,
+  getLoadHistory,
+  getHealth,
 } from '@/api/admin';
-import type { UpdateUserRequest, CreateOrganizationRequest, CreateOwnerRequest } from '@/types/api';
+import type { UpdateUserRequest, CreateOrganizationRequest, CreateOwnerRequest, LoadHistoryParams } from '@/types/api';
 
 export function useEtlStatus() {
   return useQuery({
@@ -57,5 +59,22 @@ export function useCreateOrganizationOwner() {
     mutationFn: ({ orgId, data }: { orgId: number; data: CreateOwnerRequest }) =>
       createOrganizationOwner(orgId, data),
     retry: 0,
+  });
+}
+
+export function useLoadHistory(params?: LoadHistoryParams) {
+  return useQuery({
+    queryKey: queryKeys.admin.loadHistory(params as Record<string, unknown>),
+    queryFn: () => getLoadHistory(params),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useHealth() {
+  return useQuery({
+    queryKey: queryKeys.admin.health,
+    queryFn: getHealth,
+    staleTime: 30 * 1000,
+    refetchOnWindowFocus: true,
   });
 }

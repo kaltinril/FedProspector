@@ -265,6 +265,7 @@ export default function NotificationCenterPage() {
                   <IconButton
                     size="small"
                     title="Mark as read"
+                    aria-label="Mark as read"
                     onClick={(e) => handleMarkRead(e, n.notificationId)}
                     disabled={markRead.isPending}
                   >

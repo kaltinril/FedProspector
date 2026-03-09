@@ -275,7 +275,7 @@ export default function ExpiringContractsPage() {
       />
 
       {/* Filter bar */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel id="months-ahead-label">Expiring within</InputLabel>
           <Select

@@ -140,14 +140,14 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
         {/* Right-side actions */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {/* Theme toggle */}
-          <IconButton onClick={toggleMode} size="small" aria-label="Toggle theme">
+          <IconButton onClick={toggleMode} size="small" aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
           </IconButton>
 
           {/* Notifications */}
           <IconButton
             size="small"
-            aria-label="Notifications"
+            aria-label={unreadCount > 0 ? `View notifications (${unreadCount} unread)` : 'View notifications'}
             onClick={(e) => setNotifAnchorEl(e.currentTarget)}
           >
             <Badge badgeContent={unreadCount} color="error">

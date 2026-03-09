@@ -239,6 +239,135 @@ public class AdminService : IAdminService
         return new string(password);
     }
 
+    public async Task<LoadHistoryResponse> GetLoadHistoryAsync(string? source, string? status, int days, int limit, int offset)
+    {
+        days = days < 1 ? 7 : days;
+        limit = limit < 1 ? 1 : limit > 100 ? 100 : limit;
+        offset = offset < 0 ? 0 : offset;
+
+        var cutoff = DateTime.Now.AddDays(-days);
+
+        var query = _context.EtlLoadLogs.AsNoTracking()
+            .Where(l => l.StartedAt >= cutoff);
+
+        if (!string.IsNullOrWhiteSpace(source))
+            query = query.Where(l => l.SourceSystem == source);
+
+        if (!string.IsNullOrWhiteSpace(status))
+            query = query.Where(l => l.Status == status);
+
+        var totalCount = await query.CountAsync();
+
+        var items = await query
+            .OrderByDescending(l => l.StartedAt)
+            .Skip(offset)
+            .Take(limit)
+            .Select(l => new LoadHistoryDto
+            {
+                LoadId = l.LoadId,
+                SourceSystem = l.SourceSystem,
+                LoadType = l.LoadType,
+                Status = l.Status,
+                StartedAt = l.StartedAt,
+                CompletedAt = l.CompletedAt,
+                DurationSeconds = l.CompletedAt != null
+                    ? (l.CompletedAt.Value - l.StartedAt).TotalSeconds
+                    : null,
+                RecordsRead = l.RecordsRead,
+                RecordsInserted = l.RecordsInserted,
+                RecordsUpdated = l.RecordsUpdated,
+                RecordsErrored = l.RecordsErrored,
+                ErrorMessage = l.ErrorMessage
+            })
+            .ToListAsync();
+
+        return new LoadHistoryResponse
+        {
+            Items = items,
+            TotalCount = totalCount
+        };
+    }
+
+    public async Task<List<HealthSnapshotDto>> GetHealthSnapshotsAsync(int days)
+    {
+        days = days < 1 ? 30 : days;
+        var cutoff = DateTime.Now.AddDays(-days);
+
+        return await _context.EtlHealthSnapshots.AsNoTracking()
+            .Where(s => s.CheckedAt >= cutoff)
+            .OrderByDescending(s => s.CheckedAt)
+            .Select(s => new HealthSnapshotDto
+            {
+                SnapshotId = s.SnapshotId,
+                CheckedAt = s.CheckedAt,
+                OverallStatus = s.OverallStatus,
+                AlertCount = s.AlertCount,
+                ErrorCount = s.ErrorCount,
+                StaleSourceCount = s.StaleSourceCount,
+                Details = s.Details
+            })
+            .ToListAsync();
+    }
+
+    public async Task<List<ApiKeyStatusDto>> GetApiKeyStatusAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        return await _context.EtlRateLimits.AsNoTracking()
+            .Where(r => r.RequestDate == today)
+            .Select(r => new ApiKeyStatusDto
+            {
+                SourceSystem = r.SourceSystem,
+                DailyLimit = r.MaxRequests,
+                RequestsMade = r.RequestsMade,
+                Remaining = Math.Max(0, r.MaxRequests - r.RequestsMade),
+                LastRequestAt = r.LastRequestAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<List<JobStatusDto>> GetJobStatusAsync()
+    {
+        // Two-step approach: get aggregates, then get latest row per group
+        var groups = await _context.EtlLoadLogs.AsNoTracking()
+            .GroupBy(l => new { l.SourceSystem, l.LoadType })
+            .Select(g => new
+            {
+                g.Key.SourceSystem,
+                g.Key.LoadType,
+                RunCount = g.Count(),
+                LastStartedAt = g.Max(l => l.StartedAt)
+            })
+            .ToListAsync();
+
+        var result = new List<JobStatusDto>();
+        foreach (var g in groups)
+        {
+            var latest = await _context.EtlLoadLogs.AsNoTracking()
+                .Where(l => l.SourceSystem == g.SourceSystem
+                         && l.LoadType == g.LoadType
+                         && l.StartedAt == g.LastStartedAt)
+                .FirstOrDefaultAsync();
+
+            if (latest == null) continue;
+
+            result.Add(new JobStatusDto
+            {
+                SourceSystem = g.SourceSystem,
+                LoadType = g.LoadType,
+                LastRunAt = latest.StartedAt,
+                LastStatus = latest.Status,
+                LastDurationSeconds = latest.CompletedAt != null
+                    ? (latest.CompletedAt.Value - latest.StartedAt).TotalSeconds
+                    : null,
+                RecordsProcessed = latest.RecordsInserted + latest.RecordsUpdated,
+                RunCount = g.RunCount
+            });
+        }
+
+        return result.OrderBy(j => j.SourceSystem).ThenBy(j => j.LoadType).ToList();
+    }
+
     private async Task<List<EtlSourceStatusDto>> GetSourceStatusesAsync()
     {
         // Get latest successful load per source (two-step to avoid untranslatable LINQ)

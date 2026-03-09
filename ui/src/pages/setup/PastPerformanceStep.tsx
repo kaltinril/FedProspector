@@ -273,6 +273,7 @@ export function PastPerformanceStep({
                       size="small"
                       onClick={() => handleRemove(index)}
                       color="error"
+                      aria-label="Remove past performance entry"
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>

@@ -20,6 +20,7 @@ import BookmarkBorderOutlined from '@mui/icons-material/BookmarkBorderOutlined';
 import CorporateFareOutlined from '@mui/icons-material/CorporateFareOutlined';
 import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
 import EventBusyOutlined from '@mui/icons-material/EventBusyOutlined';
+import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import ChevronRight from '@mui/icons-material/ChevronRight';
 import { useAuth } from '@/auth/useAuth';
@@ -77,6 +78,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Settings',
     items: [
+      { label: 'Profile', icon: <AccountCircleOutlined />, route: '/profile' },
       { label: 'Organization', icon: <CorporateFareOutlined />, route: '/organization' },
     ],
   },

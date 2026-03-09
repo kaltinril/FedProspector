@@ -607,6 +607,7 @@ function TeamTab({
                       size="small"
                       color="error"
                       onClick={() => setConfirmRemove(member)}
+                      aria-label="Remove team member"
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>

@@ -199,6 +199,7 @@ export function NaicsCodesStep({ data, onChange, onNext, onBack }: NaicsCodesSte
                       size="small"
                       onClick={() => handleRemove(entry.naicsCode)}
                       color="error"
+                      aria-label={`Remove NAICS code ${entry.naicsCode}`}
                     >
                       <DeleteIcon fontSize="small" />
                     </IconButton>

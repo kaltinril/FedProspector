@@ -96,7 +96,7 @@ export function SearchFilters({
                   value={(values[filter.key] as string) ?? ''}
                   onChange={(e) => onChange(filter.key, e.target.value)}
                   size="small"
-                  sx={{ minWidth: 200 }}
+                  sx={{ minWidth: { xs: '100%', sm: 200 } }}
                 />
               );
 
@@ -109,7 +109,7 @@ export function SearchFilters({
                   onChange={(e) => onChange(filter.key, e.target.value)}
                   select
                   size="small"
-                  sx={{ minWidth: 180 }}
+                  sx={{ minWidth: { xs: '100%', sm: 180 } }}
                 >
                   <MenuItem value="">All</MenuItem>
                   {filter.options?.map((opt) => (
@@ -142,7 +142,7 @@ export function SearchFilters({
                     <TextField {...params} label={filter.label} size="small" />
                   )}
                   size="small"
-                  sx={{ minWidth: 250 }}
+                  sx={{ minWidth: { xs: '100%', sm: 250 } }}
                 />
               );
 
@@ -156,14 +156,14 @@ export function SearchFilters({
                   onChange={(e) => onChange(filter.key, e.target.value)}
                   size="small"
                   slotProps={{ inputLabel: { shrink: true } }}
-                  sx={{ minWidth: 170 }}
+                  sx={{ minWidth: { xs: '100%', sm: 170 } }}
                 />
               );
 
             case 'dateRange': {
               const range = (values[filter.key] as { start?: string; end?: string }) ?? {};
               return (
-                <Box key={filter.key} sx={{ display: 'flex', gap: 1 }}>
+                <Box key={filter.key} sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
                   <TextField
                     label={`${filter.label} From`}
                     type="date"
@@ -173,7 +173,7 @@ export function SearchFilters({
                     }
                     size="small"
                     slotProps={{ inputLabel: { shrink: true } }}
-                    sx={{ minWidth: 155 }}
+                    sx={{ minWidth: { xs: '100%', sm: 155 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
                   />
                   <TextField
                     label={`${filter.label} To`}
@@ -184,7 +184,7 @@ export function SearchFilters({
                     }
                     size="small"
                     slotProps={{ inputLabel: { shrink: true } }}
-                    sx={{ minWidth: 155 }}
+                    sx={{ minWidth: { xs: '100%', sm: 155 }, flex: { xs: '1 1 100%', sm: '0 0 auto' } }}
                   />
                 </Box>
               );

@@ -1,7 +1,8 @@
 import { lazy } from 'react';
-import { Route, Routes, Navigate } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AuthGuard } from '@/auth/AuthGuard';
 import { AppLayout } from '@/components/layout/AppLayout';
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 
 const LoginPage = lazy(() => import('@/pages/login/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/login/RegisterPage'));
@@ -29,11 +30,17 @@ const SavedSearchesPage = lazy(() => import('@/pages/saved-searches/SavedSearche
 const NotificationCenterPage = lazy(
   () => import('@/pages/notifications/NotificationCenterPage'),
 );
+const AdminPage = lazy(() => import('@/pages/admin/AdminPage'));
+const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
+const OrganizationPage = lazy(() => import('@/pages/organization/OrganizationPage'));
+const NotFoundPage = lazy(() => import('@/pages/errors/NotFoundPage'));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
-      <AppLayout>{children}</AppLayout>
+      <AppLayout>
+        <ErrorBoundary>{children}</ErrorBoundary>
+      </AppLayout>
     </AuthGuard>
   );
 }
@@ -183,8 +190,43 @@ export function AppRoutes() {
         }
       />
 
-      {/* Default redirect */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* User & Org */}
+      <Route
+        path="/profile"
+        element={
+          <AuthenticatedLayout>
+            <ProfilePage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/organization"
+        element={
+          <AuthenticatedLayout>
+            <OrganizationPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Admin */}
+      <Route
+        path="/admin"
+        element={
+          <AuthenticatedLayout>
+            <AdminPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* 404 catch-all */}
+      <Route
+        path="*"
+        element={
+          <AuthenticatedLayout>
+            <NotFoundPage />
+          </AuthenticatedLayout>
+        }
+      />
     </Routes>
   );
 }

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { dispatchApiError } from '@/utils/apiErrorHandler';
 
 const apiClient = axios.create({
   baseURL: '/api/v1',
@@ -42,8 +43,29 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const status = error.response?.status;
 
-    if (error.response?.status === 401 && !originalRequest._retry && !originalRequest.url?.startsWith('/auth/')) {
+    // 429 Rate Limit
+    if (status === 429) {
+      const retryAfter = error.response?.headers?.['retry-after'];
+      const message = retryAfter
+        ? `Rate limit reached. Please wait ${retryAfter} seconds before trying again.`
+        : 'Too many requests. Please slow down.';
+      dispatchApiError({ type: 'rate-limit', message });
+      return Promise.reject(error);
+    }
+
+    // 409 Conflict
+    if (status === 409) {
+      const serverMessage = error.response?.data?.message || error.response?.data?.error;
+      dispatchApiError({
+        type: 'conflict',
+        message: serverMessage || 'This record was modified by another user. Please reload and try again.',
+      });
+      return Promise.reject(error);
+    }
+
+    if (status === 401 && !originalRequest._retry && !originalRequest.url?.startsWith('/auth/')) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -60,7 +82,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError);
         if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          window.location.href = '/login?expired=true';
         }
         return Promise.reject(refreshError);
       } finally {

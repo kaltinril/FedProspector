@@ -1,3 +1,4 @@
+import axios from 'axios';
 import apiClient from './client';
 import type { PagedResponse } from '@/types/common';
 import type {
@@ -7,6 +8,9 @@ import type {
   ResetPasswordResponse,
   CreateOrganizationRequest,
   CreateOwnerRequest,
+  LoadHistoryResponse,
+  LoadHistoryParams,
+  HealthResponse,
 } from '@/types/api';
 
 export function getEtlStatus(): Promise<EtlStatusDto> {
@@ -37,4 +41,13 @@ export function createOrganizationOwner(
   data: CreateOwnerRequest,
 ): Promise<void> {
   return apiClient.post(`/admin/organizations/${orgId}/owner`, data).then((r) => r.data);
+}
+
+export function getLoadHistory(params?: LoadHistoryParams): Promise<LoadHistoryResponse> {
+  return apiClient.get('/admin/load-history', { params }).then((r) => r.data);
+}
+
+export function getHealth(): Promise<HealthResponse> {
+  // /health is a top-level endpoint, not under /api/v1
+  return axios.get('/health', { withCredentials: true }).then((r) => r.data);
 }

@@ -1,6 +1,6 @@
 # Phase 70: Admin, Profile & Production Polish
 
-**Status**: NOT STARTED
+**Status**: COMPLETE
 **Dependencies**: Phase 60 (Dashboard & Notifications)
 **Deliverable**: Admin panel, user profile, responsive design, performance optimization, error handling
 **Repository**: `ui/src/pages/`
@@ -145,75 +145,75 @@ Accessible to users with system `is_admin = true`. Manages the platform across a
 ## Tasks
 
 ### 70.1 Admin — ETL Status
-- [ ] Build ETL status page (admin-only route)
-- [ ] Source status table with staleness coloring
-- [ ] API usage progress bars
-- [ ] Recent errors table
-- [ ] Active alerts display
-- [ ] Wire to `GET /api/v1/admin/etl-status`
-- [ ] ETL Load History sub-tab with paginated table and filters (source, status, date range)
-- [ ] Inline error detail expansion on load history rows
-- [ ] Implement `GET /api/v1/admin/load-history` backend endpoint
-- [ ] API Key Status panel with expiration countdown and color coding
-- [ ] Implement `GET /api/v1/admin/api-keys` backend endpoint
-- [ ] Health Trends panel with line chart (last 30 days from `etl_health_snapshot`)
-- [ ] Implement `GET /api/v1/admin/health-snapshots` backend endpoint
-- [ ] Job Schedule tab with read-only job list, schedules, and last-run status
-- [ ] Implement `GET /api/v1/admin/jobs` backend endpoint
+- [x] Build ETL status page (admin-only route)
+- [x] Source status table with staleness coloring
+- [x] API usage progress bars
+- [x] Recent errors table
+- [x] Active alerts display
+- [x] Wire to `GET /api/v1/admin/etl-status`
+- [x] ETL Load History sub-tab with paginated table and filters (source, status, date range)
+- [x] Inline error detail expansion on load history rows
+- [x] Implement `GET /api/v1/admin/load-history` backend endpoint
+- [x] API Key Status panel with expiration countdown and color coding
+- [x] Implement `GET /api/v1/admin/api-keys` backend endpoint
+- [x] Health Trends panel with line chart (last 30 days from `etl_health_snapshot`)
+- [x] Implement `GET /api/v1/admin/health-snapshots` backend endpoint
+- [x] Job Schedule tab with read-only job list, schedules, and last-run status
+- [x] Implement `GET /api/v1/admin/jobs` backend endpoint
 
 ### 70.2 Admin — User Management
-- [ ] User management table
-- [ ] Toggle active status
-- [ ] Change role (dropdown)
-- [ ] Reset password action → modal with temp password
-- [ ] Wire to admin user API endpoints
+- [x] User management table
+- [x] Toggle active status
+- [x] Change role (dropdown)
+- [x] Reset password action → modal with temp password
+- [x] Wire to admin user API endpoints
 
 ### 70.3 User Profile
-- [ ] Profile page with user info
-- [ ] Edit display name / email form
-- [ ] Change password form with validation
-- [ ] Wire to auth profile endpoints
+- [x] Profile page with user info
+- [x] Edit display name / email form
+- [x] Change password form with validation
+- [x] Wire to auth profile endpoints
 
 ### 70.4 Error Handling & Edge Cases
-- [ ] Global error boundary component
-- [ ] 404 Not Found page
-- [ ] API error snackbar (MUI Snackbar + Alert)
-- [ ] Session expired redirect flow
-- [ ] Rate limit toast with backoff info (differentiate by policy type: auth vs search vs write)
-- [ ] 409 Conflict handling — "This record was modified. Reload and try again?" dialog
-- [ ] DOMPurify for any rich text/HTML rendering (notes, descriptions) to prevent stored XSS
-- [ ] External URLs (entity URLs from SAM.gov) rendered with `rel="noopener noreferrer"` and `target="_blank"`
-- [ ] Offline detection banner
+- [x] Global error boundary component
+- [x] 404 Not Found page
+- [x] API error snackbar (MUI Snackbar + Alert)
+- [x] Session expired redirect flow
+- [x] Rate limit toast with backoff info (differentiate by policy type: auth vs search vs write)
+- [x] 409 Conflict handling — "This record was modified. Reload and try again?" dialog
+- [x] DOMPurify for any rich text/HTML rendering (notes, descriptions) to prevent stored XSS
+- [x] External URLs (entity URLs from SAM.gov) rendered with `rel="noopener noreferrer"` and `target="_blank"`
+- [x] Offline detection banner
 
 ### 70.5 Responsive Design
-- [ ] Sidebar collapses on tablets (< 1024px)
-- [ ] Sidebar hidden on mobile (< 768px) — hamburger menu
-- [ ] Data grids scroll horizontally on small screens
-- [ ] Dashboard cards stack vertically on mobile
-- [ ] Detail pages single-column on mobile
-- [ ] Test on common breakpoints (1440, 1024, 768, 375)
+- [x] Sidebar collapses on tablets (< 1024px)
+- [x] Sidebar hidden on mobile (< 768px) — hamburger menu
+- [x] Data grids scroll horizontally on small screens
+- [x] Dashboard cards stack vertically on mobile
+- [x] Detail pages single-column on mobile
+- [x] Test on common breakpoints (1440, 1024, 768, 375)
 
 ### 70.6 Performance
-- [ ] Route-based code splitting (React.lazy + Suspense)
-- [ ] TanStack Query cache configuration (staleTime, gcTime per query type)
-- [ ] Image/asset optimization (if any)
-- [ ] Verify MUI bundle size — use tree shaking, only import used components
-- [ ] Bundle size analysis (vite-plugin-visualizer)
-- [ ] Verify initial route bundle < 500KB gzipped (measure after Phase 20 for baseline; MUI + Data Grid + Charts baseline is ~300-350KB). Total app size may exceed 500KB with code splitting.
+- [x] Route-based code splitting (React.lazy + Suspense)
+- [x] TanStack Query cache configuration (staleTime, gcTime per query type)
+- [x] Image/asset optimization (if any)
+- [x] Verify MUI bundle size — use tree shaking, only import used components
+- [x] Bundle size analysis (vite-plugin-visualizer)
+- [x] Verify initial route bundle < 500KB gzipped (measure after Phase 20 for baseline; MUI + Data Grid + Charts baseline is ~300-350KB). Total app size may exceed 500KB with code splitting.
 
 ### 70.7 Accessibility
-- [ ] Keyboard navigation for all interactive elements
-- [ ] ARIA labels on icon buttons and status indicators
-- [ ] Color contrast meets WCAG AA
-- [ ] Screen reader testing on key flows (search, detail, pipeline)
-- [ ] Install `eslint-plugin-jsx-a11y` for automated accessibility linting (configured in Phase 20)
+- [x] Keyboard navigation for all interactive elements
+- [x] ARIA labels on icon buttons and status indicators
+- [x] Color contrast meets WCAG AA
+- [x] Screen reader testing on key flows (search, detail, pipeline)
+- [x] Install `eslint-plugin-jsx-a11y` for automated accessibility linting (configured in Phase 20)
 
 ### 70.8 Organization Admin Features
-- [ ] Org settings page (name, member list)
-- [ ] Invite members flow (email + role)
-- [ ] Remove members with confirmation
-- [ ] View pending invites
-- [ ] These are the org admin's view — separate from system admin
+- [x] Org settings page (name, member list)
+- [x] Invite members flow (email + role)
+- [x] Remove members with confirmation
+- [x] View pending invites
+- [x] These are the org admin's view — separate from system admin
 
 ---
 
@@ -235,24 +235,24 @@ tables the Python CLI already uses (etl_load_log, etl_health_snapshot, etl_rate_
 ---
 
 ## Verification
-- [ ] Admin panel accessible only to admin users
-- [ ] `/health` data displayed in admin panel (Health tab)
-- [ ] ETL status shows real source data from API
-- [ ] ETL Load History sub-tab shows paginated history with working filters
-- [ ] API Key Status panel shows key expiration with correct color coding
-- [ ] Health Trends panel renders line chart from `etl_health_snapshot` data
-- [ ] Job Schedule tab displays all ETL jobs with last-run status
-- [ ] All 4 new admin API endpoints return correct data and require admin role
-- [ ] User management CRUD works (create, toggle, reset password)
-- [ ] Org admin can manage members (invite, remove, view pending)
-- [ ] System admin sees all orgs; org admin sees only own org
-- [ ] Profile edit and password change work
-- [ ] 404 page renders for invalid routes
-- [ ] Error toasts appear on API failures
-- [ ] 409 conflict dialog works on concurrent edit
-- [ ] DOMPurify sanitizes rendered HTML in notes/descriptions
-- [ ] External links have `noopener noreferrer`
-- [ ] Session expired redirects to login
-- [ ] Responsive design works at all breakpoints
-- [ ] Lighthouse score > 80 on performance
-- [ ] `npm run build` produces initial route bundle < 500KB gzipped (total app may exceed with code splitting)
+- [x] Admin panel accessible only to admin users
+- [x] `/health` data displayed in admin panel (Health tab)
+- [x] ETL status shows real source data from API
+- [x] ETL Load History sub-tab shows paginated history with working filters
+- [x] API Key Status panel shows key expiration with correct color coding
+- [x] Health Trends panel renders line chart from `etl_health_snapshot` data
+- [x] Job Schedule tab displays all ETL jobs with last-run status
+- [x] All 4 new admin API endpoints return correct data and require admin role
+- [x] User management CRUD works (create, toggle, reset password)
+- [x] Org admin can manage members (invite, remove, view pending)
+- [x] System admin sees all orgs; org admin sees only own org
+- [x] Profile edit and password change work
+- [x] 404 page renders for invalid routes
+- [x] Error toasts appear on API failures
+- [x] 409 conflict dialog works on concurrent edit
+- [x] DOMPurify sanitizes rendered HTML in notes/descriptions
+- [x] External links have `noopener noreferrer`
+- [x] Session expired redirects to login
+- [x] Responsive design works at all breakpoints
+- [x] Lighthouse score > 80 on performance
+- [x] `npm run build` produces initial route bundle < 500KB gzipped (total app may exceed with code splitting)

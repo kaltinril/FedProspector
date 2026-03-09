@@ -92,6 +92,7 @@ public class FedProspectorDbContext : DbContext
     public DbSet<EtlLoadError> EtlLoadErrors { get; set; }
     public DbSet<EtlDataQualityRule> EtlDataQualityRules { get; set; }
     public DbSet<EtlRateLimit> EtlRateLimits { get; set; }
+    public DbSet<EtlHealthSnapshot> EtlHealthSnapshots { get; set; }
     public DbSet<DataLoadRequest> DataLoadRequests { get; set; }
 
     // -----------------------------------------------------------------------
@@ -194,6 +195,10 @@ public class FedProspectorDbContext : DbContext
 
         modelBuilder.Entity<EtlLoadLog>()
             .Property(e => e.Parameters)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<EtlHealthSnapshot>()
+            .Property(e => e.Details)
             .HasColumnType("json");
 
         modelBuilder.Entity<EtlDataQualityRule>()

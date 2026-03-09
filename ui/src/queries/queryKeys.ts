@@ -59,6 +59,8 @@ export const queryKeys = {
     all: ['admin'] as const,
     etlStatus: ['admin', 'etlStatus'] as const,
     users: (params?: Record<string, unknown>) => ['admin', 'users', params] as const,
+    loadHistory: (params?: Record<string, unknown>) => ['admin', 'loadHistory', params] as const,
+    health: ['admin', 'health'] as const,
   },
   organization: {
     all: ['organization'] as const,

@@ -34,7 +34,7 @@ export function useOrganization() {
   return useQuery({
     queryKey: queryKeys.organization.details,
     queryFn: getOrganization,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000, // 10 minutes — org data changes infrequently
   });
 }
 
@@ -94,7 +94,7 @@ export function useOrgProfile() {
   return useQuery({
     queryKey: queryKeys.organization.profile,
     queryFn: getProfile,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }
 
@@ -114,7 +114,7 @@ export function useOrgNaics() {
   return useQuery({
     queryKey: queryKeys.organization.naics,
     queryFn: getNaics,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }
 
@@ -135,7 +135,7 @@ export function useOrgCertifications() {
   return useQuery({
     queryKey: queryKeys.organization.certifications,
     queryFn: getCertifications,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }
 
@@ -156,7 +156,7 @@ export function useOrgPastPerformance() {
   return useQuery({
     queryKey: queryKeys.organization.pastPerformance,
     queryFn: getPastPerformance,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000, // 10 minutes
   });
 }
 
@@ -187,7 +187,7 @@ export function useNaicsSearch(query: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.reference.naics(query),
     queryFn: () => searchNaics(query),
-    staleTime: 10 * 60 * 1000,
+    staleTime: 30 * 60 * 1000, // 30 minutes — reference data
     enabled: enabled && query.length >= 2,
   });
 }
@@ -196,7 +196,7 @@ export function useNaicsDetail(code: string, enabled = true) {
   return useQuery({
     queryKey: queryKeys.reference.naicsDetail(code),
     queryFn: () => getNaicsDetail(code),
-    staleTime: 10 * 60 * 1000,
+    staleTime: 30 * 60 * 1000, // 30 minutes — reference data
     enabled,
   });
 }

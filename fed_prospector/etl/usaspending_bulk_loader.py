@@ -104,6 +104,8 @@ class USASpendingBulkLoader:
          "CREATE INDEX idx_usa_fy ON usaspending_award (fiscal_year)"),
         ("idx_usa_enrich",
          "CREATE INDEX idx_usa_enrich ON usaspending_award (fpds_enriched_at)"),
+        ("idx_usa_recipient_name",
+         "CREATE INDEX idx_usa_recipient_name ON usaspending_award (recipient_name(40))"),
     ]
 
     def __init__(self, fast_mode=False):

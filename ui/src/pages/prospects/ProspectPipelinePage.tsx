@@ -766,6 +766,7 @@ export default function ProspectPipelinePage() {
           <IconButton
             onClick={() => setViewMode((prev) => (prev === 'kanban' ? 'list' : 'kanban'))}
             title={viewMode === 'kanban' ? 'Switch to list view' : 'Switch to kanban view'}
+            aria-label={viewMode === 'kanban' ? 'Switch to list view' : 'Switch to kanban view'}
           >
             {viewMode === 'kanban' ? <ViewListIcon /> : <ViewColumnIcon />}
           </IconButton>
