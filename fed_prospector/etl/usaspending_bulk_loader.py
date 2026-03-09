@@ -9,6 +9,7 @@ import glob
 import hashlib
 import logging
 import os
+import subprocess
 import tempfile
 import time
 import zipfile
@@ -109,6 +110,7 @@ class USASpendingBulkLoader:
         self.logger = logging.getLogger("fed_prospector.etl.usaspending_bulk_loader")
         self.load_manager = LoadManager()
         self.fast_mode = fast_mode
+        self._needs_flush_restore = False
 
     # ------------------------------------------------------------------
     # Pre-load checks
@@ -185,9 +187,7 @@ class USASpendingBulkLoader:
         # Extract ZIP to temp directory
         extract_dir = tempfile.mkdtemp(prefix=f"usa_fy{fiscal_year}_")
         try:
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(extract_dir)
-            self.logger.info("Extracted ZIP to %s", extract_dir)
+            self._extract_zip(zip_path, extract_dir)
 
             # Find contract CSV files
             csv_files = glob.glob(
@@ -372,29 +372,143 @@ class USASpendingBulkLoader:
     def _recreate_secondary_indexes(self):
         """Recreate all secondary indexes on usaspending_award after bulk loading."""
         total_start = time.monotonic()
+        created = 0
         conn = get_connection()
         cursor = conn.cursor()
         try:
             for index_name, create_sql in self.SECONDARY_INDEXES:
-                t0 = time.monotonic()
-                cursor.execute(create_sql)
-                conn.commit()
-                elapsed = time.monotonic() - t0
-                self.logger.info(
-                    "Created index %s in %.1fs", index_name, elapsed
-                )
+                try:
+                    t0 = time.monotonic()
+                    cursor.execute(create_sql)
+                    conn.commit()
+                    elapsed = time.monotonic() - t0
+                    self.logger.info(
+                        "Created index %s in %.1fs", index_name, elapsed
+                    )
+                    created += 1
+                except Exception as exc:
+                    conn.rollback()
+                    if "Duplicate key name" in str(exc):
+                        self.logger.debug(
+                            "Index %s already exists, skipping", index_name
+                        )
+                    else:
+                        self.logger.warning(
+                            "Failed to create index %s: %s", index_name, exc
+                        )
         finally:
             cursor.close()
             conn.close()
         total_elapsed = time.monotonic() - total_start
         self.logger.info(
-            "All %d secondary indexes rebuilt in %.1fs",
-            len(self.SECONDARY_INDEXES), total_elapsed,
+            "%d of %d secondary indexes rebuilt in %.1fs",
+            created, len(self.SECONDARY_INDEXES), total_elapsed,
         )
 
     # ------------------------------------------------------------------
     # Internal methods
     # ------------------------------------------------------------------
+
+    def _extract_zip(self, zip_path, extract_dir):
+        """Extract a ZIP file, preferring 7-Zip for speed.
+
+        Tries 7-Zip (multi-threaded) first, falls back to Python zipfile.
+        Logs which method was used and how long extraction took.
+        """
+        t0 = time.time()
+
+        # Try 7-Zip: check PATH first, then common install location
+        seven_zip = None
+        for candidate in ("7z", "C:/Program Files/7-Zip/7z.exe"):
+            try:
+                result = subprocess.run(
+                    [candidate, "--help"],
+                    capture_output=True, timeout=5,
+                )
+                if result.returncode == 0:
+                    seven_zip = candidate
+                    break
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+
+        if seven_zip:
+            result = subprocess.run(
+                [seven_zip, "x", str(zip_path), f"-o{extract_dir}", "-y"],
+                capture_output=True, text=True,
+            )
+            if result.returncode == 0:
+                elapsed = time.time() - t0
+                self.logger.info(
+                    "Extracted ZIP with 7-Zip in %.1fs: %s", elapsed, zip_path,
+                )
+                return
+            else:
+                self.logger.warning(
+                    "7-Zip extraction failed (rc=%d), falling back to Python zipfile: %s",
+                    result.returncode, result.stderr[:200] if result.stderr else "",
+                )
+
+        # Fallback: Python zipfile
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            zf.extractall(extract_dir)
+        elapsed = time.time() - t0
+        self.logger.info(
+            "Extracted ZIP with Python zipfile in %.1fs: %s", elapsed, zip_path,
+        )
+
+    def _set_bulk_session_options(self, conn):
+        """Set MySQL session variables for faster bulk loading."""
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SET SESSION unique_checks = 0")
+            cursor.execute("SET SESSION foreign_key_checks = 0")
+            opts = ["unique_checks=0", "fk_checks=0"]
+
+            # innodb_flush_log_at_trx_commit is global-only in MySQL 8.4+
+            try:
+                cursor.execute("SET GLOBAL innodb_flush_log_at_trx_commit = 2")
+                opts.append("flush=2")
+                self._needs_flush_restore = True
+            except Exception:
+                self._needs_flush_restore = False
+                self.logger.debug(
+                    "Could not set innodb_flush_log_at_trx_commit "
+                    "(requires SUPER/SYSTEM_VARIABLES_ADMIN)"
+                )
+
+            # sql_log_bin requires SUPER privilege — try but don't fail
+            try:
+                cursor.execute("SET SESSION sql_log_bin = 0")
+                opts.append("sql_log_bin=0")
+            except Exception:
+                self.logger.debug(
+                    "Could not disable sql_log_bin (requires SUPER privilege)"
+                )
+
+            self.logger.info(
+                "Bulk load session optimizations active (%s)",
+                ", ".join(opts),
+            )
+        finally:
+            cursor.close()
+
+    def _restore_bulk_session_options(self):
+        """Restore GLOBAL innodb_flush_log_at_trx_commit to safe default."""
+        if not self._needs_flush_restore:
+            return
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SET GLOBAL innodb_flush_log_at_trx_commit = 1")
+            self._needs_flush_restore = False
+            self.logger.info("Restored innodb_flush_log_at_trx_commit = 1")
+        except Exception as exc:
+            self.logger.warning(
+                "Could not restore innodb_flush_log_at_trx_commit: %s", exc
+            )
+        finally:
+            cursor.close()
+            conn.close()
 
     def _load_csv(self, csv_path, fiscal_year, load_id,
                   csv_index=None, total_csvs=None, checkpoint=None):
@@ -436,7 +550,20 @@ class USASpendingBulkLoader:
             csv_read_start = time.monotonic()
 
             with open(csv_path, "r", encoding="utf-8-sig", newline="") as csv_file:
-                reader = csv.DictReader(csv_file)
+                reader = csv.reader(csv_file)
+                header = next(reader)
+                col_idx = {name: i for i, name in enumerate(header)}
+
+                # Log unmapped columns once
+                unmapped = [
+                    c for c in header if c not in CSV_COLUMN_MAP
+                ]
+                if unmapped:
+                    self.logger.debug(
+                        "Unmapped CSV columns (%d): %s",
+                        len(unmapped),
+                        ", ".join(unmapped[:20]),
+                    )
 
                 for row in reader:
                     stats["records_read"] += 1
@@ -447,22 +574,10 @@ class USASpendingBulkLoader:
                             f"{stats['records_read']:,}",
                         )
 
-                    # Log unmapped columns on first row
-                    if not logged_unmapped and reader.fieldnames:
-                        unmapped = [
-                            c for c in reader.fieldnames
-                            if c not in CSV_COLUMN_MAP
-                        ]
-                        if unmapped:
-                            self.logger.debug(
-                                "Unmapped CSV columns (%d): %s",
-                                len(unmapped),
-                                ", ".join(unmapped[:20]),
-                            )
-                        logged_unmapped = True
-
                     try:
-                        normalized = self._normalize_csv_row(row, fiscal_year)
+                        normalized = self._normalize_csv_row(
+                            row, fiscal_year, col_idx,
+                        )
                         if normalized is None:
                             stats["records_errored"] += 1
                             continue
@@ -520,6 +635,7 @@ class USASpendingBulkLoader:
                 stats["records_inserted"] += checkpoint["total_rows_loaded"]
 
             conn = get_connection()
+            self._set_bulk_session_options(conn)
             cursor = conn.cursor()
             batch_wall_start = time.monotonic()
             try:
@@ -634,12 +750,13 @@ class USASpendingBulkLoader:
             return f"{minutes}m {secs:02d}s"
         return f"{seconds}s"
 
-    def _normalize_csv_row(self, row, fiscal_year):
+    def _normalize_csv_row(self, row, fiscal_year, col_idx=None):
         """Map a CSV row to usaspending_award column values.
 
         Args:
-            row: dict from csv.DictReader.
+            row: list from csv.reader (or dict for backward compat).
             fiscal_year: Federal fiscal year.
+            col_idx: dict mapping CSV column names to list indices.
 
         Returns:
             dict keyed by table column names, or None if row should be skipped.
@@ -647,7 +764,11 @@ class USASpendingBulkLoader:
         result = {}
 
         for csv_col, db_col in CSV_COLUMN_MAP.items():
-            value = row.get(csv_col, "")
+            if col_idx is not None:
+                idx = col_idx.get(csv_col)
+                value = row[idx] if idx is not None and idx < len(row) else ""
+            else:
+                value = row.get(csv_col, "")
             if value == "":
                 value = None
 

@@ -58,11 +58,8 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast):
         )
         click.echo("WARNING: Fast mode enabled — secondary indexes will be dropped during load.")
 
-    # Pre-load checks: buffer pool warning and crash-safe index rebuild
+    # Pre-load checks
     loader._check_buffer_pool_size()
-    rebuilt = loader._check_and_rebuild_indexes()
-    if rebuilt:
-        click.echo(f"  Rebuilt {rebuilt} missing secondary indexes from a prior crash.")
 
     total_stats = {
         "records_read": 0,
@@ -73,6 +70,11 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast):
 
     if fast:
         loader._drop_secondary_indexes()
+    else:
+        # Crash recovery: rebuild indexes left dropped by a prior --fast crash
+        rebuilt = loader._check_and_rebuild_indexes()
+        if rebuilt:
+            click.echo(f"  Rebuilt {rebuilt} missing secondary indexes from a prior crash.")
 
     try:
         for fy in fiscal_years:
@@ -144,6 +146,9 @@ def usaspending_bulk(years_back, fiscal_year, skip_download, source, fast):
                 click.echo(f"  FY{fy} FAILED: {exc}")
 
     finally:
+        # Restore GLOBAL session settings changed during bulk load
+        loader._restore_bulk_session_options()
+
         # Always rebuild indexes if --fast was used, regardless of how we exit
         # (success, exception, Ctrl+C / click.Abort)
         if fast:

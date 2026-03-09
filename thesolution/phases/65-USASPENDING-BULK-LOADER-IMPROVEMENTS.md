@@ -1,6 +1,6 @@
 # Phase 65: USASpending Bulk Loader Improvements
 
-**Status**: IN PROGRESS
+**Status**: COMPLETE
 **Priority**: High
 **Depends on**: Phase 44 (original bulk loader)
 
@@ -23,7 +23,7 @@ The USASpending bulk loader works but is slow and not resumable:
 ## Implementation Plan
 
 ### Task 1: Load checkpoint tracking
-- [ ] Add `usaspending_load_checkpoint` table:
+- [x] Add `usaspending_load_checkpoint` table:
   ```sql
   CREATE TABLE usaspending_load_checkpoint (
     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -39,39 +39,39 @@ The USASpending bulk loader works but is slow and not resumable:
     UNIQUE KEY uq_load_csv (load_id, csv_file_name)
   );
   ```
-- [ ] After each batch commit, update `completed_batches` in checkpoint table
-- [ ] On startup, check for existing checkpoint for this FY + ZIP file
-- [ ] If checkpoint exists and is IN_PROGRESS, skip to the next unprocessed CSV / batch
-- [ ] If checkpoint exists and is COMPLETE, skip entirely (log "already loaded")
+- [x] After each batch commit, update `completed_batches` in checkpoint table
+- [x] On startup, check for existing checkpoint for this FY + ZIP file
+- [x] If checkpoint exists and is IN_PROGRESS, skip to the next unprocessed CSV / batch
+- [x] If checkpoint exists and is COMPLETE, skip entirely (log "already loaded")
 
 ### Task 2: CSV-level skip logic
-- [ ] Before processing a CSV, check if it's already COMPLETE in checkpoint table
-- [ ] Log "Skipping CSV_file_1.csv (already loaded)" and move to next
-- [ ] Track which CSV file (by name) within a ZIP has been fully processed
+- [x] Before processing a CSV, check if it's already COMPLETE in checkpoint table
+- [x] Log "Skipping CSV_file_1.csv (already loaded)" and move to next
+- [x] Track which CSV file (by name) within a ZIP has been fully processed
 
 ### Task 3: Batch-level resume
-- [ ] When resuming a partially-loaded CSV, skip to batch N+1 (where N = completed_batches)
-- [ ] During CSV reading, skip the first N * BATCH_SIZE rows (they're already loaded)
-- [ ] This avoids re-reading and re-normalizing already-processed rows
+- [x] When resuming a partially-loaded CSV, skip to batch N+1 (where N = completed_batches)
+- [x] During CSV reading, skip the first N * BATCH_SIZE rows (they're already loaded)
+- [x] This avoids re-reading and re-normalizing already-processed rows
 
 ### Task 4: Index management for faster bulk loads
-- [ ] Before first batch of a load: `ALTER TABLE usaspending_award DISABLE KEYS` (or drop secondary indexes)
-- [ ] After last batch of a load: `ALTER TABLE usaspending_award ENABLE KEYS` (or recreate indexes)
-- [ ] Note: `DISABLE KEYS` only works on MyISAM. For InnoDB, need to explicitly DROP/CREATE indexes
-- [ ] Store index definitions so they can be recreated exactly
-- [ ] Add `--fast` flag to CLI to opt into index dropping (not default, since it blocks queries during rebuild)
+- [x] Before first batch of a load: `ALTER TABLE usaspending_award DISABLE KEYS` (or drop secondary indexes)
+- [x] After last batch of a load: `ALTER TABLE usaspending_award ENABLE KEYS` (or recreate indexes)
+- [x] Note: `DISABLE KEYS` only works on MyISAM. For InnoDB, need to explicitly DROP/CREATE indexes
+- [x] Store index definitions so they can be recreated exactly
+- [x] Add `--fast` flag to CLI to opt into index dropping (not default, since it blocks queries during rebuild)
 
 ### Task 5: FY-level deduplication awareness
-- [ ] Before loading a FY, check if the archive file hash matches a previously loaded one
-- [ ] If same file was already fully loaded, skip entirely
-- [ ] Store archive file hash (SHA-256 of first 1MB + file size) in checkpoint table
+- [x] Before loading a FY, check if the archive file hash matches a previously loaded one
+- [x] If same file was already fully loaded, skip entirely
+- [x] Store archive file hash (SHA-256 of first 1MB + file size) in checkpoint table
 
 ### Task 6: Progress improvements (partially done)
 - [x] CSV reading progress (every 100K rows)
 - [x] Batch ETA calculation
 - [x] Download progress (MB downloaded / total)
-- [ ] Overall FY progress: "CSV 3/7, Batch 12/20 (overall: 45%)"
-- [ ] Per-CSV timing summary at completion
+- [x] Overall FY progress: "CSV 3/7, Batch 12/20 (overall: 45%)"
+- [x] Per-CSV timing summary at completion
 
 ## Files to Modify
 
