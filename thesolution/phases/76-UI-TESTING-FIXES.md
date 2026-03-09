@@ -79,8 +79,6 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Added `GET /health` endpoint (AllowAnonymous) that checks database connectivity and ETL freshness. Returns `{ status, database, etlFreshness }` matching the UI's `HealthResponse` type. ETL thresholds: ≤48h = Healthy, ≤7d = Degraded, >7d = Unhealthy.
 
-## Code Review Issues
-
 ### 76-7: Daily load scheduler commands broken — wrong CLI format ✅ FIXED
 
 **Symptom**: `python main.py load daily` fails immediately with `Error: No such command 'load-opportunities'.` (exit code 2, 0 seconds).
@@ -101,7 +99,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Only sum estimates for jobs that actually succeeded. Rename label to clarify it's still an estimate (e.g., `Est. API calls used`).
 
-### 76-9: Daily load freshness skip thresholds too generous + ignores failed runs
+### 76-9: Daily load freshness skip thresholds too generous + ignores failed runs ✅ FIXED
 
 **Symptom**: `load daily` reports awards as `SKIP (fresh - loaded 57h ago)` and exclusions as `SKIP (fresh - loaded 119h ago)`. 119h (5 days) is not fresh for a daily batch. Summary shows "Skipped: 2, Failed: 0" — hiding stale data.
 
@@ -116,7 +114,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Fix**: Add `daily_freshness_hours` to JOBS dict (e.g., 24h for awards/exclusions). Only skip if last run was COMPLETED and within the freshness window. Improve skip message to show status context.
 
-### 76-10: full_name column too short for SAM.gov contracting officer names
+### 76-10: full_name column too short for SAM.gov contracting officer names ✅ FIXED
 
 **Symptom**: `Error processing aaae5bd96e1a479aaecc1e9a02b6c444: 1406 (22001): Data too long for column 'full_name' at row 1`
 
