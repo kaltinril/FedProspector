@@ -29,8 +29,8 @@ CREATE TABLE IF NOT EXISTS stg_opportunity_raw (
 CREATE TABLE IF NOT EXISTS stg_fpds_award_raw (
     id                 INT AUTO_INCREMENT PRIMARY KEY,
     load_id            INT NOT NULL,
-    contract_id        VARCHAR(50) NOT NULL,
-    modification_number VARCHAR(10),
+    contract_id        VARCHAR(100) NOT NULL,
+    modification_number VARCHAR(25),
     raw_json           JSON NOT NULL,
     raw_record_hash    CHAR(64) NOT NULL,
     processed          CHAR(1) NOT NULL DEFAULT 'N',

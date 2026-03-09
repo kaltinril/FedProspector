@@ -4,7 +4,9 @@ import sys
 import time
 
 import click
+import requests
 
+from api_clients.base_client import RateLimitExceeded
 from config.logging_config import setup_logging
 from config import settings
 
@@ -126,14 +128,20 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
             while calls_made < max_calls:
                 # Don't send dateSigned range when fiscalYear is set — they're
                 # redundant and combining them causes pagination issues.
-                data = client.search_awards(
-                    naics_code=naics_code, set_aside=set_aside, agency_code=agency,
-                    awardee_uei=awardee_uei, piid=piid,
-                    date_signed_from=date_from if not fiscal_year else None,
-                    date_signed_to=date_to if not fiscal_year else None,
-                    fiscal_year=fiscal_year,
-                    limit=page_size, offset=page,
-                )
+                try:
+                    data = client.search_awards(
+                        naics_code=naics_code, set_aside=set_aside, agency_code=agency,
+                        awardee_uei=awardee_uei, piid=piid,
+                        date_signed_from=date_from if not fiscal_year else None,
+                        date_signed_to=date_to if not fiscal_year else None,
+                        fiscal_year=fiscal_year,
+                        limit=page_size, offset=page,
+                    )
+                except (RateLimitExceeded, requests.HTTPError) as rate_err:
+                    click.echo(f"\n  ** Rate limited — skipping remaining API calls.")
+                    click.echo(f"     {rate_err}")
+                    budget_exhausted = True
+                    break
                 calls_made += 1
 
                 records = data.get("awardSummary", [])
@@ -185,6 +193,103 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
         logger.exception("Awards load failed")
         click.echo(f"\nERROR: {e}")
         sys.exit(1)
+
+
+@click.command("replay-awards")
+@click.option("--load-id", required=True, type=int, help="Load ID to replay from staging")
+@click.option("--status", default="E", type=click.Choice(["E", "N", "A"]),
+              help="Which staging records to replay: E=errored, N=unprocessed, A=all (default: E)")
+def replay_awards(load_id, status):
+    """Replay staged award records through the awards loader.
+
+    Re-processes raw JSON from stg_fpds_award_raw for a given load ID.
+    Useful for retrying records that failed due to transient errors or
+    after fixing a normalization bug.
+
+    Examples:
+        python main.py load replay-awards --load-id 42
+        python main.py load replay-awards --load-id 42 --status A
+        python main.py load replay-awards --load-id 42 --status N
+    """
+    logger = setup_logging()
+    import json as json_mod
+
+    from db.connection import get_connection
+    from etl.awards_loader import AwardsLoader
+    from etl.load_manager import LoadManager
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # Build query to fetch staging records
+        where = "WHERE load_id = %s"
+        params = [load_id]
+        if status == "E":
+            where += " AND processed = 'E'"
+        elif status == "N":
+            where += " AND processed = 'N'"
+        # status == "A" means all records, no extra filter
+
+        cursor.execute(
+            f"SELECT id, raw_json FROM stg_fpds_award_raw {where} ORDER BY id",
+            params,
+        )
+        rows = cursor.fetchall()
+
+        if not rows:
+            click.echo(f"No staging records found for load_id={load_id} with status filter '{status}'.")
+            return
+
+        click.echo(f"Found {len(rows)} staging record(s) to replay from load_id={load_id} (filter: {status})")
+
+        # Parse raw JSON back into dicts
+        awards_data = []
+        parse_errors = 0
+        for row in rows:
+            try:
+                raw = json_mod.loads(row["raw_json"])
+                awards_data.append(raw)
+            except (json_mod.JSONDecodeError, TypeError) as e:
+                parse_errors += 1
+                logger.warning("Failed to parse raw_json for staging id=%d: %s", row["id"], e)
+
+        if parse_errors:
+            click.echo(f"  Skipped {parse_errors} record(s) with unparseable JSON")
+
+        if not awards_data:
+            click.echo("No valid records to replay.")
+            return
+
+        # Create a new load for the replay
+        load_manager = LoadManager()
+        replay_load_id = load_manager.start_load(
+            "SAM_AWARDS_REPLAY", "REPLAY",
+            parameters={"source_load_id": load_id, "status_filter": status},
+        )
+        click.echo(f"Replay load started (load_id={replay_load_id})")
+
+        loader = AwardsLoader(load_manager=load_manager)
+        t_start = time.time()
+        stats = loader.load_awards(awards_data, replay_load_id)
+        elapsed = time.time() - t_start
+
+        load_manager.complete_load(replay_load_id, **stats)
+
+        click.echo(f"\nReplay complete! ({elapsed:.1f}s)")
+        click.echo(f"  Records read:      {stats['records_read']:>10,d}")
+        click.echo(f"  Records inserted:  {stats['records_inserted']:>10,d}")
+        click.echo(f"  Records updated:   {stats['records_updated']:>10,d}")
+        click.echo(f"  Records unchanged: {stats['records_unchanged']:>10,d}")
+        click.echo(f"  Records errored:   {stats['records_errored']:>10,d}")
+
+    except Exception as e:
+        logger.exception("Awards replay failed")
+        click.echo(f"\nERROR: {e}")
+        sys.exit(1)
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @click.command("search-awards")

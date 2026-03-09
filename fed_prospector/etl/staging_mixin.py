@@ -20,8 +20,11 @@ schema (no auto-increment id, extra processed_at column). See entity_loader.py.
 """
 import hashlib
 import json
+import logging
 
 from db.connection import get_connection
+
+logger = logging.getLogger(__name__)
 
 
 class StagingMixin:
@@ -40,20 +43,29 @@ class StagingMixin:
         conn.autocommit = True
         return conn, conn.cursor()
 
-    def _insert_staging(self, stg_cursor, load_id: int, key_vals: dict, raw: dict) -> int:
-        """Write raw JSON to staging table. Returns lastrowid."""
-        raw_str = json.dumps(raw, sort_keys=True, default=str)
-        raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
-        col_names = ", ".join(["load_id"] + self._STG_KEY_COLS + ["raw_json", "raw_record_hash"])
-        placeholders = ", ".join(["%s"] * (3 + len(self._STG_KEY_COLS)))
-        vals = [load_id] + [key_vals[c] for c in self._STG_KEY_COLS] + [raw_str, raw_hash]
-        stg_cursor.execute(
-            f"INSERT INTO {self._STG_TABLE} ({col_names}) VALUES ({placeholders})", vals
-        )
-        return stg_cursor.lastrowid
+    def _insert_staging(self, stg_cursor, load_id: int, key_vals: dict, raw: dict):
+        """Write raw JSON to staging table. Returns lastrowid, or None on failure."""
+        try:
+            raw_str = json.dumps(raw, sort_keys=True, default=str)
+            raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
+            col_names = ", ".join(["load_id"] + self._STG_KEY_COLS + ["raw_json", "raw_record_hash"])
+            placeholders = ", ".join(["%s"] * (3 + len(self._STG_KEY_COLS)))
+            vals = [load_id] + [key_vals[c] for c in self._STG_KEY_COLS] + [raw_str, raw_hash]
+            stg_cursor.execute(
+                f"INSERT INTO {self._STG_TABLE} ({col_names}) VALUES ({placeholders})", vals
+            )
+            return stg_cursor.lastrowid
+        except Exception as exc:
+            logger.warning("Staging insert failed for %s (load_id=%d): %s", self._STG_TABLE, load_id, exc)
+            return None
 
-    def _mark_staging(self, stg_cursor, staging_id: int, processed: str, error_msg=None):
-        """Update staging row outcome. processed='Y' (success) or 'E' (error)."""
+    def _mark_staging(self, stg_cursor, staging_id, processed: str, error_msg=None):
+        """Update staging row outcome. processed='Y' (success) or 'E' (error).
+
+        No-op if staging_id is None (staging insert was skipped or failed).
+        """
+        if staging_id is None:
+            return
         stg_cursor.execute(
             f"UPDATE {self._STG_TABLE} SET processed=%s, error_message=%s WHERE id=%s",
             (processed, error_msg[:500] if error_msg else None, staging_id),

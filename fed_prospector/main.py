@@ -16,13 +16,13 @@ Run 'python main.py GROUP COMMAND --help' for command-specific help.
 
 Modules:
     cli/database.py       build-database, load-lookups, status, check-api, seed-quality-rules
-    cli/entities.py       download-extract, load-entities, refresh-entities, search-entities
+    cli/entities.py       load-entities, search-entities
     cli/opportunities.py  load-opportunities, search
     cli/prospecting.py    add-user, list-users, create-prospect, update-prospect,
                           reassign-prospect, list-prospects, show-prospect, add-note,
                           add-team-member, save-search, run-search, list-searches, dashboard
     cli/calc.py           load-calc
-    cli/awards.py         load-awards, search-awards
+    cli/awards.py         load-awards, search-awards, replay-awards
     cli/fedhier.py        load-hierarchy, search-agencies
     cli/exclusions.py     load-exclusions, check-exclusion, check-prospects
     cli/spending.py       load-transactions, burn-rate
@@ -123,7 +123,7 @@ def health():
 # ---------------------------------------------------------------------------
 
 from cli.database import build_database, load_lookups, status, check_api, seed_quality_rules
-from cli.entities import download_extract, load_entities, refresh_entities, search_entities
+from cli.entities import load_entities, search_entities
 from cli.opportunities import load_opportunities, search as search_opportunities
 from cli.prospecting import (
     add_user, list_users, create_prospect, update_prospect,
@@ -131,7 +131,7 @@ from cli.prospecting import (
     add_team_member, save_search, run_search, list_searches, dashboard,
 )
 from cli.calc import load_calc
-from cli.awards import load_awards, search_awards
+from cli.awards import load_awards, search_awards, replay_awards
 from cli.fedhier import load_hierarchy, search_agencies
 from cli.exclusions import load_exclusions, check_exclusion, check_prospects
 from cli.spending import load_transactions, burn_rate
@@ -166,10 +166,9 @@ setup.add_command(check_api, name="test-api")
 # ---------------------------------------------------------------------------
 
 load.add_command(load_entities, name="entities")
-load.add_command(download_extract, name="entities-download")
-load.add_command(refresh_entities, name="entities-refresh")
 load.add_command(load_opportunities, name="opportunities")
 load.add_command(load_awards, name="awards")
+load.add_command(replay_awards, name="replay-awards")
 load.add_command(load_hierarchy, name="hierarchy")
 load.add_command(load_exclusions, name="exclusions")
 load.add_command(load_transactions, name="usaspending")
