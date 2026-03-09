@@ -16,7 +16,7 @@ fed_prospector/
         __init__.py
         base_client.py           # Abstract base with retry, rate limiting, pagination
         sam_entity_client.py     # SAM Entity Management API v1-4
-        sam_extract_client.py    # SAM Bulk Extract downloads (monthly/daily)
+        sam_extract_client.py    # SAM Bulk Extract downloads (monthly public; daily is FOUO only)
         sam_opportunity_client.py # SAM Opportunities API v2
         sam_fedhier_client.py    # SAM Federal Hierarchy API
         sam_awards_client.py     # SAM Contract Awards API
@@ -80,7 +80,7 @@ fed_prospector/
     cli/                         # CLI command modules (refactored from main.py)
         __init__.py
         database.py              # build-database, load-lookups, status, check-api, seed-quality-rules
-        entities.py              # download-extract, load-entities
+        entities.py              # load-entities, search-entities
         opportunities.py         # load-opportunities, search
         prospecting.py           # add-user, list-users, create/update/reassign/list/show prospect, notes, teams, saved searches, dashboard
         calc.py                  # load-calc
@@ -106,7 +106,7 @@ fed_prospector/
 | `config/logging_config.py` | Implemented | Phase 1 |
 | `api_clients/base_client.py` | Implemented | Phase 1 - retry, rate limiting, pagination |
 | `api_clients/sam_entity_client.py` | Implemented | Phase 2 - v3 API, WOSB/8(a) search |
-| `api_clients/sam_extract_client.py` | Implemented | Phase 2 - monthly/daily download, ZIP, JSON streaming |
+| `api_clients/sam_extract_client.py` | Implemented | Phase 2 - monthly public download, ZIP, JSON streaming (daily extracts are FOUO only) |
 | `api_clients/sam_opportunity_client.py` | Implemented | Phase 3 - v2 search, 5-call budget, priority set-aside ordering, date range splitting |
 | `api_clients/sam_fedhier_client.py` | Implemented | Phase 5D - v1 API, full hierarchy refresh, agency search |
 | `api_clients/sam_awards_client.py` | Implemented | Phase 5A - v1 API, search by NAICS/awardee/solicitation |
@@ -273,8 +273,8 @@ class BaseAPIClient:
 """SAM.gov Entity Management API v1-4 client.
 
 Two modes:
-1. API mode: Paginated queries for targeted lookups (10 records/page max)
-2. Extract mode: Bulk download of monthly/daily files (bypasses rate limits)
+1. API mode: Paginated queries for targeted/incremental lookups (10 records/page max)
+2. Extract mode: Bulk download of monthly files (bypasses rate limits; daily extracts are FOUO only)
 """
 
 class SAMEntityClient(BaseAPIClient):
@@ -303,9 +303,10 @@ class SAMEntityClient(BaseAPIClient):
 ```python
 """SAM.gov Extracts Download API.
 
-Downloads monthly and daily entity extract files (ZIP -> DAT or JSON).
-This is the primary mechanism for building the entity database,
-as it bypasses the 10/day rate limit.
+Downloads monthly entity extract files (ZIP -> DAT or JSON).
+Daily extracts are FOUO/CUI only (require Federal System Account).
+Monthly extracts are the primary mechanism for building the entity database,
+as they bypass the 10/day rate limit.
 """
 
 class SAMExtractClient(BaseAPIClient):
@@ -318,8 +319,8 @@ class SAMExtractClient(BaseAPIClient):
         Note: exact date varies (first Sunday). Try target date, handle 404s.
         """
 
-    def download_daily_extract(self, date, sensitivity='PUBLIC'):
-        """Download daily incremental extract (Tue-Sat only)."""
+    def download_daily_extract(self, date, sensitivity='FOUO'):
+        """Download daily incremental extract (FOUO only, requires Federal System Account)."""
 
     def parse_dat_file(self, file_path):
         """Parse pipe-delimited DAT file. Applies cleanup:
@@ -470,7 +471,7 @@ class EntityLoader:
         """Load from bulk JSON extract file. Main entry point for monthly loads."""
 
     def load_from_api_response(self, api_data, load_id):
-        """Load from paginated API response. Used for daily incremental."""
+        """Load from paginated API response. Used for incremental updates (--type=api)."""
 
     def load_from_dat_file(self, dat_file_path, load_id):
         """Load from pipe-delimited DAT file (fallback). Apply all cleanup."""
@@ -540,7 +541,7 @@ class ReferenceLoader:
 """Scheduled job definitions.
 
 Recommended schedule:
-    SAM Entity Daily Extract:   06:00 AM daily (Tue-Sat)
+    SAM Entity Incremental (API): 06:00 AM daily (Tue-Sat)
     SAM Opportunities:          Every 4 hours
     Federal Hierarchy:          Weekly (Sunday 02:00 AM)
     FPDS Awards:                Weekly (Saturday 03:00 AM)
@@ -552,8 +553,8 @@ Recommended schedule:
 
 JOBS = [
     {
-        'id': 'sam_entity_daily',
-        'func': 'etl.load_manager:run_entity_daily',
+        'id': 'sam_entity_incremental',
+        'func': 'etl.load_manager:run_entity_incremental',
         'trigger': 'cron',
         'hour': 6,
         'day_of_week': 'tue-sat',
@@ -601,9 +602,9 @@ def load_reference(source):
     """Load reference data from CSV files."""
 
 @cli.command()
-@click.option('--mode', type=click.Choice(['full', 'daily']), default='daily')
+@click.option('--type', type=click.Choice(['monthly', 'api']), default='api')
 @click.option('--date', default=None)
-def load_entities(mode, date):
+def load_entities(type, date):
     """Load entity data from SAM.gov."""
 
 @cli.command()
@@ -620,7 +621,7 @@ def load_opportunities(set_aside, naics, days_back):
 Every API client inherits rate limiting from `BaseAPIClient`. Before each request, the client checks `etl_rate_limit` table. If daily limit reached, raises `RateLimitExceeded` instead of making the request. This prevents accidental API key suspension.
 
 ### 2. Bulk Extract Preference
-The SAM Entity pipeline defaults to bulk extract downloads (monthly/daily files) rather than paginated API queries. One download = one API call = complete dataset. This is critical when limited to 10 calls/day.
+The SAM Entity pipeline uses monthly bulk extract downloads for full refreshes (one download = one API call = complete dataset). For incremental updates between monthly loads, `--type=api` uses the paginated Entity Management API (10 records/page). Daily bulk extracts are FOUO/CUI only and not available with public API keys.
 
 ### 3. Idempotent Loads
 Every load operation is idempotent. Running the same load twice produces the same result. This is achieved through:

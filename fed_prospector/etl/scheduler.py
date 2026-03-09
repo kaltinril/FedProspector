@@ -6,7 +6,7 @@ This is NOT a daemon - each invocation runs one job and exits.
 
 Windows Task Scheduler setup commands:
   schtasks /create /tn "FedContract_Opportunities" /tr "python main.py load opportunities --key 2" /sc HOURLY /mo 4
-  schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py load entities-refresh --type daily" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
+  schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py load entities --type api" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
   schtasks /create /tn "FedContract_Hierarchy" /tr "python main.py load hierarchy --full-refresh --key 2" /sc WEEKLY /d SUN /st 02:00
   schtasks /create /tn "FedContract_Awards" /tr "python main.py load awards --key 2" /sc WEEKLY /d SAT /st 03:00
   schtasks /create /tn "FedContract_CalcRates" /tr "python main.py load labor-rates" /sc MONTHLY /d 1 /st 04:00
@@ -42,15 +42,15 @@ JOBS = {
         "estimated_api_calls": 5,   # 4 set-aside types, ~1 page each
     },
     "entity_daily": {
-        "description": "Download and load daily entity extract",
-        "command": ["python", "main.py", "load", "entities-refresh", "--type", "daily"],
+        "description": "Refresh entities updated today via API",
+        "command": ["python", "main.py", "load", "entities", "--type", "api"],
         "source_system": "SAM_ENTITY",
         "schedule": "Tue-Sat 06:00",
         "staleness_hours": 48,  # 2 days (skip weekends)
         "daily_freshness_hours": 20,
         "priority": "High",
         "catchup_safe": True,
-        "estimated_api_calls": 1,   # Single file download
+        "estimated_api_calls": 50,  # Paginated API, ~10 entities/page
     },
     "hierarchy": {
         "description": "Refresh federal org hierarchy",

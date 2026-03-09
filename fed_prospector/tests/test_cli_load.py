@@ -30,18 +30,6 @@ class TestLoadHelp:
         assert result.exit_code == 0
         assert "Load SAM.gov entity data" in result.output
 
-    def test_load_entities_download_help(self):
-        runner = CliRunner()
-        result = runner.invoke(cli, ["load", "entities-download", "--help"])
-        assert result.exit_code == 0
-        assert "Download SAM.gov monthly entity extract" in result.output
-
-    def test_load_entities_refresh_help(self):
-        runner = CliRunner()
-        result = runner.invoke(cli, ["load", "entities-refresh", "--help"])
-        assert result.exit_code == 0
-        assert "Download and load SAM.gov entity data" in result.output
-
     def test_load_opportunities_help(self):
         runner = CliRunner()
         result = runner.invoke(cli, ["load", "opportunities", "--help"])
@@ -79,12 +67,16 @@ class TestLoadHelp:
 
 class TestLoadEntities:
 
-    def test_load_entities_requires_file(self):
-        """load entities without --file should error."""
+    def test_load_entities_help(self):
+        """load entities --help should show all options."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["load", "entities"])
-        assert result.exit_code == 1
-        assert "--file is required" in result.output
+        result = runner.invoke(cli, ["load", "entities", "--help"])
+        assert result.exit_code == 0
+        assert "--type" in result.output
+        assert "daily" not in result.output
+        assert "monthly" in result.output
+        assert "api" in result.output
+        assert "--file" in result.output
 
     def test_load_entities_file_not_found(self):
         """load entities with nonexistent --file should error."""
@@ -143,10 +135,15 @@ class TestLoadEntities:
         assert result.exit_code == 0
         assert "Load complete" in result.output
 
-    def test_load_entities_mode_option_validates(self):
-        """--mode must be 'full' or 'daily'."""
+    def test_load_entities_type_option_validates(self):
+        """--type must be 'monthly' or 'api'."""
         runner = CliRunner()
-        result = runner.invoke(cli, ["load", "entities", "--mode", "bogus", "--file", "x.dat"])
+        result = runner.invoke(cli, ["load", "entities", "--type", "bogus"])
+        assert result.exit_code != 0
+        assert "Invalid value" in result.output
+
+        # 'daily' is no longer a valid type
+        result = runner.invoke(cli, ["load", "entities", "--type", "daily"])
         assert result.exit_code != 0
         assert "Invalid value" in result.output
 

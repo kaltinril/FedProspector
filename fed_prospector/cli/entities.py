@@ -1,6 +1,6 @@
 """Entity data CLI commands.
 
-Commands: download-extract, load-entities, refresh-entities
+Commands: load-entities, search-entities
 """
 
 import sys
@@ -12,80 +12,82 @@ from config.logging_config import setup_logging
 from config import settings
 
 
-@click.command("download-extract")
-@click.option("--year", type=int, default=None,
-              help="Year for monthly extract (default: current year)")
-@click.option("--month", type=int, default=None,
-              help="Month for monthly extract (default: current month)")
-def download_extract(year, month):
-    """Download SAM.gov monthly entity extract file.
+# API filter option names (used to detect when filters are passed with non-api types)
+_API_FILTER_OPTS = ("uei", "entity_name", "naics", "set_aside", "status", "max_calls")
 
-    Monthly extracts contain ALL active entities (~867K records, ~143MB ZIP).
-    Skips download if the file already exists with the same size.
 
-    For daily incremental updates, use 'entities-refresh --type=daily' instead,
-    which queries the Entity Management API directly.
+@click.command("load-entities")
+@click.option("--type", "load_type", type=click.Choice(["monthly", "api"]), default="api",
+              help="Load method: monthly (full bulk extract), api (paginated API query)")
+@click.option("--date", "load_date", default=None, help="Date for --type=api (YYYY-MM-DD, default: today)")
+@click.option("--year", type=int, default=None, help="Year for monthly extract (default: current)")
+@click.option("--month", type=int, default=None, help="Month for monthly extract (default: current)")
+@click.option("--file", "file_path", default=None, help="Load from local file (skip download)")
+@click.option("--key", "api_key_number", type=click.Choice(["1", "2"]), default="1",
+              help="SAM.gov API key: 1 (10/day) or 2 (1000/day)")
+# API filters (--type=api only):
+@click.option("--uei", default=None, help="Filter by UEI (exact match, --type=api only)")
+@click.option("--name", "entity_name", default=None, help="Filter by entity name (partial match, --type=api only)")
+@click.option("--naics", default=None, help="NAICS codes, comma-separated (--type=api only)")
+@click.option("--set-aside", default=None, help="Business type code: 8W=WOSB, 8E=EDWOSB, A4=8(a) (--type=api only)")
+@click.option("--status", default=None, help="Registration status A=active, E=expired (--type=api only, default: A)")
+@click.option("--max-calls", default=None, type=int, help="Max API calls safety cap (--type=api only, default: 100)")
+@click.option("--force", is_flag=True, default=False, help="Force reload even if already loaded")
+def load_entities(load_type, load_date, year, month, file_path, api_key_number,
+                  uei, entity_name, naics, set_aside, status, max_calls, force):
+    """Load SAM.gov entity data into the database.
+
+    Supports two load methods:
+
+      api     (default) - Query Entity Management API with filters (date=today if no filters)
+      monthly           - Download monthly bulk extract ZIP, load DAT via LOAD DATA INFILE
+
+    Use --file to load from a local file (auto-detects .dat vs .json format).
 
     Examples:
-        python main.py load entities-download
-        python main.py load entities-download --year=2026 --month=3
+        python main.py load entities
+        python main.py load entities --type=api --date=2026-03-05
+        python main.py load entities --type=monthly
+        python main.py load entities --type=api --naics=541512 --set-aside=8W --key=2
+        python main.py load entities --file=data/downloads/SAM_PUBLIC_MONTHLY_V2_202603.dat
     """
     logger = setup_logging()
-    from datetime import date as date_cls
-    from api_clients.sam_extract_client import SAMExtractClient
 
     if not settings.SAM_API_KEY or settings.SAM_API_KEY == "your_api_key_here":
         click.echo("ERROR: SAM_API_KEY not configured in .env file")
         sys.exit(1)
 
-    client = SAMExtractClient()
-    today = date_cls.today()
-    year = year or today.year
-    month = month or today.month
+    key_num = int(api_key_number)
 
-    click.echo(f"Downloading monthly extract for {year}-{month:02d}...")
-    click.echo(f"API calls remaining: {client._get_remaining_requests()}")
-    try:
-        paths = client.download_monthly_extract(year, month)
-        click.echo(f"\nExtracted files:")
-        for p in paths:
-            click.echo(f"  {p}")
-        click.echo("\nUse 'python main.py load entities --file=<path>' to load,")
-        click.echo("or 'python main.py load entities-refresh --type=monthly' for one-step download+load.")
-    except Exception as e:
-        click.echo(f"ERROR: {e}")
-        sys.exit(1)
+    # --file takes priority over --type: auto-detect format
+    if file_path:
+        _load_from_file(logger, file_path)
+        return
+
+    # Warn if API filter options are passed with non-api types
+    if load_type != "api":
+        used_filters = [
+            opt for opt in _API_FILTER_OPTS
+            if locals().get(opt) is not None
+        ]
+        if used_filters:
+            click.echo(f"WARNING: Filter options only apply to --type=api. Ignoring: {', '.join('--' + o.replace('_', '-') for o in used_filters)}")
+
+    if load_type == "monthly":
+        _load_monthly(logger, year, month, key_num)
+    elif load_type == "api":
+        _load_via_api(logger, load_date, key_num, force, max_calls,
+                      uei=uei, entity_name=entity_name, naics=naics,
+                      set_aside=set_aside, status=status)
 
 
-@click.command("load-entities")
-@click.option("--mode", type=click.Choice(["full", "daily"]), default="full",
-              help="Load mode: full (monthly extract) or daily (incremental)")
-@click.option("--file", "file_path", default=None,
-              help="Path to extract file to load (.dat or .json)")
-@click.option("--date", "load_date", default=None,
-              help="For daily mode: date of extract (YYYY-MM-DD)")
-@click.option("--batch-size", default=1000, type=int,
-              help="Records per batch commit for JSON mode (default: 1000)")
-def load_entities(mode, file_path, load_date, batch_size):
-    """Load SAM.gov entity data into the database.
+# =====================================================================
+# Helper: load from local file
+# =====================================================================
 
-    Automatically detects file format:
-      .dat  -> Bulk load via LOAD DATA INFILE (fast, for monthly extracts)
-      .json -> Streaming load with change detection (for JSON extracts/daily)
-
-    Examples:
-        python main.py load entities --mode=full --file=data/downloads/SAM_PUBLIC_MONTHLY_V2_20260201.dat
-        python main.py load entities --mode=daily --file=data/downloads/daily.json
-    """
-    logger = setup_logging()
-
-    if not file_path:
-        click.echo("ERROR: --file is required. Download an extract first:")
-        click.echo("  python main.py load entities-download --type=monthly")
-        sys.exit(1)
-
-    from pathlib import Path as P
-    fp = P(file_path)
+def _load_from_file(logger, file_path):
+    """Load entities from a local .dat or .json file."""
+    fp = Path(file_path)
     if not fp.exists():
         click.echo(f"ERROR: File not found: {file_path}")
         sys.exit(1)
@@ -93,7 +95,6 @@ def load_entities(mode, file_path, load_date, batch_size):
     file_ext = fp.suffix.lower()
 
     if file_ext == ".dat":
-        # ---- DAT file: use bulk loader (LOAD DATA INFILE) ----
         from etl.dat_parser import parse_dat_file, get_dat_record_count
         from etl.bulk_loader import BulkLoader
 
@@ -102,7 +103,6 @@ def load_entities(mode, file_path, load_date, batch_size):
             click.echo(f"Loading DAT file: {fp.name}")
             click.echo(f"  Records in file (from header): {record_count:,d}")
             click.echo(f"  Method: LOAD DATA INFILE (bulk)")
-            click.echo(f"  Mode: {mode}")
         except ValueError as e:
             click.echo(f"WARNING: Could not read DAT header: {e}")
             click.echo(f"Loading DAT file: {fp.name}")
@@ -113,7 +113,7 @@ def load_entities(mode, file_path, load_date, batch_size):
             stats = loader.bulk_load_entities(
                 entity_iter,
                 source_file=str(fp),
-                load_type="FULL" if mode == "full" else "INCREMENTAL",
+                load_type="FULL",
             )
             click.echo(f"\nBulk load complete!")
             click.echo(f"  Entities loaded:   {stats.get('records_inserted', 0):>10,d}")
@@ -129,89 +129,27 @@ def load_entities(mode, file_path, load_date, batch_size):
             sys.exit(1)
 
     else:
-        # ---- JSON file: use streaming loader with change detection ----
+        # JSON file: use streaming loader with change detection
         from etl.entity_loader import EntityLoader
-        from etl.change_detector import ChangeDetector
-        from etl.data_cleaner import DataCleaner
-        from etl.load_manager import LoadManager
 
         click.echo(f"Loading JSON file: {fp.name}")
-        click.echo(f"  Mode: {mode} | Batch size: {batch_size}")
+        click.echo(f"  Mode: incremental")
 
-        loader = EntityLoader(
-            change_detector=ChangeDetector(),
-            data_cleaner=DataCleaner(),
-            load_manager=LoadManager(),
-        )
-        loader.BATCH_SIZE = batch_size
-
+        loader = EntityLoader()
         try:
-            stats = loader.load_from_json_extract(str(fp), mode=mode)
-            click.echo(f"\nLoad complete!")
-            click.echo(f"  Records read:      {stats.get('records_read', 0):>10,d}")
-            click.echo(f"  Records inserted:  {stats.get('records_inserted', 0):>10,d}")
-            click.echo(f"  Records updated:   {stats.get('records_updated', 0):>10,d}")
-            click.echo(f"  Records unchanged: {stats.get('records_unchanged', 0):>10,d}")
-            click.echo(f"  Records errored:   {stats.get('records_errored', 0):>10,d}")
-            clean_stats = stats.get("cleaning_stats", {})
-            if clean_stats:
-                click.echo(f"\n  Data cleaning applied:")
-                for rule, count in clean_stats.items():
-                    if count > 0:
-                        click.echo(f"    {rule:30s} {count:>8,d}")
+            stats = loader.load_from_json_extract(str(fp), mode="incremental")
+            _print_json_load_stats(stats)
         except Exception as e:
             logger.exception("Entity load failed")
             click.echo(f"\nERROR: {e}")
             sys.exit(1)
 
 
-@click.command("refresh-entities")
-@click.option("--type", "extract_type", type=click.Choice(["daily", "monthly"]),
-              default="daily", help="Extract type: daily (Entity Management API) or monthly (bulk file)")
-@click.option("--year", type=int, default=None,
-              help="Year for monthly extract (default: current year)")
-@click.option("--month", type=int, default=None,
-              help="Month for monthly extract (default: current month)")
-@click.option("--date", "extract_date", default=None,
-              help="Date for daily refresh (YYYY-MM-DD, default: today)")
-@click.option("--key", "api_key_number", type=click.Choice(["1", "2"]), default="1",
-              help="SAM.gov API key to use: 1 (10/day) or 2 (1000/day)")
-@click.option("--max-calls", default=None, type=int,
-              help="Max API calls for daily refresh (10 entities/call)")
-@click.option("--force", is_flag=True, default=False,
-              help="Force reload even if date was already loaded")
-def refresh_entities(extract_type, year, month, extract_date, api_key_number, max_calls, force):
-    """Download and load SAM.gov entity data in a single step.
+# =====================================================================
+# Helper: monthly extract (download ZIP + load DAT)
+# =====================================================================
 
-    Monthly: Downloads the bulk extract ZIP, extracts the DAT file,
-    loads via LOAD DATA INFILE, then cleans up the DAT.
-
-    Daily: Queries the Entity Management API for entities updated on
-    a given date, then upserts them with change detection. Each API
-    call returns ~10 entities. Automatically resumes from the last
-    page fetched if a previous partial load exists for the same date.
-
-    Examples:
-        python main.py load entities-refresh --type=daily
-        python main.py load entities-refresh --type=daily --date=2026-03-02 --key=2
-        python main.py load entities-refresh --type=monthly
-    """
-    logger = setup_logging()
-    from datetime import date as date_cls
-
-    key_num = int(api_key_number)
-
-    if not settings.SAM_API_KEY or settings.SAM_API_KEY == "your_api_key_here":
-        click.echo("ERROR: SAM_API_KEY not configured in .env file")
-        sys.exit(1)
-
-    if extract_type == "monthly":
-        _refresh_monthly(logger, year, month, key_num)
-    else:
-        _refresh_daily(logger, extract_date, key_num, force, max_calls)
-
-
-def _refresh_monthly(logger, year, month, api_key_number):
+def _load_monthly(logger, year, month, api_key_number):
     """Download monthly bulk extract and load via LOAD DATA INFILE."""
     from datetime import date as date_cls
     from api_clients.sam_extract_client import SAMExtractClient
@@ -220,9 +158,10 @@ def _refresh_monthly(logger, year, month, api_key_number):
     year = year or today.year
     month = month or today.month
 
-    client = SAMExtractClient()
+    api_key = settings.SAM_API_KEY if api_key_number == 1 else settings.SAM_API_KEY_2
+    client = SAMExtractClient(api_key=api_key)
     click.echo(f"Downloading monthly extract for {year}-{month:02d}...")
-    click.echo(f"API calls remaining: {client._get_remaining_requests()}")
+    click.echo(f"  API key: {api_key_number} | Calls remaining: {client._get_remaining_requests()}")
 
     try:
         paths = client.download_monthly_extract(year, month)
@@ -302,13 +241,13 @@ def _refresh_monthly(logger, year, month, api_key_number):
     click.echo(f"\nMonthly refresh complete! ({len(paths)} file(s) processed)")
 
 
-def _refresh_daily(logger, extract_date, api_key_number, force=False, max_calls=None):
-    """Query Entity Management API for entities updated on a date and upsert.
+# =====================================================================
+# Helper: API-based loading with filters
+# =====================================================================
 
-    Processes one page at a time and saves progress to etl_load_log after
-    each page.  If killed mid-run, the next invocation resumes from the
-    last saved page instead of re-fetching already-loaded data.
-    """
+def _load_via_api(logger, load_date, api_key_number, force=False, max_calls=None,
+                  uei=None, entity_name=None, naics=None, set_aside=None, status=None):
+    """Query Entity Management API with filters and load results."""
     from datetime import date as date_cls
     import json as _json
     from api_clients.sam_entity_client import SAMEntityClient
@@ -317,17 +256,49 @@ def _refresh_daily(logger, extract_date, api_key_number, force=False, max_calls=
     from etl.load_manager import LoadManager
     from db.connection import get_connection
 
-    if not extract_date:
-        extract_date = date_cls.today().isoformat()
-    try:
-        d = date_cls.fromisoformat(extract_date)
-    except ValueError:
-        click.echo(f"ERROR: Invalid date format: {extract_date} (use YYYY-MM-DD)")
-        sys.exit(1)
+    # Default max_calls for api type
+    if max_calls is None:
+        max_calls = 100
+
+    # Parse date
+    if not load_date:
+        d = date_cls.today()
+    else:
+        try:
+            d = date_cls.fromisoformat(load_date)
+        except ValueError:
+            click.echo(f"ERROR: Invalid date format: {load_date} (use YYYY-MM-DD)")
+            sys.exit(1)
+
+    # Determine if this is a date-only query (use iter_entity_pages_by_date with resume)
+    has_filters = any([uei, entity_name, naics, set_aside])
+    date_only = not has_filters
+
+    if date_only:
+        # Use the page-by-page approach with resume support
+        _load_via_api_by_date(logger, d, api_key_number, force, max_calls, status)
+    else:
+        # Use search_entities with filters
+        _load_via_api_filtered(logger, d, api_key_number, max_calls,
+                               uei=uei, entity_name=entity_name, naics=naics,
+                               set_aside=set_aside, status=status)
+
+
+def _load_via_api_by_date(logger, d, api_key_number, force, max_calls, status):
+    """API load using iter_entity_pages_by_date with resume support.
+
+    Reuses the proven page-by-page resume logic from the old _refresh_daily.
+    """
+    import json as _json
+    from api_clients.sam_entity_client import SAMEntityClient
+    from api_clients.base_client import RateLimitExceeded
+    from etl.entity_loader import EntityLoader
+    from etl.load_manager import LoadManager
+    from db.connection import get_connection
+
+    reg_status = status or "A"
 
     # ---- Check previous loads for this date (resume support) ----
-    # Find the load with the most pages_fetched for this date, regardless of
-    # status.  A FAILED load still has committed data for completed pages.
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -401,7 +372,8 @@ def _refresh_daily(logger, extract_date, api_key_number, force=False, max_calls=
 
     try:
         for page_entities, page_num, total in client.iter_entity_pages_by_date(
-            d, start_page=resume_page, max_pages=max_calls,
+            d, registration_status=reg_status,
+            start_page=resume_page, max_pages=max_calls,
         ):
             total_records = total
 
@@ -435,7 +407,6 @@ def _refresh_daily(logger, extract_date, api_key_number, force=False, max_calls=
             )
 
     except KeyboardInterrupt:
-        # Ctrl+C: progress for completed pages is already saved.
         new_pages = pages_fetched_total - resume_page
         click.echo(f"\n  Interrupted. {new_pages} new page(s) saved.")
         click.echo("  Run the same command again to continue.")
@@ -444,8 +415,6 @@ def _refresh_daily(logger, extract_date, api_key_number, force=False, max_calls=
         rate_limited = True
         click.echo(f"  Rate limit reached after {pages_fetched_total - resume_page} new pages.")
     except Exception as e:
-        # Ctrl+C during MySQL ops raises InternalError("Unread result found")
-        # with KeyboardInterrupt as __context__. Don't mark as FAILED.
         if isinstance(getattr(e, '__context__', None), KeyboardInterrupt):
             new_pages = pages_fetched_total - resume_page
             click.echo(f"\n  Interrupted. {new_pages} new page(s) saved.")
@@ -486,14 +455,119 @@ def _refresh_daily(logger, extract_date, api_key_number, force=False, max_calls=
         total_records is not None
         and (pages_fetched_total * 10) >= total_records
     )
-    status = "COMPLETE" if is_complete else f"PARTIAL ({pages_fetched_total} of {(total_records + 9) // 10 if total_records else '?'} pages)"
+    load_status = "COMPLETE" if is_complete else f"PARTIAL ({pages_fetched_total} of {(total_records + 9) // 10 if total_records else '?'} pages)"
     remaining_after = client._get_remaining_requests()
-    click.echo(f"\nDaily refresh {status}!")
+    click.echo(f"\nAPI load {load_status}!")
     _print_json_load_stats(cumulative)
     click.echo(f"  API calls remaining: {remaining_after}")
     if not is_complete:
         click.echo("  Run the same command again to continue.")
 
+
+def _load_via_api_filtered(logger, d, api_key_number, max_calls,
+                            uei=None, entity_name=None, naics=None,
+                            set_aside=None, status=None):
+    """API load using search_entities with specific filters."""
+    from api_clients.sam_entity_client import SAMEntityClient
+    from etl.entity_loader import EntityLoader
+
+    reg_status = status or "A"
+
+    # Build base filters
+    base_filters = {"registrationStatus": reg_status}
+
+    if uei:
+        base_filters["ueiSAM"] = uei
+    if entity_name:
+        base_filters["legalBusinessName"] = entity_name
+    if set_aside:
+        if set_aside == "A4":
+            base_filters["sbaBusinessTypeCode"] = set_aside
+        else:
+            base_filters["businessTypeCode"] = set_aside
+
+    # Format date for SAM.gov (MM/DD/YYYY)
+    base_filters["updateDate"] = d.strftime("%m/%d/%Y")
+
+    # Build list of query sets (one per NAICS code, or one if no NAICS)
+    if naics:
+        naics_codes = [c.strip() for c in naics.split(",") if c.strip()]
+    else:
+        naics_codes = [None]
+
+    client = SAMEntityClient(api_key_number=api_key_number)
+    remaining = client._get_remaining_requests()
+    click.echo(f"Querying Entity Management API with filters...")
+    click.echo(f"  API key: {api_key_number} | Calls remaining: {remaining}")
+    click.echo(f"  Filters: {base_filters}")
+    if naics and len(naics_codes) > 1:
+        click.echo(f"  NAICS codes: {', '.join(naics_codes)} ({len(naics_codes)} separate queries)")
+    click.echo(f"  Max API calls: {max_calls}")
+
+    if remaining <= 0:
+        click.echo("ERROR: No API calls remaining for today.")
+        sys.exit(1)
+
+    loader = EntityLoader()
+    all_entities = []
+    calls_used = 0
+
+    for naics_code in naics_codes:
+        if calls_used >= max_calls:
+            click.echo(f"  Reached max API calls ({max_calls}). Stopping.")
+            break
+
+        filters = dict(base_filters)
+        if naics_code:
+            filters["naicsCode"] = naics_code
+            click.echo(f"\n  Querying NAICS {naics_code}...")
+
+        page_count = 0
+        try:
+            for entity in client.search_entities(**filters):
+                all_entities.append(entity)
+                # Approximate calls used (10 entities per page)
+                if len(all_entities) % 10 == 0:
+                    page_count += 1
+                    calls_used += 1
+                    click.echo(f"    Page {page_count}: {len(all_entities)} entities so far")
+                    if calls_used >= max_calls:
+                        click.echo(f"  Reached max API calls ({max_calls}). Stopping.")
+                        break
+        except Exception as e:
+            if "429" in str(e):
+                click.echo(f"  Rate limit reached after {len(all_entities)} entities.")
+                break
+            raise
+
+    if not all_entities:
+        click.echo("\nNo entities matched the filters.")
+        return
+
+    click.echo(f"\nLoading {len(all_entities)} entities...")
+    try:
+        stats = loader.load_from_api_response(
+            all_entities,
+            mode="incremental",
+            extra_parameters={
+                "source": "api_filtered",
+                "filters": base_filters,
+                "naics_codes": naics if naics else None,
+            },
+        )
+        _print_json_load_stats(stats)
+    except Exception as e:
+        logger.exception("Entity API load failed")
+        click.echo(f"\nERROR: {e}")
+        sys.exit(1)
+
+    remaining_after = client._get_remaining_requests()
+    click.echo(f"  API calls remaining: {remaining_after}")
+
+
+# =====================================================================
+# Stats printer (shared by all load types)
+# =====================================================================
 
 def _print_json_load_stats(stats):
     """Print load statistics for JSON/API entity loads."""
@@ -504,6 +578,10 @@ def _print_json_load_stats(stats):
     click.echo(f"  Records unchanged: {stats.get('records_unchanged', 0):>10,d}")
     click.echo(f"  Records errored:   {stats.get('records_errored', 0):>10,d}")
 
+
+# =====================================================================
+# search-entities command (unchanged)
+# =====================================================================
 
 @click.command("search-entities")
 @click.option("--uei", default=None, help="Filter by UEI (exact match)")

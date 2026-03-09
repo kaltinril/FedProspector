@@ -34,8 +34,8 @@ SCHEDULED_TASKS = [
     },
     {
         "task_name": "FedContract_EntityDaily",
-        "command_args": "load entities-download --type daily",
-        "description": "Download and load daily entity extract",
+        "command_args": "load entities --type api",
+        "description": "Refresh entities updated today via API",
         "windows": {"sc": "WEEKLY", "d": "TUE,WED,THU,FRI,SAT", "st": "06:00"},
         "crontab": "0 6 * * 2-6",
     },

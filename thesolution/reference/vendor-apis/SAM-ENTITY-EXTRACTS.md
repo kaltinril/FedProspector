@@ -9,7 +9,7 @@
 | **Rate Limit** | 10/day (free tier), 1,000/day (with role). One download = one API call. |
 | **Pagination** | N/A (single file download per call) |
 | **Data Format** | ZIP containing pipe-delimited DAT (V1) or JSON (V2) |
-| **Update Frequency** | Monthly (first Sunday of month), Daily (Tuesday-Saturday) |
+| **Update Frequency** | Monthly (first Sunday of month). Daily extracts are FOUO/CUI only. |
 | **Our CLI Command** | `python main.py load entities --bulk` |
 | **Client File** | `fed_prospector/api_clients/sam_extract_client.py` |
 | **Loader File** | `fed_prospector/etl/bulk_loader.py`, `fed_prospector/etl/dat_parser.py` |
@@ -40,17 +40,19 @@ The extract files also include data not easily retrievable via the Entity API du
 
 ### File Naming Conventions
 
-| Type | Pattern | Schedule |
-|------|---------|----------|
-| Monthly (V2) | `SAM_PUBLIC_MONTHLY_V2_YYYYMMDD.ZIP` | First Sunday of each month |
-| Monthly (legacy) | `SAM_PUBLIC_MONTHLY_YYYYMMDD.ZIP` | First Sunday of each month |
-| Daily (V2) | `SAM_PUBLIC_DAILY_V2_YYYYMMDD.ZIP` | Tuesday through Saturday |
-| UTF-8 variants | `SAM_PUBLIC_UTF-8_MONTHLY_V2_YYYYMMDD.ZIP` | Same schedule |
+| Type | Pattern | Schedule | Access |
+|------|---------|----------|--------|
+| Monthly (V2) | `SAM_PUBLIC_MONTHLY_V2_YYYYMMDD.ZIP` | First Sunday of each month | Public API key |
+| Monthly (legacy) | `SAM_PUBLIC_MONTHLY_YYYYMMDD.ZIP` | First Sunday of each month | Public API key |
+| Daily (V2) | `SAM_FOUO_DAILY_V2_YYYYMMDD.ZIP` | Tuesday through Saturday | **FOUO/CUI only — requires Federal System Account** |
+| UTF-8 variants | `SAM_PUBLIC_UTF-8_MONTHLY_V2_YYYYMMDD.ZIP` | Same schedule | Public API key |
+
+> **Important**: Daily entity extracts are NOT available with personal/public API keys. They require a Federal System Account (government or authorized contractor with FOUO access). Only monthly public extracts are available to standard API key holders.
 
 ### Date Availability
 
 - **Monthly**: Published on the first Sunday of each month. The exact date varies (could be the 1st through the 7th). Our client tries dates 1-7, prioritizing Sundays first.
-- **Daily**: Published Tuesday through Saturday only. No files on Sunday or Monday.
+- **Daily**: FOUO/CUI only. Requires Federal System Account. Not available with personal API keys.
 - **No retroactive files**: If you miss a daily file, it may no longer be available after a few weeks.
 
 ## Response Structure
@@ -164,7 +166,7 @@ EOF PUBLIC V2 00000000 20260201 0872819 0008169
 
 8. **File size**: Monthly PUBLIC extracts are typically 800MB-1GB as ZIP, expanding to several GB when extracted. Ensure sufficient disk space.
 
-9. **No daily files on Sunday/Monday**: Daily extracts are only published Tuesday through Saturday. The client raises `ValueError` if you request a Sunday or Monday file.
+9. **Daily extracts are FOUO only**: Daily entity bulk extracts require a Federal System Account (FOUO/CUI). They are not available with personal/public API keys. Use the Entity Management API (`--type=api`) for incremental updates.
 
 10. **Duplicate NAICS entries**: Some entities have the same NAICS code listed multiple times with different `sba_small_business` flags (7 occurrences found in monthly extract). Deduplicated during load.
 
@@ -181,12 +183,13 @@ EOF PUBLIC V2 00000000 20260201 0872819 0008169
 
 ### Daily Incremental Updates
 
-1. **Download**: `SAMExtractClient.download_daily_extract(date_obj)` -- 1 API call
-2. **Parse**: Same pipeline as monthly
-3. **Load**: Same pipeline, but with change detection (SHA-256 hashing) to identify inserts, updates, and unchanged records
-4. **Time**: Minutes (daily files are much smaller, typically a few thousand entities)
-5. **Frequency**: Tuesday through Saturday
-6. **Schedule**: `Entity Incremental` in refresh schedule, 1 call/day
+> **Note**: Daily bulk extracts are FOUO/CUI only and not available with public API keys. Incremental updates use the paginated Entity Management API (`--type=api`) instead.
+
+1. **Query**: `SAMEntityClient.search_entities(updateDate=today)` -- paginated, 10 records/page
+2. **Load**: Same pipeline with change detection (SHA-256 hashing) to identify inserts, updates, and unchanged records
+3. **Time**: Depends on number of updated entities (10 records per API call)
+4. **Frequency**: As needed between monthly loads
+5. **Schedule**: `Entity Incremental` in refresh schedule, uses `--type=api`
 
 ### Budget Impact
 
@@ -195,8 +198,8 @@ The extract download approach is remarkably budget-efficient:
 | Operation | API Calls | Records Loaded |
 |-----------|-----------|----------------|
 | Monthly full extract | 1 | ~576K active entities |
-| Daily incremental | 1 | Hundreds to low thousands |
-| Full month (monthly + 5 dailies) | 6 | All entity updates |
+| Daily incremental (API) | Variable (10 records/call) | Hundreds to low thousands |
+| Full month (monthly + API incremental) | 1 + API calls | All entity updates |
 
 Compare this to the Entity Management API, which would need 57,600+ calls to load the same data at 10 records per page.
 
