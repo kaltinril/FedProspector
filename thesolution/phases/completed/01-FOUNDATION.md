@@ -9,7 +9,7 @@
 ## Tasks
 
 ### 1.1 MySQL Database Setup -- DONE (2026-02-22)
-- [x] Install/verify MySQL 8.0+ is running locally (MySQL 8.4.8 LTS at D:\mysql)
+- [x] Install/verify MySQL 8.0+ is running locally (MySQL 8.4.8 LTS at E:\mysql)
 - [x] Create database `fed_contracts` with utf8mb4 charset
 - [x] Create application user `fed_app` with appropriate grants
 - [x] Execute all DDL from [02-DATABASE-SCHEMA.md](../reference/02-DATABASE-SCHEMA.md):

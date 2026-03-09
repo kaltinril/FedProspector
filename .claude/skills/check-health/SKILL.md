@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Environment Health Check
 
-**First**: Read `thesolution/credentials.yml` to get `MYSQL_USER`, `MYSQL_PASSWORD`, and the MySQL install path (`MYSQL_DIR`, default `D:/mysql`). Use these values in all commands below — never hardcode credentials or paths.
+**First**: Read `thesolution/credentials.yml` to get `MYSQL_USER`, `MYSQL_PASSWORD`, and the MySQL install path (`MYSQL_DIR`, default `E:/mysql`). Use these values in all commands below — never hardcode credentials or paths.
 
 Verify all development dependencies are working. Default mode is `quick`.
 

@@ -1,6 +1,6 @@
 # Phase 66: MySQL Performance Tuning (Percona Best Practices)
 
-**Status**: IN PROGRESS (configs updated, restart needed for static settings)
+**Status**: COMPLETE (2026-03-08)
 **Priority**: Medium
 **Depends on**: Phase 65/65B (bulk loader improvements)
 
@@ -14,7 +14,7 @@ MySQL is running with mostly default settings. With 17M+ rows in `usaspending_aw
 
 | Setting | Current | Recommended | Why |
 |---------|---------|-------------|-----|
-| `innodb_buffer_pool_size` | 4G | 50-60% of RAM (shared machine) | Keeps PK + hot indexes in memory. Already improved from 128MB default. |
+| `innodb_buffer_pool_size` | 4G | 8G (increased from 4G) | Keeps PK + hot indexes in memory. Doubled based on 64GB system RAM and zero free pages observed during bulk loads. |
 | `innodb_buffer_pool_instances` | 8 (default) | 8 | Default is fine. 1-4 causes stalls per Percona benchmarks. |
 
 ### Redo Log
@@ -82,10 +82,10 @@ MySQL is running with mostly default settings. With 17M+ rows in `usaspending_aw
 ### Task 1: Update my.ini with Percona-recommended settings
 
 - [x] Determine storage type — assumed NVMe (modern Win11 dev machine, io_capacity=10000). Comment in config notes SATA SSD alternative values.
-- [x] Determine total system RAM — 4G buffer pool already correct for 16GB RAM machine (per reference sizing table).
-- [x] Update `D:\mysql\my.ini` with all recommended settings (2026-03-08)
+- [x] Determine total system RAM — 64GB RAM available; buffer pool increased from 4G to 8G after observing zero free pages during bulk loads.
+- [x] Update `E:\mysql\my.ini` with all recommended settings (2026-03-08)
 - [x] Update `thesolution/reference/mysql-my.ini` reference config with same settings + detailed comments (2026-03-08)
-- [ ] Restart MySQL to apply static settings (`innodb_buffer_pool_instances=8`, `innodb_read/write_io_threads=8`)
+- [x] Restart MySQL to apply static settings (`innodb_buffer_pool_instances=8`, `innodb_read/write_io_threads=8`)
 
 ### Task 2: Apply dynamic settings (no restart needed)
 
@@ -113,28 +113,28 @@ SHOW VARIABLES WHERE Variable_name IN (
 );
 ```
 
-- [ ] Apply dynamic settings via MySQL CLI
-- [ ] Verify all settings match expected values
+- [x] Apply dynamic settings via MySQL CLI
+- [x] Verify all settings match expected values
 
 ### Task 3: Validate performance improvement
 
-- [ ] Run a bulk load (FY2025 or re-load a prior FY) and compare batch times
-- [ ] Check `SHOW ENGINE INNODB STATUS` for checkpoint lag, redo log usage
-- [ ] Monitor `Innodb_buffer_pool_reads` (should be near zero = all in memory)
-- [ ] Check `Opened_tables` to verify table_open_cache is sufficient
+- [x] Run a bulk load (FY2025 or re-load a prior FY) and compare batch times
+- [x] Check `SHOW ENGINE INNODB STATUS` for checkpoint lag, redo log usage
+- [x] Monitor `Innodb_buffer_pool_reads` (should be near zero = all in memory)
+- [x] Check `Opened_tables` to verify table_open_cache is sufficient
 
 ### Task 4: Document final configuration
 
 - [x] Update reference my.ini as the "production-ready" config template (2026-03-08)
-- [ ] Record before/after batch times in this doc
-- [ ] Note any settings that needed adjustment for this specific workload
+- [x] Record before/after batch times in this doc
+- [x] Note any settings that needed adjustment for this specific workload
 
 ## Proposed my.ini (complete)
 
 ```ini
 [mysqld]
 # === Buffer Pool ===
-innodb_buffer_pool_size = 4G          # Adjust: 50-60% of RAM on shared machine
+innodb_buffer_pool_size = 8G          # 64GB RAM machine; doubled from 4G after zero free pages observed
 innodb_buffer_pool_instances = 8      # Default, good for 4G+
 
 # === Redo Log ===
@@ -193,3 +193,28 @@ Consider installing Percona Toolkit for ongoing tuning:
 - Percona: Give Love to Your SSDs — Reduce innodb_io_capacity_max
 - Percona: Percona Server 8.4 Defaults and Tuning Guidance
 - Percona: How to Load Large Files Safely into InnoDB with LOAD DATA INFILE
+
+## Results
+
+All Percona-recommended settings applied and validated via `SHOW VARIABLES`. Key changes from defaults:
+
+| Setting | Default | Applied Value |
+|---------|---------|---------------|
+| `innodb_buffer_pool_size` | 128MB | **8G** (increased from initial 4G after zero free pages observed during 14M+ row bulk loads; 64GB system RAM available) |
+| `innodb_redo_log_capacity` | 100MB | 2G |
+| `innodb_io_capacity` | 200 | 10,000 (NVMe) |
+| `innodb_io_capacity_max` | 2,000 | 20,000 (NVMe) |
+| `innodb_read_io_threads` | 4 | 8 |
+| `innodb_write_io_threads` | 4 | 8 |
+| `innodb_change_buffering` | all | none (SSD optimization) |
+| `innodb_adaptive_hash_index` | ON | OFF (Percona 8.4 default) |
+| `innodb_sort_buffer_size` | 1MB | 4MB |
+| `tmp_table_size` | 16MB | 64MB |
+| `max_heap_table_size` | 16MB | 64MB |
+| `max_connections` | 151 | 100 |
+
+### Performance impact (SATA SSD, before NVMe migration)
+
+- Batch time dropped from ~5.1s (Phase 65B `--fast`) to ~3.0-3.2s/batch
+- Redo log capacity increase (100MB to 2G) eliminated synchronous checkpoint stalls
+- Further gains realized in Phase 66B after NVMe migration (1.7s/batch)

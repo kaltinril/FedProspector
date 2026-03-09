@@ -12,7 +12,7 @@ Get your local environment ready for the Federal Contract Prospecting System.
 | Python 3.14.3 | Ready | `C:\Users\jerem\AppData\Local\Python\pythoncore-3.14-64\python.exe` |
 | pip 25.3 | Ready | Bundled with Python 3.14 (`python -m pip`) |
 | Git 2.51.2 | Ready | `C:\Program Files\Git\cmd\git.exe` |
-| MySQL 8.4.8 LTS | Ready | Standalone ZIP extract at `D:\mysql\` (no installer, no service) |
+| MySQL 8.4.8 LTS | Ready | Standalone ZIP extract at `E:\mysql\` (no installer, no service) |
 | MySQL Workbench 8.0.46 | Ready | `C:\Program Files\MySQL\MySQL Workbench 8.0 CE\` |
 | `fed_contracts` database | Ready | Created 2026-02-22, utf8mb4 charset |
 | `fed_app` user | Ready | Full privileges on `fed_contracts` |
@@ -24,14 +24,14 @@ Get your local environment ready for the Federal Contract Prospecting System.
 
 ## Step 1: MySQL Fresh Install
 
-MySQL 8.4.8 LTS installed from ZIP extract at `D:\mysql\` (standalone, no Windows service).
+MySQL 8.4.8 LTS installed from ZIP extract at `E:\mysql\` (standalone, no Windows service).
 
 ### Start the Server
 
 Open a terminal (stays open while server runs):
 
 ```bash
-D:\mysql\bin\mysqld.exe --basedir=D:\mysql --datadir=D:\mysql\data --console --secure-file-priv=""
+E:\mysql\bin\mysqld.exe --basedir=E:\mysql --datadir=E:\mysql\data --console --secure-file-priv=""
 ```
 
 You should see `ready for connections` on port 3306.
@@ -39,7 +39,7 @@ You should see `ready for connections` on port 3306.
 ### First-Time Setup (already done)
 
 ```sql
--- In a second terminal: D:\mysql\bin\mysql.exe -u root --skip-password
+-- In a second terminal: E:\mysql\bin\mysql.exe -u root --skip-password
 ALTER USER 'root'@'localhost' IDENTIFIED BY '<your_root_password>';
 CREATE DATABASE fed_contracts CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'fed_app'@'localhost' IDENTIFIED BY '<your_app_password>';
@@ -52,7 +52,7 @@ FLUSH PRIVILEGES;
 
 ```bash
 # Run as Administrator
-D:\mysql\bin\mysqld.exe --install MySQL84 --defaults-file=D:\mysql\my.ini
+E:\mysql\bin\mysqld.exe --install MySQL84 --defaults-file=E:\mysql\my.ini
 net start MySQL84
 ```
 
@@ -116,7 +116,7 @@ LOG_LEVEL=INFO
 
 ```bash
 # Test MySQL connection
-D:\mysql\bin\mysql.exe -u fed_app -p<your_app_password> -e "USE fed_contracts; SELECT 'OK';"
+E:\mysql\bin\mysql.exe -u fed_app -p<your_app_password> -e "USE fed_contracts; SELECT 'OK';"
 
 # Build database and load reference data
 cd fed_prospector
@@ -174,10 +174,10 @@ See individual phase docs in `thesolution/phases/` for command details per phase
 
 ### MySQL won't start
 - Check for existing instance: `netstat -an | findstr 3306`
-- Check error log: `D:\mysql\data\rack7.err`
+- Check error log: `E:\mysql\data\rack7.err`
 
 ### "mysql" command not found
-- Use full path `D:\mysql\bin\mysql.exe` or add `D:\mysql\bin` to PATH
+- Use full path `E:\mysql\bin\mysql.exe` or add `E:\mysql\bin` to PATH
 
 ### SAM.gov API returns 403
 - Key may be expired (90-day cycle). Regenerate at sam.gov.
