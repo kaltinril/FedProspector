@@ -174,13 +174,26 @@ class BaseAPIClient:
                     return response
 
                 if response.status_code == 429:
-                    wait = backoff_factor ** attempt
-                    self.logger.warning(
-                        "Rate limited (429). Waiting %ds before retry...", wait
-                    )
-                    time.sleep(wait)
-                    last_exception = requests.HTTPError(f"429 Rate Limited", response=response)
-                    continue
+                    # Parse reset time from SAM.gov response body
+                    msg = "429 Rate Limited"
+                    try:
+                        body = response.json()
+                        next_access = body.get("nextAccessTime")
+                        if next_access:
+                            from datetime import datetime, timezone
+                            # SAM.gov format: "2026-Mar-10 00:00:00+0000 UTC"
+                            utc_str = next_access.replace(" UTC", "").replace("+0000", "+00:00")
+                            utc_dt = datetime.strptime(
+                                utc_str.replace("+00:00", ""), "%Y-%b-%d %H:%M:%S"
+                            ).replace(tzinfo=timezone.utc)
+                            local_dt = utc_dt.astimezone()
+                            msg = f"429 Rate Limited — quota resets at {local_dt.strftime('%Y-%m-%d %I:%M %p %Z')}"
+                        elif body.get("description"):
+                            msg = f"429 Rate Limited — {body['description']}"
+                    except Exception:
+                        pass
+                    self.logger.warning(msg)
+                    raise requests.HTTPError(msg, response=response)
 
                 if response.status_code >= 500:
                     wait = backoff_factor ** attempt
