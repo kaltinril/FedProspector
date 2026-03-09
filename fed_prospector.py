@@ -61,10 +61,10 @@ def kill_process(image_name: str) -> bool:
         return False
 
 
-def mysql_admin(*args: str) -> int:
+def mysql_admin(*args: str, timeout: int = 10) -> int:
     """Run mysqladmin with root credentials."""
     cmd = [str(MYSQL_BIN / "mysqladmin"), "-u", "root", f"-p{MYSQL_ROOT_PASS}", *args]
-    result = subprocess.run(cmd, capture_output=True, timeout=10)
+    result = subprocess.run(cmd, capture_output=True, timeout=timeout)
     return result.returncode
 
 
@@ -126,13 +126,24 @@ def start_db():
     print("        - Check MySQL error log for details")
 
 
-def stop_db():
+def stop_db(force: bool = False):
     if not is_running(MYSQL_EXE):
         print("  [DB]  Not running.")
         return
+    if force:
+        print("  [DB]  Force-killing MySQL ...")
+        kill_process(MYSQL_EXE)
+        time.sleep(2)
+        print("  [DB]  Stopped.")
+        return
     print("  [DB]  Shutting down MySQL ...")
-    mysql_admin("shutdown")
-    print("  [DB]  Stopped.")
+    try:
+        mysql_admin("shutdown", timeout=30)
+        print("  [DB]  Stopped.")
+    except subprocess.TimeoutExpired:
+        print("  [DB]  ERROR: Shutdown timed out after 30 seconds.")
+        print("        MySQL may be blocked (e.g. console text selection).")
+        print("        Retry, or use: fed_prospector stop db --force")
 
 
 def check_db():
@@ -316,14 +327,18 @@ def cmd_start(service: str):
         SERVICE_MAP[svc]["start"]()
 
 
-def cmd_stop(service: str):
+def cmd_stop(service: str, force: bool = False):
     targets = list(reversed(ALL_SERVICES)) if service == "all" else [service]
     for svc in targets:
-        SERVICE_MAP[svc]["stop"]()
+        stop_fn = SERVICE_MAP[svc]["stop"]
+        if svc == "db":
+            stop_fn(force=force)
+        else:
+            stop_fn()
 
 
-def cmd_restart(service: str):
-    cmd_stop(service)
+def cmd_restart(service: str, force: bool = False):
+    cmd_stop(service, force=force)
     time.sleep(2)
     cmd_start(service)
 
@@ -354,16 +369,17 @@ def main():
         choices=["all", "db", "api", "ui"],
         help="all (default) | db | api | ui",
     )
+    parser.add_argument(
+        "--force", "-f",
+        action="store_true",
+        help="Force-kill services instead of graceful shutdown (stop/restart only)",
+    )
     args = parser.parse_args()
 
-    commands = {
-        "build": cmd_build,
-        "start": cmd_start,
-        "stop": cmd_stop,
-        "restart": cmd_restart,
-        "status": cmd_status,
-    }
-    commands[args.command](args.service)
+    if args.command in ("stop", "restart"):
+        {"stop": cmd_stop, "restart": cmd_restart}[args.command](args.service, force=args.force)
+    else:
+        {"build": cmd_build, "start": cmd_start, "status": cmd_status}[args.command](args.service)
 
 
 if __name__ == "__main__":
