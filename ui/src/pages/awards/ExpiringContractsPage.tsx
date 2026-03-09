@@ -21,6 +21,8 @@ import { getExpiringContracts } from '@/api/awards';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatCurrency } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateFormatters';
+import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
+import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { ExpiringContractDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -228,9 +230,21 @@ const MONTHS_OPTIONS = [
   { value: 18, label: '18 months' },
 ];
 
+const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
+  agencyName: 'md',
+  naicsCode: 'lg',
+  vendorName: 'md',
+  monthlyBurnRate: 'lg',
+  percentSpent: 'lg',
+  registrationStatus: 'lg',
+  isExcluded: 'lg',
+  resolicitationStatus: 'md',
+};
+
 export default function ExpiringContractsPage() {
   const navigate = useNavigate();
   const [monthsAhead, setMonthsAhead] = useState(12);
+  const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.awards.expiring({ monthsAhead }),
@@ -311,6 +325,7 @@ export default function ExpiringContractsPage() {
           loading={false}
           onRowClick={handleRowClick}
           getRowId={(row: ExpiringContractDto) => row.piid}
+          columnVisibilityModel={columnVisibility}
           sx={{ minHeight: 400 }}
         />
       )}

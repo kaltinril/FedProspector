@@ -1,11 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { useLocation } from 'react-router-dom';
 import { Sidebar, SIDEBAR_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED } from '@/components/layout/Sidebar';
 import { TopBar } from '@/components/layout/TopBar';
 
 const STORAGE_KEY = 'sidebarCollapsed';
+const FADE_DURATION_MS = 150;
 
 function getStoredCollapsed(): boolean {
   try {
@@ -22,13 +24,31 @@ interface AppLayoutProps {
 export function AppLayout({ children }: AppLayoutProps) {
   const [collapsed, setCollapsed] = useState(getStoredCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [visible, setVisible] = useState(true);
   const mainRef = useRef<HTMLDivElement>(null);
+  const prevPathRef = useRef<string | null>(null);
   const location = useLocation();
+  const prefersReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
 
-  // Move focus to main content area on route changes
+  // Fade transition on route changes
   useEffect(() => {
-    mainRef.current?.focus({ preventScroll: true });
-  }, [location.pathname]);
+    // Skip on initial mount or when reduced motion is preferred
+    if (prevPathRef.current === null || prefersReducedMotion) {
+      prevPathRef.current = location.pathname;
+      mainRef.current?.focus({ preventScroll: true });
+      return;
+    }
+
+    if (prevPathRef.current !== location.pathname) {
+      prevPathRef.current = location.pathname;
+      setVisible(false);
+      const timer = setTimeout(() => {
+        setVisible(true);
+        mainRef.current?.focus({ preventScroll: true });
+      }, FADE_DURATION_MS);
+      return () => clearTimeout(timer);
+    }
+  }, [location.pathname, prefersReducedMotion]);
 
   const handleToggle = useCallback(() => {
     setCollapsed((prev) => {
@@ -105,12 +125,23 @@ export function AppLayout({ children }: AppLayoutProps) {
           width: { md: `calc(100% - ${sidebarWidth}px)` },
           ml: { md: `${sidebarWidth}px` },
           transition: 'width 225ms cubic-bezier(0.4, 0, 0.6, 1), margin-left 225ms cubic-bezier(0.4, 0, 0.6, 1)',
+          '@media (prefers-reduced-motion: reduce)': {
+            transition: 'none',
+          },
           outline: 'none',
         }}
       >
         {/* Spacer for fixed AppBar */}
         <Toolbar />
-        <Box sx={{ p: 3 }}>
+        <Box
+          sx={{
+            p: 3,
+            opacity: visible ? 1 : 0,
+            transition: prefersReducedMotion
+              ? 'none'
+              : `opacity ${FADE_DURATION_MS}ms ease-in-out`,
+          }}
+        >
           {children}
         </Box>
       </Box>

@@ -130,7 +130,7 @@ export default function RegisterPage() {
           )}
 
           <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>
-            <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 2 }}>
               <TextField
                 {...register('firstName')}
                 label="First Name"

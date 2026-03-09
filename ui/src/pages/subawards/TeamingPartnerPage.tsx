@@ -11,6 +11,8 @@ import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { searchTeamingPartners } from '@/api/subawards';
 import { queryKeys } from '@/queries/queryKeys';
+import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
+import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { TeamingPartnerDto, TeamingPartnerSearchParams } from '@/types/api';
 
 const FILTER_CONFIGS: FilterConfig[] = [
@@ -124,9 +126,16 @@ function filtersToSearchParams(values: Record<string, unknown>): Record<string, 
   return sp;
 }
 
+const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
+  primeUei: 'md',
+  uniqueSubs: 'md',
+  naicsCodes: 'lg',
+};
+
 export default function TeamingPartnerPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
 
   const committedValues = useMemo(() => parseSearchParams(searchParams), [searchParams]);
   const [editingValues, setEditingValues] = useState(committedValues);
@@ -248,6 +257,7 @@ export default function TeamingPartnerPage() {
           sortModel={sortModel}
           onSortModelChange={handleSortChange}
           getRowId={(row: TeamingPartnerDto) => row.primeUei ?? `${row.primeName}-${row.subCount}`}
+          columnVisibilityModel={columnVisibility}
         />
       )}
     </Box>

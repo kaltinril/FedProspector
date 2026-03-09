@@ -13,6 +13,8 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { formatDateTime } from '@/utils/dateFormatters';
 import { formatNumber } from '@/utils/formatters';
+import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
+import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { LoadHistoryDto, LoadHistoryParams } from '@/types/api';
 
 const STATUS_CHIP_MAP: Record<string, 'success' | 'error' | 'info' | 'default'> = {
@@ -40,7 +42,17 @@ const STATUSES = [
   { value: 'IN_PROGRESS', label: 'In Progress' },
 ];
 
+const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
+  loadType: 'md',
+  durationSeconds: 'md',
+  recordsInserted: 'lg',
+  recordsUpdated: 'lg',
+  recordsErrored: 'lg',
+  errorMessage: 'md',
+};
+
 export default function LoadHistoryTab() {
+  const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
   const [filters, setFilters] = useState<LoadHistoryParams>({
     page: 1,
     pageSize: 25,
@@ -243,6 +255,7 @@ export default function LoadHistoryTab() {
             }}
             onPaginationModelChange={handlePaginationChange}
             onRowClick={handleRowClick}
+            columnVisibilityModel={columnVisibility}
           />
 
           {/* Expanded error detail */}

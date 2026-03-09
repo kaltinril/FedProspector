@@ -12,6 +12,8 @@ import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { searchAwards } from '@/api/awards';
 import { queryKeys } from '@/queries/queryKeys';
+import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
+import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { AwardSearchResult, AwardSearchParams } from '@/types/api';
 
 const SET_ASIDE_OPTIONS = [
@@ -171,9 +173,19 @@ function filtersToSearchParams(values: Record<string, unknown>): Record<string, 
   return sp;
 }
 
+const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
+  dataSource: 'lg',
+  agencyName: 'md',
+  naicsCode: 'lg',
+  setAsideType: 'md',
+  dateSigned: 'md',
+  typeOfContract: 'lg',
+};
+
 export default function AwardSearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
 
   const committedValues = useMemo(() => parseSearchParams(searchParams), [searchParams]);
 
@@ -296,6 +308,7 @@ export default function AwardSearchPage() {
           sortModel={sortModel}
           onSortModelChange={handleSortChange}
           getRowId={(row: AwardSearchResult) => row.contractId}
+          columnVisibilityModel={columnVisibility}
         />
       )}
     </Box>

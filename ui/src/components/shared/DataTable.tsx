@@ -1,6 +1,7 @@
 import { DataGrid } from '@mui/x-data-grid';
 import type {
   GridColDef,
+  GridColumnVisibilityModel,
   GridPaginationModel,
   GridSortModel,
   GridRowParams,
@@ -24,6 +25,7 @@ interface DataTableProps {
   onSortModelChange?: (model: GridSortModel) => void;
   onRowClick?: (params: GridRowParams<AnyRow>) => void;
   getRowId?: (row: AnyRow) => string | number;
+  columnVisibilityModel?: GridColumnVisibilityModel;
   slots?: Partial<GridSlotsComponent>;
   sx?: SxProps<Theme>;
   'aria-label'?: string;
@@ -44,6 +46,7 @@ export function DataTable({
   onSortModelChange,
   onRowClick,
   getRowId,
+  columnVisibilityModel,
   slots,
   sx,
   'aria-label': ariaLabel,
@@ -62,6 +65,7 @@ export function DataTable({
         onSortModelChange={onSortModelChange}
         onRowClick={onRowClick}
         getRowId={getRowId}
+        columnVisibilityModel={columnVisibilityModel}
         paginationMode={rowCount != null ? 'server' : 'client'}
         sortingMode={onSortModelChange ? 'server' : 'client'}
         pageSizeOptions={[10, 25, 50, 100]}

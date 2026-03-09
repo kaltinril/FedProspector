@@ -12,6 +12,8 @@ import { ErrorState } from '@/components/shared/ErrorState';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { searchEntities } from '@/api/entities';
 import { queryKeys } from '@/queries/queryKeys';
+import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
+import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { EntitySearchResult, EntitySearchParams } from '@/types/api';
 
 const SBA_CERTIFICATION_OPTIONS = [
@@ -134,9 +136,17 @@ function filtersToSearchParams(values: Record<string, unknown>): Record<string, 
   return sp;
 }
 
+const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
+  dbaName: 'md',
+  primaryNaics: 'md',
+  popState: 'lg',
+  entityUrl: 'lg',
+};
+
 export default function EntitySearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
 
   // Committed filter values (from URL — these drive the API query)
   const committedValues = useMemo(() => parseSearchParams(searchParams), [searchParams]);
@@ -262,6 +272,7 @@ export default function EntitySearchPage() {
           sortModel={sortModel}
           onSortModelChange={handleSortChange}
           getRowId={(row: EntitySearchResult) => row.ueiSam}
+          columnVisibilityModel={columnVisibility}
         />
       )}
     </Box>

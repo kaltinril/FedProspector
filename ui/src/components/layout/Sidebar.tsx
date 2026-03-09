@@ -265,6 +265,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
             width: sidebarWidth,
             boxSizing: 'border-box',
             transition: 'width 225ms cubic-bezier(0.4, 0, 0.6, 1)',
+            '@media (prefers-reduced-motion: reduce)': {
+              transition: 'none',
+            },
             overflowX: 'hidden',
             borderRight: 1,
             borderColor: 'divider',

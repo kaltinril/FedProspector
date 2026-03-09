@@ -117,6 +117,9 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
         width: { md: `calc(100% - ${sidebarWidth}px)` },
         ml: { md: `${sidebarWidth}px` },
         transition: 'width 225ms cubic-bezier(0.4, 0, 0.6, 1), margin-left 225ms cubic-bezier(0.4, 0, 0.6, 1)',
+        '@media (prefers-reduced-motion: reduce)': {
+          transition: 'none',
+        },
         bgcolor: 'background.paper',
         color: 'text.primary',
         borderBottom: 1,

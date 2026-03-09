@@ -273,7 +273,7 @@ export default function DashboardPage() {
       {/* Row 3: Due This Week + Workload */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, md: 7 }}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: { xs: 2, md: 3 } }}>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Due This Week
             </Typography>
@@ -289,7 +289,7 @@ export default function DashboardPage() {
           </Paper>
         </Grid>
         <Grid size={{ xs: 12, md: 5 }}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: { xs: 2, md: 3 } }}>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Workload by Assignee
             </Typography>
@@ -321,7 +321,7 @@ export default function DashboardPage() {
       {/* Row 4: Win/Loss + Recent Saved Searches */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }}>
         <Grid size={{ xs: 12, md: 6 }}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: { xs: 2, md: 3 } }}>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Win / Loss Metrics
             </Typography>
@@ -347,7 +347,7 @@ export default function DashboardPage() {
           </Paper>
         </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
-          <Paper sx={{ p: 3 }}>
+          <Paper sx={{ p: { xs: 2, md: 3 } }}>
             <Typography variant="h6" sx={{ mb: 2 }}>
               Recent Saved Searches
             </Typography>

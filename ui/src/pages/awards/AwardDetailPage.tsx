@@ -648,12 +648,12 @@ export default function AwardDetailPage() {
       )}
 
       {/* Summary bar */}
-      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+      <Paper variant="outlined" sx={{ p: { xs: 1.5, sm: 2 }, mb: { xs: 2, md: 3 } }}>
         <Box
           sx={{
             display: 'flex',
             flexWrap: 'wrap',
-            gap: 3,
+            gap: { xs: 2, md: 3 },
             alignItems: 'baseline',
           }}
         >

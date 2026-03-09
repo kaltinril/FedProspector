@@ -20,6 +20,8 @@ import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay';
 import { searchOpportunities, exportOpportunities } from '@/api/opportunities';
 import { createProspect } from '@/api/prospects';
 import { queryKeys } from '@/queries/queryKeys';
+import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
+import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { OpportunitySearchResult, OpportunitySearchParams } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -153,10 +155,20 @@ function filtersToApiParams(
 // Component
 // ---------------------------------------------------------------------------
 
+const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
+  departmentName: 'md',
+  popState: 'md',
+  naicsCode: 'lg',
+  baseAndAllOptions: 'md',
+  solicitationNumber: 'lg',
+  actions: 'sm',
+};
+
 export default function OpportunitySearchPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
+  const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
 
   // --- Filter state from URL (committed = what drives the query) ---
   const committedValues = useMemo(() => readFiltersFromParams(searchParams), [searchParams]);
@@ -512,6 +524,7 @@ export default function OpportunitySearchPage() {
         onSortModelChange={handleSortChange}
         onRowClick={handleRowClick}
         getRowId={(row: OpportunitySearchResult) => row.noticeId}
+        columnVisibilityModel={columnVisibility}
         sx={{ minHeight: 400 }}
       />
     </Box>

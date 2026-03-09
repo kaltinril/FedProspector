@@ -525,12 +525,14 @@ function TeamTab({
             label="UEI"
             value={uei}
             onChange={(e) => setUei(e.target.value)}
+            sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
           />
           <TextField
             size="small"
             label="Role"
             value={role}
             onChange={(e) => setRole(e.target.value)}
+            sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
           />
           <TextField
             size="small"
@@ -538,7 +540,7 @@ function TeamTab({
             type="number"
             value={rate}
             onChange={(e) => setRate(e.target.value)}
-            sx={{ width: 120 }}
+            sx={{ width: { xs: '100%', sm: 120 } }}
           />
           <TextField
             size="small"
@@ -546,13 +548,14 @@ function TeamTab({
             type="number"
             value={commitment}
             onChange={(e) => setCommitment(e.target.value)}
-            sx={{ width: 130 }}
+            sx={{ width: { xs: '100%', sm: 130 } }}
           />
           <TextField
             size="small"
             label="Notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
+            sx={{ minWidth: { xs: '100%', sm: 'auto' } }}
           />
         </Box>
         <Button
@@ -572,8 +575,8 @@ function TeamTab({
           message="No teaming partners have been added to this prospect yet."
         />
       ) : (
-        <TableContainer component={Paper} variant="outlined">
-          <Table size="small">
+        <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
+          <Table size="small" sx={{ minWidth: 700 }}>
             <TableHead>
               <TableRow>
                 <TableCell>Entity Name</TableCell>

@@ -7,12 +7,13 @@ import {
   DndContext,
   DragOverlay,
   closestCorners,
+  KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
 import type { DragStartEvent, DragEndEvent, DragOverEvent } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useDroppable } from '@dnd-kit/core';
 import { differenceInDays, parseISO, isValid } from 'date-fns';
@@ -26,6 +27,8 @@ import Collapse from '@mui/material/Collapse';
 import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Select from '@mui/material/Select';
@@ -38,6 +41,7 @@ import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import FlagIcon from '@mui/icons-material/Flag';
+import MoveDownIcon from '@mui/icons-material/MoveDown';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import ViewListIcon from '@mui/icons-material/ViewList';
 
@@ -117,13 +121,14 @@ function FilterBar({
   onStatusChange,
 }: FilterBarProps) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }} role="group" aria-label="Pipeline filters">
       <Chip
         label="My Prospects"
         variant={filters.myProspects ? 'filled' : 'outlined'}
         color={filters.myProspects ? 'primary' : 'default'}
         onClick={onToggleMyProspects}
         clickable
+        aria-pressed={filters.myProspects}
       />
       <Chip
         label="Due This Week"
@@ -131,6 +136,7 @@ function FilterBar({
         color={filters.dueThisWeek ? 'warning' : 'default'}
         onClick={onToggleDueThisWeek}
         clickable
+        aria-pressed={filters.dueThisWeek}
       />
       <Chip
         label="High Priority"
@@ -138,6 +144,7 @@ function FilterBar({
         color={filters.highPriority ? 'error' : 'default'}
         onClick={onToggleHighPriority}
         clickable
+        aria-pressed={filters.highPriority}
       />
       <FormControl size="small" sx={{ minWidth: 140, ml: 'auto' }}>
         <InputLabel id="status-filter-label">Status</InputLabel>
@@ -168,10 +175,27 @@ interface ProspectCardProps {
   prospect: ProspectListDto;
   onClick: (id: number) => void;
   isDragOverlay?: boolean;
+  onStatusChange?: (id: number, fromStatus: string, toStatus: string) => void;
 }
 
-function ProspectCardContent({ prospect, onClick, isDragOverlay }: ProspectCardProps) {
+function ProspectCardContent({ prospect, onClick, isDragOverlay, onStatusChange }: ProspectCardProps) {
   const urgent = isDeadlineUrgent(prospect.responseDeadline);
+  const [moveMenuAnchor, setMoveMenuAnchor] = useState<null | HTMLElement>(null);
+  const validTargets = VALID_TRANSITIONS[prospect.status] ?? [];
+
+  const handleMoveClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setMoveMenuAnchor(e.currentTarget);
+  };
+
+  const handleMoveClose = () => {
+    setMoveMenuAnchor(null);
+  };
+
+  const handleMoveSelect = (targetStatus: string) => {
+    setMoveMenuAnchor(null);
+    onStatusChange?.(prospect.prospectId, prospect.status, targetStatus);
+  };
 
   return (
     <Card
@@ -190,6 +214,7 @@ function ProspectCardContent({ prospect, onClick, isDragOverlay }: ProspectCardP
         <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 0.5 }}>
           <DragIndicatorIcon
             fontSize="small"
+            aria-hidden="true"
             sx={{ color: 'text.disabled', mt: 0.25, flexShrink: 0 }}
           />
           <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -221,7 +246,7 @@ function ProspectCardContent({ prospect, onClick, isDragOverlay }: ProspectCardP
                 </Typography>
               )}
               {prospect.priority === 'HIGH' && (
-                <FlagIcon fontSize="small" color="error" sx={{ fontSize: 14 }} />
+                <FlagIcon fontSize="small" color="error" sx={{ fontSize: 14 }} aria-label="High priority" />
               )}
               {prospect.goNoGoScore != null && (
                 <Chip
@@ -231,15 +256,41 @@ function ProspectCardContent({ prospect, onClick, isDragOverlay }: ProspectCardP
                   sx={{ height: 20, fontSize: '0.7rem' }}
                 />
               )}
+              {!isDragOverlay && validTargets.length > 0 && onStatusChange && (
+                <IconButton
+                  size="small"
+                  onClick={handleMoveClick}
+                  aria-label={`Move ${prospect.opportunityTitle ?? 'prospect'} to another column`}
+                  aria-haspopup="true"
+                  sx={{ ml: 'auto', p: 0.25 }}
+                >
+                  <MoveDownIcon sx={{ fontSize: 16 }} />
+                </IconButton>
+              )}
             </Box>
           </Box>
         </Box>
       </CardContent>
+      {!isDragOverlay && validTargets.length > 0 && (
+        <Menu
+          anchorEl={moveMenuAnchor}
+          open={Boolean(moveMenuAnchor)}
+          onClose={handleMoveClose}
+          onClick={(e) => e.stopPropagation()}
+          slotProps={{ list: { 'aria-label': 'Move to column' } }}
+        >
+          {validTargets.map((target) => (
+            <MenuItem key={target} onClick={() => handleMoveSelect(target)}>
+              <ListItemText>{STATUS_LABELS[target] ?? target}</ListItemText>
+            </MenuItem>
+          ))}
+        </Menu>
+      )}
     </Card>
   );
 }
 
-function SortableProspectCard({ prospect, onClick }: ProspectCardProps) {
+function SortableProspectCard({ prospect, onClick, onStatusChange }: ProspectCardProps) {
   const {
     attributes,
     listeners,
@@ -257,7 +308,7 @@ function SortableProspectCard({ prospect, onClick }: ProspectCardProps) {
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <ProspectCardContent prospect={prospect} onClick={onClick} />
+      <ProspectCardContent prospect={prospect} onClick={onClick} onStatusChange={onStatusChange} />
     </div>
   );
 }
@@ -271,9 +322,10 @@ interface KanbanColumnProps {
   prospects: ProspectListDto[];
   isLoading: boolean;
   onCardClick: (id: number) => void;
+  onStatusChange: (id: number, fromStatus: string, toStatus: string) => void;
 }
 
-function KanbanColumn({ status, prospects, isLoading, onCardClick }: KanbanColumnProps) {
+function KanbanColumn({ status, prospects, isLoading, onCardClick, onStatusChange }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const ids = useMemo(() => prospects.map((p) => p.prospectId), [prospects]);
 
@@ -281,6 +333,8 @@ function KanbanColumn({ status, prospects, isLoading, onCardClick }: KanbanColum
     <Paper
       ref={setNodeRef}
       variant="outlined"
+      role="region"
+      aria-label={`${STATUS_LABELS[status] ?? status} column, ${prospects.length} prospects`}
       sx={{
         flex: '1 1 0',
         minWidth: 220,
@@ -314,7 +368,7 @@ function KanbanColumn({ status, prospects, isLoading, onCardClick }: KanbanColum
         ) : (
           <SortableContext items={ids} strategy={verticalListSortingStrategy}>
             {prospects.map((p) => (
-              <SortableProspectCard key={p.prospectId} prospect={p} onClick={onCardClick} />
+              <SortableProspectCard key={p.prospectId} prospect={p} onClick={onCardClick} onStatusChange={onStatusChange} />
             ))}
           </SortableContext>
         )}
@@ -340,6 +394,7 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: Kanba
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const columnData = useMemo(() => {
@@ -409,8 +464,13 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: Kanba
             display: 'flex',
             gap: 1.5,
             overflowX: 'auto',
+            WebkitOverflowScrolling: 'touch',
             pb: 2,
             minHeight: 400,
+            // Prevent columns from shrinking below usable width on mobile
+            '& > *': {
+              flexShrink: 0,
+            },
           }}
         >
           {KANBAN_STATUSES.map((status) => (
@@ -420,6 +480,7 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: Kanba
               prospects={columnData[status] ?? []}
               isLoading={isLoading}
               onCardClick={onCardClick}
+              onStatusChange={onStatusChange}
             />
           ))}
         </Box>
@@ -440,6 +501,7 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: Kanba
             size="small"
             startIcon={archivedOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
             onClick={() => setArchivedOpen((prev) => !prev)}
+            aria-expanded={archivedOpen}
             sx={{ mb: 1 }}
           >
             Archived ({declinedProspects.length})

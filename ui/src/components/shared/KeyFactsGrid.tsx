@@ -21,9 +21,10 @@ export function KeyFactsGrid({ facts, columns = 2 }: KeyFactsGridProps) {
         display: 'grid',
         gridTemplateColumns: {
           xs: '1fr',
+          sm: columns === 3 ? 'repeat(2, 1fr)' : `repeat(${columns}, 1fr)`,
           md: `repeat(${columns}, 1fr)`,
         },
-        gap: 2.5,
+        gap: { xs: 2, md: 2.5 },
       }}
     >
       {visibleFacts.map((fact, index) => (

@@ -309,8 +309,8 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             This solicitation has {opp.amendments.length + 1} version{opp.amendments.length > 0 ? 's' : ''}. You are viewing the latest.
           </Typography>
-          <TableContainer component={Paper} variant="outlined">
-            <Table size="small">
+          <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
+            <Table size="small" sx={{ minWidth: 480 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>Posted</TableCell>
@@ -770,7 +770,7 @@ export default function OpportunityDetailPage() {
         title={opp.title ?? 'Untitled Opportunity'}
         subtitle={opp.solicitationNumber ?? undefined}
         actions={
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {(opp.naicsCode || opp.setAsideCode) && (
               <Button
                 variant="outlined"
