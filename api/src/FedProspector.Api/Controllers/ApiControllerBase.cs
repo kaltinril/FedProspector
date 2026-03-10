@@ -48,11 +48,6 @@ public abstract class ApiControllerBase : ControllerBase
         return User.FindFirst(ClaimTypes.Email)?.Value;
     }
 
-    protected bool IsOrgAdmin()
-    {
-        return User.IsInRole("admin");
-    }
-
     protected IActionResult ApiError(int statusCode, string message, string? detail = null)
     {
         return StatusCode(statusCode, new ApiErrorResponse

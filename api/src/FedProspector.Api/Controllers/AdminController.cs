@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace FedProspector.Api.Controllers;
 
 [Route("api/v1/admin")]
-[Authorize(Roles = "admin")]
+[Authorize(Policy = "AdminAccess")]
 [EnableRateLimiting("admin")]
 public class AdminController : ApiControllerBase
 {

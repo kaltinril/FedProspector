@@ -87,9 +87,9 @@ def create_sysadmin(username, email, display_name, org_name):
         cursor.execute(
             "INSERT INTO app_user "
             "(organization_id, username, display_name, email, password_hash, "
-            " role, is_active, is_org_admin, mfa_enabled, org_role, "
+            " role, is_active, is_org_admin, is_system_admin, mfa_enabled, org_role, "
             " force_password_change, failed_login_attempts) "
-            "VALUES (%s, %s, %s, %s, %s, 'USER', 'Y', 'Y', 'N', 'owner', 'N', 0)",
+            "VALUES (%s, %s, %s, %s, %s, 'USER', 'Y', 'Y', 1, 'N', 'owner', 'N', 0)",
             (org_id, username, display_name, email, password_hash),
         )
         user_id = cursor.lastrowid

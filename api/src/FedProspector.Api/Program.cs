@@ -121,6 +121,15 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy("SystemAdmin", policy =>
         policy.RequireClaim("is_system_admin", "true"));
+
+    options.AddPolicy("AdminAccess", policy =>
+        policy.RequireAssertion(context =>
+        {
+            // Allow org admins (role claim) OR system admins (is_system_admin claim)
+            var isOrgAdmin = context.User.IsInRole("admin");
+            var isSystemAdmin = context.User.FindFirst("is_system_admin")?.Value == "true";
+            return isOrgAdmin || isSystemAdmin;
+        }));
 });
 
 // --- Application services ---
