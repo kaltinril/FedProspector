@@ -242,7 +242,7 @@ function CompanyProfileTab({ entity }: { entity: EntityDetail }) {
           <DataTable
             columns={naicsColumns}
             rows={entity.naicsCodes.map((n, i) => ({ ...n, _idx: i }))}
-            getRowId={(row: EntityNaicsDto & { _idx: number }) => `${row._idx}-${row.naicsCode}`}
+            getRowId={(row) => `${(row as unknown as { _idx: number })._idx}-${row.naicsCode}`}
           />
         </Box>
       )}
@@ -270,7 +270,7 @@ function CompanyProfileTab({ entity }: { entity: EntityDetail }) {
           <DataTable
             columns={pocColumns}
             rows={(entity.pointsOfContact ?? []).map((p, i) => ({ ...p, _idx: i }))}
-            getRowId={(row: EntityPocDto & { _idx: number }) => row._idx}
+            getRowId={(row) => (row as unknown as { _idx: number })._idx}
           />
         </Box>
       )}

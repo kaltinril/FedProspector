@@ -219,8 +219,8 @@ function FinancialsTab({
         <DataTable
           columns={transactionColumns}
           rows={(award.transactions ?? []).map((t, i) => ({ ...t, _idx: i }))}
-          getRowId={(row: TransactionDto & { _idx: number }) =>
-            `${row._idx}-${row.actionDate}`
+          getRowId={(row) =>
+            `${(row as unknown as { _idx: number })._idx}-${row.actionDate}`
           }
         />
       </Box>

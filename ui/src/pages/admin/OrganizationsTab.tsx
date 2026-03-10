@@ -21,7 +21,7 @@ import Paper from '@mui/material/Paper';
 import AddIcon from '@mui/icons-material/Add';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useSnackbar } from 'notistack';
-import { AxiosError } from 'axios';
+import axios from 'axios';
 
 import { useCreateOrganization, useCreateOrganizationOwner, useListOrganizations } from '@/queries/useAdmin';
 import type { CreateOrganizationRequest, CreateOwnerRequest } from '@/types/api';
@@ -52,8 +52,10 @@ export default function OrganizationsTab() {
         setOrgDialogOpen(false);
         setOrgForm({ name: '', slug: '' });
       },
-      onError: (error: AxiosError<{ error?: string }>) => {
-        const msg = error.response?.data?.error || 'Failed to create organization';
+      onError: (error: Error) => {
+        const msg = axios.isAxiosError<{ error?: string }>(error)
+          ? error.response?.data?.error || 'Failed to create organization'
+          : 'Failed to create organization';
         enqueueSnackbar(msg, { variant: 'error' });
       },
     });
@@ -70,8 +72,10 @@ export default function OrganizationsTab() {
           setOwnerForm({ email: '', displayName: '', password: '' });
           setOwnerOrgId(null);
         },
-        onError: (error: AxiosError<{ error?: string }>) => {
-          const msg = error.response?.data?.error || 'Failed to create owner';
+        onError: (error: Error) => {
+          const msg = axios.isAxiosError<{ error?: string }>(error)
+            ? error.response?.data?.error || 'Failed to create owner'
+            : 'Failed to create owner';
           enqueueSnackbar(msg, { variant: 'error' });
         },
       },

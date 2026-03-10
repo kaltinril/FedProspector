@@ -11,7 +11,7 @@ import type { SxProps, Theme } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import { EmptyState } from '@/components/shared/EmptyState';
 
-interface DataTableProps<T extends Record<string, unknown> = Record<string, unknown>> {
+interface DataTableProps<T extends object = object> {
   columns: GridColDef<T>[];
   rows: T[];
   loading?: boolean;
@@ -32,7 +32,7 @@ function NoRowsOverlay() {
   return <EmptyState title="No data" message="No records match your criteria." />;
 }
 
-export function DataTable<T extends Record<string, unknown> = Record<string, unknown>>({
+export function DataTable<T extends object = object>({
   columns,
   rows,
   loading = false,
