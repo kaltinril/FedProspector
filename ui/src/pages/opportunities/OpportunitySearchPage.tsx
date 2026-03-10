@@ -23,34 +23,7 @@ import { queryKeys } from '@/queries/queryKeys';
 import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
 import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { OpportunitySearchResult, OpportunitySearchParams } from '@/types/api';
-
-// ---------------------------------------------------------------------------
-// Set-aside chip color mapping
-// ---------------------------------------------------------------------------
-
-type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
-
-const SET_ASIDE_COLORS: Record<string, { color: ChipColor; sx?: Record<string, string> }> = {
-  WOSB: { color: 'secondary' },
-  EDWOSB: { color: 'secondary' },
-  '8(A)': { color: 'info' },
-  '8A': { color: 'info' },
-  HUBZone: { color: 'success' },
-  HUBZONE: { color: 'success' },
-  SDVOSB: { color: 'warning' },
-  SBA: { color: 'primary', sx: { bgcolor: 'teal', color: '#fff' } },
-  'Total Small Business': { color: 'primary', sx: { bgcolor: 'teal', color: '#fff' } },
-  TSB: { color: 'primary', sx: { bgcolor: 'teal', color: '#fff' } },
-};
-
-function getSetAsideChipProps(code: string | null | undefined) {
-  if (!code) return { color: 'default' as ChipColor };
-  const upper = code.toUpperCase();
-  for (const [key, val] of Object.entries(SET_ASIDE_COLORS)) {
-    if (upper.includes(key.toUpperCase())) return val;
-  }
-  return { color: 'default' as ChipColor };
-}
+import { getSetAsideChipProps } from '@/utils/constants';
 
 // ---------------------------------------------------------------------------
 // Filter configuration

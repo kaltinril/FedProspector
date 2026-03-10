@@ -14,6 +14,7 @@ import {
   Link,
   CircularProgress,
 } from '@mui/material';
+import axios from 'axios';
 import { useAuth } from '@/auth/useAuth';
 
 const loginSchema = z.object({
@@ -72,21 +73,16 @@ export default function LoginPage() {
       await login(data.email, data.password);
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
-      if (
-        err &&
-        typeof err === 'object' &&
-        'response' in err &&
-        typeof (err as Record<string, unknown>).response === 'object'
-      ) {
-        const resp = (err as { response: { status: number; data?: { error?: string; message?: string } } }).response;
-        if (resp.status === 401) {
+      if (axios.isAxiosError<{ error?: string; message?: string }>(err) && err.response) {
+        const { status, data } = err.response;
+        if (status === 401) {
           setError('Invalid email or password.');
-        } else if (resp.status === 429) {
+        } else if (status === 429) {
           setError('Too many login attempts. Please try again later.');
-        } else if (resp.status === 400) {
-          setError(resp.data?.message ?? resp.data?.error ?? 'Invalid request. Please check your input.');
+        } else if (status === 400) {
+          setError(data?.message ?? data?.error ?? 'Invalid request. Please check your input.');
         } else {
-          setError(resp.data?.message ?? resp.data?.error ?? 'An unexpected error occurred. Please try again.');
+          setError(data?.message ?? data?.error ?? 'An unexpected error occurred. Please try again.');
         }
       } else {
         setError('Unable to connect to the server. Please try again later.');

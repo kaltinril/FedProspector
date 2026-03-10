@@ -27,7 +27,7 @@ export function OfflineBanner() {
   if (isOnline) return null;
 
   return (
-    <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1400 }}>
+    <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: (theme) => theme.zIndex.snackbar + 10 }}>
       <Alert severity="warning" sx={{ borderRadius: 0 }}>
         You are currently offline. Some features may be unavailable.
       </Alert>

@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AdminGuard } from '@/auth/AdminGuard';
 import { AuthGuard } from '@/auth/AuthGuard';
+import { useAuth } from '@/auth/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 
@@ -44,6 +45,31 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
       </AppLayout>
     </AuthGuard>
   );
+}
+
+/**
+ * Shows 404 within AppLayout if authenticated, or standalone if not.
+ * This ensures unauthenticated users see a proper 404 instead of being
+ * redirected to login.
+ */
+function NotFoundLayout() {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return <NotFoundPage />;
+  }
+
+  if (isAuthenticated) {
+    return (
+      <AppLayout>
+        <ErrorBoundary>
+          <NotFoundPage />
+        </ErrorBoundary>
+      </AppLayout>
+    );
+  }
+
+  return <NotFoundPage />;
 }
 
 export function AppRoutes() {
@@ -224,14 +250,10 @@ export function AppRoutes() {
         }
       />
 
-      {/* 404 catch-all */}
+      {/* 404 catch-all — public so unauthenticated users see 404, not login */}
       <Route
         path="*"
-        element={
-          <AuthenticatedLayout>
-            <NotFoundPage />
-          </AuthenticatedLayout>
-        }
+        element={<NotFoundLayout />}
       />
     </Routes>
   );

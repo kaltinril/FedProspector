@@ -50,3 +50,31 @@ export const CERTIFICATION_TYPES = [
   'Small Business',
   'Veteran-Owned',
 ] as const;
+
+// ---------------------------------------------------------------------------
+// Set-aside chip color mapping (used by OpportunitySearchPage, TargetOpportunityPage)
+// ---------------------------------------------------------------------------
+
+export type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+
+export const SET_ASIDE_COLORS: Record<string, { color: ChipColor; sx?: Record<string, string> }> = {
+  WOSB: { color: 'secondary' },
+  EDWOSB: { color: 'secondary' },
+  '8(A)': { color: 'info' },
+  '8A': { color: 'info' },
+  HUBZone: { color: 'success' },
+  HUBZONE: { color: 'success' },
+  SDVOSB: { color: 'warning' },
+  SBA: { color: 'primary', sx: { bgcolor: 'teal', color: '#fff' } },
+  'Total Small Business': { color: 'primary', sx: { bgcolor: 'teal', color: '#fff' } },
+  TSB: { color: 'primary', sx: { bgcolor: 'teal', color: '#fff' } },
+};
+
+export function getSetAsideChipProps(code: string | null | undefined): { color: ChipColor; sx?: Record<string, string> } {
+  if (!code) return { color: 'default' };
+  const upper = code.toUpperCase();
+  for (const [key, val] of Object.entries(SET_ASIDE_COLORS)) {
+    if (upper.includes(key.toUpperCase())) return val;
+  }
+  return { color: 'default' };
+}

@@ -13,6 +13,20 @@ interface FilterOption {
   label: string;
 }
 
+interface DateRange {
+  start?: string;
+  end?: string;
+}
+
+function isDateRange(val: unknown): val is DateRange {
+  if (typeof val !== 'object' || val === null || Array.isArray(val)) return false;
+  const obj = val as Record<string, unknown>;
+  return (
+    (!('start' in obj) || typeof obj.start === 'string' || obj.start === undefined) &&
+    (!('end' in obj) || typeof obj.end === 'string' || obj.end === undefined)
+  );
+}
+
 interface FilterConfig {
   key: string;
   label: string;
@@ -44,10 +58,9 @@ function getActiveFilters(
         .map((v) => filter.options?.find((o) => o.value === v)?.label ?? v)
         .join(', ');
       active.push({ key: filter.key, label: filter.label, display: labels });
-    } else if (filter.type === 'dateRange' && typeof val === 'object' && val !== null) {
-      const range = val as { start?: string; end?: string };
-      if (range.start || range.end) {
-        const display = [range.start, range.end].filter(Boolean).join(' - ');
+    } else if (filter.type === 'dateRange' && isDateRange(val)) {
+      if (val.start || val.end) {
+        const display = [val.start, val.end].filter(Boolean).join(' - ');
         active.push({ key: filter.key, label: filter.label, display });
       }
     } else if (filter.type === 'select') {
@@ -161,7 +174,8 @@ export function SearchFilters({
               );
 
             case 'dateRange': {
-              const range = (values[filter.key] as { start?: string; end?: string }) ?? {};
+              const rawRange = values[filter.key];
+              const range: DateRange = isDateRange(rawRange) ? rawRange : {};
               return (
                 <Box key={filter.key} sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
                   <TextField

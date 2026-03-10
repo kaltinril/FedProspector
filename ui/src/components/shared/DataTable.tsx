@@ -11,20 +11,17 @@ import type { SxProps, Theme } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import { EmptyState } from '@/components/shared/EmptyState';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyRow = any;
-
-interface DataTableProps {
-  columns: GridColDef<AnyRow>[];
-  rows: AnyRow[];
+interface DataTableProps<T extends Record<string, unknown> = Record<string, unknown>> {
+  columns: GridColDef<T>[];
+  rows: T[];
   loading?: boolean;
   rowCount?: number;
   paginationModel?: GridPaginationModel;
   onPaginationModelChange?: (model: GridPaginationModel) => void;
   sortModel?: GridSortModel;
   onSortModelChange?: (model: GridSortModel) => void;
-  onRowClick?: (params: GridRowParams<AnyRow>) => void;
-  getRowId?: (row: AnyRow) => string | number;
+  onRowClick?: (params: GridRowParams<T>) => void;
+  getRowId?: (row: T) => string | number;
   columnVisibilityModel?: GridColumnVisibilityModel;
   slots?: Partial<GridSlotsComponent>;
   sx?: SxProps<Theme>;
@@ -35,7 +32,7 @@ function NoRowsOverlay() {
   return <EmptyState title="No data" message="No records match your criteria." />;
 }
 
-export function DataTable({
+export function DataTable<T extends Record<string, unknown> = Record<string, unknown>>({
   columns,
   rows,
   loading = false,
@@ -50,7 +47,7 @@ export function DataTable({
   slots,
   sx,
   'aria-label': ariaLabel,
-}: DataTableProps) {
+}: DataTableProps<T>) {
   return (
     <Box sx={{ width: '100%', overflowX: 'auto', ...sx }}>
       <DataGrid

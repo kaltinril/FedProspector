@@ -7,11 +7,12 @@ import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
 import { useSnackbar } from 'notistack';
 import { createSavedSearch } from '@/api/savedSearches';
+import type { SavedSearchFilterCriteria } from '@/types/api';
 
 interface SaveSearchModalProps {
   open: boolean;
   onClose: () => void;
-  filterCriteria: Record<string, unknown>;
+  filterCriteria: SavedSearchFilterCriteria;
 }
 
 export function SaveSearchModal({ open, onClose, filterCriteria }: SaveSearchModalProps) {
@@ -40,7 +41,7 @@ export function SaveSearchModal({ open, onClose, filterCriteria }: SaveSearchMod
       await createSavedSearch({
         searchName: name.trim(),
         description: description.trim() || undefined,
-        filterCriteria: filterCriteria as never,
+        filterCriteria,
       });
       enqueueSnackbar('Search saved. Manage saved searches from the sidebar.', {
         variant: 'success',

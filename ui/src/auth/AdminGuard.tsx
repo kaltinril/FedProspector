@@ -7,9 +7,9 @@ interface AdminGuardProps {
 }
 
 export function AdminGuard({ children }: AdminGuardProps) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, isSystemAdmin } = useAuth();
 
-  if (!isAdmin) {
+  if (!isAdmin && !isSystemAdmin) {
     return (
       <Box
         sx={{

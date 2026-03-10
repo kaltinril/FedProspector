@@ -1,5 +1,6 @@
 import { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
+import axios from 'axios';
 import * as authApi from '@/api/auth';
 import type { UserProfileDto } from '@/types/auth';
 
@@ -29,7 +30,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       const session = await authApi.me();
       setUser(session);
-    } catch {
+    } catch (err) {
+      // Distinguish auth failure from network error:
+      // - 401/403 means the session is truly invalid → clear user
+      // - Network errors (no response) may be transient → keep current state
+      if (axios.isAxiosError(err) && !err.response) {
+        // Network error (no response from server) — don't clear user state
+        return;
+      }
       setUser(null);
     }
   }, []);
