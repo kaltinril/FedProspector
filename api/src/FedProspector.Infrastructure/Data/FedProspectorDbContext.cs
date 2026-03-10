@@ -304,6 +304,25 @@ public class FedProspectorDbContext : DbContext
             .HasForeignKey(i => i.InvitedBy)
             .OnDelete(DeleteBehavior.Restrict);
 
+        // ----- Cross-Schema Navigations (no DB-level FK) -----
+        // Allow EF Core JOINs without real foreign keys.
+        // Not all awards have matching SAM entities, so IsRequired(false).
+        // WithMany() with no argument avoids an inverse collection on Entity.
+
+        modelBuilder.Entity<UsaspendingAward>()
+            .HasOne(ua => ua.RecipientEntity)
+            .WithMany()
+            .HasForeignKey(ua => ua.RecipientUei)
+            .HasPrincipalKey(e => e.UeiSam)
+            .IsRequired(false);
+
+        modelBuilder.Entity<FpdsContract>()
+            .HasOne(fc => fc.VendorEntity)
+            .WithMany()
+            .HasForeignKey(fc => fc.VendorUei)
+            .HasPrincipalKey(e => e.UeiSam)
+            .IsRequired(false);
+
         // ----- Database Views (keyless entity types) -----
         modelBuilder.Entity<TargetOpportunityView>()
             .HasNoKey()

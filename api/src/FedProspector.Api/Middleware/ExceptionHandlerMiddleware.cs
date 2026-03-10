@@ -1,6 +1,7 @@
 using FedProspector.Core.DTOs;
 using FedProspector.Core.Exceptions;
 using Microsoft.EntityFrameworkCore;
+using MySqlConnector;
 
 namespace FedProspector.Api.Middleware;
 
@@ -32,6 +33,7 @@ public class ExceptionHandlerMiddleware
             var (statusCode, message) = ex switch
             {
                 KeyNotFoundException => (404, "The requested resource was not found."),
+                MySqlException => (503, "Database is temporarily unavailable. Please retry."),
                 ArgumentException => (400, "Invalid argument provided."),
                 InvalidOperationException => (400, "The request could not be processed."),
                 UnauthorizedAccessException => (403, "Access denied."),

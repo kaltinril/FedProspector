@@ -71,9 +71,13 @@ public class HealthController : ControllerBase
             {
                 var connection = _context.Database.GetDbConnection();
                 await using var cmd = connection.CreateCommand();
+                // Exclude on-demand sources (demand_loader.py) — they are ad-hoc
+                // and should not affect scheduled freshness status
                 cmd.CommandText =
                     "SELECT source_system, MAX(completed_at) AS last_load, COUNT(*) AS total_loads " +
-                    "FROM etl_load_log WHERE status = 'SUCCESS' GROUP BY source_system ORDER BY source_system";
+                    "FROM etl_load_log WHERE status = 'SUCCESS' " +
+                    "AND source_system NOT IN ('USASPENDING_AWARD', 'USASPENDING_TXN') " +
+                    "GROUP BY source_system ORDER BY source_system";
 
                 var sources = new List<(string Source, DateTime? LastLoad, int TotalLoads)>();
                 await using var reader = await cmd.ExecuteReaderAsync();
@@ -95,7 +99,8 @@ public class HealthController : ControllerBase
                     };
                 }
 
-                var now = DateTime.UtcNow;
+                // Python loaders store local time in DATETIME columns, so compare with local time
+                var now = DateTime.Now;
                 var staleCount = sources.Count(s => s.LastLoad.HasValue && (now - s.LastLoad.Value).TotalHours > 168);
                 var status = staleCount == 0 ? "Healthy" : staleCount < sources.Count ? "Degraded" : "Unhealthy";
 

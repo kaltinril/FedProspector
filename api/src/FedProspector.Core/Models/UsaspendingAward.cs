@@ -99,4 +99,9 @@ public class UsaspendingAward
     public DateTime? FirstLoadedAt { get; set; }
 
     public DateTime? LastLoadedAt { get; set; }
+
+    /// <summary>
+    /// Navigation to SAM entity via RecipientUei (no DB-level FK constraint).
+    /// </summary>
+    public Entity? RecipientEntity { get; set; }
 }

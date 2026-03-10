@@ -134,4 +134,9 @@ public class FpdsContract
     public DateTime? LastLoadedAt { get; set; }
 
     public int? LastLoadId { get; set; }
+
+    /// <summary>
+    /// Navigation to SAM entity via VendorUei (no DB-level FK constraint).
+    /// </summary>
+    public Entity? VendorEntity { get; set; }
 }

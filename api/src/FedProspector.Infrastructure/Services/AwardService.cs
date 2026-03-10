@@ -21,6 +21,12 @@ public class AwardService : IAwardService
 
     public async Task<PagedResponse<AwardSearchDto>> SearchAsync(AwardSearchRequest request)
     {
+        // Resolve vendor UEIs once, shared by both FPDS and USASpending queries.
+        // Searches 870K entity rows instead of LIKE on 28M+ award rows.
+        HashSet<string>? vendorUeis = null;
+        if (!string.IsNullOrWhiteSpace(request.VendorName))
+            vendorUeis = await ResolveVendorUeisAsync(request.VendorName);
+
         var query = _context.FpdsContracts.AsNoTracking().AsQueryable();
 
         // Base awards only unless searching by PIID (show all modifications)
@@ -47,11 +53,8 @@ public class AwardService : IAwardService
         if (!string.IsNullOrWhiteSpace(request.VendorUei))
             query = query.Where(c => c.VendorUei == request.VendorUei);
 
-        if (!string.IsNullOrWhiteSpace(request.VendorName))
-        {
-            var escapedVendor = EscapeLikePattern(request.VendorName);
-            query = query.Where(c => c.VendorName != null && EF.Functions.Like(c.VendorName, $"%{escapedVendor}%"));
-        }
+        if (vendorUeis != null)
+            query = query.Where(c => c.VendorUei != null && vendorUeis.Contains(c.VendorUei));
 
         if (!string.IsNullOrWhiteSpace(request.SetAside))
             query = query.Where(c => c.SetAsideType == request.SetAside);
@@ -130,10 +133,10 @@ public class AwardService : IAwardService
         if (results.Count < request.PageSize)
         {
             var fpdsPoiids = results.Select(r => r.ContractId).ToHashSet();
-            var usaResults = await SearchUsaspendingAsync(request, request.PageSize - results.Count, fpdsPoiids);
+            var usaResults = await SearchUsaspendingAsync(request, request.PageSize - results.Count, fpdsPoiids, vendorUeis);
             results.AddRange(usaResults);
             // Adjust total count
-            totalCount += await CountUsaspendingAsync(request, fpdsPoiids);
+            totalCount += await CountUsaspendingAsync(request, fpdsPoiids, vendorUeis);
         }
 
         return new PagedResponse<AwardSearchDto>
@@ -591,9 +594,9 @@ public class AwardService : IAwardService
     }
 
     private async Task<List<AwardSearchDto>> SearchUsaspendingAsync(
-        AwardSearchRequest request, int limit, HashSet<string> excludePiids)
+        AwardSearchRequest request, int limit, HashSet<string> excludePiids, HashSet<string>? vendorUeis = null)
     {
-        var query = BuildUsaspendingQuery(request, excludePiids);
+        var query = BuildUsaspendingQuery(request, excludePiids, vendorUeis);
 
         // Apply sort consistent with FPDS query
         IOrderedQueryable<UsaspendingAward> ordered = query.OrderByDescending(ua => ua.StartDate);
@@ -652,13 +655,13 @@ public class AwardService : IAwardService
     }
 
     private async Task<int> CountUsaspendingAsync(
-        AwardSearchRequest request, HashSet<string> excludePiids)
+        AwardSearchRequest request, HashSet<string> excludePiids, HashSet<string>? vendorUeis = null)
     {
-        return await BuildUsaspendingQuery(request, excludePiids).CountAsync();
+        return await BuildUsaspendingQuery(request, excludePiids, vendorUeis).CountAsync();
     }
 
     private IQueryable<UsaspendingAward> BuildUsaspendingQuery(
-        AwardSearchRequest request, HashSet<string> excludePiids)
+        AwardSearchRequest request, HashSet<string> excludePiids, HashSet<string>? vendorUeis = null)
     {
         var query = _context.UsaspendingAwards.AsNoTracking()
             .Where(ua => ua.Piid != null);
@@ -684,11 +687,8 @@ public class AwardService : IAwardService
         if (!string.IsNullOrWhiteSpace(request.VendorUei))
             query = query.Where(ua => ua.RecipientUei == request.VendorUei);
 
-        if (!string.IsNullOrWhiteSpace(request.VendorName))
-        {
-            var escapedVendor = EscapeLikePattern(request.VendorName);
-            query = query.Where(ua => ua.RecipientName != null && EF.Functions.Like(ua.RecipientName, $"%{escapedVendor}%"));
-        }
+        if (vendorUeis != null)
+            query = query.Where(ua => ua.RecipientUei != null && vendorUeis.Contains(ua.RecipientUei));
 
         if (!string.IsNullOrWhiteSpace(request.SetAside))
             query = query.Where(ua => ua.TypeOfSetAside == request.SetAside);
@@ -706,6 +706,21 @@ public class AwardService : IAwardService
             query = query.Where(ua => ua.StartDate <= request.DateTo);
 
         return query;
+    }
+
+    /// <summary>
+    /// Resolves matching UEIs from the entity table for a vendor name search.
+    /// Searches 870K entity rows instead of 28M award rows.
+    /// </summary>
+    private async Task<HashSet<string>> ResolveVendorUeisAsync(string vendorName)
+    {
+        var escaped = EscapeLikePattern(vendorName);
+        var ueis = await _context.Entities.AsNoTracking()
+            .TagWith("HINT:NO_INDEX(e idx_entity_name)")
+            .Where(e => EF.Functions.Like(e.LegalBusinessName, $"%{escaped}%"))
+            .Select(e => e.UeiSam)
+            .ToListAsync();
+        return ueis.ToHashSet();
     }
 
     /// <summary>
