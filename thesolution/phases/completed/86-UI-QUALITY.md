@@ -19,7 +19,7 @@ Review of the React UI identified authentication flow vulnerabilities, type safe
 
 | Item | Verdict | Details |
 |------|---------|---------|
-| 86-1 | FIXED | AdminGuard now checks `isAdmin \|\| isSystemAdmin` |
+| 86-1 | FIXED | AdminGuard checks `isSystemAdmin` only (org admins != system admins) |
 | 86-2 | NOT AN ISSUE | All 28 mutations already have proper `onSuccess` invalidation |
 | 86-3 | FIXED | LoginPage uses `axios.isAxiosError()` type guard |
 | 86-4 | FIXED | OrganizationsTab error handlers typed as `AxiosError` |
