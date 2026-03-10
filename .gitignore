@@ -9,6 +9,8 @@
 **/secrets.*
 **/credentials.*
 !**/credentials.example.*
+**/appsettings.Local.json
+!**/appsettings.Local.example.json
 
 # Local IDE/tool config
 .claude/settings.local.json

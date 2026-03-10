@@ -19,6 +19,9 @@ using AppCorsOptions = FedProspector.Core.Options.CorsOptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// --- Local config override (gitignored, holds DB password & other secrets) ---
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+
 // --- Serilog ---
 builder.Host.UseSerilog((context, loggerConfig) =>
     loggerConfig.ReadFrom.Configuration(context.Configuration));

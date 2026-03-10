@@ -16,9 +16,9 @@ Get your local environment ready for the Federal Contract Prospecting System.
 | MySQL Workbench 8.0.46 | Ready | `C:\Program Files\MySQL\MySQL Workbench 8.0 CE\` |
 | `fed_contracts` database | Ready | Created 2026-02-22, utf8mb4 charset |
 | `fed_app` user | Ready | Full privileges on `fed_contracts` |
-| SAM.gov API key | Ready | Free tier (10 calls/day), stored in `samgov.yml` and `credentials.yml` |
+| SAM.gov API key | Ready | Free tier (10 calls/day), stored in `.env` |
 
-> **Credentials**: All passwords stored in [credentials.yml](credentials.yml) (not committed to git).
+> **Credentials**: Passwords stored in `.env` files (gitignored). See `.env.example` for templates.
 
 ---
 
@@ -69,7 +69,7 @@ source .venv/Scripts/activate   # Git Bash
 
 ### Create .env File
 
-Create `fed_prospector/.env` with credentials from [credentials.yml](credentials.yml):
+Create `fed_prospector/.env` using `fed_prospector/.env.example` as a template:
 
 ```env
 DB_HOST=localhost
@@ -89,7 +89,7 @@ LOG_LEVEL=INFO
 
 1. Go to https://sam.gov, log in
 2. Navigate to profile, request a **Public API Key**
-3. Save it in [credentials.yml](credentials.yml) under `sam_gov.api_key`
+3. Save it in your `.env` file as `SAM_API_KEY`
 
 > Default: 10 calls/day. With an entity role: 1,000/day. See below for upgrade steps.
 
@@ -136,14 +136,16 @@ python main.py setup test-api        # Test SAM.gov API key (uses 1 call)
 
 ```bash
 cd api
+cp src/FedProspector.Api/appsettings.Local.example.json src/FedProspector.Api/appsettings.Local.json
+# Edit appsettings.Local.json and set your DB password
 dotnet restore
-dotnet build FedProspector.Api.slnx
+dotnet build FedProspector.slnx
 dotnet run --project src/FedProspector.Api
 ```
 
-API starts at `https://localhost:5001`. Swagger UI at `/swagger` (dev only).
+API starts at `http://localhost:5056`. Swagger UI at `/swagger` (dev only).
 
-Connection string in `api/src/FedProspector.Api/appsettings.Development.json`.
+Connection string in `api/src/FedProspector.Api/appsettings.Local.json` (gitignored, not in `appsettings.Development.json`).
 
 ---
 
@@ -184,10 +186,10 @@ See individual phase docs in `thesolution/phases/` for command details per phase
 
 ### "Access denied" connecting to MySQL
 - Verify user exists: `SHOW GRANTS FOR 'fed_app'@'localhost';`
-- Ensure `.env` password matches `credentials.yml`
+- Ensure `.env` password matches the password set for `fed_app` MySQL user
 
 ---
 
 ## What's Next
 
-See [MASTER-PLAN.md](MASTER-PLAN.md) for the phase roadmap. Next up: Phase 45 (Opportunity Intelligence).
+See [MASTER-PLAN.md](MASTER-PLAN.md) for the phase roadmap.
