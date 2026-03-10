@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Environment Health Check
 
-**First**: Read `thesolution/credentials.yml` to get `MYSQL_USER`, `MYSQL_PASSWORD`, and the MySQL install path (`MYSQL_DIR`, default `E:/mysql`). Use these values in all commands below — never hardcode credentials or paths.
+**First**: Read `thesolution/credentials.example.yml` to get `MYSQL_USER`, `MYSQL_PASSWORD`, and the MySQL install path (`MYSQL_DIR`, default `E:/mysql`). Use these values in all commands below — never hardcode credentials or paths.
 
 Verify all development dependencies are working. Default mode is `quick`.
 
@@ -45,4 +45,4 @@ Present a checklist:
 | MySQL not running | `$MYSQL_DIR/bin/mysqld.exe --basedir=$MYSQL_DIR --datadir=$MYSQL_DIR/data --console --secure-file-priv=""` |
 | Python packages missing | Activate venv, then `pip install -r requirements.txt` |
 | C# build fails | `dotnet restore api/FedProspector.slnx` |
-| .env missing | Copy from `thesolution/credentials.yml` template |
+| .env missing | Copy from `thesolution/credentials.example.yml` template |

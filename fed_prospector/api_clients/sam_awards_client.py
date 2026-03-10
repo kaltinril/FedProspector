@@ -113,7 +113,7 @@ class SAMAwardsClient(BaseAPIClient):
         self.logger.debug(
             "Award search offset=%d limit=%d params=%s", offset, limit, params
         )
-        response = self.get(self.SEARCH_ENDPOINT, params=params)
+        response = self.get(self.SEARCH_ENDPOINT, params=params, timeout=60)
         return response.json()
 
     def search_awards_all(self, **kwargs):
