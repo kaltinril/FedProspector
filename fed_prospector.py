@@ -156,9 +156,9 @@ def check_db():
 # -- API --------------------------------------------------------------
 
 def build_api():
-    print("  [API] Building (Release) ...")
+    print("  [API] Building ...")
     result = subprocess.run(
-        ["dotnet", "build", str(API_SLN), "-c", "Release", "--verbosity", "quiet"],
+        ["dotnet", "build", str(API_SLN), "--verbosity", "quiet"],
         timeout=120,
     )
     if result.returncode == 0:
@@ -169,6 +169,32 @@ def build_api():
         return False
 
 
+def _api_env() -> dict[str, str]:
+    """Build environment variables for the .NET API process.
+
+    Reads DB_PASSWORD and JWT_SECRET_KEY from fed_prospector/.env and maps
+    them to the ASP.NET Core config keys (using __ separator convention).
+    """
+    env = {**os.environ}
+    db_password = os.environ.get("DB_PASSWORD", "")
+    jwt_secret = os.environ.get("JWT_SECRET_KEY", "")
+
+    if db_password:
+        conn = (
+            f"Server=localhost;Port=3306;Database=fed_contracts;"
+            f"User=fed_app;Password={db_password};"
+            f"SslMode=None;AllowPublicKeyRetrieval=True"
+        )
+        env["ConnectionStrings__DefaultConnection"] = conn
+
+    if jwt_secret:
+        env["Jwt__SecretKey"] = jwt_secret
+
+    # Run in Development mode so appsettings.Development.json is loaded
+    env["ASPNETCORE_ENVIRONMENT"] = "Development"
+    return env
+
+
 def start_api():
     if is_running(API_EXE):
         print("  [API] Already running.")
@@ -177,10 +203,15 @@ def start_api():
         print("  [API] ERROR: Port 5056 is already in use.")
         print("        Another process may be using this port. Check with: netstat -ano | findstr :5056")
         return
-    print("  [API] Starting .NET API (no build) ...")
+    env = _api_env()
+    if not env.get("Jwt__SecretKey"):
+        print("  [API] WARNING: JWT_SECRET_KEY not set in fed_prospector/.env")
+        print("        Auth will fail. Add: JWT_SECRET_KEY=<at-least-32-chars>")
+    print("  [API] Starting .NET API (Development) ...")
     subprocess.Popen(
-        f'start "FedProspector API" /MIN dotnet run --no-build -c Release --project "{API_PROJECT}"',
+        f'start "FedProspector API" /MIN dotnet run --no-build --project "{API_PROJECT}"',
         shell=True,
+        env=env,
     )
     for i in range(60):
         time.sleep(1)
