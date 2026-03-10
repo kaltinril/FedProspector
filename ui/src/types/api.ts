@@ -272,6 +272,10 @@ export interface LoadRequestStatus {
   errorMessage?: string | null;
 }
 
+export interface RequestLoadDto {
+  tier: 'usaspending' | 'fpds';
+}
+
 export interface TransactionDto {
   actionDate: string;
   modificationNumber?: string | null;

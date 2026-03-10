@@ -5,8 +5,8 @@ import type {
   AwardSearchParams,
   AwardDetailResponse,
   LoadRequestStatus,
+  RequestLoadDto,
   BurnRateDto,
-  MarketShareDto,
   IntelMarketShareDto,
   ExpiringContractDto,
 } from '@/types/api';
@@ -21,8 +21,9 @@ export function getAward(contractId: string): Promise<AwardDetailResponse> {
   return apiClient.get(`/awards/${encodeURIComponent(contractId)}`).then((r) => r.data);
 }
 
-export function requestAwardLoad(contractId: string, tier: 'usaspending' | 'fpds' = 'usaspending'): Promise<LoadRequestStatus> {
-  return apiClient.post(`/awards/${encodeURIComponent(contractId)}/load`, { tier }).then((r) => r.data);
+export function requestAwardLoad(contractId: string, tier: RequestLoadDto['tier'] = 'usaspending'): Promise<LoadRequestStatus> {
+  const body: RequestLoadDto = { tier };
+  return apiClient.post(`/awards/${encodeURIComponent(contractId)}/load`, body).then((r) => r.data);
 }
 
 export function getAwardLoadStatus(contractId: string): Promise<LoadRequestStatus> {
@@ -31,10 +32,6 @@ export function getAwardLoadStatus(contractId: string): Promise<LoadRequestStatu
 
 export function getBurnRate(contractId: string): Promise<BurnRateDto> {
   return apiClient.get(`/awards/${encodeURIComponent(contractId)}/burn-rate`).then((r) => r.data);
-}
-
-export function getMarketShare(naicsCode: string, limit = 10): Promise<MarketShareDto[]> {
-  return apiClient.get('/awards/market-share', { params: { naicsCode, limit } }).then((r) => r.data);
 }
 
 export function getIntelMarketShare(naicsCode: string, years: number = 3, limit: number = 10): Promise<IntelMarketShareDto> {

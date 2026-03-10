@@ -7,7 +7,7 @@ export function listNotifications(
   return apiClient.get('/notifications', { params }).then((r) => r.data);
 }
 
-export function getUnreadCount(): Promise<{ count: number }> {
+export function getUnreadCount(): Promise<{ unreadCount: number }> {
   return apiClient.get('/notifications/unread-count').then((r) => r.data);
 }
 

@@ -50,7 +50,7 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
   const notifOpen = Boolean(notifAnchorEl);
 
   const { data: unreadData } = useUnreadCount();
-  const unreadCount = unreadData?.count ?? 0;
+  const unreadCount = unreadData?.unreadCount ?? 0;
   const { data: notifData } = useNotifications({ pageSize: 5, unreadOnly: false });
   const recentNotifications = notifData?.notifications?.items ?? [];
   const markRead = useMarkRead();

@@ -1,6 +1,6 @@
 # Phase 85 — API-UI Contract Alignment
 
-## Status: PLANNED
+## Status: DONE
 
 **Priority**: MEDIUM
 **Depends on**: Phase 84 (model fixes affect DTOs)
@@ -77,12 +77,28 @@ API returns `{ notifications: PagedResponse<T>, unreadCount: int }`. UI must des
 
 ---
 
-## Verification Checklist
+## Resolution
 
-- [ ] 85-1: Call `GET /notifications/unread-count` — verify response matches UI type
-- [ ] 85-2: C# DTO renamed to `IntelMarketShareDto`, all references updated
-- [ ] 85-3: `getMarketShare()` removed or return type corrected
-- [ ] 85-4: `RequestLoadDto` type added to `ui/src/types/api.ts`
-- [ ] 85-5: Trigger 400, 403, 500 errors — verify UI shows appropriate error messages
-- [ ] 85-6: C# DTOs have explicit `[JsonPropertyName]` attributes
-- [ ] Run UI TypeScript build — verify no type errors: `cd ui && npm run build`
+### Investigation Findings (reviewed before fixing)
+
+**Fixed (4 items):**
+- 85-1: Notification badge always showed 0 — UI used `.count` but API returns `.unreadCount`. Fixed in notifications.ts and TopBar.tsx.
+- 85-3: Dead `getMarketShare()` function with wrong return type — removed (replaced by `getIntelMarketShare()`)
+- 85-4: `requestAwardLoad()` had no type safety — added `RequestLoadDto` interface to api.ts
+- 85-8: Same root cause as 85-1 — fixed together (notification unread count property name)
+
+**Not real issues (4 items):**
+- 85-2: DTO class names differ (`MarketShareAnalysisDto` vs `IntelMarketShareDto`) but property names are identical after JSON serialization. No runtime mismatch.
+- 85-5: Error handling is intentionally selective — components handle 400/403/500 locally via TanStack Query. Adding global handling would cause duplicate error messages.
+- 85-6: ASP.NET Core auto-converts PascalCase to camelCase. Adding `[JsonPropertyName]` attributes is pure decoration.
+- 85-7: API endpoints don't require UI consumers. Not a bug.
+
+### Files Changed
+- `ui/src/api/notifications.ts` — fixed return type from `{ count }` to `{ unreadCount }`
+- `ui/src/api/awards.ts` — removed dead `getMarketShare()`, added typed `RequestLoadDto` param
+- `ui/src/components/layout/TopBar.tsx` — fixed `.count` to `.unreadCount`
+- `ui/src/types/api.ts` — added `RequestLoadDto` interface
+
+### Verification
+- TypeScript build: `npx tsc --noEmit` passes with 0 errors
+- No C# changes needed

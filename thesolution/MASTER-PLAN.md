@@ -97,7 +97,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 82 | ETL Pipeline Reliability | COMPLETE | [82-ETL-RELIABILITY.md](phases/completed/82-ETL-RELIABILITY.md) |
 | 83 | Vendor API Client Hardening | COMPLETE | [83-VENDOR-API-HARDENING.md](phases/completed/83-VENDOR-API-HARDENING.md) |
 | 84 | App API Performance & Models | COMPLETE | [84-API-PERFORMANCE-MODELS.md](phases/completed/84-API-PERFORMANCE-MODELS.md) |
-| 85 | API-UI Contract Alignment | PLANNED | [85-API-UI-CONTRACT.md](phases/85-API-UI-CONTRACT.md) |
+| 85 | API-UI Contract Alignment | COMPLETE | [85-API-UI-CONTRACT.md](phases/completed/85-API-UI-CONTRACT.md) |
 | 86 | UI Quality & Resilience | PLANNED | [86-UI-QUALITY.md](phases/86-UI-QUALITY.md) |
 | 87 | Operational Readiness | PLANNED | [87-OPERATIONAL-READINESS.md](phases/87-OPERATIONAL-READINESS.md) |
 | 88 | Documentation Refresh | PLANNED | [88-DOCUMENTATION-REFRESH.md](phases/88-DOCUMENTATION-REFRESH.md) |
