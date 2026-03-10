@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: "Update project documentation after changes: phase status, conventions, file paths. Scoped to what actually changed. Usage: /update-docs [description of what changed]"
+description: "Update project documentation after code changes: phase status in MASTER-PLAN.md, phase task files, CLAUDE.md conventions, file paths. PROACTIVELY use this skill after completing any code work that touches phase deliverables, adds/removes endpoints or tables, changes conventions, or modifies project structure — don't wait for the user to ask. Also use when the user says /update-docs, 'update the docs', 'update phase docs', or 'mark phase complete'. Scoped to what actually changed."
 argument-hint: "[description of what changed]"
 ---
 

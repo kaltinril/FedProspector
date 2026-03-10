@@ -22,7 +22,11 @@ git diff --stat      # summary of staged + unstaged changes
 git log --oneline -5 # recent messages for style matching
 ```
 
-### 2. Analyze and draft the commit message
+### 2. Check for phase doc updates
+
+Before drafting the commit message, scan the diff for changes that should be reflected in project docs. If changes touch phase deliverables (new endpoints, schema changes, ETL fixes, etc.), check whether `thesolution/MASTER-PLAN.md` or the relevant `thesolution/phases/*.md` file needs updating. If so, make those edits and include them in the commit. Don't create a separate commit for doc updates — bundle them together.
+
+### 3. Analyze and draft the commit message
 
 Read the diff output and recent commit history, then draft a message that:
 
@@ -31,7 +35,7 @@ Read the diff output and recent commit history, then draft a message that:
 - Keeps the first line under ~72 characters when possible; use a blank line + body for detail
 - For multi-file changes, mention the scope (e.g., "Phase 30:", "Fix:", "Add:")
 
-### 3. Stage files selectively
+### 4. Stage files selectively
 
 Add relevant files by name. **Never use `git add -A` or `git add .`** — list files explicitly.
 
@@ -43,7 +47,7 @@ Add relevant files by name. **Never use `git add -A` or `git add .`** — list f
 
 If `$ARGUMENTS` is provided and starts with `-m`, use the text after `-m` as the commit message override instead of auto-drafting.
 
-### 4. Commit
+### 5. Commit
 
 Use a HEREDOC for the message to preserve formatting. Do NOT append `Co-Authored-By` or any attribution trailers — the commit message should contain only the descriptive message.
 
@@ -56,7 +60,7 @@ EOF
 )"
 ```
 
-### 5. Verify
+### 6. Verify
 
 Run `git status` after the commit to confirm it succeeded and the working tree is clean (or shows only the expected untracked files).
 
