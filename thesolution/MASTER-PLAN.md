@@ -92,6 +92,15 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 76 | UI Testing & Bug Fixes | COMPLETE | [76-UI-TESTING-FIXES.md](phases/completed/76-UI-TESTING-FIXES.md) |
 | 77 | USASpending Delta Loader | COMPLETE | [77-USASPENDING-DELTA-LOADER.md](phases/completed/77-USASPENDING-DELTA-LOADER.md) |
 | 78 | Entity CLI Consolidation | COMPLETE | [78-entity-cli-consolidation.md](phases/completed/78-entity-cli-consolidation.md) |
+| 80 | Critical Security Fixes | PLANNED | [80-CRITICAL-SECURITY-FIXES.md](phases/80-CRITICAL-SECURITY-FIXES.md) |
+| 81 | Database Integrity & Schema | PLANNED | [81-DATABASE-INTEGRITY.md](phases/81-DATABASE-INTEGRITY.md) |
+| 82 | ETL Pipeline Reliability | PLANNED | [82-ETL-RELIABILITY.md](phases/82-ETL-RELIABILITY.md) |
+| 83 | Vendor API Client Hardening | PLANNED | [83-VENDOR-API-HARDENING.md](phases/83-VENDOR-API-HARDENING.md) |
+| 84 | App API Performance & Models | PLANNED | [84-API-PERFORMANCE-MODELS.md](phases/84-API-PERFORMANCE-MODELS.md) |
+| 85 | API-UI Contract Alignment | PLANNED | [85-API-UI-CONTRACT.md](phases/85-API-UI-CONTRACT.md) |
+| 86 | UI Quality & Resilience | PLANNED | [86-UI-QUALITY.md](phases/86-UI-QUALITY.md) |
+| 87 | Operational Readiness | PLANNED | [87-OPERATIONAL-READINESS.md](phases/87-OPERATIONAL-READINESS.md) |
+| 88 | Documentation Refresh | PLANNED | [88-DOCUMENTATION-REFRESH.md](phases/88-DOCUMENTATION-REFRESH.md) |
 | 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 
