@@ -55,6 +55,8 @@ def _make_composite_key(contract_id, modification_number):
 
     The fpds_contract PK is (contract_id, modification_number).
     We concatenate with a pipe separator for the in-memory hash dict.
+    The pipe character does not appear in PIIDs or modification numbers
+    (government alphanumeric identifiers), so collisions are not a concern.
     """
     mod = modification_number or "0"
     return f"{contract_id}|{mod}"

@@ -144,17 +144,17 @@ class TestMarkStaging:
         _, params = mock_cursor.execute.call_args[0]
         assert params == ("E", "Something broke", 10)
 
-    def test_error_msg_truncated_to_500(self):
-        """A 600-character error_msg should be truncated to 500."""
+    def test_error_msg_truncated_to_2000(self):
+        """A 3000-character error_msg should be truncated to 2000."""
         loader = _TestLoader()
         mock_cursor = MagicMock()
 
-        long_msg = "x" * 600
+        long_msg = "x" * 3000
         loader._mark_staging(mock_cursor, staging_id=5, processed="E", error_msg=long_msg)
 
         _, params = mock_cursor.execute.call_args[0]
-        assert len(params[1]) == 500
-        assert params[1] == "x" * 500
+        assert len(params[1]) == 2000
+        assert params[1] == "x" * 2000
 
     def test_error_msg_none_when_not_provided(self):
         """When error_msg is not given, it defaults to None."""

@@ -50,6 +50,8 @@ def _make_subaward_key(record):
     """Build a composite key string for hash lookups.
 
     Uses prime_piid + sub_uei + sub_date as the logical key.
+    The pipe separator does not appear in PIIDs, UEIs, or date strings
+    (all government alphanumeric identifiers), so collisions are not a concern.
     """
     piid = record.get("prime_piid") or ""
     sub_uei = record.get("sub_uei") or ""
@@ -115,16 +117,16 @@ class SubawardLoader(StagingMixin):
             "records_errored": 0,
         }
 
-        # Pre-fetch existing hashes keyed on composite prime_piid|sub_uei.
+        # Pre-fetch existing hashes keyed on composite prime_piid|sub_uei|sub_date.
+        # Must match _make_subaward_key() and the 3-column lookup in _upsert_subaward().
         # Keying on prime_piid alone caused hash collisions when a prime had
         # multiple subawards: the dict only retained the last hash per prime,
         # which silently skipped real updates for other subawards on that prime.
-        # Fixed: composite key now prevents this collision.
         conn_h = get_connection()
         cur_h = conn_h.cursor()
         try:
             cur_h.execute(
-                "SELECT CONCAT(COALESCE(prime_piid,''), '|', COALESCE(sub_uei,'')), record_hash "
+                "SELECT CONCAT(COALESCE(prime_piid,''), '|', COALESCE(sub_uei,''), '|', COALESCE(sub_date,'')), record_hash "
                 "FROM sam_subaward WHERE record_hash IS NOT NULL"
             )
             existing_hashes = {row[0]: row[1] for row in cur_h.fetchall()}
@@ -154,6 +156,7 @@ class SubawardLoader(StagingMixin):
                     record_key = (
                         f"{subaward_data.get('prime_piid', '')}"
                         f"|{subaward_data.get('sub_uei', '')}"
+                        f"|{subaward_data.get('sub_date', '')}"
                     )
 
                     # --- change detection ---------------------------------

@@ -1105,6 +1105,14 @@ class USASpendingBulkLoader:
                     conn.close()
 
             # --- Soft-delete pass ---
+            # NOTE: Soft-deletes run AFTER all upserts. If the same PIID appears
+            # as both a "C" (correction) row and a "D" (delete) row in one delta
+            # file, the C-row is upserted first (clearing deleted_at via the
+            # ON DUPLICATE KEY UPDATE clause), then the D-row soft-deletes it.
+            # This is the correct order for the USASpending delta format: a PIID
+            # that is both corrected and then deleted should end up soft-deleted.
+            # The reverse scenario (D then re-added C in the SAME delta file)
+            # would also work correctly since the upsert sets deleted_at = NULL.
             if delete_piids:
                 deleted_count = self._soft_delete_piids(delete_piids)
                 stats["records_deleted"] = deleted_count

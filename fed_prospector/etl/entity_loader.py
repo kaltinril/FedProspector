@@ -57,12 +57,23 @@ _ENTITY_HASH_FIELDS = [
     "primary_naics",
     "credit_card_usage", "correspondence_flag",
     "debt_subject_to_offset", "exclusion_status_flag",
-    "no_public_display_flag", "evs_source",
+    "no_public_display_flag", "evs_source", "eft_indicator",
 ]
 
 
 class EntityLoader:
-    """Load SAM.gov entity data into normalised MySQL tables."""
+    """Load SAM.gov entity data into normalised MySQL tables.
+
+    NOTE: This loader intentionally does NOT use StagingMixin (unlike other loaders).
+    It implements its own staging logic (_insert_staging_entity, _mark_staging_entity)
+    because:
+    1. Entity records are streamed from large JSON files (ijson), requiring a
+       streaming iterator pattern incompatible with StagingMixin's batch model.
+    2. The staging key is a single field (uei_sam) tracked by load_id, not an
+       auto-increment staging_id.
+    3. Entity loading involves 8 child tables with delete+re-insert sync, plus
+       field-level history tracking -- concerns that don't exist in other loaders.
+    """
 
     BATCH_SIZE = 1000
 
@@ -435,6 +446,7 @@ class EntityLoader:
             "exclusion_status_flag":       reg.get("exclusionStatusFlag"),
             "no_public_display_flag":      reg.get("noPublicDisplayFlag"),
             "evs_source":                  reg.get("evsSource"),
+            "eft_indicator":               fin.get("eftIndicator"),
         }
 
     def _extract_child_records(self, raw_json, uei_sam):
@@ -607,7 +619,7 @@ class EntityLoader:
             "primary_naics",
             "credit_card_usage", "correspondence_flag",
             "debt_subject_to_offset", "exclusion_status_flag",
-            "no_public_display_flag", "evs_source",
+            "no_public_display_flag", "evs_source", "eft_indicator",
             "record_hash", "last_load_id",
         ]
 

@@ -44,7 +44,15 @@ class StagingMixin:
         return conn, conn.cursor()
 
     def _insert_staging(self, stg_cursor, load_id: int, key_vals: dict, raw: dict):
-        """Write raw JSON to staging table. Returns lastrowid, or None on failure."""
+        """Write raw JSON to staging table. Returns lastrowid, or None on failure.
+
+        Note: Staging tables have no unique constraint on the key columns, so
+        concurrent loaders writing to the same staging table could produce
+        duplicate raw rows. This is acceptable because: (1) this is a
+        single-process CLI tool — concurrent loads for the same source are not
+        expected, and (2) the main data tables use UPSERT (INSERT ON DUPLICATE
+        KEY UPDATE), so duplicate staging rows do not cause data corruption.
+        """
         try:
             raw_str = json.dumps(raw, sort_keys=True, default=str)
             raw_hash = hashlib.sha256(raw_str.encode()).hexdigest()
@@ -68,5 +76,5 @@ class StagingMixin:
             return
         stg_cursor.execute(
             f"UPDATE {self._STG_TABLE} SET processed=%s, error_message=%s WHERE id=%s",
-            (processed, error_msg[:500] if error_msg else None, staging_id),
+            (processed, error_msg[:2000] if error_msg else None, staging_id),
         )

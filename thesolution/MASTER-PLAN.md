@@ -94,7 +94,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 78 | Entity CLI Consolidation | COMPLETE | [78-entity-cli-consolidation.md](phases/completed/78-entity-cli-consolidation.md) |
 | 80 | Critical Security Fixes | COMPLETE | [80-CRITICAL-SECURITY-FIXES.md](phases/completed/80-CRITICAL-SECURITY-FIXES.md) |
 | 81 | Database Integrity & Schema | COMPLETE | [81-DATABASE-INTEGRITY.md](phases/completed/81-DATABASE-INTEGRITY.md) |
-| 82 | ETL Pipeline Reliability | PLANNED | [82-ETL-RELIABILITY.md](phases/82-ETL-RELIABILITY.md) |
+| 82 | ETL Pipeline Reliability | COMPLETE | [82-ETL-RELIABILITY.md](phases/completed/82-ETL-RELIABILITY.md) |
 | 83 | Vendor API Client Hardening | COMPLETE | [83-VENDOR-API-HARDENING.md](phases/completed/83-VENDOR-API-HARDENING.md) |
 | 84 | App API Performance & Models | PLANNED | [84-API-PERFORMANCE-MODELS.md](phases/84-API-PERFORMANCE-MODELS.md) |
 | 85 | API-UI Contract Alignment | PLANNED | [85-API-UI-CONTRACT.md](phases/85-API-UI-CONTRACT.md) |

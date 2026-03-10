@@ -23,18 +23,20 @@ from etl.staging_mixin import StagingMixin
 logger = logging.getLogger("fed_prospector.etl.usaspending_loader")
 
 # Fields used for record hash (business-meaningful fields only;
-# excludes load-tracking timestamps and description)
+# excludes load-tracking timestamps and description).
+# NOTE: recipient_parent_name/uei, last_modified_date, type_of_set_aside_description,
+# and solicitation_identifier are excluded because they are always None from the
+# search endpoint (_normalize_award) and only populated by enrich_from_detail().
+# Including them would cause false change detection on every search-only load.
 _AWARD_HASH_FIELDS = [
     "generated_unique_award_id", "piid", "fain", "uri", "award_type",
     "recipient_name", "recipient_uei",
-    "recipient_parent_name", "recipient_parent_uei",
     "total_obligation", "base_and_all_options_value",
-    "start_date", "end_date", "last_modified_date",
+    "start_date", "end_date",
     "awarding_agency_name", "awarding_sub_agency_name", "funding_agency_name",
     "naics_code", "naics_description", "psc_code",
-    "type_of_set_aside", "type_of_set_aside_description",
+    "type_of_set_aside",
     "pop_state", "pop_country", "pop_zip", "pop_city",
-    "solicitation_identifier",
 ]
 
 

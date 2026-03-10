@@ -25,6 +25,12 @@ class ChangeDetector:
     def get_existing_hashes(self, table_name, key_field, hash_field="record_hash"):
         """Fetch all existing key -> hash mappings from a table.
 
+        The hash cache is loaded once at load start. Long-running loads may see
+        stale data if another process modifies the same table concurrently.
+        This is acceptable because: (1) this is a single-process CLI tool, and
+        (2) downstream UPSERTs (INSERT ON DUPLICATE KEY UPDATE) ensure
+        correctness even if a stale hash causes a redundant update.
+
         Returns:
             dict of {key_value: hash_string}
         """
