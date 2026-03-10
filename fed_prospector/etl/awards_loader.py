@@ -313,6 +313,14 @@ class AwardsLoader(StagingMixin):
         def _s(val):
             return val.strip() if isinstance(val, str) else val
 
+        def _int(val):
+            if val is None:
+                return None
+            try:
+                return int(val)
+            except (ValueError, TypeError):
+                return None
+
         return {
             "contract_id":              _s(contract_id_block.get("piid")),
             "idv_piid":                 _s(contract_id_block.get("referencedIDVPiid")),
@@ -358,7 +366,7 @@ class AwardsLoader(StagingMixin):
             "pop_country":              _s(pop_country.get("code")),
             "pop_zip":                  _s(pop.get("zipCode")),
             "extent_competed":          _s(extent_competed_obj.get("code")),
-            "number_of_offers":         award_competition.get("numberOfOffersReceived"),
+            "number_of_offers":         _int(award_competition.get("numberOfOffersReceived")),
             "far1102_exception_code":   _s(far_exception.get("code")),
             "far1102_exception_name":   _s(far_exception.get("name")),
             "reason_for_modification":  _s(reason_mod.get("code")),

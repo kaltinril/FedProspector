@@ -277,6 +277,8 @@ public class AwardService : IAwardService
                 ContractingOfficeName = contract.ContractingOfficeName,
                 FundingAgencyId = contract.FundingAgencyId,
                 FundingAgencyName = contract.FundingAgencyName,
+                FundingSubtierCode = contract.FundingSubtierCode,
+                FundingSubtierName = contract.FundingSubtierName,
                 VendorUei = contract.VendorUei,
                 VendorName = contract.VendorName,
                 DateSigned = contract.DateSigned,

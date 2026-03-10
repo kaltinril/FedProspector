@@ -95,6 +95,10 @@ public class Entity
     [MaxLength(10)]
     public string? EvsSource { get; set; }
 
+    [Column("eft_indicator")]
+    [MaxLength(10)]
+    public string? EftIndicator { get; set; }
+
     [MaxLength(64)]
     public string? RecordHash { get; set; }
 

@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     last_load_id             INT,
     first_loaded_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at               DATETIME NULL,
+    deleted_at               DATETIME NULL,  -- Soft-delete: USASpending awards use deleted_at (not hard delete) to preserve transaction FK references
 
     INDEX idx_usa_naics (naics_code),
     INDEX idx_usa_recipient (recipient_uei),

@@ -43,6 +43,14 @@ public class FpdsContract
     [MaxLength(200)]
     public string? FundingAgencyName { get; set; }
 
+    [Column("funding_subtier_code")]
+    [MaxLength(20)]
+    public string? FundingSubtierCode { get; set; }
+
+    [Column("funding_subtier_name")]
+    [MaxLength(200)]
+    public string? FundingSubtierName { get; set; }
+
     [MaxLength(12)]
     public string? VendorUei { get; set; }
 

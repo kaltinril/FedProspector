@@ -68,9 +68,9 @@ public class Prospect
     [MaxLength(50)]
     public string? ContractAwardId { get; set; }
 
-    public DateTime? CreatedAt { get; set; }
+    public DateTime CreatedAt { get; set; }
 
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime UpdatedAt { get; set; }
 
     // Navigation property
     [ForeignKey("OrganizationId")]

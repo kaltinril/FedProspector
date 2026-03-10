@@ -1,6 +1,6 @@
 # Phase 81: Database Integrity & Schema Fixes
 
-**Status**: PLANNED
+**Status**: IN PROGRESS
 **Priority**: HIGH
 **Depends on**: None
 **Overlaps**: Phase 200 (Database Normalization) addresses larger structural changes. Phase 81 covers correctness issues that should be fixed independently.
@@ -116,17 +116,53 @@ Comprehensive review identified missing foreign key constraints, type mismatches
 
 ---
 
+## Review Decisions
+
+A thorough pre-implementation review was conducted analyzing ETL loader patterns, existing FK constraint handling, and schema drift accuracy before any changes were made.
+
+### FK Constraints — INTENTIONALLY SKIPPED
+
+All FK creation items (81-1 through 81-6, 81-11) are **intentionally skipped**. Rationale:
+
+1. **ETL loaders use TRUNCATE + LOAD DATA INFILE**: The BulkLoader (bulk_loader.py) TRUNCATEs entity and child tables during full loads with `SET FOREIGN_KEY_CHECKS = 0`. Adding FKs would not provide runtime protection during the primary data path.
+
+2. **History table CASCADE would destroy audit data**: Items 81-3 and 81-4 proposed `ON DELETE CASCADE` on entity_history and opportunity_history. These are append-only audit tables — cascading deletes would silently erase change history when parent records are replaced during bulk loads.
+
+3. **Reference table TRUNCATE is unprotected**: reference_loader.py TRUNCATEs ref_entity_structure (line 646) without FK_CHECKS wrapper. Adding an FK from entity.entity_structure_code would require modifying every reference loader TRUNCATE pattern.
+
+4. **Load order is currently arbitrary**: CLI load commands run independently. Adding cross-table FKs would introduce hard ordering dependencies that the current batch system doesn't enforce.
+
+5. **Risk/reward unfavorable**: The 29 existing FKs protect web API tables (prospects, proposals, sessions) where referential integrity matters for user-facing operations. ETL data tables are bulk-loaded from authoritative government sources — orphan prevention is better handled at the ETL validation layer.
+
+### Items SKIPPED as invalid or low-value
+
+| Item | Decision | Reason |
+|------|----------|--------|
+| 81-7: UEI VARCHAR(13→12) | SKIP | All real data is exactly 12 chars. VARCHAR(13) causes zero JOIN issues. No actual risk. |
+| 81-8: Collation inconsistency | SKIP — FALSE ALARM | Live database already uses `utf8mb4_0900_ai_ci` uniformly across all 63 tables. The plan was outdated. Applying the "fix" would introduce a mismatch. |
+| 81-12: VARCHAR length efficiency | SKIP | Negligible storage impact, high risk of breaking ETL if lengths are too tight. |
+| 81-13: prospect_note TEXT NOT NULL | SKIP | TEXT NOT NULL is valid MySQL. No issue. |
+| 81-15: Missing NOT NULL | SKIP | Government API data has many legitimately NULL fields. Adding NOT NULL risks rejecting valid records. |
+| 81-16: CHAR(1) vs VARCHAR(1) | SKIP | Cosmetic. No functional impact. |
+
+### Items IMPLEMENTED
+
+| Item | What | Status |
+|------|------|--------|
+| 81-9 | Add missing EF Core model properties (eft_indicator, funding_subtier_code/name) + DTOs | DONE |
+| 81-10 | Document soft-delete strategy in usaspending DDL | DONE |
+| 81-14 | Add int() conversion for number_of_offers in awards_loader | DONE |
+| 81-17 | Fix Prospect.cs CreatedAt/UpdatedAt to non-nullable DateTime | DONE |
+
 ## Migration Strategy
-1. Create migration file `fed_prospector/db/schema/migrations/phase81_integrity.sql`
-2. Run in transaction: ADD FKs → ADD indexes → ALTER column types
-3. Verify no orphaned records before adding FKs: `SELECT ... LEFT JOIN ... WHERE parent.id IS NULL`
-4. Update DDL source files to include new constraints
-5. Update EF Core models in C# project
+
+Scope reduced after pre-implementation review. No database migration needed — changes are limited to:
+1. C# EF Core model property additions (no schema change, columns already exist)
+2. Python ETL validation improvement (code-only)
+3. Documentation updates (DDL comments)
 
 ## Verification
-1. All FK constraints pass: `SELECT * FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_TYPE='FOREIGN KEY' AND TABLE_SCHEMA='fed_contracts'`
-2. No orphaned records in history tables
-3. UEI fields all VARCHAR(12)
-4. Collation uniform: `SELECT TABLE_NAME, TABLE_COLLATION FROM information_schema.TABLES WHERE TABLE_SCHEMA='fed_contracts'`
-5. EF Core model properties match DDL columns
-6. All existing tests pass (Python pytest + C# xUnit)
+1. C# API project builds successfully with new model properties
+2. Python pytest suite passes with awards_loader change
+3. No new EF Core migration needed (columns already exist in DB)
+4. DTOs expose new fields in API responses

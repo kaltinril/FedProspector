@@ -19,6 +19,7 @@ public class EntityDetailDto
     public string? StateOfIncorporation { get; set; }
     public string? CountryOfIncorporation { get; set; }
     public string? ExclusionStatusFlag { get; set; }
+    public string? EftIndicator { get; set; }
 
     // Nested child collections
     public List<EntityAddressDto> Addresses { get; set; } = [];

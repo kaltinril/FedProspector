@@ -213,6 +213,7 @@ public class EntityService : IEntityService
             StateOfIncorporation = entity.StateOfIncorporation,
             CountryOfIncorporation = entity.CountryOfIncorporation,
             ExclusionStatusFlag = entity.ExclusionStatusFlag,
+            EftIndicator = entity.EftIndicator,
             Addresses = await addressesTask,
             NaicsCodes = await naicsTask,
             PscCodes = await pscTask,

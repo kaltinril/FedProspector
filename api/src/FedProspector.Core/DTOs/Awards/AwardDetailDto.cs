@@ -11,6 +11,8 @@ public class AwardDetailDto
     public string? ContractingOfficeName { get; set; }
     public string? FundingAgencyId { get; set; }
     public string? FundingAgencyName { get; set; }
+    public string? FundingSubtierCode { get; set; }
+    public string? FundingSubtierName { get; set; }
     public string? VendorUei { get; set; }
     public string? VendorName { get; set; }
     public DateOnly? DateSigned { get; set; }
