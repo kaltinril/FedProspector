@@ -15,11 +15,12 @@ Review of the React UI identified authentication flow vulnerabilities, type safe
 
 ## Results Summary
 
-**11 fixes, 4 not issues.** TypeScript build clean.
+**12 fixes, 4 not issues.** TypeScript build clean.
 
 | Item | Verdict | Details |
 |------|---------|---------|
 | 86-1 | FIXED | AdminGuard checks `isSystemAdmin` only (org admins != system admins) |
+| 86-1b | FIXED | Renamed isAdmin → isOrgAdmin in UI to distinguish org admin from system admin |
 | 86-2 | NOT AN ISSUE | All 28 mutations already have proper `onSuccess` invalidation |
 | 86-3 | FIXED | LoginPage uses `axios.isAxiosError()` type guard |
 | 86-4 | FIXED | OrganizationsTab error handlers typed as `AxiosError` |
@@ -40,7 +41,8 @@ Review of the React UI identified authentication flow vulnerabilities, type safe
 ## Files Changed
 
 - `ui/src/auth/AdminGuard.tsx` — added isSystemAdmin check
-- `ui/src/auth/AuthContext.tsx` — network vs auth error distinction
+- `ui/src/auth/AuthContext.tsx` — network vs auth error distinction; renamed isAdmin → isOrgAdmin
+- `ui/src/components/layout/Sidebar.tsx` — updated isAdmin → isOrgAdmin destructuring
 - `ui/src/pages/login/LoginPage.tsx` — axios.isAxiosError type guard
 - `ui/src/pages/admin/OrganizationsTab.tsx` — AxiosError typing
 - `ui/src/routes.tsx` — public 404 route for unauthenticated users

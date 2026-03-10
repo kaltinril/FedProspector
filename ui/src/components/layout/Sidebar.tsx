@@ -93,7 +93,7 @@ const ADMIN_ITEM: NavItem = {
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isOrgAdmin } = useAuth();
 
   const sidebarWidth = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
@@ -158,7 +158,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
   }
 
   const sections = NAV_SECTIONS.map((section) => ({ ...section, items: [...section.items] }));
-  if (isAdmin) {
+  if (isOrgAdmin) {
     const settingsSection = sections.find((s) => s.title === 'Settings');
     if (settingsSection) {
       settingsSection.items.push(ADMIN_ITEM);

@@ -8,7 +8,7 @@ export interface AuthContextType {
   user: UserProfileDto | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  isAdmin: boolean;
+  isOrgAdmin: boolean;
   isSystemAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const isAuthenticated = user !== null;
-  const isAdmin = user?.isAdmin ?? false;
+  const isOrgAdmin = user?.isAdmin ?? false;
   const isSystemAdmin = user?.isSystemAdmin ?? false;
 
   const value = useMemo<AuthContextType>(
@@ -71,13 +71,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       user,
       isLoading,
       isAuthenticated,
-      isAdmin,
+      isOrgAdmin,
       isSystemAdmin,
       login,
       logout,
       refreshSession,
     }),
-    [user, isLoading, isAuthenticated, isAdmin, isSystemAdmin, login, logout, refreshSession],
+    [user, isLoading, isAuthenticated, isOrgAdmin, isSystemAdmin, login, logout, refreshSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
