@@ -47,7 +47,7 @@ class SAMAwardsClient(BaseAPIClient):
 
     def __init__(self, api_key_number=1):
         """Initialize SAM Awards client. See _sam_init_kwargs() for key selection."""
-        super().__init__(**self._sam_init_kwargs("SAM_AWARDS", api_key_number))
+        super().__init__(**self._sam_init_kwargs("sam_awards", api_key_number))
 
     # -----------------------------------------------------------------
     # Core search

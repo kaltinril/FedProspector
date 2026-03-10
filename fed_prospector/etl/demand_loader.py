@@ -222,13 +222,15 @@ class DemandLoader:
         request_id = req["request_id"]
         piid = req["lookup_key"]
 
-        # Check rate budget before consuming SAM.gov API calls
-        if not self.sam_client._check_rate_limit():
+        # Log remaining requests for visibility but don't block — let the
+        # API itself return 429 if the limit is actually reached.
+        remaining = self.sam_client._get_remaining_requests()
+        if remaining <= 0:
             logger.info(
-                "Request %d: SAM.gov rate limit reached, deferring FPDS load for '%s'",
+                "Request %d: SAM.gov rate counter exhausted (may reset soon), "
+                "attempting API call for '%s' anyway",
                 request_id, piid,
             )
-            return  # Leave as PENDING; will retry next cycle
 
         self._set_status(request_id, "PROCESSING", started_at=datetime.now())
 

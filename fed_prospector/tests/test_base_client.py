@@ -3,7 +3,8 @@
 Tests cover:
 - Successful GET/POST requests
 - Rate limit checking and enforcement
-- Retry logic with exponential backoff on 429 and 5xx
+- Immediate failure on 429 (daily rate limit) without retry
+- Retry logic with exponential backoff on 5xx
 - ConnectionError and Timeout retry behavior
 - 4xx non-retryable error handling
 - Pagination generator
@@ -59,25 +60,6 @@ class TestBaseClientInit:
 # ---------------------------------------------------------------------------
 
 class TestRateLimitCheck:
-    def test_check_rate_limit_returns_true_when_no_record(self, mock_db_connection):
-        """No record in etl_rate_limit means 0 requests made."""
-        client = _make_client()
-        assert client._check_rate_limit() is True
-
-    def test_check_rate_limit_returns_true_when_under_limit(self, mock_db_connection):
-        conn = mock_db_connection.return_value
-        cursor = conn.cursor.return_value
-        cursor.fetchone.return_value = (5,)  # 5 < 100
-        client = _make_client()
-        assert client._check_rate_limit() is True
-
-    def test_check_rate_limit_returns_false_when_at_limit(self, mock_db_connection):
-        conn = mock_db_connection.return_value
-        cursor = conn.cursor.return_value
-        cursor.fetchone.return_value = (100,)  # 100 == max
-        client = _make_client()
-        assert client._check_rate_limit() is False
-
     def test_get_remaining_requests_returns_correct_count(self, mock_db_connection):
         conn = mock_db_connection.return_value
         cursor = conn.cursor.return_value
@@ -130,14 +112,17 @@ class TestSuccessfulRequests:
 # ---------------------------------------------------------------------------
 
 class TestRateLimitEnforcement:
-    def test_request_raises_rate_limit_exceeded_when_at_limit(self, mock_db_connection):
+    def test_request_proceeds_even_when_counter_at_limit(self, mock_db_connection):
+        """Preemptive blocking removed — only a real 429 should stop requests."""
         conn = mock_db_connection.return_value
         cursor = conn.cursor.return_value
         cursor.fetchone.return_value = (100,)  # at limit
         client = _make_client()
 
-        with pytest.raises(RateLimitExceeded, match="Daily rate limit"):
-            client.get("/test")
+        resp_200 = make_mock_response(200, {"ok": True})
+        client.session.request = MagicMock(return_value=resp_200)
+        result = client.get("/test")
+        assert result.status_code == 200
 
 
 # ---------------------------------------------------------------------------
@@ -145,19 +130,16 @@ class TestRateLimitEnforcement:
 # ---------------------------------------------------------------------------
 
 class TestRetryBehavior:
-    @patch("time.sleep")
-    def test_retries_on_429_then_succeeds(self, mock_sleep):
+    def test_429_raises_immediately_without_retry(self):
+        """429 means daily limit reached — raise immediately, no retries."""
         client = _make_client()
         resp_429 = make_mock_response(429)
-        resp_200 = make_mock_response(200, {"ok": True})
-        client.session.request = MagicMock(side_effect=[resp_429, resp_200])
+        client.session.request = MagicMock(return_value=resp_429)
 
-        response = client.get("/test")
+        with pytest.raises(requests.HTTPError, match="429"):
+            client.get("/test")
 
-        assert response.status_code == 200
-        assert client.session.request.call_count == 2
-        # Backoff: 2^0 = 1 second
-        mock_sleep.assert_any_call(1)
+        assert client.session.request.call_count == 1
 
     @patch("time.sleep")
     def test_retries_on_500_then_succeeds(self, mock_sleep):
@@ -195,18 +177,17 @@ class TestRetryBehavior:
 
         assert response.status_code == 200
 
-    @patch("time.sleep")
-    def test_raises_after_all_retries_exhausted_on_429(self, mock_sleep):
+    def test_429_raises_on_first_attempt_ignoring_max_retries(self):
+        """429 raises immediately regardless of max_retries setting."""
         client = _make_client()
         resp_429 = make_mock_response(429)
-        # 4 attempts: initial + 3 retries
         client.session.request = MagicMock(return_value=resp_429)
 
-        with pytest.raises(requests.HTTPError):
+        with pytest.raises(requests.HTTPError, match="429"):
             client._request_with_retry("GET", "https://api.example.com/test",
                                        max_retries=3, backoff_factor=2)
 
-        assert client.session.request.call_count == 4
+        assert client.session.request.call_count == 1
 
     @patch("time.sleep")
     def test_raises_after_all_retries_exhausted_on_connection_error(self, mock_sleep):

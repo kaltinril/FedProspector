@@ -64,7 +64,7 @@ class SAMEntityClient(BaseAPIClient):
     """
 
     def __init__(self, api_key_number=1):
-        super().__init__(**self._sam_init_kwargs("SAM_ENTITY", api_key_number))
+        super().__init__(**self._sam_init_kwargs("sam_entity", api_key_number))
 
     def get_entity_by_uei(self, uei_sam, include_sections="all"):
         """Look up a single entity by its Unique Entity Identifier (UEI).

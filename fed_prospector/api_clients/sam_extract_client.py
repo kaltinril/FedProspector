@@ -35,8 +35,9 @@ class SAMExtractClient(BaseAPIClient):
         super().__init__(
             base_url=settings.SAM_API_BASE_URL,
             api_key=api_key or settings.SAM_API_KEY,
-            source_name="SAM_EXTRACT",
+            source_name="SAM_KEY1",
             max_daily_requests=settings.SAM_DAILY_LIMIT,
+            logger_name="fed_prospector.api.sam_extract",
         )
 
     # ------------------------------------------------------------------

@@ -7,6 +7,20 @@
 ## Overview
 Review of all 9 vendor API clients (SAM.gov x6, USASpending, GSA CALC, base client) identified rate limiting bypasses, missing response validation, pagination risks, and error handling gaps. These affect data loading reliability and API quota management.
 
+## Pre-Phase Fixes (Completed)
+
+The following rate limit fixes were applied before Phase 83 formal execution:
+
+#### Rate Limit Architecture Overhaul (2026-03-09)
+- **Removed preemptive rate limit blocking**: Only real HTTP 429 responses from SAM.gov now stop requests. The prior approach pre-blocked based on counter estimates, causing unnecessary request failures.
+- **Consolidated per-endpoint tracking to per-key tracking**: Changed source names from per-endpoint (SAM_AWARDS, SAM_ENTITY, etc.) to per-key (SAM_KEY1, SAM_KEY2), matching SAM.gov's actual behavior of a single shared pool per API key.
+- **Fixed rate limit date tracking to use UTC**: SAM.gov resets quotas at midnight UTC; local-time tracking caused premature or late resets.
+- **Fixed timestamp consistency in `_increment_rate_counter`**: Counter date and last-checked timestamp now use the same clock.
+- **Removed dead `_check_rate_limit` method**: Eliminated unused code left over from prior refactors.
+- **Fixed 429 tests and docstring**: Updated test expectations and documentation to match new behavior.
+
+**Files changed**: `fed_prospector/api_clients/base_client.py`, related test files.
+
 ## Issues
 
 ### CRITICAL

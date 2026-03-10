@@ -9,7 +9,7 @@ Features:
 
 import logging
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 
 import requests
 
@@ -23,24 +23,29 @@ class RateLimitExceeded(Exception):
 
 class BaseAPIClient:
     def __init__(self, base_url, api_key, source_name, max_daily_requests,
-                 request_delay=0.1):
+                 request_delay=0.1, logger_name=None):
         self.base_url = base_url
         self.api_key = api_key
         self.source_name = source_name
         self.max_daily_requests = max_daily_requests
         self.request_delay = request_delay  # seconds between consecutive requests
         self.session = requests.Session()
-        self.logger = logging.getLogger(f"fed_prospector.api.{source_name}")
+        self.logger = logging.getLogger(
+            logger_name or f"fed_prospector.api.{source_name}"
+        )
 
     @classmethod
-    def _sam_init_kwargs(cls, source_name, api_key_number=1):
+    def _sam_init_kwargs(cls, logger_name, api_key_number=1):
         """Return kwargs dict for super().__init__() using SAM's dual-key config.
 
         Centralizes the SAM_API_KEY / SAM_API_KEY_2 selection logic shared by
-        all four SAM search clients (Awards, Exclusions, FedHier, Subaward).
+        all SAM.gov clients. Rate limit tracking uses a per-key source_name
+        (SAM_KEY1 or SAM_KEY2) because SAM.gov shares a single daily pool
+        across all endpoints for each API key.
 
         Args:
-            source_name: Source system name for rate tracking (e.g. "SAM_AWARDS").
+            logger_name: Descriptive name for the logger (e.g. "sam_awards").
+                Used as ``fed_prospector.api.{logger_name}``.
             api_key_number: 1 (default, 10/day) or 2 (1000/day).
 
         Returns:
@@ -50,36 +55,22 @@ class BaseAPIClient:
         if api_key_number == 2:
             api_key = settings.SAM_API_KEY_2
             limit = settings.SAM_DAILY_LIMIT_2
+            source_name = "SAM_KEY2"
         else:
             api_key = settings.SAM_API_KEY
             limit = settings.SAM_DAILY_LIMIT
+            source_name = "SAM_KEY1"
         return dict(
             base_url=settings.SAM_API_BASE_URL,
             api_key=api_key,
             source_name=source_name,
             max_daily_requests=limit,
+            logger_name=f"fed_prospector.api.{logger_name}",
         )
-
-    def _check_rate_limit(self):
-        """Query etl_rate_limit for today's count. Return True if under limit."""
-        conn = get_connection()
-        cursor = conn.cursor()
-        try:
-            cursor.execute(
-                "SELECT requests_made FROM etl_rate_limit "
-                "WHERE source_system = %s AND request_date = %s",
-                (self.source_name, date.today()),
-            )
-            row = cursor.fetchone()
-            if row is None:
-                return True  # No record yet = 0 requests made
-            return row[0] < self.max_daily_requests
-        finally:
-            cursor.close()
-            conn.close()
 
     def _increment_rate_counter(self):
         """INSERT ... ON DUPLICATE KEY UPDATE requests_made = requests_made + 1"""
+        now = datetime.now(timezone.utc)
         conn = get_connection()
         cursor = conn.cursor()
         try:
@@ -89,10 +80,10 @@ class BaseAPIClient:
                 "ON DUPLICATE KEY UPDATE requests_made = requests_made + 1, last_request_at = %s",
                 (
                     self.source_name,
-                    date.today(),
+                    now.date(),
                     self.max_daily_requests,
-                    datetime.now(),
-                    datetime.now(),
+                    now,
+                    now,
                 ),
             )
             conn.commit()
@@ -108,7 +99,7 @@ class BaseAPIClient:
             cursor.execute(
                 "SELECT requests_made FROM etl_rate_limit "
                 "WHERE source_system = %s AND request_date = %s",
-                (self.source_name, date.today()),
+                (self.source_name, datetime.now(timezone.utc).date()),
             )
             row = cursor.fetchone()
             used = row[0] if row else 0
@@ -133,14 +124,9 @@ class BaseAPIClient:
             stream: If True, response body is not downloaded immediately.
                     Caller is responsible for reading and closing the response.
 
-        Raises RateLimitExceeded if daily limit reached.
-        Retries on 429 (rate limited) and 5xx (server error) responses.
+        Raises immediately on 429 (daily rate limit reached).
+        Retries on 5xx (server error) responses.
         """
-        if not self._check_rate_limit():
-            raise RateLimitExceeded(
-                f"{self.source_name}: Daily rate limit of {self.max_daily_requests} reached. "
-                f"No requests remaining for today."
-            )
 
         last_exception = None
         for attempt in range(max_retries + 1):
@@ -180,7 +166,6 @@ class BaseAPIClient:
                         body = response.json()
                         next_access = body.get("nextAccessTime")
                         if next_access:
-                            from datetime import datetime, timezone
                             # SAM.gov format: "2026-Mar-10 00:00:00+0000 UTC"
                             utc_str = next_access.replace(" UTC", "").replace("+0000", "+00:00")
                             utc_dt = datetime.strptime(

@@ -16,7 +16,6 @@ import logging
 from datetime import date, datetime, timedelta
 
 from api_clients.base_client import BaseAPIClient, RateLimitExceeded
-from config import settings
 
 
 logger = logging.getLogger("fed_prospector.api.sam_opportunity")
@@ -83,21 +82,7 @@ class SAMOpportunityClient(BaseAPIClient):
     DEFAULT_CALL_BUDGET = 5
 
     def __init__(self, call_budget=None, api_key_number=1):
-        if api_key_number == 2:
-            api_key = settings.SAM_API_KEY_2
-            daily_limit = settings.SAM_DAILY_LIMIT_2
-            source_name = "SAM_OPPORTUNITY_KEY2"
-        else:
-            api_key = settings.SAM_API_KEY
-            daily_limit = settings.SAM_DAILY_LIMIT
-            source_name = "SAM_OPPORTUNITY"
-
-        super().__init__(
-            base_url=settings.SAM_API_BASE_URL,
-            api_key=api_key,
-            source_name=source_name,
-            max_daily_requests=daily_limit,
-        )
+        super().__init__(**self._sam_init_kwargs("sam_opportunity", api_key_number))
         self.call_budget = call_budget if call_budget is not None else self.DEFAULT_CALL_BUDGET
 
     def search_opportunities(self, posted_from, posted_to, set_aside=None,
