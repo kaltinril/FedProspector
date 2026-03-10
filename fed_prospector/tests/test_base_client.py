@@ -8,8 +8,11 @@ Tests cover:
 - ConnectionError and Timeout retry behavior
 - 4xx non-retryable error handling
 - Pagination generator
+- Malformed JSON response handling (83-T1)
+- Concurrent rate limit counter updates (83-T2)
 """
 
+import threading
 import time
 from unittest.mock import MagicMock, patch, call
 
@@ -292,3 +295,160 @@ class TestPagination:
         params = call_args[1]["params"]
         assert "count" in params
         assert "start" in params
+
+
+# ---------------------------------------------------------------------------
+# 83-T1: Malformed JSON response handling
+# ---------------------------------------------------------------------------
+
+class TestMalformedJsonResponses:
+    """Verify API clients handle non-JSON responses without crashing."""
+
+    @patch("time.sleep")
+    def test_html_error_page_does_not_crash_with_json_decode_error(self, mock_sleep):
+        """An HTML 502 response should be treated as a 5xx server error and
+        retried, not crash with an unhandled JSONDecodeError."""
+        client = _make_client()
+        html_body = "<html><body>502 Bad Gateway</body></html>"
+        resp_502 = MagicMock()
+        resp_502.status_code = 502
+        resp_502.text = html_body
+        resp_502.content = html_body.encode()
+        resp_502.json.side_effect = ValueError("No JSON object could be decoded")
+        resp_502.raise_for_status.side_effect = requests.HTTPError(
+            "502 Bad Gateway", response=resp_502
+        )
+
+        # After retries exhausted, the 5xx raises HTTPError - not JSONDecodeError
+        client.session.request = MagicMock(return_value=resp_502)
+        with pytest.raises(requests.HTTPError, match="502"):
+            client.get("/test")
+
+        # Confirm retries happened (default max_retries=3, so 4 total attempts)
+        assert client.session.request.call_count == 4
+
+    @patch("time.sleep")
+    def test_html_error_page_recovers_on_retry(self, mock_sleep):
+        """A transient HTML 502 followed by a valid 200 should succeed."""
+        client = _make_client()
+        html_body = "<html><body>502 Bad Gateway</body></html>"
+        resp_502 = MagicMock()
+        resp_502.status_code = 502
+        resp_502.text = html_body
+        resp_502.content = html_body.encode()
+
+        resp_200 = make_mock_response(200, {"data": "ok"})
+        client.session.request = MagicMock(side_effect=[resp_502, resp_200])
+
+        response = client.get("/test")
+        assert response.status_code == 200
+        assert response.json() == {"data": "ok"}
+
+    def test_empty_response_body_on_200_does_not_crash(self):
+        """A 200 response with an empty body should be returned successfully.
+        The caller may get a JSONDecodeError when calling .json(), but the
+        client itself should not crash."""
+        client = _make_client()
+        resp_200 = MagicMock()
+        resp_200.status_code = 200
+        resp_200.content = b""
+        resp_200.text = ""
+        resp_200.json.side_effect = ValueError("No JSON object could be decoded")
+        client.session.request = MagicMock(return_value=resp_200)
+
+        # _request_with_retry returns the response without calling .json()
+        response = client.get("/test")
+        assert response.status_code == 200
+        # Caller would get the error when they try to parse
+        with pytest.raises(ValueError):
+            response.json()
+
+    def test_429_with_non_json_body_does_not_crash(self):
+        """A 429 response with a non-JSON body (e.g. HTML from a proxy)
+        should still raise HTTPError, not JSONDecodeError."""
+        client = _make_client()
+        resp_429 = MagicMock()
+        resp_429.status_code = 429
+        resp_429.text = "<html><body>Rate Limited</body></html>"
+        resp_429.content = resp_429.text.encode()
+        resp_429.json.side_effect = ValueError("No JSON object could be decoded")
+
+        client.session.request = MagicMock(return_value=resp_429)
+
+        with pytest.raises(requests.HTTPError, match="429"):
+            client.get("/test")
+
+        # Should not retry on 429
+        assert client.session.request.call_count == 1
+
+
+# ---------------------------------------------------------------------------
+# 83-T2: Concurrent rate limit counter updates
+# ---------------------------------------------------------------------------
+
+class TestConcurrentRateLimitUpdates:
+    """Verify that concurrent _increment_rate_counter() calls don't lose updates.
+
+    Since the real implementation uses MySQL's atomic
+    ``requests_made = requests_made + 1`` (ON DUPLICATE KEY UPDATE), lost
+    updates are prevented at the database level. These tests verify that the
+    method is safe to call from multiple threads without Python-level errors,
+    and that all calls complete successfully.
+    """
+
+    def test_concurrent_increments_all_complete(self, mock_db_connection):
+        """Multiple threads calling _increment_rate_counter() simultaneously
+        should all complete without errors and each should have executed the
+        INSERT/UPDATE statement exactly once."""
+        client = _make_client()
+        conn = mock_db_connection.return_value
+        cursor = conn.cursor.return_value
+
+        num_threads = 3
+        errors = []
+        barrier = threading.Barrier(num_threads)
+
+        def increment_worker():
+            try:
+                barrier.wait(timeout=5)  # synchronize thread starts
+                client._increment_rate_counter()
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=increment_worker) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        assert not errors, f"Threads raised errors: {errors}"
+        # Each thread should have called execute() once for the INSERT/UPDATE
+        assert cursor.execute.call_count == num_threads
+        # Each thread should have committed
+        assert conn.commit.call_count == num_threads
+
+    def test_concurrent_increments_correct_sql_used(self, mock_db_connection):
+        """Verify all concurrent calls use the atomic ON DUPLICATE KEY UPDATE
+        SQL pattern, which is the database-level guarantee against lost updates."""
+        client = _make_client()
+        conn = mock_db_connection.return_value
+        cursor = conn.cursor.return_value
+
+        num_threads = 2
+        barrier = threading.Barrier(num_threads)
+
+        def increment_worker():
+            barrier.wait(timeout=5)
+            client._increment_rate_counter()
+
+        threads = [threading.Thread(target=increment_worker) for _ in range(num_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=10)
+
+        # All execute calls should use the atomic SQL pattern
+        for call_obj in cursor.execute.call_args_list:
+            sql = call_obj[0][0]
+            assert "ON DUPLICATE KEY UPDATE" in sql
+            assert "requests_made = requests_made + 1" in sql

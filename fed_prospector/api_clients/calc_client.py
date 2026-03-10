@@ -166,7 +166,12 @@ class CalcPlusClient(BaseAPIClient):
             params["ordering"] = ordering
 
         response = self.get(RATES_ENDPOINT, params=params, timeout=120)
-        return response.json()
+        data = response.json()
+        self._validate_response(
+            data, ["hits"],
+            context="search_rates",
+        )
+        return data
 
     def search_rates_all(self, keyword=None, sort="asc", ordering=None):
         """Generator that paginates through matching rates.
@@ -231,19 +236,50 @@ class CalcPlusClient(BaseAPIClient):
         seen_ids = set()
         total_yielded = 0
         query_num = 0
+        skipped_chunks = 0
+
+        # Fallback sort fields to try when the primary ordering fails.
+        _FALLBACK_ORDERINGS = ["id", "price"]
 
         for ordering, sort_dir in _SORT_STRATEGIES:
             query_num += 1
             label = "%s %s" % (ordering or "default_price", sort_dir)
 
-            try:
-                data = self.search_rates(
-                    page=1, page_size=_ES_MAX_WINDOW,
-                    sort=sort_dir, ordering=ordering,
+            data = None
+            # Try the primary ordering first, then fallbacks
+            attempts = [ordering] + [
+                fb for fb in _FALLBACK_ORDERINGS if fb != ordering
+            ]
+            for attempt_ordering in attempts:
+                attempt_label = "%s %s" % (
+                    attempt_ordering or "default_price", sort_dir,
                 )
-            except Exception as exc:
-                self.logger.warning(
-                    "Sort strategy %s failed: %s -- skipping", label, exc,
+                try:
+                    data = self.search_rates(
+                        page=1, page_size=_ES_MAX_WINDOW,
+                        sort=sort_dir, ordering=attempt_ordering,
+                    )
+                    if attempt_ordering != ordering:
+                        self.logger.info(
+                            "Fallback sort %r succeeded for chunk %d "
+                            "(original: %s)",
+                            attempt_label, query_num, label,
+                        )
+                    break
+                except Exception as exc:
+                    self.logger.error(
+                        "Sort strategy %s failed (chunk %d, offset ~%d): "
+                        "%s",
+                        attempt_label, query_num,
+                        query_num * _ES_MAX_WINDOW, exc,
+                    )
+
+            if data is None:
+                skipped_chunks += 1
+                self.logger.error(
+                    "All sort attempts exhausted for chunk %d [%s] "
+                    "(offset ~%d) -- skipping",
+                    query_num, label, query_num * _ES_MAX_WINDOW,
                 )
                 continue
 
@@ -269,9 +305,16 @@ class CalcPlusClient(BaseAPIClient):
             if progress_callback:
                 progress_callback(len(seen_ids), label)
 
+        if skipped_chunks:
+            self.logger.error(
+                "get_all_rates: %d of %d chunks skipped due to errors",
+                skipped_chunks, query_num,
+            )
+
         self.logger.info(
-            "get_all_rates complete: %d unique rates from %d queries",
-            total_yielded, query_num,
+            "get_all_rates complete: %d unique rates from %d queries "
+            "(%d skipped)",
+            total_yielded, query_num, skipped_chunks,
         )
 
     # =================================================================

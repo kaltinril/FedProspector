@@ -105,7 +105,15 @@ class SAMFedHierClient(BaseAPIClient):
             "FedHier search offset=%d limit=%d params=%s", offset, limit, params
         )
         response = self.get(self.SEARCH_ENDPOINT, params=params)
-        return response.json()
+        data = response.json()
+        # FedHier API uses lowercase "totalrecords" — use case-insensitive lookup
+        # for validation since the key casing is inconsistent across SAM APIs
+        total_key = "totalrecords" if "totalrecords" in data else "totalRecords"
+        self._validate_response(
+            data, [total_key, "orglist"],
+            context="search_organizations",
+        )
+        return data
 
     def search_organizations_all(self, **kwargs):
         """Generator that paginates through all results from search_organizations.

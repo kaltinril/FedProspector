@@ -6,12 +6,14 @@ All search endpoints use POST with JSON body.
 API docs: https://api.usaspending.gov
 """
 
+import json
 import logging
 import time
 from datetime import date, timedelta
 from pathlib import Path
 
 import click
+import requests
 
 from api_clients.base_client import BaseAPIClient
 from config import settings
@@ -98,6 +100,50 @@ class USASpendingClient(BaseAPIClient):
         )
 
     # -----------------------------------------------------------------
+    # Raw HTTP helper (bypasses rate counters, used for polls/downloads)
+    # -----------------------------------------------------------------
+
+    def _raw_get(self, url, **kwargs):
+        """HTTP GET via session with retry logic but no rate-limit tracking.
+
+        Used for polling and download requests that should not count
+        against API quotas. Retries up to 3 times on connection errors
+        with exponential backoff.
+
+        Args:
+            url: Full URL to GET.
+            **kwargs: Passed to session.get() (timeout, stream, etc.).
+
+        Returns:
+            requests.Response: The HTTP response.
+
+        Raises:
+            requests.ConnectionError: After all retries exhausted.
+        """
+        kwargs.setdefault("timeout", (30, 600))
+        max_attempts = 3
+        for attempt in range(1, max_attempts + 1):
+            try:
+                self.logger.debug("_raw_get attempt %d: %s", attempt, url)
+                response = self.session.get(url, **kwargs)
+                return response
+            except requests.ConnectionError as exc:
+                if attempt < max_attempts:
+                    delay = 2 ** attempt
+                    self.logger.warning(
+                        "_raw_get connection error (attempt %d/%d), "
+                        "retrying in %ds: %s",
+                        attempt, max_attempts, delay, exc,
+                    )
+                    time.sleep(delay)
+                else:
+                    self.logger.error(
+                        "_raw_get failed after %d attempts: %s",
+                        max_attempts, exc,
+                    )
+                    raise
+
+    # -----------------------------------------------------------------
     # Core API methods
     # -----------------------------------------------------------------
 
@@ -159,7 +205,12 @@ class USASpendingClient(BaseAPIClient):
 
         self.logger.debug("Award search page=%d limit=%d filters=%s", page, limit, filters)
         response = self.post(self.AWARD_SEARCH_ENDPOINT, json_body=body, timeout=60)
-        return response.json()
+        data = response.json()
+        self._validate_response(
+            data, ["results", "page_metadata"],
+            context="search_awards",
+        )
+        return data
 
     def search_awards_all(self, **kwargs):
         """Generator that paginates through all results from search_awards.
@@ -210,9 +261,15 @@ class USASpendingClient(BaseAPIClient):
         self.logger.info("Fetching award detail: %s", award_id)
         try:
             response = self.get(endpoint)
+            response.raise_for_status()
             return response.json()
-        except Exception as e:
-            self.logger.warning("Failed to fetch award %s: %s", award_id, e)
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 404:
+                self.logger.info("Award not found (404): %s", award_id)
+                return None
+            raise
+        except requests.RequestException as e:
+            self.logger.warning("Network error fetching award %s: %s", award_id, e)
             return None
 
     def get_award_detail(self, award_id):
@@ -393,7 +450,12 @@ class USASpendingClient(BaseAPIClient):
         }
         self.logger.debug("Transactions for %s page=%d", award_id, page)
         response = self.post(self.TRANSACTION_ENDPOINT, json_body=body, timeout=60)
-        return response.json()
+        data = response.json()
+        self._validate_response(
+            data, ["results", "page_metadata"],
+            context="get_award_transactions",
+        )
+        return data
 
     def get_all_transactions(self, award_id, **kwargs):
         """Generator yielding all transactions for an award.
@@ -464,6 +526,10 @@ class USASpendingClient(BaseAPIClient):
         self.logger.info("Requesting bulk download for FY%d", fiscal_year)
         response = self.post(self.BULK_DOWNLOAD_ENDPOINT, json_body=body, timeout=120)
         data = response.json()
+        self._validate_response(
+            data, [],
+            context="request_bulk_download",
+        )
 
         if data.get("file_url"):
             self.logger.info("Bulk download ready: %s", data["file_url"])
@@ -503,9 +569,22 @@ class USASpendingClient(BaseAPIClient):
             self.logger.info(
                 "Polling bulk download (%.0fs elapsed): %s", elapsed, status_url
             )
-            response = self.session.get(status_url, timeout=60)
-            response.raise_for_status()
-            data = response.json()
+            response = self._raw_get(status_url, timeout=(30, 60))
+
+            if response.status_code != 200:
+                body_preview = (response.text or "")[:500]
+                self.logger.error(
+                    "Poll returned HTTP %d: %s", response.status_code, body_preview
+                )
+                response.raise_for_status()
+
+            try:
+                data = response.json()
+            except (json.JSONDecodeError, ValueError) as exc:
+                body_preview = (response.text or "")[:500]
+                raise RuntimeError(
+                    f"Poll response was not valid JSON: {body_preview}"
+                ) from exc
 
             if data.get("file_url"):
                 self.logger.info("Bulk download ready: %s", data["file_url"])
@@ -550,7 +629,7 @@ class USASpendingClient(BaseAPIClient):
 
         retry_delay = 10
         for attempt in range(max_retries + 1):
-            response = self.session.get(file_url, stream=True, timeout=600)
+            response = self._raw_get(file_url, stream=True, timeout=(30, 600))
             if response.status_code == 403 and attempt < max_retries:
                 self.logger.warning(
                     "Download returned 403 (attempt %d/%d), retrying in %ds...",
@@ -613,7 +692,12 @@ class USASpendingClient(BaseAPIClient):
 
         self.logger.info("Listing archive files for FY%d", fiscal_year)
         response = self.post(self.ARCHIVE_LIST_ENDPOINT, json_body=body, timeout=60)
-        return response.json()
+        data = response.json()
+        self._validate_response(
+            data, ["monthly_files"],
+            context="list_archive_files",
+        )
+        return data
 
     def download_archive_file(self, fiscal_year):
         """Download the full archive file for a fiscal year.
@@ -659,7 +743,7 @@ class USASpendingClient(BaseAPIClient):
             return dest_path
 
         self.logger.info("Downloading archive %s -> %s", file_url, dest_path)
-        response = self.session.get(file_url, stream=True, timeout=600)
+        response = self._raw_get(file_url, stream=True, timeout=(30, 600))
         response.raise_for_status()
 
         content_length = response.headers.get("Content-Length")

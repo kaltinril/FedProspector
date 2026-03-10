@@ -114,7 +114,12 @@ class SAMAwardsClient(BaseAPIClient):
             "Award search offset=%d limit=%d params=%s", offset, limit, params
         )
         response = self.get(self.SEARCH_ENDPOINT, params=params, timeout=60)
-        return response.json()
+        data = response.json()
+        self._validate_response(
+            data, ["totalRecords", "awardSummary"],
+            context="search_awards",
+        )
+        return data
 
     def search_awards_all(self, **kwargs):
         """Generator that paginates through all results from search_awards.
@@ -306,24 +311,38 @@ class SAMAwardsClient(BaseAPIClient):
             str: Date range in "[MM/DD/YYYY,MM/DD/YYYY]" format, or
                 single date as "MM/DD/YYYY" if only one date provided.
         """
+        _ACCEPTED_FORMATS = ("%Y-%m-%d", "%Y%m%d", "%m/%d/%Y")
+
         def fmt(d):
             if d is None:
-                return ""
+                return None
             if isinstance(d, (date, datetime)):
                 return d.strftime("%m/%d/%Y")
             # Try to parse string dates in various formats
             s = str(d)
-            for parse_fmt in ("%Y-%m-%d", "%Y%m%d", "%m/%d/%Y"):
+            for parse_fmt in _ACCEPTED_FORMATS:
                 try:
                     parsed = datetime.strptime(s, parse_fmt)
                     return parsed.strftime("%m/%d/%Y")
                 except ValueError:
                     continue
-            return s
+            raise ValueError(
+                f"Unrecognised date format: {s!r}. "
+                f"Accepted formats: {', '.join(_ACCEPTED_FORMATS)}"
+            )
 
         f = fmt(from_date)
         t = fmt(to_date)
+
+        # Validate ordering when both dates are supplied
         if f and t:
+            start_dt = datetime.strptime(f, "%m/%d/%Y")
+            end_dt = datetime.strptime(t, "%m/%d/%Y")
+            if start_dt > end_dt:
+                raise ValueError(
+                    f"start_date ({from_date}) must be before "
+                    f"end_date ({to_date})"
+                )
             return f"[{f},{t}]"
         elif f:
             return f

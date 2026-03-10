@@ -90,7 +90,12 @@ class SAMExclusionsClient(BaseAPIClient):
             "Exclusion search page=%d size=%d params=%s", page, size, params
         )
         response = self.get(self.SEARCH_ENDPOINT, params=params)
-        return response.json()
+        data = response.json()
+        self._validate_response(
+            data, ["totalRecords", "excludedEntity"],
+            context="search_exclusions",
+        )
+        return data
 
     def search_exclusions_all(self, **kwargs):
         """Generator that paginates through all results from search_exclusions.

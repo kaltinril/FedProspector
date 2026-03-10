@@ -169,7 +169,12 @@ class SAMExtractClient(BaseAPIClient):
             params["fileType"] = file_type
 
         response = self.get(self.EXTRACT_ENDPOINT, params=params)
-        return response.json()
+        data = response.json()
+        self._validate_response(
+            data, [],
+            context="list_available_extracts",
+        )
+        return data
 
     def extract_zip(self, zip_path, output_dir=None):
         """Extract a ZIP file, handling nested ZIPs.
@@ -283,42 +288,46 @@ class SAMExtractClient(BaseAPIClient):
             self.logger.error("HTTP error downloading %s: %s", filename, exc)
             raise
 
-        # --- Skip download if local file already matches remote size ---
-        dest = output_dir / filename
-        remote_size = int(response.headers.get("content-length", 0))
+        # Use try/finally to guarantee the streaming response is closed even
+        # if an exception occurs during download (e.g. disk full, network
+        # interruption).  This prevents socket/file-handle leaks.
+        try:
+            # --- Skip download if local file already matches remote size ---
+            dest = output_dir / filename
+            remote_size = int(response.headers.get("content-length", 0))
 
-        if dest.exists() and remote_size > 0:
-            local_size = dest.stat().st_size
-            if local_size == remote_size:
-                self.logger.info(
-                    "File already exists with matching size (%s bytes), "
-                    "skipping download: %s",
-                    local_size, dest.name,
-                )
-                response.close()
-                return dest
+            if dest.exists() and remote_size > 0:
+                local_size = dest.stat().st_size
+                if local_size == remote_size:
+                    self.logger.info(
+                        "File already exists with matching size (%s bytes), "
+                        "skipping download: %s",
+                        local_size, dest.name,
+                    )
+                    return dest
 
-        # Stream the file to disk with progress bar
-        total_size = remote_size
-        chunk_size = 8192  # 8 KB
+            # Stream the file to disk with progress bar
+            total_size = remote_size
+            chunk_size = 8192  # 8 KB
 
-        with (
-            open(dest, "wb") as f,
-            tqdm(
-                total=total_size or None,
-                unit="B",
-                unit_scale=True,
-                desc=filename,
-                disable=(total_size == 0),
-            ) as progress,
-        ):
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                if chunk:
-                    f.write(chunk)
-                    progress.update(len(chunk))
+            with (
+                open(dest, "wb") as f,
+                tqdm(
+                    total=total_size or None,
+                    unit="B",
+                    unit_scale=True,
+                    desc=filename,
+                    disable=(total_size == 0),
+                ) as progress,
+            ):
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        f.write(chunk)
+                        progress.update(len(chunk))
 
-        response.close()
-        return dest
+            return dest
+        finally:
+            response.close()
 
     @staticmethod
     def _first_week_dates(year, month):

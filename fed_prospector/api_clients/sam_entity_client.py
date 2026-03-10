@@ -89,6 +89,10 @@ class SAMEntityClient(BaseAPIClient):
         self.logger.info("Looking up entity by UEI: %s", uei_sam)
         response = self.get(ENTITY_ENDPOINT, params=params)
         data = response.json()
+        self._validate_response(
+            data, ["totalRecords", "entityData"],
+            context="get_entity_by_uei",
+        )
 
         total = data.get("totalRecords", 0)
         if total == 0:

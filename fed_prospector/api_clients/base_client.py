@@ -5,6 +5,8 @@ Features:
 - Rate limit tracking via etl_rate_limit table
 - Request logging
 - Pagination support (generator-based)
+- Response schema validation
+- Connection pooling
 """
 
 import logging
@@ -12,8 +14,15 @@ import time
 from datetime import date, datetime, timezone
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from db.connection import get_connection
+
+# Timeout constants (seconds) — importable by child classes
+TIMEOUT_DEFAULT = 30
+TIMEOUT_DOWNLOAD = 600
+TIMEOUT_POLL = 120
+TIMEOUT_SEARCH = 60
 
 
 class RateLimitExceeded(Exception):
@@ -30,6 +39,10 @@ class BaseAPIClient:
         self.max_daily_requests = max_daily_requests
         self.request_delay = request_delay  # seconds between consecutive requests
         self.session = requests.Session()
+        # 83-11: Connection pooling — reuse TCP connections across requests
+        adapter = HTTPAdapter(pool_connections=10, pool_maxsize=10)
+        self.session.mount('https://', adapter)
+        self.session.mount('http://', adapter)
         self.logger = logging.getLogger(
             logger_name or f"fed_prospector.api.{source_name}"
         )
@@ -108,8 +121,62 @@ class BaseAPIClient:
             cursor.close()
             conn.close()
 
+    def _validate_response(self, data, required_keys, context="", strict=False):
+        """Validate that a response dict contains all required keys.
+
+        Args:
+            data: The parsed response data to validate.
+            required_keys: Iterable of key names that must be present.
+            context: Optional description for log messages (e.g. endpoint name).
+            strict: If True, raise ValueError on validation failure.
+
+        Returns:
+            bool: True if all required keys are present, False otherwise.
+        """
+        if not isinstance(data, dict):
+            msg = f"Response validation failed{f' ({context})' if context else ''}: expected dict, got {type(data).__name__}"
+            self.logger.warning(msg)
+            if strict:
+                raise ValueError(msg)
+            return False
+
+        missing = [k for k in required_keys if k not in data]
+        if missing:
+            msg = (
+                f"Response validation failed{f' ({context})' if context else ''}: "
+                f"missing keys {missing}. Available keys: {list(data.keys())}"
+            )
+            self.logger.warning(msg)
+            if strict:
+                raise ValueError(msg)
+            return False
+
+        return True
+
+    @staticmethod
+    def _get_case_insensitive(data, key, default=None):
+        """Case-insensitive dict key lookup.
+
+        Handles API inconsistencies like 'totalrecords' vs 'totalRecords'.
+
+        Args:
+            data: Dict to search.
+            key: Key name to look up (case-insensitive).
+            default: Value to return if key not found.
+
+        Returns:
+            The value for the matching key, or default if not found.
+        """
+        if not isinstance(data, dict):
+            return default
+        key_lower = key.lower()
+        for k, v in data.items():
+            if k.lower() == key_lower:
+                return v
+        return default
+
     def _request_with_retry(self, method, url, params=None, json_body=None,
-                            max_retries=3, backoff_factor=2, timeout=30,
+                            max_retries=3, backoff_factor=2, timeout=TIMEOUT_DEFAULT,
                             stream=False):
         """Make HTTP request with rate limit check, retry, and exponential backoff.
 
@@ -141,10 +208,10 @@ class BaseAPIClient:
                 )
 
                 if response.status_code == 200:
-                    # Count this as one logical request on success only.
-                    # Retried attempts do not consume additional quota so that
-                    # transient 429/5xx errors do not silently drain the daily
-                    # budget (CRITICAL bug fix).
+                    # Rate counter incremented on success. If caller crashes
+                    # after increment, quota is consumed for unprocessed
+                    # records. Accepted as design tradeoff — over-counting is
+                    # safer than under-counting for rate-limited APIs.
                     self._increment_rate_counter()
                     # Only log content length for non-streaming responses to
                     # avoid consuming the stream body before the caller reads it.
@@ -193,8 +260,12 @@ class BaseAPIClient:
                     continue
 
                 # 4xx (not 429) - don't retry
+                error_text = response.text
+                self.logger.debug(
+                    "Full error response body: %s", error_text
+                )
                 self.logger.error(
-                    "Request failed: %d %s", response.status_code, response.text[:500]
+                    "Request failed: %d %s", response.status_code, error_text[:2000]
                 )
                 response.raise_for_status()
 
@@ -282,7 +353,8 @@ class BaseAPIClient:
                  results_key=None,             # response key for record list (None = yield full response)
                  has_next_key=None,            # if set, use response[has_next_key] to stop
                  total_pages_key=None,          # if set, use response[total_pages_key] to stop
-                 offset_start=0):               # starting offset for offset-style pagination
+                 offset_start=0,               # starting offset for offset-style pagination
+                 max_pages=1000):              # safety guard: max pages before breaking
         """Generic paginator — parameterize instead of reimplementing.
 
         Supports three end-of-page detection strategies:
@@ -293,6 +365,10 @@ class BaseAPIClient:
         When results_key is None (legacy behavior), yields the full parsed response
         dict for each page. When results_key is set, yields the results list for
         each page.
+
+        Args:
+            max_pages: Safety guard to prevent infinite pagination loops.
+                When reached, logs a warning and stops. Default 1000.
 
         Backward-compatible with existing callers: the original 3-param signature
         (endpoint, params, page_size) still works because all new params have defaults.
@@ -305,6 +381,8 @@ class BaseAPIClient:
 
         page = page_start
         offset = offset_start
+        pages_fetched = 0
+        total_records_fetched = 0
 
         while True:
             if pagination_style == "page":
@@ -314,9 +392,18 @@ class BaseAPIClient:
 
             response = self.get(endpoint, params=params)
             data = response.json()
+            pages_fetched += 1
 
             if results_key is not None:
+                # 83-8: Warn if expected results key is missing from response
+                if results_key not in data:
+                    self.logger.warning(
+                        "Expected results key '%s' not found in response. "
+                        "Available keys: %s. Treating as empty results.",
+                        results_key, list(data.keys()),
+                    )
                 results = data.get(results_key, [])
+                total_records_fetched += len(results)
                 self.logger.info(
                     "Page %s: %d results",
                     page if pagination_style == "page" else f"offset={offset}",
@@ -331,6 +418,15 @@ class BaseAPIClient:
                 else:
                     self.logger.info("Page at offset %d: total=%d", offset, total)
                 yield data
+
+            # 83-5: Max pages safety guard
+            if pages_fetched >= max_pages:
+                self.logger.warning(
+                    "Pagination stopped: reached max_pages limit (%d). "
+                    "Total records fetched so far: %d",
+                    max_pages, total_records_fetched,
+                )
+                break
 
             # Determine whether to stop
             if results_key is not None:

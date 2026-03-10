@@ -7,9 +7,11 @@ Tests cover:
 - get_opportunity single-record lookup
 - Multi-set-aside deduplication
 - Call budget enforcement
+- Budget exhaustion mid-search (83-T3)
 - estimate_calls_needed calculation
 """
 
+import logging
 from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -315,3 +317,132 @@ class TestEstimateCallsNeeded:
         )
         # ~730 days = 3 chunks, 2 codes = 6 calls
         assert result == 6
+
+
+# ---------------------------------------------------------------------------
+# 83-T3: Budget exhaustion mid-search
+# ---------------------------------------------------------------------------
+
+class TestBudgetExhaustionMidSearch:
+    """Verify that _search_multiple_set_asides stops when the call budget is
+    exhausted partway through iteration, rather than querying all set-asides."""
+
+    def test_stops_after_budget_exhausted(self, mock_db_connection):
+        """With a budget of 2, searching 4 set-aside codes should stop after
+        the budget is consumed, not after all 4 codes are queried.
+
+        _get_remaining_requests() call sites in _search_multiple_set_asides:
+        1. Line 430: calls_at_start = budget - remaining  (before loop)
+        2. Line 448: calls_used check  (before each code)
+        3. Line 458: remaining check   (before each code)
+        4. Line 485: calls_used recalc (after each code's search)
+        5. Line 448: calls_used check  (before next code -- triggers break)
+        6. Line 493: calls_used final  (after loop)
+        """
+        client = _make_client(call_budget=2)
+
+        # budget=2, remaining starts at 100, so calls_at_start = 2 - 100 = -98
+        # After WOSB search, remaining drops to 98 => calls_used = (2-98)-(-98) = 2 >= 2 => stop
+        remaining_sequence = [
+            100,   # 1: calls_at_start = 2 - 100 = -98
+            99,    # 2: budget check before WOSB: calls_used = (2-99)-(-98) = 1 < 2
+            99,    # 3: remaining check for WOSB: 99 > 0
+            98,    # 4: after WOSB search: calls_used = (2-98)-(-98) = 2
+            98,    # 5: budget check before EDWOSB: calls_used = (2-98)-(-98) = 2 >= 2 => break
+            98,    # 6: final calls_used after loop
+        ]
+        client._get_remaining_requests = MagicMock(side_effect=remaining_sequence)
+
+        def fake_search(posted_from, posted_to, set_aside=None, **kwargs):
+            yield {"noticeId": f"opp-{set_aside}", "title": f"Test {set_aside}"}
+
+        client.search_opportunities = MagicMock(side_effect=fake_search)
+
+        results = client._search_multiple_set_asides(
+            ["WOSB", "EDWOSB", "8A", "8AN"],
+            posted_from=date(2026, 1, 1),
+            posted_to=date(2026, 3, 1),
+        )
+
+        # Should have only queried WOSB (first code), then stopped
+        assert len(results) == 1
+        assert results[0]["noticeId"] == "opp-WOSB"
+
+        # search_opportunities should have been called only once (for WOSB)
+        assert client.search_opportunities.call_count == 1
+        called_set_aside = client.search_opportunities.call_args[1].get("set_aside")
+        assert called_set_aside == "WOSB"
+
+    def test_budget_exhaustion_logs_warning(self, mock_db_connection, caplog):
+        """When budget is exhausted, a warning should be logged listing the
+        skipped set-aside codes."""
+        client = _make_client(call_budget=1)
+
+        # budget=1, remaining starts at 100, calls_at_start = 1 - 100 = -99
+        # After WOSB: remaining=99 => calls_used = (1-99)-(-99) = 1 >= 1 => break
+        remaining_sequence = [
+            100,   # 1: calls_at_start = 1 - 100 = -99
+            100,   # 2: budget check before WOSB: calls_used = (1-100)-(-99) = 0 < 1
+            100,   # 3: remaining check for WOSB: 100 > 0
+            99,    # 4: after WOSB: calls_used = (1-99)-(-99) = 1
+            99,    # 5: budget check before EDWOSB: calls_used = (1-99)-(-99) = 1 >= 1 => break
+            99,    # 6: final calls_used after loop
+        ]
+        client._get_remaining_requests = MagicMock(side_effect=remaining_sequence)
+
+        def fake_search(posted_from, posted_to, set_aside=None, **kwargs):
+            yield {"noticeId": f"opp-{set_aside}", "title": f"Test {set_aside}"}
+
+        client.search_opportunities = MagicMock(side_effect=fake_search)
+
+        with caplog.at_level(logging.WARNING, logger="fed_prospector.api.sam_opportunity"):
+            results = client._search_multiple_set_asides(
+                ["WOSB", "EDWOSB", "8A"],
+                posted_from=date(2026, 1, 1),
+                posted_to=date(2026, 3, 1),
+            )
+
+        # Check that warning was logged about budget exhaustion
+        budget_warnings = [r for r in caplog.records
+                          if "budget exhausted" in r.message.lower()
+                          or "budget" in r.message.lower() and "skipped" in r.message.lower()]
+        assert len(budget_warnings) > 0, (
+            f"Expected a budget exhaustion warning but got: "
+            f"{[r.message for r in caplog.records]}"
+        )
+
+        # The skipped codes should be mentioned in the warning
+        warning_text = " ".join(r.message for r in budget_warnings)
+        assert "EDWOSB" in warning_text or "8A" in warning_text
+
+    def test_daily_limit_exhaustion_stops_search(self, mock_db_connection):
+        """When _get_remaining_requests returns 0, the search should stop
+        even if the call budget hasn't been reached."""
+        client = _make_client(call_budget=10)
+
+        # budget=10, remaining starts at 100, calls_at_start = 10 - 100 = -90
+        # After WOSB: remaining=0 => calls_used = (10-0)-(-90) = 100 >= 10 => break
+        remaining_sequence = [
+            100,   # 1: calls_at_start = 10 - 100 = -90
+            100,   # 2: budget check before WOSB: calls_used = (10-100)-(-90) = 0 < 10
+            100,   # 3: remaining check for WOSB: 100 > 0
+            0,     # 4: after WOSB: calls_used = (10-0)-(-90) = 100
+            0,     # 5: budget check before EDWOSB: calls_used = 100 >= 10 => break
+            0,     # 6: final calls_used after loop
+        ]
+        client._get_remaining_requests = MagicMock(side_effect=remaining_sequence)
+
+        def fake_search(posted_from, posted_to, set_aside=None, **kwargs):
+            yield {"noticeId": f"opp-{set_aside}", "title": f"Test {set_aside}"}
+
+        client.search_opportunities = MagicMock(side_effect=fake_search)
+
+        results = client._search_multiple_set_asides(
+            ["WOSB", "EDWOSB"],
+            posted_from=date(2026, 1, 1),
+            posted_to=date(2026, 3, 1),
+        )
+
+        # Only first set-aside should have been queried
+        assert len(results) == 1
+        assert client.search_opportunities.call_count == 1

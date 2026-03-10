@@ -104,19 +104,20 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
 
     t_start = time.time()
 
+    # Page-by-page loading: each API page is immediately written to DB so
+    # progress survives interruptions.  Matches the entity loader pattern.
+    calls_made = 0
+    page_size = 100
+    total_fetched = 0
+    cumulative = {
+        "records_read": 0, "records_inserted": 0, "records_updated": 0,
+        "records_unchanged": 0, "records_errored": 0,
+    }
+
+    codes_to_load = naics_codes if naics_codes else [None]
+    budget_exhausted = False
+
     try:
-        # Collect awards with pagination (respecting max_calls budget across all NAICS codes).
-        # NOTE: The SAM Awards API 'offset' is a PAGE INDEX, not record offset.
-        # offset=0 is page 0, offset=1 is page 1, etc.
-        all_awards = []
-        calls_made = 0
-        page_size = 100
-
-        # Loop over each NAICS code; fall back to [None] for non-NAICS searches
-        # (set-aside-only, agency-only, PIID, etc.)
-        codes_to_load = naics_codes if naics_codes else [None]
-        budget_exhausted = False
-
         for naics_code in codes_to_load:
             if budget_exhausted:
                 break
@@ -146,9 +147,32 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
 
                 records = data.get("awardSummary", [])
                 code_total = int(data.get("totalRecords", 0))
-                all_awards.extend(records)
+                total_fetched += len(records)
 
-                click.echo(f"  Page {page + 1}: {len(records)} records (total available: {code_total:,d}, fetched so far: {len(all_awards):,d})")
+                # Immediate DB write for this page
+                if records:
+                    page_stats = loader.load_awards_batch(records, load_id)
+                    for k in cumulative:
+                        cumulative[k] += page_stats.get(k, 0)
+
+                    # Save progress after each page (survives ctrl+c / kill)
+                    load_manager.save_load_progress(
+                        load_id,
+                        parameters={
+                            **params_dict,
+                            "calls_made": calls_made,
+                            "total_fetched": total_fetched,
+                        },
+                        **cumulative,
+                    )
+
+                db_note = ""
+                if records:
+                    ins = page_stats.get("records_inserted", 0)
+                    upd = page_stats.get("records_updated", 0)
+                    unch = page_stats.get("records_unchanged", 0)
+                    db_note = f" → DB: {ins} new, {upd} updated, {unch} unchanged"
+                click.echo(f"  Page {page + 1}: {len(records)} records (total available: {code_total:,d}, fetched so far: {total_fetched:,d}){db_note}")
 
                 if not records or (page + 1) * page_size >= code_total:
                     break
@@ -167,26 +191,26 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
                 click.echo(f"     To get all data, re-run with: --max-calls {calls_made + remaining_calls + remaining_codes}")
                 budget_exhausted = True
 
-        click.echo(f"\nFetched {len(all_awards):,d} award records in {calls_made} API calls")
+        click.echo(f"\nFetched {total_fetched:,d} award records in {calls_made} API calls")
 
-        if not all_awards:
+        if total_fetched == 0:
             click.echo("No awards found matching the criteria.")
             load_manager.complete_load(load_id, records_read=0)
             return
 
-        # Load into database
-        click.echo("Loading into fpds_contract table...")
-        stats = loader.load_awards(all_awards, load_id)
-
         elapsed = time.time() - t_start
-        load_manager.complete_load(load_id, **stats)
+        load_manager.complete_load(load_id, **cumulative)
 
         click.echo(f"\nLoad complete! ({elapsed:.1f}s)")
-        click.echo(f"  Records read:      {stats['records_read']:>10,d}")
-        click.echo(f"  Records inserted:  {stats['records_inserted']:>10,d}")
-        click.echo(f"  Records updated:   {stats['records_updated']:>10,d}")
-        click.echo(f"  Records unchanged: {stats['records_unchanged']:>10,d}")
-        click.echo(f"  Records errored:   {stats['records_errored']:>10,d}")
+        click.echo(f"  Records read:      {cumulative['records_read']:>10,d}")
+        click.echo(f"  Records inserted:  {cumulative['records_inserted']:>10,d}")
+        click.echo(f"  Records updated:   {cumulative['records_updated']:>10,d}")
+        click.echo(f"  Records unchanged: {cumulative['records_unchanged']:>10,d}")
+        click.echo(f"  Records errored:   {cumulative['records_errored']:>10,d}")
+
+    except KeyboardInterrupt:
+        click.echo(f"\n\nAborted by user. {cumulative['records_read']} records already loaded to database.")
+        load_manager.complete_load(load_id, **cumulative)
 
     except Exception as e:
         load_manager.fail_load(load_id, str(e))

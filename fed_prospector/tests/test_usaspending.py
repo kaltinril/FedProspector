@@ -16,6 +16,7 @@ from datetime import date
 from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 from api_clients.usaspending_client import (
     USASpendingClient,
@@ -200,13 +201,38 @@ class TestGetAward:
 
         assert result["id"] == "CONT_AWD_123"
 
-    def test_returns_none_on_error(self):
+    def test_returns_none_on_404(self):
         client = _make_client()
-        client.session.request = MagicMock(side_effect=Exception("404 Not Found"))
+        mock_resp = make_mock_response(404, {"detail": "Not found"})
+        mock_resp.raise_for_status.side_effect = requests.HTTPError(
+            response=mock_resp
+        )
+        client.session.request = MagicMock(return_value=mock_resp)
 
         result = client.get_award("NONEXISTENT")
 
         assert result is None
+
+    def test_returns_none_on_network_error(self):
+        client = _make_client()
+        client.session.request = MagicMock(
+            side_effect=requests.ConnectionError("connection refused")
+        )
+
+        result = client.get_award("NONEXISTENT")
+
+        assert result is None
+
+    def test_raises_on_server_error(self):
+        client = _make_client()
+        mock_resp = make_mock_response(500, {"detail": "Server error"})
+        mock_resp.raise_for_status.side_effect = requests.HTTPError(
+            response=mock_resp
+        )
+        client.session.request = MagicMock(return_value=mock_resp)
+
+        with pytest.raises(requests.HTTPError):
+            client.get_award("SOME_AWARD")
 
     def test_get_award_detail_is_alias(self):
         client = _make_client()

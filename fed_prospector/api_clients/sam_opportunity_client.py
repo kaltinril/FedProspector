@@ -316,6 +316,10 @@ class SAMOpportunityClient(BaseAPIClient):
         self.logger.info("Looking up opportunity by notice ID: %s", notice_id)
         response = self.get(OPPORTUNITY_ENDPOINT, params=params)
         data = response.json()
+        self._validate_response(
+            data, ["totalRecords", "opportunitiesData"],
+            context="get_opportunity",
+        )
 
         total = data.get("totalRecords", 0)
         if total == 0:
@@ -437,6 +441,14 @@ class SAMOpportunityClient(BaseAPIClient):
         for idx, code in enumerate(set_aside_codes):
             # Check call budget before starting a new set-aside type.
             # Re-read the rate counter so pagination calls are included.
+            #
+            # NOTE: Budget tracking reads the shared rate counter without
+            # locking.  In a concurrent/multi-process scenario, the counter
+            # could change between reads, leading to inaccurate budget
+            # calculations.  This is acceptable for the current single-process
+            # CLI architecture.  If this code is ever parallelised, use
+            # database advisory locks (GET_LOCK / RELEASE_LOCK) to serialise
+            # counter reads and updates.
             calls_used = (budget - self._get_remaining_requests()) - calls_at_start
             if calls_used >= budget:
                 skipped = set_aside_codes[idx:]

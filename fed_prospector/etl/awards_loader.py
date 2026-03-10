@@ -89,8 +89,29 @@ class AwardsLoader(StagingMixin):
         self.load_manager = load_manager or LoadManager()
 
     # =================================================================
-    # Public entry point
+    # Public entry points
     # =================================================================
+
+    def load_awards_batch(self, awards_data, load_id):
+        """Process a batch of awards under an existing load_id.
+
+        Unlike load_awards(), does NOT start or complete a load — caller
+        manages the load lifecycle.  Pre-fetches existing hashes on first
+        call (lazy init).
+
+        Args:
+            awards_data: list of raw award dicts from SAM Contract Awards API.
+            load_id: Existing load_id from LoadManager.start_load().
+
+        Returns:
+            dict with keys: records_read, records_inserted, records_updated,
+                records_unchanged, records_errored.
+        """
+        # Lazy-init hash cache on first call
+        if not hasattr(self, "_existing_hashes") or self._existing_hashes is None:
+            self._existing_hashes = self._get_existing_hashes()
+
+        return self._process_awards(list(awards_data), load_id, self._existing_hashes)
 
     def load_awards(self, awards_data, load_id):
         """Main entry point. Process list of raw SAM Awards API response dicts.
@@ -104,13 +125,42 @@ class AwardsLoader(StagingMixin):
             dict with keys: records_read, records_inserted, records_updated,
                 records_unchanged, records_errored.
         """
-        # Materialize generator (if any) to allow len() and re-iteration.
         awards_data = list(awards_data)
         self.logger.info(
             "Starting SAM Awards load (%d records, load_id=%d)",
             len(awards_data), load_id,
         )
 
+        existing_hashes = self._get_existing_hashes()
+        stats = self._process_awards(awards_data, load_id, existing_hashes)
+
+        self.logger.info(
+            "SAM Awards load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
+            load_id,
+            stats["records_read"],
+            stats["records_inserted"],
+            stats["records_updated"],
+            stats["records_unchanged"],
+            stats["records_errored"],
+        )
+        return stats
+
+    # =================================================================
+    # Core processing pipeline
+    # =================================================================
+
+    def _process_awards(self, awards_data, load_id, existing_hashes):
+        """Process a list of raw award dicts: stage, normalise, hash-compare, upsert.
+
+        Args:
+            awards_data: list of raw award dicts.
+            load_id: Current load ID.
+            existing_hashes: Mutable dict of composite_key -> hash_string.
+                Updated in-place as records are processed.
+
+        Returns:
+            dict with records_read/inserted/updated/unchanged/errored counts.
+        """
         stats = {
             "records_read": 0,
             "records_inserted": 0,
@@ -118,10 +168,6 @@ class AwardsLoader(StagingMixin):
             "records_unchanged": 0,
             "records_errored": 0,
         }
-
-        # Pre-fetch existing hashes for change detection.
-        # fpds_contract has composite PK so we build concatenated keys.
-        existing_hashes = self._get_existing_hashes()
 
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -222,15 +268,6 @@ class AwardsLoader(StagingMixin):
             stg_cursor.close()
             stg_conn.close()
 
-        self.logger.info(
-            "SAM Awards load complete (load_id=%d): read=%d ins=%d upd=%d unch=%d err=%d",
-            load_id,
-            stats["records_read"],
-            stats["records_inserted"],
-            stats["records_updated"],
-            stats["records_unchanged"],
-            stats["records_errored"],
-        )
         return stats
 
     # =================================================================
