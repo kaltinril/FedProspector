@@ -25,14 +25,14 @@ public class NotificationsControllerTests
         };
     }
 
-    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isAdmin = false)
+    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isOrgAdmin = false)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(ClaimTypes.Role, role),
-            new("is_admin", isAdmin.ToString().ToLower())
+            new("is_org_admin", isOrgAdmin.ToString().ToLower())
         };
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
     }

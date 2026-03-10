@@ -29,14 +29,14 @@ public class ProspectsControllerTests
         };
     }
 
-    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isAdmin = false, int orgId = 1)
+    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isOrgAdmin = false, int orgId = 1)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(ClaimTypes.Role, role),
-            new("is_admin", isAdmin.ToString().ToLower()),
+            new("is_org_admin", isOrgAdmin.ToString().ToLower()),
             new("org_id", orgId.ToString())
         };
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
@@ -340,7 +340,7 @@ public class ProspectsControllerTests
             new(JwtRegisteredClaimNames.Sub, "5"),
             new(ClaimTypes.NameIdentifier, "5"),
             new(ClaimTypes.Role, "user"),
-            new("is_admin", "false")
+            new("is_org_admin", "false")
             // NOTE: no "org_id" claim -- forces DB fallback
         };
         var user = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));

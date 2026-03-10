@@ -15,7 +15,7 @@ public class UpdateUserRequestValidator : AbstractValidator<UpdateUserRequest>
             .WithMessage("Role must be 'USER' or 'ADMIN'.");
 
         RuleFor(x => x)
-            .Must(x => x.Role != null || x.IsAdmin.HasValue || x.IsActive.HasValue)
-            .WithMessage("At least one field (Role, IsAdmin, IsActive) must be provided.");
+            .Must(x => x.Role != null || x.IsOrgAdmin.HasValue || x.IsActive.HasValue)
+            .WithMessage("At least one field (Role, IsOrgAdmin, IsActive) must be provided.");
     }
 }

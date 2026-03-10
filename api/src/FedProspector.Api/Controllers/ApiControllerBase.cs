@@ -48,7 +48,7 @@ public abstract class ApiControllerBase : ControllerBase
         return User.FindFirst(ClaimTypes.Email)?.Value;
     }
 
-    protected bool IsAdmin()
+    protected bool IsOrgAdmin()
     {
         return User.IsInRole("admin");
     }

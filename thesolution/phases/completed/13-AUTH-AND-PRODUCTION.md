@@ -52,7 +52,7 @@ Response:
     "displayName": "John Doe",
     "email": "jdoe@example.com",
     "role": "user",
-    "isAdmin": false
+    "isOrgAdmin": false
   }
 }
 ```
@@ -70,7 +70,7 @@ Response:
 
 #### `GET /api/v1/auth/me` — Current user profile
 - [x] Return current user info from JWT claims + database
-- [x] Include last_login_at, role, is_admin
+- [x] Include last_login_at, role, is_org_admin
 
 #### `PATCH /api/v1/auth/me` — Update profile
 - [x] Allow update of displayName, email
@@ -106,11 +106,11 @@ Response:
 
 #### `GET /api/v1/admin/users` — List all users
 - [x] Admin only
-- [x] Show: userId, username, displayName, email, role, isActive, isAdmin, lastLoginAt
+- [x] Show: userId, username, displayName, email, role, isActive, isOrgAdmin, lastLoginAt
 
 #### `PATCH /api/v1/admin/users/{id}` — Update user
 - [x] Admin only
-- [x] Change role, is_admin, is_active (deactivate account)
+- [x] Change role, is_org_admin, is_active (deactivate account)
 - [x] Cannot deactivate self
 
 #### `POST /api/v1/admin/users/{id}/reset-password` — Force password reset

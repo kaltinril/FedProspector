@@ -312,7 +312,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"role\": \"analyst\",\n  \"isAdmin\": false,\n  \"isActive\": false\n}",
+              "raw": "{\n  \"role\": \"analyst\",\n  \"isOrgAdmin\": false,\n  \"isActive\": false\n}",
               "options": {
                 "raw": {
                   "language": "json"

@@ -23,7 +23,7 @@ export function OrgSettingsTab() {
   const [error, setError] = useState<string | null>(null);
 
   // Determine if user can edit (owner or admin role)
-  const canEdit = user?.role === 'owner' || user?.role === 'admin' || user?.isAdmin === true;
+  const canEdit = user?.role === 'owner' || user?.role === 'admin' || user?.isOrgAdmin === true;
 
   function handleEditStart() {
     setName(org?.name ?? '');

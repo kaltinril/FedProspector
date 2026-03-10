@@ -72,7 +72,7 @@ ui/
 │   │   ├── AuthContext.tsx    # Session state via GET /auth/me, user info
 │   │   ├── AuthGuard.tsx     # Route protection — relies on AuthContext session state
 │   │   ├── AdminGuard.tsx    # Admin-only — checks org_role claim from session, not a separate API call
-│   │   └── useAuth.ts        # Hook: login, logout, isAdmin, user
+│   │   └── useAuth.ts        # Hook: login, logout, isOrgAdmin, user
 │   ├── components/
 │   │   ├── layout/
 │   │   │   ├── AppLayout.tsx       # Sidebar + top bar + content area

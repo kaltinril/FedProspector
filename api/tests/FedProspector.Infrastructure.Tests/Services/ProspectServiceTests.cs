@@ -93,7 +93,7 @@ public class ProspectServiceTests : IDisposable
             Username = username,
             DisplayName = $"Test User ({username})",
             IsActive = isActive,
-            IsAdmin = "N",
+            IsOrgAdmin = "N",
             MfaEnabled = "N",
             OrgRole = "member",
             ForcePasswordChange = "N"

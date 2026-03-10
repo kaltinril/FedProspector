@@ -37,7 +37,7 @@ public class AppUser
 
     [Required]
     [MaxLength(1)]
-    public string IsAdmin { get; set; } = "N";
+    public string IsOrgAdmin { get; set; } = "N";
 
     [Required]
     public bool IsSystemAdmin { get; set; } = false;

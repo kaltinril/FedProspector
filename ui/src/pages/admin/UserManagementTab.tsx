@@ -59,7 +59,7 @@ export default function UserManagementTab() {
   const handleRoleChange = useCallback(
     (user: UserListDto, role: string) => {
       updateUser.mutate(
-        { id: user.userId, data: { role, isAdmin: role === 'ADMIN' } },
+        { id: user.userId, data: { role, isOrgAdmin: role === 'ADMIN' } },
         {
           onSuccess: () => {
             enqueueSnackbar(`Role updated for ${user.username}`, { variant: 'success' });
@@ -140,8 +140,8 @@ export default function UserManagementTab() {
       },
     },
     {
-      field: 'isAdmin',
-      headerName: 'Admin',
+      field: 'isOrgAdmin',
+      headerName: 'Org Admin',
       width: 80,
       renderCell: (params) => (params.value ? 'Yes' : 'No'),
     },

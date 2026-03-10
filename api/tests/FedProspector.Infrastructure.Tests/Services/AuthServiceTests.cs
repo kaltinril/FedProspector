@@ -62,7 +62,7 @@ public class AuthServiceTests : IDisposable
         string displayName = "Test User",
         string password = TestPassword,
         string isActive = "Y",
-        string isAdmin = "N",
+        string isOrgAdmin = "N",
         int organizationId = 1,
         int failedLoginAttempts = 0,
         DateTime? lockedUntil = null)
@@ -77,7 +77,7 @@ public class AuthServiceTests : IDisposable
             Role = "USER",
             OrgRole = "member",
             IsActive = isActive,
-            IsAdmin = isAdmin,
+            IsOrgAdmin = isOrgAdmin,
             MfaEnabled = "N",
             ForcePasswordChange = "N",
             FailedLoginAttempts = failedLoginAttempts,
@@ -292,7 +292,7 @@ public class AuthServiceTests : IDisposable
         var user = await _context.AppUsers.FirstOrDefaultAsync(u => u.Username == "newadmin");
         user.Should().NotBeNull();
         user!.Email.Should().Be("admin@example.com");
-        user.IsAdmin.Should().Be("Y");
+        user.IsOrgAdmin.Should().Be("Y");
         user.IsActive.Should().Be("Y");
     }
 
@@ -545,17 +545,17 @@ public class AuthServiceTests : IDisposable
         profile.Email.Should().Be("profile@example.com");
         profile.Username.Should().Be("testuser");
         profile.Role.Should().Be("USER");
-        profile.IsAdmin.Should().BeFalse();
+        profile.IsOrgAdmin.Should().BeFalse();
     }
 
     [Fact]
-    public async Task GetProfileAsync_AdminUser_ReturnsIsAdminTrue()
+    public async Task GetProfileAsync_AdminUser_ReturnsIsOrgAdminTrue()
     {
-        var user = SeedUser(isAdmin: "Y");
+        var user = SeedUser(isOrgAdmin: "Y");
 
         var profile = await _service.GetProfileAsync(user.UserId);
 
-        profile.IsAdmin.Should().BeTrue();
+        profile.IsOrgAdmin.Should().BeTrue();
     }
 
     [Fact]

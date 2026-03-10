@@ -87,7 +87,7 @@ def create_sysadmin(username, email, display_name, org_name):
         cursor.execute(
             "INSERT INTO app_user "
             "(organization_id, username, display_name, email, password_hash, "
-            " role, is_active, is_admin, mfa_enabled, org_role, "
+            " role, is_active, is_org_admin, mfa_enabled, org_role, "
             " force_password_change, failed_login_attempts) "
             "VALUES (%s, %s, %s, %s, %s, 'USER', 'Y', 'Y', 'N', 'owner', 'N', 0)",
             (org_id, username, display_name, email, password_hash),
@@ -267,7 +267,7 @@ def invite_user(email, org_id, role):
 
         # Look up the sysadmin user_id to use as the inviter
         cursor.execute(
-            "SELECT user_id FROM app_user WHERE is_admin = 'Y' ORDER BY user_id LIMIT 1"
+            "SELECT user_id FROM app_user WHERE is_org_admin = 'Y' ORDER BY user_id LIMIT 1"
         )
         admin_row = cursor.fetchone()
         if not admin_row:
@@ -326,7 +326,7 @@ def list_org_members(org_id):
 
         cursor.execute(
             "SELECT user_id, username, display_name, email, org_role, "
-            "       is_active, is_admin, last_login_at "
+            "       is_active, is_org_admin, last_login_at "
             "FROM app_user WHERE organization_id = %s "
             "ORDER BY user_id",
             (org_id,),
@@ -352,7 +352,7 @@ def list_org_members(org_id):
                 f"{(row['email'] or ''):<30}  "
                 f"{row['org_role']:<8}  "
                 f"{row['is_active']:<6}  "
-                f"{row['is_admin']:<5}  "
+                f"{row['is_org_admin']:<5}  "
                 f"{last_login:<19}"
             )
 

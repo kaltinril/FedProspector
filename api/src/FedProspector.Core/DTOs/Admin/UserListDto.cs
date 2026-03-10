@@ -8,7 +8,7 @@ public class UserListDto
     public string? Email { get; set; }
     public string Role { get; set; } = "USER";
     public bool IsActive { get; set; }
-    public bool IsAdmin { get; set; }
+    public bool IsOrgAdmin { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public DateTime? CreatedAt { get; set; }
 }

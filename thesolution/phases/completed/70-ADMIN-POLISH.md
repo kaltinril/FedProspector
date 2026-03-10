@@ -110,7 +110,7 @@ Accessible to users with `org_role` = `admin` or `owner`. Manages the subscribin
 
 ### System Admin Panel (System Admin Role)
 
-Accessible to users with system `is_admin = true`. Manages the platform across all organizations.
+Accessible to users with `is_system_admin = true`. Manages the platform across all organizations.
 
 #### Organization Management
 - Table: org name, slug, member count, seat limit, subscription tier, is_active, created date

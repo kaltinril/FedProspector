@@ -42,7 +42,7 @@ export function OrgMembersTab() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
 
-  const canManage = user?.role === 'owner' || user?.role === 'admin' || user?.isAdmin === true;
+  const canManage = user?.role === 'owner' || user?.role === 'admin' || user?.isOrgAdmin === true;
 
   function handleInvite() {
     createInviteMutation.mutate(

@@ -285,7 +285,7 @@ public class OrganizationService : IOrganizationService
             Role = "USER",
             OrgRole = "owner",
             IsActive = "Y",
-            IsAdmin = "N",
+            IsOrgAdmin = "N",
             MfaEnabled = "N",
             ForcePasswordChange = "Y",
             FailedLoginAttempts = 0,

@@ -292,7 +292,7 @@ public class AuthService : IAuthService
             Role = "USER",
             OrgRole = orgRole,
             IsActive = "Y",
-            IsAdmin = isAdminRegistration ? "Y" : "N",
+            IsOrgAdmin = isAdminRegistration ? "Y" : "N",
             MfaEnabled = "N",
             FailedLoginAttempts = 0,
             CreatedAt = DateTime.UtcNow
@@ -612,7 +612,7 @@ public class AuthService : IAuthService
             DisplayName = user.DisplayName,
             Email = user.Email,
             Role = user.Role ?? "USER",
-            IsAdmin = user.IsAdmin == "Y",
+            IsOrgAdmin = user.IsOrgAdmin == "Y",
             IsSystemAdmin = user.IsSystemAdmin,
             LastLoginAt = user.LastLoginAt,
             CreatedAt = user.CreatedAt
@@ -624,7 +624,7 @@ public class AuthService : IAuthService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtOptions.SecretKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
-        var role = user.IsAdmin == "Y" ? "admin" : "user";
+        var role = user.IsOrgAdmin == "Y" ? "admin" : "user";
 
         var claims = new List<Claim>
         {

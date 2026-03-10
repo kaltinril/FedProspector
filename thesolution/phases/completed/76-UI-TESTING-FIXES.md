@@ -40,7 +40,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 **Symptom**: `POST /api/v1/admin/organizations` returns 403 for org admins. The Organizations tab and its "Create Organization" / "Create Organization Owner" buttons are visible to all admins, but the backend requires `is_system_admin = true`.
 
-**Root Cause**: `isSystemAdmin` was not exposed in the user profile. The UI had no way to distinguish org admins from system admins, so it showed the Organizations tab to everyone with `isAdmin = true`.
+**Root Cause**: `isSystemAdmin` was not exposed in the user profile. The UI had no way to distinguish org admins from system admins, so it showed the Organizations tab to everyone with `isOrgAdmin = true` (formerly `isAdmin`).
 
 **Files**:
 - `api/src/FedProspector.Core/DTOs/UserProfileDto.cs` — added `IsSystemAdmin` property
@@ -269,7 +269,7 @@ Track and fix bugs found during manual UI testing of the FedProspect web applica
 
 ### 76-A9: Admin can demote themselves to USER role (MEDIUM) ✅ FIXED
 
-**Problem**: User management allows changing any user's role including the logged-in admin. Backend partially blocks `isAdmin: false` on self but may still apply `role: USER`, creating inconsistent state.
+**Problem**: User management allows changing any user's role including the logged-in admin. Backend partially blocks `isOrgAdmin: false` on self but may still apply `role: USER`, creating inconsistent state.
 
 **File**: `ui/src/pages/admin/UserManagementTab.tsx:57-71`
 

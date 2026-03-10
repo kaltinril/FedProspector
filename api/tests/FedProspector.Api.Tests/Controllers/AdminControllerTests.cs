@@ -26,14 +26,14 @@ public class AdminControllerTests
         };
     }
 
-    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "admin", bool isAdmin = true, int orgId = 1, bool isSystemAdmin = false)
+    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "admin", bool isOrgAdmin = true, int orgId = 1, bool isSystemAdmin = false)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(ClaimTypes.Role, role),
-            new("is_admin", isAdmin.ToString().ToLower()),
+            new("is_org_admin", isOrgAdmin.ToString().ToLower()),
             new("org_id", orgId.ToString())
         };
         if (isSystemAdmin)
@@ -155,7 +155,7 @@ public class AdminControllerTests
     public async Task UpdateUser_CallsServiceWithCorrectParameters()
     {
         SetAuthenticatedAdmin(userId: 2, orgId: 20);
-        var request = new UpdateUserRequest { IsAdmin = true };
+        var request = new UpdateUserRequest { IsOrgAdmin = true };
         _serviceMock.Setup(s => s.UpdateUserAsync(10, request, 2, 20))
             .ReturnsAsync(new UserListDto());
 

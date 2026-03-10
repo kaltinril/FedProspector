@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS app_user (
     role                 VARCHAR(20) DEFAULT 'USER',
     last_login_at        DATETIME,
     is_active            CHAR(1) DEFAULT 'Y',
-    is_admin             CHAR(1) NOT NULL DEFAULT 'N',
+    is_org_admin         CHAR(1) NOT NULL DEFAULT 'N',
     mfa_enabled          CHAR(1) NOT NULL DEFAULT 'N',
     org_role             VARCHAR(50) NOT NULL DEFAULT 'member',
     invited_by           INT,

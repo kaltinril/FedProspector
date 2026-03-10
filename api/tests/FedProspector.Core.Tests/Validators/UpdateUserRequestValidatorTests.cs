@@ -34,9 +34,9 @@ public class UpdateUserRequestValidatorTests
     }
 
     [Fact]
-    public void Validate_IsAdminOnly_ShouldPass()
+    public void Validate_IsOrgAdminOnly_ShouldPass()
     {
-        var request = new UpdateUserRequest { IsAdmin = true };
+        var request = new UpdateUserRequest { IsOrgAdmin = true };
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveAnyValidationErrors();
     }
@@ -60,7 +60,7 @@ public class UpdateUserRequestValidatorTests
     [Fact]
     public void Validate_AllFieldsProvided_ShouldPass()
     {
-        var request = new UpdateUserRequest { Role = "USER", IsAdmin = false, IsActive = true };
+        var request = new UpdateUserRequest { Role = "USER", IsOrgAdmin = false, IsActive = true };
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveAnyValidationErrors();
     }

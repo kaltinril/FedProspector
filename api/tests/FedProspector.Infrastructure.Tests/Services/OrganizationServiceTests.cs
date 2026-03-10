@@ -68,7 +68,7 @@ public class OrganizationServiceTests : IDisposable
             Role = "USER",
             OrgRole = orgRole,
             IsActive = "Y",
-            IsAdmin = "N",
+            IsOrgAdmin = "N",
             MfaEnabled = "N",
             ForcePasswordChange = "N",
             FailedLoginAttempts = 0,

@@ -92,7 +92,7 @@ public class AdminService : IAdminService
                 Email = u.Email,
                 Role = u.Role ?? "USER",
                 IsActive = u.IsActive == "Y",
-                IsAdmin = u.IsAdmin == "Y",
+                IsOrgAdmin = u.IsOrgAdmin == "Y",
                 LastLoginAt = u.LastLoginAt,
                 CreatedAt = u.CreatedAt
             })
@@ -118,14 +118,14 @@ public class AdminService : IAdminService
         if (userId == adminUserId && request.IsActive == false)
             throw new InvalidOperationException("Cannot deactivate your own account.");
 
-        if (userId == adminUserId && request.IsAdmin == false)
+        if (userId == adminUserId && request.IsOrgAdmin == false)
             throw new InvalidOperationException("Cannot remove your own admin access.");
 
         if (request.Role != null)
             user.Role = request.Role;
 
-        if (request.IsAdmin.HasValue)
-            user.IsAdmin = request.IsAdmin.Value ? "Y" : "N";
+        if (request.IsOrgAdmin.HasValue)
+            user.IsOrgAdmin = request.IsOrgAdmin.Value ? "Y" : "N";
 
         if (request.IsActive.HasValue)
         {
@@ -153,7 +153,7 @@ public class AdminService : IAdminService
         _logger.LogInformation("Admin {AdminUserId} updated user {UserId}", adminUserId, userId);
 
         await _activityLogService.LogAsync(adminUserId, "ADMIN_UPDATE_USER", "USER", userId.ToString(),
-            new { request.Role, request.IsAdmin, request.IsActive });
+            new { request.Role, request.IsOrgAdmin, request.IsActive });
 
         return new UserListDto
         {
@@ -163,7 +163,7 @@ public class AdminService : IAdminService
             Email = user.Email,
             Role = user.Role ?? "USER",
             IsActive = user.IsActive == "Y",
-            IsAdmin = user.IsAdmin == "Y",
+            IsOrgAdmin = user.IsOrgAdmin == "Y",
             LastLoginAt = user.LastLoginAt,
             CreatedAt = user.CreatedAt
         };

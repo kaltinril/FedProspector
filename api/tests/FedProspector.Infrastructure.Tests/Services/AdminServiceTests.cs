@@ -56,7 +56,7 @@ public class AdminServiceTests : IDisposable
     }
 
     private AppUser SeedUser(int orgId = 1, string username = "testuser", string email = "test@example.com",
-        bool isActive = true, bool isAdmin = false)
+        bool isActive = true, bool isOrgAdmin = false)
     {
         var user = new AppUser
         {
@@ -68,7 +68,7 @@ public class AdminServiceTests : IDisposable
             Role = "USER",
             OrgRole = "member",
             IsActive = isActive ? "Y" : "N",
-            IsAdmin = isAdmin ? "Y" : "N",
+            IsOrgAdmin = isOrgAdmin ? "Y" : "N",
             MfaEnabled = "N",
             ForcePasswordChange = "N",
             FailedLoginAttempts = 0,
@@ -153,15 +153,15 @@ public class AdminServiceTests : IDisposable
     public async Task UpdateUserAsync_ValidRequest_UpdatesUser()
     {
         SeedOrganization(1);
-        var admin = SeedUser(1, "admin", "admin@example.com", isAdmin: true);
+        var admin = SeedUser(1, "admin", "admin@example.com", isOrgAdmin: true);
         var target = SeedUser(1, "target", "target@example.com");
 
-        var request = new UpdateUserRequest { Role = "MANAGER", IsAdmin = true };
+        var request = new UpdateUserRequest { Role = "MANAGER", IsOrgAdmin = true };
 
         var result = await _service.UpdateUserAsync(target.UserId, request, admin.UserId, 1);
 
         result.Role.Should().Be("MANAGER");
-        result.IsAdmin.Should().BeTrue();
+        result.IsOrgAdmin.Should().BeTrue();
 
         _activityLogServiceMock.Verify(
             a => a.LogAsync(admin.UserId, "ADMIN_UPDATE_USER", "USER", target.UserId.ToString(), It.IsAny<object>(), null),
@@ -174,7 +174,7 @@ public class AdminServiceTests : IDisposable
     public async Task ResetPasswordAsync_ValidUser_ReturnsNewPassword()
     {
         SeedOrganization(1);
-        var admin = SeedUser(1, "admin", "admin@example.com", isAdmin: true);
+        var admin = SeedUser(1, "admin", "admin@example.com", isOrgAdmin: true);
         var target = SeedUser(1, "target", "target@example.com");
 
         _authServiceMock.Setup(a => a.HashPassword(It.IsAny<string>())).Returns("newhash");

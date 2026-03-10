@@ -269,8 +269,8 @@ The current `app_user` table only has display/role info. The C# API needs authen
 ALTER TABLE app_user
     ADD COLUMN password_hash VARCHAR(255) AFTER email,
     ADD COLUMN last_login_at DATETIME AFTER role,
-    ADD COLUMN is_admin CHAR(1) NOT NULL DEFAULT 'N' AFTER last_login_at,
-    ADD COLUMN mfa_enabled CHAR(1) NOT NULL DEFAULT 'N' AFTER is_admin,
+    ADD COLUMN is_admin CHAR(1) NOT NULL DEFAULT 'N' AFTER last_login_at,  -- renamed to is_org_admin in Phase 86
+    ADD COLUMN mfa_enabled CHAR(1) NOT NULL DEFAULT 'N' AFTER is_admin,  -- is_admin ref updated above
     ADD COLUMN failed_login_attempts INT DEFAULT 0 AFTER mfa_enabled,
     ADD COLUMN locked_until DATETIME NULL AFTER failed_login_attempts;
 ```

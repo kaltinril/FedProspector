@@ -25,14 +25,14 @@ public class OrganizationControllerTests
         };
     }
 
-    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isAdmin = false, int orgId = 1, string orgRole = "member")
+    private static ClaimsPrincipal CreateUser(int userId = 1, string role = "user", bool isOrgAdmin = false, int orgId = 1, string orgRole = "member")
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new(ClaimTypes.NameIdentifier, userId.ToString()),
             new(ClaimTypes.Role, role),
-            new("is_admin", isAdmin.ToString().ToLower()),
+            new("is_org_admin", isOrgAdmin.ToString().ToLower()),
             new("org_id", orgId.ToString()),
             new("org_role", orgRole)
         };

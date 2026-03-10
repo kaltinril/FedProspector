@@ -916,14 +916,14 @@ export interface UserListDto {
   email?: string | null;
   role: string;
   isActive: boolean;
-  isAdmin: boolean;
+  isOrgAdmin: boolean;
   lastLoginAt?: string | null;
   createdAt?: string | null;
 }
 
 export interface UpdateUserRequest {
   role?: string | null;
-  isAdmin?: boolean | null;
+  isOrgAdmin?: boolean | null;
   isActive?: boolean | null;
 }
 

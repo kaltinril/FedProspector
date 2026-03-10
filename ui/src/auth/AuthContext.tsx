@@ -63,7 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const isAuthenticated = user !== null;
-  const isOrgAdmin = user?.isAdmin ?? false;
+  const isOrgAdmin = user?.isOrgAdmin ?? false;
   const isSystemAdmin = user?.isSystemAdmin ?? false;
 
   const value = useMemo<AuthContextType>(
