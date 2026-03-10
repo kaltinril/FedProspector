@@ -24,4 +24,8 @@ public class EntityNaics
 
     [MaxLength(20)]
     public string? NaicsException { get; set; }
+
+    // Navigation property
+    [ForeignKey("UeiSam")]
+    public Entity? Entity { get; set; }
 }

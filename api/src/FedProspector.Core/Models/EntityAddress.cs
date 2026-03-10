@@ -39,4 +39,8 @@ public class EntityAddress
 
     [MaxLength(10)]
     public string? CongressionalDistrict { get; set; }
+
+    // Navigation property
+    [ForeignKey("UeiSam")]
+    public Entity? Entity { get; set; }
 }

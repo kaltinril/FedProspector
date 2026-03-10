@@ -36,8 +36,17 @@ public class GoNoGoScoringService : IGoNoGoScoringService
         _logger = logger;
     }
 
-    public async Task<ScoreBreakdownDto> CalculateScoreAsync(int prospectId)
+    public async Task<ScoreBreakdownDto> CalculateScoreAsync(int prospectId, int organizationId)
     {
+        // Defense-in-depth: verify prospect belongs to the specified organization
+        var prospectOrg = await _context.Prospects.AsNoTracking()
+            .Where(p => p.ProspectId == prospectId)
+            .Select(p => new { p.OrganizationId })
+            .FirstOrDefaultAsync();
+
+        if (prospectOrg is not null && prospectOrg.OrganizationId != organizationId)
+            throw new UnauthorizedAccessException($"Prospect {prospectId} does not belong to organization {organizationId}");
+
         // Fetch prospect + opportunity data (mirrors Python JOIN query)
         var data = await _context.Prospects.AsNoTracking()
             .Where(p => p.ProspectId == prospectId)

@@ -64,7 +64,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(setAsideCode: "WOSB");
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.SetAside.Score.Should().Be(10);
         result.Breakdown.SetAside.Detail.Should().Contain("WOSB");
@@ -75,7 +75,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(setAsideCode: "EDWOSB");
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.SetAside.Score.Should().Be(10);
     }
@@ -85,7 +85,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(setAsideCode: "8A");
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.SetAside.Score.Should().Be(8);
         result.Breakdown.SetAside.Detail.Should().Contain("8A");
@@ -96,7 +96,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(setAsideCode: "8AN");
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.SetAside.Score.Should().Be(8);
     }
@@ -106,7 +106,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(setAsideCode: null);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.SetAside.Score.Should().Be(0);
     }
@@ -118,7 +118,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(responseDeadline: DateTime.UtcNow.AddDays(45));
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.TimeRemaining.Score.Should().Be(10);
     }
@@ -128,7 +128,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(responseDeadline: DateTime.UtcNow.AddDays(20));
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.TimeRemaining.Score.Should().Be(7);
     }
@@ -138,7 +138,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(responseDeadline: DateTime.UtcNow.AddDays(10));
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.TimeRemaining.Score.Should().Be(4);
     }
@@ -148,7 +148,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(responseDeadline: DateTime.UtcNow.AddDays(3));
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.TimeRemaining.Score.Should().Be(1);
     }
@@ -158,7 +158,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(responseDeadline: DateTime.UtcNow.AddDays(-5));
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.TimeRemaining.Score.Should().Be(0);
     }
@@ -168,7 +168,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(responseDeadline: null);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.TimeRemaining.Score.Should().Be(5);
         result.Breakdown.TimeRemaining.Detail.Should().Contain("No deadline");
@@ -181,7 +181,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(awardAmount: 2_000_000m);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.AwardValue.Score.Should().Be(10);
     }
@@ -191,7 +191,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(awardAmount: 750_000m);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.AwardValue.Score.Should().Be(8);
     }
@@ -201,7 +201,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(awardAmount: 250_000m);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.AwardValue.Score.Should().Be(6);
     }
@@ -211,7 +211,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(awardAmount: 75_000m);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.AwardValue.Score.Should().Be(4);
     }
@@ -221,7 +221,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(awardAmount: 10_000m);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.AwardValue.Score.Should().Be(2);
     }
@@ -231,7 +231,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(awardAmount: null, estimatedValue: 1_500_000m);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.AwardValue.Score.Should().Be(10);
     }
@@ -241,7 +241,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(awardAmount: null, estimatedValue: null);
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.AwardValue.Score.Should().Be(3);
         result.Breakdown.AwardValue.Detail.Should().Contain("Unknown value");
@@ -254,7 +254,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         // No data seeded
 
-        var act = () => _service.CalculateScoreAsync(999);
+        var act = () => _service.CalculateScoreAsync(999, 1);
 
         await act.Should().ThrowAsync<KeyNotFoundException>()
             .WithMessage("*999*");
@@ -272,7 +272,7 @@ public class GoNoGoScoringServiceTests : IDisposable
             // NAICS match = 0 pts (no entity data)
         );
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.ProspectId.Should().Be(1);
         result.TotalScore.Should().Be(30);
@@ -285,7 +285,7 @@ public class GoNoGoScoringServiceTests : IDisposable
     {
         SeedProspectWithOpportunity(setAsideCode: "WOSB", awardAmount: 1_000_000m);
 
-        await _service.CalculateScoreAsync(1);
+        await _service.CalculateScoreAsync(1, 1);
 
         var prospect = await _context.Prospects.FindAsync(1);
         prospect!.GoNoGoScore.Should().NotBeNull();
@@ -310,7 +310,7 @@ public class GoNoGoScoringServiceTests : IDisposable
         });
         _context.SaveChanges();
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.NaicsMatch.Score.Should().Be(10);
         result.Breakdown.NaicsMatch.Detail.Should().Contain("MATCH");
@@ -334,7 +334,7 @@ public class GoNoGoScoringServiceTests : IDisposable
         });
         _context.SaveChanges();
 
-        var result = await _service.CalculateScoreAsync(1);
+        var result = await _service.CalculateScoreAsync(1, 1);
 
         result.Breakdown.NaicsMatch.Score.Should().Be(0);
         result.Breakdown.NaicsMatch.Detail.Should().Contain("no match");

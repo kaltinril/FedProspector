@@ -40,7 +40,10 @@ public class SavedSearch
 
     public DateTime? UpdatedAt { get; set; }
 
-    // Navigation property
+    // Navigation properties
     [ForeignKey("OrganizationId")]
     public Organization? Organization { get; set; }
+
+    [ForeignKey("UserId")]
+    public AppUser? User { get; set; }
 }

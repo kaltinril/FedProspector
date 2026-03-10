@@ -73,25 +73,28 @@ public class EntityService : IEntityService
             };
         }
 
-        // Project to DTO; derive PopState from the first physical address
-        var items = await ordered
+        // Project to DTO; derive PopState via LEFT JOIN to physical address
+        var enriched = from e in ordered
+            join a in _context.EntityAddresses.Where(a => a.AddressType == "PHYSICAL")
+                on e.UeiSam equals a.UeiSam into addrJoin
+            from a in addrJoin.DefaultIfEmpty()
+            select new { Entity = e, PopState = a != null ? a.StateOrProvince : null };
+
+        var items = await enriched
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(e => new EntitySearchDto
+            .Select(x => new EntitySearchDto
             {
-                UeiSam = e.UeiSam,
-                LegalBusinessName = e.LegalBusinessName,
-                DbaName = e.DbaName,
-                RegistrationStatus = e.RegistrationStatus,
-                PrimaryNaics = e.PrimaryNaics,
-                EntityStructureCode = e.EntityStructureCode,
-                PopState = _context.EntityAddresses
-                    .Where(a => a.UeiSam == e.UeiSam && a.AddressType == "PHYSICAL")
-                    .Select(a => a.StateOrProvince)
-                    .FirstOrDefault(),
-                EntityUrl = e.EntityUrl,
-                LastUpdateDate = e.LastUpdateDate,
-                RegistrationExpirationDate = e.RegistrationExpirationDate
+                UeiSam = x.Entity.UeiSam,
+                LegalBusinessName = x.Entity.LegalBusinessName,
+                DbaName = x.Entity.DbaName,
+                RegistrationStatus = x.Entity.RegistrationStatus,
+                PrimaryNaics = x.Entity.PrimaryNaics,
+                EntityStructureCode = x.Entity.EntityStructureCode,
+                PopState = x.PopState,
+                EntityUrl = x.Entity.EntityUrl,
+                LastUpdateDate = x.Entity.LastUpdateDate,
+                RegistrationExpirationDate = x.Entity.RegistrationExpirationDate
             })
             .ToListAsync();
 
@@ -145,14 +148,12 @@ public class EntityService : IEntityService
 
         var pscTask = (from p in _context.EntityPscCodes.AsNoTracking()
                 where p.UeiSam == uei
+                join r in _context.RefPscCodeLatest on p.PscCode equals r.PscCode into pscJoin
+                from r in pscJoin.DefaultIfEmpty()
                 select new EntityPscDto
                 {
                     PscCode = p.PscCode,
-                    PscDescription = _context.RefPscCodes
-                        .Where(r => r.PscCode == p.PscCode)
-                        .OrderByDescending(r => r.StartDate)
-                        .Select(r => r.PscName)
-                        .FirstOrDefault()
+                    PscDescription = r != null ? r.PscName : null
                 })
             .ToListAsync();
 

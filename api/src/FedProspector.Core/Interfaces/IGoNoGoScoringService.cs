@@ -4,5 +4,5 @@ namespace FedProspector.Core.Interfaces;
 
 public interface IGoNoGoScoringService
 {
-    Task<ScoreBreakdownDto> CalculateScoreAsync(int prospectId);
+    Task<ScoreBreakdownDto> CalculateScoreAsync(int prospectId, int organizationId);
 }

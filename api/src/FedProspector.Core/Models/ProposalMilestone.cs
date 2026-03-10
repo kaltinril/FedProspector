@@ -30,4 +30,11 @@ public class ProposalMilestone
     public string? Notes { get; set; }
 
     public DateTime? CreatedAt { get; set; }
+
+    // Navigation properties
+    [ForeignKey("ProposalId")]
+    public Proposal? Proposal { get; set; }
+
+    [ForeignKey("AssignedTo")]
+    public AppUser? AssignedToUser { get; set; }
 }

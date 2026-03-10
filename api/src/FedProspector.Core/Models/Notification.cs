@@ -36,4 +36,8 @@ public class Notification
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? ReadAt { get; set; }
+
+    // Navigation property
+    [ForeignKey("UserId")]
+    public AppUser? User { get; set; }
 }

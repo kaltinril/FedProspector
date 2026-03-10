@@ -91,7 +91,9 @@ public class AwardService : IAwardService
             from n in naicsJoin.DefaultIfEmpty()
             join sa in _context.RefSetAsideTypes on c.SetAsideType equals sa.SetAsideCode into saJoin
             from sa in saJoin.DefaultIfEmpty()
-            select new { Contract = c, NaicsDesc = n != null ? n.Description : null, SetAsideDesc = sa != null ? sa.Description : null, SetAsideCategory = sa != null ? sa.Category : null };
+            join psc in _context.RefPscCodeLatest on c.PscCode equals psc.PscCode into pscJoin
+            from psc in pscJoin.DefaultIfEmpty()
+            select new { Contract = c, NaicsDesc = n != null ? n.Description : null, SetAsideDesc = sa != null ? sa.Description : null, SetAsideCategory = sa != null ? sa.Category : null, PscDesc = psc != null ? psc.PscName : null };
 
         var results = await enriched
             .Skip((request.Page - 1) * request.PageSize)
@@ -112,11 +114,7 @@ public class AwardService : IAwardService
                 NaicsCode = x.Contract.NaicsCode,
                 NaicsDescription = x.NaicsDesc,
                 PscCode = x.Contract.PscCode,
-                PscDescription = _context.RefPscCodes
-                    .Where(p => p.PscCode == x.Contract.PscCode)
-                    .OrderByDescending(p => p.StartDate)
-                    .Select(p => p.PscName)
-                    .FirstOrDefault(),
+                PscDescription = x.PscDesc,
                 SetAsideType = x.Contract.SetAsideType,
                 SetAsideDescription = x.SetAsideDesc,
                 SetAsideCategory = x.SetAsideCategory,
@@ -618,7 +616,9 @@ public class AwardService : IAwardService
             from n in naicsJoin.DefaultIfEmpty()
             join sa in _context.RefSetAsideTypes on ua.TypeOfSetAside equals sa.SetAsideCode into saJoin
             from sa in saJoin.DefaultIfEmpty()
-            select new { Award = ua, NaicsDesc = n != null ? n.Description : null, SetAsideDesc = sa != null ? sa.Description : null, SetAsideCategory = sa != null ? sa.Category : null };
+            join psc in _context.RefPscCodeLatest on ua.PscCode equals psc.PscCode into pscJoin
+            from psc in pscJoin.DefaultIfEmpty()
+            select new { Award = ua, NaicsDesc = n != null ? n.Description : null, SetAsideDesc = sa != null ? sa.Description : null, SetAsideCategory = sa != null ? sa.Category : null, PscDesc = psc != null ? psc.PscName : null };
 
         return await usaEnriched
             .Take(limit)
@@ -638,11 +638,7 @@ public class AwardService : IAwardService
                 NaicsCode = x.Award.NaicsCode,
                 NaicsDescription = x.NaicsDesc,
                 PscCode = x.Award.PscCode,
-                PscDescription = _context.RefPscCodes
-                    .Where(p => p.PscCode == x.Award.PscCode)
-                    .OrderByDescending(p => p.StartDate)
-                    .Select(p => p.PscName)
-                    .FirstOrDefault(),
+                PscDescription = x.PscDesc,
                 SetAsideType = x.Award.TypeOfSetAside,
                 SetAsideDescription = x.SetAsideDesc,
                 SetAsideCategory = x.SetAsideCategory,

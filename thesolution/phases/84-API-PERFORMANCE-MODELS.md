@@ -1,6 +1,6 @@
 # Phase 84: App API Performance & Model Completeness
 
-**Status**: PLANNED
+**Status**: DONE
 **Priority**: HIGH
 **Depends on**: Phase 81 (for schema fixes that affect models)
 
@@ -124,3 +124,52 @@ Review identified N+1 query problems, missing EF Core model properties, missing 
 4. Verify all new navigation properties work with Include()
 5. Test CSV export with limit exceeded — verify 400 response
 6. Test session caching — verify DB query reduction
+
+## Resolution
+
+### Investigation Findings (reviewed before fixing)
+All 18 items were investigated against the current codebase. Results:
+
+**Already fixed / Non-issues (8 items — no action needed):**
+- 84-5: Missing model properties — `EftIndicator`, `FundingSubtierCode`, `FundingSubtierName` all already exist
+- 84-8: CSV export no limit — already capped at 5,000 rows with `.Take(5000)`
+- 84-11: AutoMapper incomplete — deliberate design; LINQ projections translate to SQL better than AutoMapper
+- 84-12: Unvalidated enum strings — FluentValidation already covers all status/priority/role fields
+- 84-13: Session race condition — theoretical only; ConcurrentDictionary + IMemoryCache are thread-safe
+- 84-14: Session DB per request — already mitigated with 3-tier caching (in-memory revocation → memory cache → DB)
+- 84-16: Health check raw SQL — works correctly, cosmetic only
+- 84-18: No graceful shutdown — no background work exists; ASP.NET Core handles request draining
+
+**Deferred (1 item):**
+- 84-17: Missing cascade deletes — latent issue (no delete feature exists), will address when prospect deletion is implemented
+
+**Fixed (9 items):**
+- 84-1: AwardService PSC subquery → created `ref_psc_code_latest` view, replaced correlated subqueries with JOINs
+- 84-2: EntityService PopState subquery → replaced with LEFT JOIN to EntityAddresses
+- 84-3: EntityService PSC descriptions → replaced with JOIN to ref_psc_code_latest
+- 84-4: Missing navigation properties → added to 16 models (15 originally planned + 1 new finding)
+- 84-6: Prospect missing nav properties → added AssignedToUser, CaptureManagerUser, Opportunity
+- 84-7: Unbounded query in GetDetailAsync → added .Take(50) to related awards and amendments
+- 84-9: Exception handler gaps → added OperationCanceledException (499), ArgumentException (400), DbUpdateConcurrencyException (409), DbUpdateException duplicate detection (409)
+- 84-10: Inconsistent pagination → standardized defaults and max limits, added offset validation
+- 84-15: Multi-tenancy gap → added organizationId parameter to GoNoGoScoringService.CalculateScoreAsync
+
+### Files Changed
+- `fed_prospector/db/schema/views/ref_psc_code_latest.sql` (new)
+- `api/src/FedProspector.Core/Models/Views/RefPscCodeLatest.cs` (new)
+- `api/src/FedProspector.Infrastructure/Data/FedProspectorDbContext.cs`
+- `api/src/FedProspector.Infrastructure/Services/AwardService.cs`
+- `api/src/FedProspector.Infrastructure/Services/EntityService.cs`
+- `api/src/FedProspector.Infrastructure/Services/OpportunityService.cs`
+- `api/src/FedProspector.Infrastructure/Services/GoNoGoScoringService.cs`
+- `api/src/FedProspector.Infrastructure/Services/ProspectService.cs`
+- `api/src/FedProspector.Api/Middleware/ExceptionHandlerMiddleware.cs`
+- `api/src/FedProspector.Api/Controllers/AdminController.cs`
+- `api/src/FedProspector.Api/Controllers/AwardsController.cs`
+- `api/src/FedProspector.Core/Interfaces/IGoNoGoScoringService.cs`
+- 16 model files with added navigation properties
+
+### Verification
+- All 561 C# tests pass (319 Core + 242 Api)
+- Build: 0 errors, 0 warnings
+- ref_psc_code_latest view created and verified (3,854 PSC codes)

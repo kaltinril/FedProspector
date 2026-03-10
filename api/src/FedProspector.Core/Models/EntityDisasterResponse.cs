@@ -30,4 +30,8 @@ public class EntityDisasterResponse
 
     [MaxLength(100)]
     public string? MsaName { get; set; }
+
+    // Navigation property
+    [ForeignKey("UeiSam")]
+    public Entity? Entity { get; set; }
 }

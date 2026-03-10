@@ -208,6 +208,7 @@ public class OpportunityService : IOpportunityService
                     TypeOfContract = c.TypeOfContract,
                     NumberOfOffers = c.NumberOfOffers
                 })
+                .Take(50)
                 .ToListAsync();
 
         // Prospect info
@@ -268,6 +269,7 @@ public class OpportunityService : IOpportunityService
                     PostedDate = o.PostedDate,
                     ResponseDeadline = o.ResponseDeadline
                 })
+                .Take(50)
                 .ToListAsync();
         }
 

@@ -1,5 +1,6 @@
 using FedProspector.Core.DTOs;
 using FedProspector.Core.Exceptions;
+using Microsoft.EntityFrameworkCore;
 
 namespace FedProspector.Api.Middleware;
 
@@ -20,14 +21,24 @@ public class ExceptionHandlerMiddleware
         {
             await _next(context);
         }
+        catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
+        {
+            // Client disconnected — not an error
+            context.Response.StatusCode = 499;
+            return;
+        }
         catch (Exception ex)
         {
             var (statusCode, message) = ex switch
             {
                 KeyNotFoundException => (404, "The requested resource was not found."),
+                ArgumentException => (400, "Invalid argument provided."),
                 InvalidOperationException => (400, "The request could not be processed."),
                 UnauthorizedAccessException => (403, "Access denied."),
                 ConflictException => (409, "A conflict occurred with the current state of the resource."),
+                DbUpdateConcurrencyException => (409, "A concurrency conflict occurred. Please retry."),
+                DbUpdateException dbEx when dbEx.InnerException?.Message.Contains("Duplicate entry", StringComparison.OrdinalIgnoreCase) == true
+                    => (409, "A conflict occurred due to a duplicate entry."),
                 _ => (500, "An internal server error occurred")
             };
 

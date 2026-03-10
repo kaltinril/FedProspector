@@ -72,7 +72,16 @@ public class Prospect
 
     public DateTime UpdatedAt { get; set; }
 
-    // Navigation property
+    // Navigation properties
     [ForeignKey("OrganizationId")]
     public Organization? Organization { get; set; }
+
+    [ForeignKey("AssignedTo")]
+    public AppUser? AssignedToUser { get; set; }
+
+    [ForeignKey("CaptureManagerId")]
+    public AppUser? CaptureManagerUser { get; set; }
+
+    [ForeignKey("NoticeId")]
+    public Opportunity? Opportunity { get; set; }
 }

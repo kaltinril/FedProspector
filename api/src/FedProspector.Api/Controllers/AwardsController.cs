@@ -42,7 +42,7 @@ public class AwardsController : ApiControllerBase
         if (years < 1 || years > 10)
             years = 3;
 
-        if (limit < 1 || limit > 50)
+        if (limit < 1 || limit > 100)
             limit = 10;
 
         var result = await _marketIntelService.GetMarketShareAsync(naicsCode, years, limit);
@@ -66,6 +66,9 @@ public class AwardsController : ApiControllerBase
 
         if (limit < 1 || limit > 100)
             limit = 20;
+
+        if (offset < 0 || offset > 10000)
+            offset = 0;
 
         var request = new ExpiringContractSearchRequest
         {

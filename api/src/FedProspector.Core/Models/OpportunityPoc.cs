@@ -22,4 +22,8 @@ public class OpportunityPoc
     public string PocType { get; set; } = "PRIMARY";
 
     public DateTime? CreatedAt { get; set; }
+
+    // Navigation property
+    [ForeignKey("NoticeId")]
+    public Opportunity? Opportunity { get; set; }
 }

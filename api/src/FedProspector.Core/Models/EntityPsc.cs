@@ -15,4 +15,8 @@ public class EntityPsc
 
     [MaxLength(10)]
     public string PscCode { get; set; } = string.Empty;
+
+    // Navigation property
+    [ForeignKey("UeiSam")]
+    public Entity? Entity { get; set; }
 }

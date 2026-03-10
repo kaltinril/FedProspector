@@ -32,4 +32,11 @@ public class ProposalDocument
     public DateTime? UploadedAt { get; set; }
 
     public string? Notes { get; set; }
+
+    // Navigation properties
+    [ForeignKey("ProposalId")]
+    public Proposal? Proposal { get; set; }
+
+    [ForeignKey("UploadedBy")]
+    public AppUser? UploadedByUser { get; set; }
 }

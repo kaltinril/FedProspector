@@ -42,7 +42,7 @@ public class AdminController : ApiControllerBase
         [FromQuery] string? status = null,
         [FromQuery] int days = 7,
         [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+        [FromQuery] int pageSize = 25)
     {
         var result = await _service.GetLoadHistoryAsync(source, status, days, page, pageSize);
         return Ok(result);

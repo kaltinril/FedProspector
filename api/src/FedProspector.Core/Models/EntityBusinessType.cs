@@ -15,4 +15,8 @@ public class EntityBusinessType
 
     [MaxLength(4)]
     public string BusinessTypeCode { get; set; } = string.Empty;
+
+    // Navigation property
+    [ForeignKey("UeiSam")]
+    public Entity? Entity { get; set; }
 }

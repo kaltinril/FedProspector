@@ -22,4 +22,8 @@ public class EntitySbaCertification
     public DateOnly? CertificationEntryDate { get; set; }
 
     public DateOnly? CertificationExitDate { get; set; }
+
+    // Navigation property
+    [ForeignKey("UeiSam")]
+    public Entity? Entity { get; set; }
 }

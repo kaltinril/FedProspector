@@ -111,7 +111,7 @@ public class ProspectService : IProspectService
         // Auto-calculate Go/No-Go score
         try
         {
-            await _scoringService.CalculateScoreAsync(prospect.ProspectId);
+            await _scoringService.CalculateScoreAsync(prospect.ProspectId, organizationId);
         }
         catch (Exception ex)
         {
@@ -638,7 +638,7 @@ public class ProspectService : IProspectService
         if (!prospectExists)
             throw new KeyNotFoundException($"Prospect {prospectId} not found");
 
-        var result = await _scoringService.CalculateScoreAsync(prospectId);
+        var result = await _scoringService.CalculateScoreAsync(prospectId, organizationId);
 
         // Log activity
         await _activityLog.LogAsync(organizationId, userId, "RECALCULATE_SCORE", "PROSPECT", prospectId.ToString());

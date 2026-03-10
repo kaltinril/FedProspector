@@ -23,4 +23,11 @@ public class ProspectNote
     public string NoteText { get; set; } = string.Empty;
 
     public DateTime? CreatedAt { get; set; }
+
+    // Navigation properties
+    [ForeignKey("ProspectId")]
+    public Prospect? Prospect { get; set; }
+
+    [ForeignKey("UserId")]
+    public AppUser? User { get; set; }
 }

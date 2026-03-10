@@ -28,4 +28,11 @@ public class ProspectTeamMember
 
     [Column(TypeName = "decimal(5,2)")]
     public decimal? CommitmentPct { get; set; }
+
+    // Navigation properties
+    [ForeignKey("ProspectId")]
+    public Prospect? Prospect { get; set; }
+
+    [ForeignKey("AppUserId")]
+    public AppUser? AppUser { get; set; }
 }
