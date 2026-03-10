@@ -30,7 +30,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 2. **Update the plan as you work**: Mark tasks done in `thesolution/phases/`. **When adding, completing, or changing phase status, ALWAYS update the phase table in `thesolution/MASTER-PLAN.md` in the same commit.**
 3. **Follow the phase order**: Do not skip ahead unless told to.
 4. **Record data quality issues**: Document in relevant phase file under "Known Issues".
-5. **Never hardcode credentials**: Use `.env` + `python-dotenv`. See `thesolution/credentials.yml`.
+5. **Never hardcode credentials**: Use `.env` + `python-dotenv`. See `thesolution/credentials.example.yml`.
 6. **Prefer bulk extracts over API pagination**: SAM.gov rate limits are harsh.
 7. **Test with real data**: `workdir/converted/local database/` has reference CSVs.
 8. **Ignore OLD_ATTEMPTS and OLD_RESOURCES**: Relevant data already in `workdir/converted/`.
@@ -93,5 +93,5 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | Master plan | `thesolution/MASTER-PLAN.md` |
 | Phase plans | `thesolution/phases/` |
 | Reference docs | `thesolution/reference/` (architecture, data quality, API quirks, glossary, vendor API docs) |
-| Credentials | `thesolution/credentials.yml` |
+| Credentials | `thesolution/credentials.example.yml` |
 | Reference CSVs | `workdir/converted/local database/` (NAICS, PSC, SBA, FIPS) |

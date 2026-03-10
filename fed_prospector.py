@@ -33,7 +33,7 @@ API_PROJECT = SCRIPT_DIR / "api" / "src" / "FedProspector.Api"
 API_SLN = SCRIPT_DIR / "api" / "FedProspector.slnx"
 API_EXE = "FedProspector.Api.exe"
 MYSQL_EXE = "mysqld.exe"
-MYSQL_ROOT_PASS = "root_2026"
+MYSQL_ROOT_PASS = os.environ.get("MYSQL_ROOT_PASS", "")
 API_URL = "http://localhost:5056"
 
 

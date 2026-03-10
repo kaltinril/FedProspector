@@ -31,7 +31,6 @@ public class AwardsController : ApiControllerBase
     }
 
     [HttpGet("market-share")]
-    [AllowAnonymous]
     public async Task<IActionResult> GetMarketShare(
         [FromQuery] string naicsCode,
         [FromQuery] int years = 3,

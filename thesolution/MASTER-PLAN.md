@@ -92,7 +92,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 76 | UI Testing & Bug Fixes | COMPLETE | [76-UI-TESTING-FIXES.md](phases/completed/76-UI-TESTING-FIXES.md) |
 | 77 | USASpending Delta Loader | COMPLETE | [77-USASPENDING-DELTA-LOADER.md](phases/completed/77-USASPENDING-DELTA-LOADER.md) |
 | 78 | Entity CLI Consolidation | COMPLETE | [78-entity-cli-consolidation.md](phases/completed/78-entity-cli-consolidation.md) |
-| 80 | Critical Security Fixes | PLANNED | [80-CRITICAL-SECURITY-FIXES.md](phases/80-CRITICAL-SECURITY-FIXES.md) |
+| 80 | Critical Security Fixes | COMPLETE | [80-CRITICAL-SECURITY-FIXES.md](phases/completed/80-CRITICAL-SECURITY-FIXES.md) |
 | 81 | Database Integrity & Schema | PLANNED | [81-DATABASE-INTEGRITY.md](phases/81-DATABASE-INTEGRITY.md) |
 | 82 | ETL Pipeline Reliability | PLANNED | [82-ETL-RELIABILITY.md](phases/82-ETL-RELIABILITY.md) |
 | 83 | Vendor API Client Hardening | PLANNED | [83-VENDOR-API-HARDENING.md](phases/83-VENDOR-API-HARDENING.md) |

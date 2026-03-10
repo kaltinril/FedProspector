@@ -2,11 +2,13 @@
 **/.env
 **/.env.*
 !**/.env.example
+!**/.env.local.example
 !ui/.env.development
 *.key
 *.pem
 **/secrets.*
 **/credentials.*
+!**/credentials.example.*
 
 # Local IDE/tool config
 .claude/settings.local.json

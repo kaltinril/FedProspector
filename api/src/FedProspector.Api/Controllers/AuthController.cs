@@ -233,7 +233,7 @@ public class AuthController : ApiControllerBase
                 HttpOnly = true,
                 Secure = true,
                 SameSite = SameSiteMode.Strict,
-                Path = "/api/v1/auth/refresh",
+                Path = "/api/v1/auth",
                 Expires = DateTimeOffset.UtcNow.AddDays(7)
             });
         }
@@ -269,7 +269,7 @@ public class AuthController : ApiControllerBase
             HttpOnly = true,
             Secure = true,
             SameSite = SameSiteMode.Strict,
-            Path = "/api/v1/auth/refresh",
+            Path = "/api/v1/auth",
             MaxAge = TimeSpan.Zero
         });
 
