@@ -55,7 +55,7 @@ def get_pool():
     if _pool is None:
         _pool = pooling.MySQLConnectionPool(
             pool_name="fed_pool",
-            pool_size=5,
+            pool_size=settings.DB_POOL_SIZE,
             host=settings.DB_HOST,
             port=settings.DB_PORT,
             database=settings.DB_NAME,
@@ -65,7 +65,7 @@ def get_pool():
             collation="utf8mb4_unicode_ci",
             autocommit=False,
         )
-        logger.info("MySQL connection pool created (size=5)")
+        logger.info("MySQL connection pool created (size=%d)", settings.DB_POOL_SIZE)
     return _pool
 
 

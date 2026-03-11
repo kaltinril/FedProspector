@@ -12,6 +12,7 @@ DB_PORT = int(os.getenv("DB_PORT", "3306"))
 DB_NAME = os.getenv("DB_NAME", "fed_contracts")
 DB_USER = os.getenv("DB_USER", "fed_app")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "10"))
 
 # SAM.gov API
 SAM_API_KEY = os.getenv("SAM_API_KEY", "")

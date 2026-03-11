@@ -34,7 +34,11 @@ API_SLN = SCRIPT_DIR / "api" / "FedProspector.slnx"
 API_EXE = "FedProspector.Api.exe"
 MYSQL_EXE = "mysqld.exe"
 MYSQL_ROOT_PASS = os.environ.get("MYSQL_ROOT_PASS", "")
-API_URL = "http://localhost:5056"
+DB_PORT = int(os.environ.get("DB_PORT", "3306"))
+API_PORT = int(os.environ.get("API_PORT", "5056"))
+UI_PORT = int(os.environ.get("UI_PORT", "5173"))
+ASPNETCORE_ENV = os.environ.get("ASPNETCORE_ENVIRONMENT", "Development")
+API_URL = f"http://localhost:{API_PORT}"
 
 
 def is_running(image_name: str) -> bool:
@@ -101,9 +105,9 @@ def start_db():
         print(f"  [DB]  ERROR: MySQL binary not found at: {mysql_bin_path}")
         print("        Fix: Set MYSQL_BIN_DIR in fed_prospector/.env to your MySQL bin directory")
         return
-    if port_in_use(3306):
-        print("  [DB]  ERROR: Port 3306 is already in use.")
-        print("        Another process may be using this port. Check with: netstat -ano | findstr :3306")
+    if port_in_use(DB_PORT):
+        print(f"  [DB]  ERROR: Port {DB_PORT} is already in use.")
+        print(f"        Another process may be using this port. Check with: netstat -ano | findstr :{DB_PORT}")
         return
     print("  [DB]  Starting MySQL ...")
     subprocess.Popen(
@@ -113,7 +117,7 @@ def start_db():
     for i in range(30):
         time.sleep(1)
         if mysql_admin("ping") == 0:
-            print("  [DB]  MySQL is ready.  (port 3306)")
+            print(f"  [DB]  MySQL is ready.  (port {DB_PORT})")
             return
         if i == 9:
             print("  [DB]  Still waiting for MySQL to respond...")
@@ -148,7 +152,7 @@ def stop_db(force: bool = False):
 
 def check_db():
     if is_running(MYSQL_EXE):
-        print("  [DB]  Running  (port 3306)")
+        print(f"  [DB]  Running  (port {DB_PORT})")
     else:
         print("  [DB]  Stopped")
 
@@ -181,7 +185,7 @@ def _api_env() -> dict[str, str]:
 
     if db_password:
         conn = (
-            f"Server=localhost;Port=3306;Database=fed_contracts;"
+            f"Server=localhost;Port={DB_PORT};Database=fed_contracts;"
             f"User=fed_app;Password={db_password};"
             f"SslMode=None;AllowPublicKeyRetrieval=True"
         )
@@ -190,8 +194,8 @@ def _api_env() -> dict[str, str]:
     if jwt_secret:
         env["Jwt__SecretKey"] = jwt_secret
 
-    # Run in Development mode so appsettings.Development.json is loaded
-    env["ASPNETCORE_ENVIRONMENT"] = "Development"
+    env["ASPNETCORE_ENVIRONMENT"] = ASPNETCORE_ENV
+    env["ASPNETCORE_URLS"] = f"http://localhost:{API_PORT}"
     return env
 
 
@@ -199,15 +203,15 @@ def start_api():
     if is_running(API_EXE):
         print("  [API] Already running.")
         return
-    if port_in_use(5056):
-        print("  [API] ERROR: Port 5056 is already in use.")
-        print("        Another process may be using this port. Check with: netstat -ano | findstr :5056")
+    if port_in_use(API_PORT):
+        print(f"  [API] ERROR: Port {API_PORT} is already in use.")
+        print(f"        Another process may be using this port. Check with: netstat -ano | findstr :{API_PORT}")
         return
     env = _api_env()
     if not env.get("Jwt__SecretKey"):
         print("  [API] WARNING: JWT_SECRET_KEY not set in fed_prospector/.env")
         print("        Auth will fail. Add: JWT_SECRET_KEY=<at-least-32-chars>")
-    print("  [API] Starting .NET API (Development) ...")
+    print(f"  [API] Starting .NET API ({ASPNETCORE_ENV}) ...")
     subprocess.Popen(
         f'start "FedProspector API" /MIN dotnet run --no-build --project "{API_PROJECT}"',
         shell=True,
@@ -269,8 +273,8 @@ def build_ui():
 
 
 def start_ui():
-    if port_in_use(5173):
-        print("  [UI]  Already running (port 5173).")
+    if port_in_use(UI_PORT):
+        print(f"  [UI]  Already running (port {UI_PORT}).")
         return
     ui_dir = SCRIPT_DIR / "ui"
     if not (ui_dir / "package.json").is_file():
@@ -278,13 +282,13 @@ def start_ui():
         return
     print("  [UI]  Starting Vite dev server ...")
     subprocess.Popen(
-        f'start "FedProspect UI" /MIN cmd /c "cd /d {ui_dir} && npm run dev"',
+        f'start "FedProspect UI" /MIN cmd /c "cd /d {ui_dir} && npm run dev -- --port {UI_PORT}"',
         shell=True,
     )
     for i in range(30):
         time.sleep(1)
-        if port_in_use(5173):
-            print("  [UI]  Ready.  http://localhost:5173")
+        if port_in_use(UI_PORT):
+            print(f"  [UI]  Ready.  http://localhost:{UI_PORT}")
             return
         if i == 9:
             print("  [UI]  Still waiting for Vite to start...")
@@ -292,18 +296,18 @@ def start_ui():
 
 
 def stop_ui():
-    if not port_in_use(5173):
+    if not port_in_use(UI_PORT):
         print("  [UI]  Not running.")
         return
     print("  [UI]  Stopping Vite dev server ...")
-    # Find PID listening on port 5173 and kill it with its child processes
+    # Find PID listening on the UI port and kill it with its child processes
     try:
         result = subprocess.run(
             ["netstat", "-ano"],
             capture_output=True, text=True, timeout=10,
         )
         for line in result.stdout.splitlines():
-            if ":5173" in line and "LISTENING" in line:
+            if f":{UI_PORT}" in line and "LISTENING" in line:
                 pid = line.strip().split()[-1]
                 subprocess.run(
                     ["taskkill", "/PID", pid, "/F", "/T"],
@@ -314,15 +318,15 @@ def stop_ui():
         pass
     # Wait for port to actually free up
     for _ in range(10):
-        if not port_in_use(5173):
+        if not port_in_use(UI_PORT):
             break
         time.sleep(1)
     print("  [UI]  Stopped.")
 
 
 def check_ui():
-    if port_in_use(5173):
-        print("  [UI]  Running  (http://localhost:5173)")
+    if port_in_use(UI_PORT):
+        print(f"  [UI]  Running  (http://localhost:{UI_PORT})")
     else:
         print("  [UI]  Stopped")
 

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-tests:
+    name: Python Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          allow-prereleases: true
+
+      - name: Install dependencies
+        run: |
+          pip install -r fed_prospector/requirements.txt
+          pip install pytest
+
+      - name: Run tests
+        run: cd fed_prospector && python -m pytest tests/ -v --tb=short
+
+  dotnet-build-test:
+    name: C# Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up .NET 9.0
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "9.0.x"
+
+      - name: Build
+        run: dotnet build api/FedProspector.slnx --configuration Release
+
+      - name: Test
+        run: dotnet test api/FedProspector.slnx --configuration Release --no-build --verbosity normal
+
+  ui-build-typecheck:
+    name: UI Build & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install, build, and typecheck
+        run: |
+          cd ui
+          npm ci
+          npm run build
+          npx tsc --noEmit

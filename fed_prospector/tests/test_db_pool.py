@@ -21,7 +21,7 @@ class TestGetPool:
             mock_pool_cls.assert_called_once()
             kwargs = mock_pool_cls.call_args[1]
             assert kwargs["pool_name"] == "fed_pool"
-            assert kwargs["pool_size"] == 5
+            assert kwargs["pool_size"] == 10
             assert kwargs["charset"] == "utf8mb4"
             assert kwargs["collation"] == "utf8mb4_unicode_ci"
             assert kwargs["autocommit"] is False

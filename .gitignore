@@ -32,7 +32,7 @@ fed_prospector/dist/
 fed_prospector/build/
 
 # Data files (large downloads, bulk extracts)
-data/
+/data/
 fed_prospector/data/downloads/*
 fed_prospector/data/logs/*
 !fed_prospector/data/downloads/.gitkeep
@@ -58,6 +58,9 @@ workdir/
 # sensitive config (e.g. API keys, DB credentials)
 thesolution/credentials.yml
 thesolution/samgov.yml
+
+# Database backups
+backups/
 
 # UI (Node.js / Vite + React)
 node_modules/

@@ -99,7 +99,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 84 | App API Performance & Models | COMPLETE | [84-API-PERFORMANCE-MODELS.md](phases/completed/84-API-PERFORMANCE-MODELS.md) |
 | 85 | API-UI Contract Alignment | COMPLETE | [85-API-UI-CONTRACT.md](phases/completed/85-API-UI-CONTRACT.md) |
 | 86 | UI Quality & Resilience | COMPLETE | [86-UI-QUALITY.md](phases/completed/86-UI-QUALITY.md) |
-| 87 | Operational Readiness | PLANNED | [87-OPERATIONAL-READINESS.md](phases/87-OPERATIONAL-READINESS.md) |
+| 87 | Operational Readiness | COMPLETE | [87-OPERATIONAL-READINESS.md](phases/completed/87-OPERATIONAL-READINESS.md) |
 | 88 | Documentation Refresh | PLANNED | [88-DOCUMENTATION-REFRESH.md](phases/88-DOCUMENTATION-REFRESH.md) |
 | 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
