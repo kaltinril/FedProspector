@@ -101,6 +101,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 86 | UI Quality & Resilience | COMPLETE | [86-UI-QUALITY.md](phases/completed/86-UI-QUALITY.md) |
 | 87 | Operational Readiness | COMPLETE | [87-OPERATIONAL-READINESS.md](phases/completed/87-OPERATIONAL-READINESS.md) |
 | 88 | Documentation Refresh | COMPLETE | [88-DOCUMENTATION-REFRESH.md](phases/completed/88-DOCUMENTATION-REFRESH.md) |
+| 89 | UI Bug Fixes | IN PROGRESS | [89-UI-BUG-FIXES.md](phases/89-UI-BUG-FIXES.md) |
 | 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 
