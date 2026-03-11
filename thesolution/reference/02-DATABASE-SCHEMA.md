@@ -7,14 +7,16 @@ Engine: InnoDB (all tables)
 Charset: utf8mb4
 Collation: utf8mb4_unicode_ci
 
-Tables are organized into seven groups:
+Tables are organized into nine groups:
 1. **Reference/Lookup Tables** (`ref_*`) - Loaded once, updated infrequently
 2. **Entity Tables** (`entity*`) - SAM.gov entity/contractor data
 3. **Opportunity Tables** (`opportunity*`) - Contract opportunities
-4. **Federal Data Tables** (`federal_*`, `fpds_*`, `gsa_*`) - Hierarchy, awards, rates
-5. **Operational Tables** (`etl_*`, `app_*`, `prospect*`, `saved_*`) - ETL tracking, prospecting, users
-6. **Raw Staging Tables** (`stg_*_raw`) - API response preservation for replay/rebuild (Phase 9)
-7. **Web API Tables** (`app_session`, `proposal*`, `activity_log`, `notification`, `contracting_officer`, `opportunity_poc`) - Authentication, proposals, audit (Phase 9)
+4. **Federal Data Tables** (`federal_*`, `fpds_*`, `gsa_*`, `usaspending_*`) - Hierarchy, awards, rates
+5. **ETL / Operational Tables** (`etl_*`, `data_load_request`) - Load tracking, health, quality
+6. **Prospecting / Sales Pipeline Tables** (`prospect*`, `app_user`, `saved_search`, `organization*`) - Pipeline, users, orgs
+7. **Key Views** - Pre-built analytical and search views
+8. **Raw Staging Tables** (`stg_*_raw`) - API response preservation for replay/rebuild
+9. **Web API Tables** (`app_session`, `proposal*`, `activity_log`, `notification`, `contracting_officer`, `opportunity_poc`, `organization_*`) - Authentication, proposals, audit, org profile
 
 ---
 
@@ -758,6 +760,24 @@ CREATE TABLE usaspending_transaction (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
+### usaspending_load_checkpoint
+Tracks per-file progress during bulk USASpending CSV loads for resumability.
+
+```sql
+CREATE TABLE IF NOT EXISTS usaspending_load_checkpoint (
+    checkpoint_id INT AUTO_INCREMENT PRIMARY KEY,
+    load_id INT NOT NULL,
+    fiscal_year INT NOT NULL,
+    csv_file_name VARCHAR(255) NOT NULL,
+    status ENUM('IN_PROGRESS', 'COMPLETE', 'FAILED') NOT NULL DEFAULT 'IN_PROGRESS',
+    rows_loaded INT DEFAULT 0,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    completed_at DATETIME,
+    CONSTRAINT fk_uslc_load FOREIGN KEY (load_id) REFERENCES etl_load_log(load_id),
+    UNIQUE KEY uk_uslc_load_file (load_id, csv_file_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
 ---
 
 ## 5. ETL / Operational Tables
@@ -833,6 +853,39 @@ CREATE TABLE etl_rate_limit (
     max_requests         INT NOT NULL,
     last_request_at      DATETIME,
     UNIQUE KEY uk_rate_limit (source_system, request_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### etl_health_snapshot
+Periodic health check results capturing overall ETL system status (used by `/health` endpoint).
+
+```sql
+CREATE TABLE IF NOT EXISTS etl_health_snapshot (
+    snapshot_id          INT AUTO_INCREMENT PRIMARY KEY,
+    checked_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    overall_status       VARCHAR(20) NOT NULL,
+    results_json         JSON NOT NULL,
+    alert_count          INT NOT NULL DEFAULT 0,
+    INDEX idx_health_checked (checked_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### data_load_request
+Queue for on-demand data load requests (e.g., lookup a specific PIID or UEI from the UI).
+
+```sql
+CREATE TABLE IF NOT EXISTS data_load_request (
+    request_id       INT AUTO_INCREMENT PRIMARY KEY,
+    request_type     VARCHAR(30) NOT NULL,
+    lookup_key       VARCHAR(200) NOT NULL,
+    lookup_key_type  VARCHAR(20) NOT NULL DEFAULT 'PIID',
+    status           VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    requested_by     INT,
+    requested_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at     DATETIME,
+    result_message   TEXT,
+    INDEX idx_dlr_status (status),
+    INDEX idx_dlr_type (request_type)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
@@ -957,6 +1010,21 @@ CREATE TABLE saved_search (
 }
 ```
 
+### organization
+Multi-tenant organization (company) that owns users and prospects.
+
+```sql
+CREATE TABLE IF NOT EXISTS organization (
+    organization_id      INT AUTO_INCREMENT PRIMARY KEY,
+    name                 VARCHAR(200) NOT NULL,
+    slug                 VARCHAR(100) NOT NULL UNIQUE,
+    is_active            CHAR(1) NOT NULL DEFAULT 'Y',
+    max_users            INT NOT NULL DEFAULT 10,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
 ---
 
 ## 7. Key Views
@@ -1021,9 +1089,30 @@ GROUP BY e.uei_sam, e.legal_business_name, e.primary_naics,
          n.description, sector.description, es.description;
 ```
 
+### v_entity_search
+Flattened entity view with business types, SBA certs, and address info for search/filtering. Source: `01_search_views.sql`.
+
+### v_active_exclusions
+Currently active SAM exclusion records with entity join. Source: `01_search_views.sql`.
+
+### v_base_awards
+FPDS + USASpending award data unified into a single base view. Source: `01_search_views.sql`.
+
+### v_procurement_intelligence
+Market analytics: agency spending, NAICS trends, set-aside distribution. Source: `30_procurement_intelligence.sql`.
+
+### v_incumbent_profile
+Incumbent contractor profiles with award history, recompete windows. Source: `40_incumbent_profile.sql`.
+
+### v_expiring_contracts
+Contracts nearing expiration for recompete prospecting. Source: `50_expiring_contracts.sql`.
+
+### ref_psc_code_latest
+Deduplicated PSC codes showing only the most recent version per code. Source: `ref_psc_code_latest.sql`.
+
 ---
 
-## 8. Raw Staging Tables (Phase 9)
+## 8. Raw Staging Tables
 
 These tables store the complete JSON response from each API source before normalization into production tables, enabling replay/rebuild without re-fetching. Pattern matches existing `stg_entity_raw` in the Entity tables section.
 
@@ -1145,9 +1234,9 @@ CREATE TABLE IF NOT EXISTS stg_subaward_raw (
 
 ---
 
-## 9. Web API Tables (Phase 9)
+## 9. Web API Tables
 
-Production tables supporting the C# ASP.NET Core Web API: authentication, proposals, audit trails, notifications, and contracting officer contacts.
+Production tables supporting the C# ASP.NET Core Web API: authentication, proposals, audit trails, notifications, contracting officer contacts, and organization profile data.
 
 ### app_session
 User authentication sessions for JWT/token management.
@@ -1310,19 +1399,87 @@ CREATE TABLE IF NOT EXISTS notification (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
+### organization_invite
+Pending email invitations to join an organization.
+
+```sql
+CREATE TABLE IF NOT EXISTS organization_invite (
+    invite_id            INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    email                VARCHAR(255) NOT NULL,
+    invite_code          VARCHAR(64) NOT NULL UNIQUE,
+    org_role             VARCHAR(50) NOT NULL DEFAULT 'member',
+    invited_by           INT NOT NULL,
+    expires_at           DATETIME NOT NULL,
+    accepted_at          DATETIME,
+    CONSTRAINT fk_oi_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    INDEX idx_oi_email (email),
+    INDEX idx_oi_code (invite_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### organization_certification
+Certifications held by an organization (WOSB, 8(a), HUBZone, etc.).
+
+```sql
+CREATE TABLE IF NOT EXISTS organization_certification (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    certification_type   VARCHAR(50) NOT NULL,
+    certifying_agency    VARCHAR(100),
+    certification_number VARCHAR(100),
+    expiration_date      DATE,
+    CONSTRAINT fk_oc_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    INDEX idx_oc_org (organization_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### organization_naics
+NAICS codes an organization is registered/qualified under.
+
+```sql
+CREATE TABLE IF NOT EXISTS organization_naics (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    naics_code           VARCHAR(11) NOT NULL,
+    is_primary           VARCHAR(1) NOT NULL,
+    size_standard_met    VARCHAR(1) NOT NULL,
+    CONSTRAINT fk_on_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    INDEX idx_on_org (organization_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+### organization_past_performance
+Past performance records for an organization (used in pWin/qualification scoring).
+
+```sql
+CREATE TABLE IF NOT EXISTS organization_past_performance (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    contract_number      VARCHAR(50),
+    agency_name          VARCHAR(200),
+    description          TEXT,
+    contract_value       DECIMAL(15,2),
+    start_date           DATE,
+    end_date             DATE,
+    CONSTRAINT fk_opp_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    INDEX idx_opp_org (organization_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
 ---
 
 ## Table Count Summary
 
 | Group | Tables | Purpose |
 |-------|--------|---------|
-| Reference (`ref_*`) | 11 | Lookup/classification data (includes ref_entity_structure, ref_sba_type) |
+| Reference (`ref_*`) | 11 | Lookup/classification data (NAICS, PSC, SBA, FIPS, set-aside, business types) |
 | Entity | 10 | SAM.gov contractor data (includes stg_entity_raw) |
-| Opportunity | 3 | Contract opportunities |
-| Federal | 7 | Hierarchy, awards, rates, exclusions, subawards, spending (includes usaspending_award + usaspending_transaction) |
-| ETL | 4 | Load tracking and quality |
-| Prospecting | 5 | Sales pipeline (includes saved_search) |
-| Raw Staging (Phase 9) | 6 | API response preservation for replay/rebuild (stg_opportunity_raw, stg_fpds_award_raw, stg_usaspending_raw, stg_exclusion_raw, stg_fedhier_raw, stg_subaward_raw) |
-| Web API (Phase 9) | 8 | Auth, proposals, audit, notifications, contacts (app_session, contracting_officer, opportunity_poc, proposal, proposal_document, proposal_milestone, activity_log, notification) |
-| **Total** | **54** | |
-| **Views** | **4** | |
+| Opportunity | 3 | Contract opportunities, history, relationships |
+| Federal | 8 | Hierarchy, awards, rates, exclusions, subawards, spending (includes usaspending_load_checkpoint) |
+| ETL | 6 | Load tracking, errors, quality rules, rate limits, health snapshots, data load requests |
+| Prospecting | 6 | Sales pipeline, users, saved searches, organization |
+| Raw Staging | 6 | API response preservation for replay/rebuild (stg_opportunity_raw, stg_fpds_award_raw, stg_usaspending_raw, stg_exclusion_raw, stg_fedhier_raw, stg_subaward_raw) |
+| Web API | 12 | Auth, proposals, audit, notifications, contacts, org invites/certs/NAICS/past performance |
+| **Total** | **62** | |
+| **Views** | **9** | v_target_opportunities, v_competitor_analysis, v_entity_search, v_active_exclusions, v_base_awards, v_procurement_intelligence, v_incumbent_profile, v_expiring_contracts, ref_psc_code_latest |

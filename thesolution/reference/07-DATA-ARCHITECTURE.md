@@ -8,14 +8,14 @@ This document maps the federal procurement lifecycle to the database schema, sho
 
 ## Schema Ownership
 
-The 40 current tables (growing to 54 in Phase 9) are split between two schema management systems. Both share the single `fed_contracts` database.
+The 62 current tables are split between two schema management systems. Both share the single `fed_contracts` database. All tables are defined in Python DDL files for initial creation, but EF Core owns migrations for the 18 application tables.
 
 | Owner | Count | Tables |
 |-------|-------|--------|
-| **Python DDL** (`fed_prospector/db/schema/`) | 35 | `entity`, `entity_address`, `entity_business_type`, `entity_disaster_response`, `entity_history`, `entity_naics`, `entity_poc`, `entity_psc`, `entity_sba_certification`, `stg_entity_raw`, `opportunity`, `opportunity_history`, `opportunity_relationship`, `fpds_contract`, `federal_organization`, `gsa_labor_rate`, `sam_exclusion`, `sam_subaward`, `usaspending_award`, `usaspending_transaction`, `etl_load_log`, `etl_load_error`, `etl_data_quality_rule`, `etl_rate_limit`, `ref_business_type`, `ref_country_code`, `ref_entity_structure`, `ref_fips_county`, `ref_naics_code`, `ref_naics_footnote`, `ref_psc_code`, `ref_sba_size_standard`, `ref_sba_type`, `ref_set_aside_type`, `ref_state_code` |
-| **C# EF Core Migrations** (Phase 10+) | 5 | `app_user`, `prospect`, `prospect_note`, `prospect_team_member`, `saved_search` |
+| **Python DDL** (`fed_prospector/db/schema/`) | 44 | `entity`, `entity_address`, `entity_business_type`, `entity_disaster_response`, `entity_history`, `entity_naics`, `entity_poc`, `entity_psc`, `entity_sba_certification`, `stg_entity_raw`, `opportunity`, `opportunity_history`, `opportunity_relationship`, `fpds_contract`, `federal_organization`, `gsa_labor_rate`, `sam_exclusion`, `sam_subaward`, `usaspending_award`, `usaspending_transaction`, `usaspending_load_checkpoint`, `etl_load_log`, `etl_load_error`, `etl_data_quality_rule`, `etl_rate_limit`, `etl_health_snapshot`, `data_load_request`, `stg_opportunity_raw`, `stg_fpds_award_raw`, `stg_usaspending_raw`, `stg_exclusion_raw`, `stg_fedhier_raw`, `stg_subaward_raw`, `ref_business_type`, `ref_country_code`, `ref_entity_structure`, `ref_fips_county`, `ref_naics_code`, `ref_naics_footnote`, `ref_psc_code`, `ref_sba_size_standard`, `ref_sba_type`, `ref_set_aside_type`, `ref_state_code` |
+| **C# EF Core Migrations** (Phase 10+) | 18 | `organization`, `app_user`, `prospect`, `prospect_note`, `prospect_team_member`, `saved_search`, `app_session`, `organization_invite`, `contracting_officer`, `opportunity_poc`, `proposal`, `proposal_document`, `proposal_milestone`, `activity_log`, `notification`, `organization_certification`, `organization_naics`, `organization_past_performance` |
 
-**Rules**: Python DDL is authoritative for ETL/data tables (`build-database` creates, `check-schema` validates). EF Core maps those tables as read-only entities (no migrations). EF Core migrations own the 5 application tables plus all future app tables added in Phase 10+. See [Phase 10 Schema Ownership](../phases/10-API-FOUNDATION.md) for the full decision record.
+**Rules**: Python DDL is authoritative for ETL/data tables (`build-database` creates, `check-schema` validates). EF Core maps those tables as read-only entities (no migrations). EF Core migrations own the 18 application tables. See [Phase 10 Schema Ownership](../phases/10-API-FOUNDATION.md) for the full decision record.
 
 ---
 
@@ -207,5 +207,5 @@ ALL API sources get `stg_*_raw` tables (store full JSON + load_id + hash). Enabl
 - **Authenticated Opportunity Management API** (`/prod/opportunity/v1/api/`): NOT available to us (requires System Account + IP whitelisting). Would give full descriptions, attachments, IVL.
 
 ### Schema Ownership
-- **Python DDL** owns ETL/data tables (~35 tables). See `fed_prospector/db/schema/`.
-- **EF Core** will own application tables (`app_user`, `prospect`, `saved_search`, etc.) starting Phase 10.
+- **Python DDL** owns ETL/data tables (44 tables). See `fed_prospector/db/schema/`.
+- **EF Core** owns application tables (18 tables: `app_user`, `organization`, `prospect`, `saved_search`, `proposal`, etc.).

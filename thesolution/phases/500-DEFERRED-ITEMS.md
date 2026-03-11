@@ -35,10 +35,10 @@
 
 ### 500C: Security Hardening for Production (from Phase 80)
 
-**Original phase**: 80
+**Original phase**: 100
 **Deferred because**: Single-developer local-dev setup. Not needed until staging/production prep.
 
-See [80-SECURITY-HARDENING.md](80-SECURITY-HARDENING.md) for full details. Items include:
+See [100-SECURITY-HARDENING.md](100-SECURITY-HARDENING.md) for full details. Items include:
 - Production AllowedHosts configuration
 - JWT secret replacement
 - Token lifetime tuning
