@@ -20,6 +20,31 @@ from api_clients.base_client import BaseAPIClient, RateLimitExceeded
 logger = logging.getLogger("fed_prospector.api.sam_fedhier")
 
 
+def _walk_hierarchy_children(node, parent_fhorgid):
+    """Recursively walk a hierarchy node and extract child org records.
+
+    Used by _extract_hierarchy_children() to flatten nested hierarchy
+    responses into a list of org dicts.
+
+    Args:
+        node: Dict representing a hierarchy node.
+        parent_fhorgid: The fhorgid of the queried parent org.
+
+    Returns:
+        list[dict]: Flat org dicts found under this node.
+    """
+    children = []
+    # Check common child list keys used in SAM hierarchy responses
+    for key in ("subtierAgencyList", "officeList", "subordinateOrganizations",
+                "childOrganizations", "children"):
+        child_list = node.get(key) or []
+        for child in child_list:
+            children.append(child)
+            # Recurse into child nodes
+            children.extend(_walk_hierarchy_children(child, parent_fhorgid))
+    return children
+
+
 class SAMFedHierClient(BaseAPIClient):
     """Client for the SAM.gov Federal Hierarchy API v1.
 
@@ -42,6 +67,7 @@ class SAMFedHierClient(BaseAPIClient):
     """
 
     SEARCH_ENDPOINT = "/prod/federalorganizations/v1/orgs"
+    HIERARCHY_ENDPOINT = "/prod/federalorganizations/v1/org/hierarchy"
 
     def __init__(self, api_key_number=1):
         """Initialize SAM Federal Hierarchy client. See _sam_init_kwargs() for key selection."""
@@ -233,6 +259,144 @@ class SAMFedHierClient(BaseAPIClient):
         if orgs:
             return orgs[0]
         return None
+
+    # -----------------------------------------------------------------
+    # Hierarchy endpoint (Level 3 offices)
+    # -----------------------------------------------------------------
+
+    def get_org_children(self, fhorgid, limit=100, offset=0):
+        """Fetch one page of child organizations for the given fhorgid.
+
+        Uses the /v1/org/hierarchy endpoint which returns the hierarchical
+        children of an organization. Used to retrieve Level 3 offices
+        under Level 2 sub-tiers.
+
+        Args:
+            fhorgid: Federal Hierarchy org ID to get children for.
+            limit: Records per page (max 100).
+            offset: 0-based offset for pagination.
+
+        Returns:
+            dict: Raw API response containing hierarchy data.
+        """
+        params = {
+            "fhorgid": str(fhorgid),
+            "limit": limit,
+            "offset": offset,
+        }
+
+        self.logger.debug(
+            "FedHier hierarchy fhorgid=%s offset=%d limit=%d", fhorgid, offset, limit
+        )
+        response = self.get(self.HIERARCHY_ENDPOINT, params=params)
+        return response.json()
+
+    def iter_org_children_pages(self, fhorgid, start_offset=0, max_pages=None):
+        """Iterate over pages of child orgs for a given fhorgid.
+
+        Yields one tuple per API call, giving the caller control to save
+        progress after each page. Extracts child org records from the
+        hierarchy response and yields them as flat org dicts compatible
+        with _normalize_org().
+
+        Args:
+            fhorgid: Federal Hierarchy org ID to get children for.
+            start_offset: Offset to start from (0-based) for resumption.
+            max_pages: Stop after this many API calls. None = no limit.
+
+        Yields:
+            tuple: (child_org_list, offset, total_records) per API call.
+                child_org_list contains flat org dicts extracted from the
+                hierarchy response.
+
+        Raises:
+            RateLimitExceeded: If daily API limit is reached during pagination.
+        """
+        self.logger.info(
+            "Fetching children for fhorgid=%s (start_offset=%d, max_pages=%s)",
+            fhorgid, start_offset, max_pages or "unlimited",
+        )
+
+        offset = start_offset
+        pages_fetched = 0
+
+        while True:
+            data = self.get_org_children(fhorgid, limit=100, offset=offset)
+
+            # Extract child orgs from the hierarchy response
+            child_orgs = self._extract_hierarchy_children(data, str(fhorgid))
+            # The hierarchy endpoint may not always report totalrecords
+            # consistently; use the orglist length as a heuristic
+            total_records = data.get("totalrecords", data.get("totalRecords", len(child_orgs)))
+
+            yield child_orgs, offset, total_records
+
+            pages_fetched += 1
+
+            # Stop conditions
+            if not child_orgs or offset + 100 >= total_records:
+                break
+            if max_pages is not None and pages_fetched >= max_pages:
+                self.logger.info("Stopping after %d pages (max_pages)", max_pages)
+                break
+
+            offset += 100
+
+        self.logger.info(
+            "Finished children for fhorgid=%s: %d pages fetched", fhorgid, pages_fetched
+        )
+
+    @staticmethod
+    def _extract_hierarchy_children(data, parent_fhorgid):
+        """Extract child org records from a hierarchy API response.
+
+        The hierarchy endpoint returns data in a nested structure rather than
+        the flat orglist[] used by /v1/orgs. This method extracts child orgs
+        and reshapes them into the same flat dict format that _normalize_org()
+        expects.
+
+        The hierarchy response may contain:
+        - orglist[] — same flat format as the search endpoint (ideal case)
+        - hierarchyDepartment with nested children
+        - A single org record with sub-tier/office children
+
+        Args:
+            data: Raw JSON response from the hierarchy endpoint.
+            parent_fhorgid: The fhorgid that was queried (used as fallback
+                parent ID for child records).
+
+        Returns:
+            list[dict]: Flat org dicts compatible with _normalize_org().
+        """
+        children = []
+
+        # Case 1: Response has orglist[] (same format as search endpoint)
+        if "orglist" in data and data["orglist"]:
+            for org in data["orglist"]:
+                # Ensure we only return child records, not the queried org itself
+                org_id = str(org.get("fhorgid", ""))
+                if org_id != str(parent_fhorgid):
+                    children.append(org)
+                elif not children:
+                    # If orglist only has the parent, check for nested children
+                    pass
+            if children:
+                return children
+
+        # Case 2: Nested hierarchy structure — extract from hierarchyDepartment
+        # or similar nested keys
+        hierarchy = data.get("orgHierarchy") or data.get("hierarchyDepartment") or {}
+        if hierarchy:
+            children.extend(_walk_hierarchy_children(hierarchy, parent_fhorgid))
+
+        # Case 3: Top-level org with embedded children arrays
+        # Some responses put children directly under the response
+        for key in ("subtierAgencyList", "officeList", "subordinateOrganizations"):
+            child_list = data.get(key) or []
+            for child in child_list:
+                children.append(child)
+
+        return children
 
     # -----------------------------------------------------------------
     # Helpers

@@ -23,7 +23,7 @@ Modules:
                           add-team-member, save-search, run-search, list-searches, dashboard
     cli/calc.py           load-calc
     cli/awards.py         load-awards, search-awards, replay-awards
-    cli/fedhier.py        load-hierarchy, search-agencies
+    cli/fedhier.py        load-hierarchy, load-offices, search-agencies
     cli/exclusions.py     load-exclusions, check-exclusion, check-prospects
     cli/spending.py       load-transactions, burn-rate
     cli/bulk_spending.py  usaspending-bulk
@@ -133,7 +133,7 @@ from cli.prospecting import (
 )
 from cli.calc import load_calc
 from cli.awards import load_awards, search_awards, replay_awards
-from cli.fedhier import load_hierarchy, search_agencies
+from cli.fedhier import load_hierarchy, load_offices, search_agencies
 from cli.exclusions import load_exclusions, check_exclusion, check_prospects
 from cli.spending import load_transactions, burn_rate
 from cli.health import check_health, load_history, catchup_datasets, run_job, maintain_app_data, maintain_db, run_all_searches
@@ -171,6 +171,7 @@ load.add_command(load_opportunities, name="opportunities")
 load.add_command(load_awards, name="awards")
 load.add_command(replay_awards, name="replay-awards")
 load.add_command(load_hierarchy, name="hierarchy")
+load.add_command(load_offices, name="offices")
 load.add_command(load_exclusions, name="exclusions")
 load.add_command(load_transactions, name="usaspending")
 load.add_command(load_calc, name="labor-rates")

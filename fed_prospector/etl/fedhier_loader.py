@@ -413,6 +413,10 @@ class FedHierLoader(StagingMixin):
 
         For Department/Ind. Agency orgs, parent_org_id is NULL (top-level).
 
+        For records fetched via the hierarchy endpoint that lack
+        fhorgparenthistory, the _injected_parent_org_id field (set by
+        the CLI load-offices command) is used as a fallback.
+
         Args:
             raw: Single org dict from the API.
 
@@ -442,6 +446,13 @@ class FedHierLoader(StagingMixin):
         dept_id = raw.get("fhdeptindagencyorgid")
         if dept_id:
             return dept_id
+
+        # Fallback for hierarchy endpoint responses: use injected parent ID
+        # (set by load-offices CLI when the hierarchy response lacks
+        # fhorgparenthistory for child records)
+        injected = raw.get("_injected_parent_org_id")
+        if injected:
+            return str(injected)
 
         return None
 
