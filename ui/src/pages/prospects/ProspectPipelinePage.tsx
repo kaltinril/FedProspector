@@ -680,7 +680,7 @@ function ListView({
 
 export default function ProspectPipelinePage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [urlSearchParams] = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -693,8 +693,8 @@ export default function ProspectPipelinePage() {
     myProspects: false,
     dueThisWeek: false,
     highPriority: false,
-    status: searchParams.get('status') ?? '',
-    source: searchParams.get('source') ?? '',
+    status: urlSearchParams.get('status') ?? '',
+    source: urlSearchParams.get('source') ?? '',
   }));
 
   // Pagination/sort state for list view
@@ -868,6 +868,7 @@ export default function ProspectPipelinePage() {
         onToggleDueThisWeek={toggleDueThisWeek}
         onToggleHighPriority={toggleHighPriority}
         onStatusChange={handleStatusFilter}
+        onSourceChange={handleSourceFilter}
       />
 
       {viewMode === 'kanban' ? (
