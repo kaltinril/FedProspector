@@ -12,6 +12,7 @@ import json
 import logging
 
 from db.connection import get_connection
+from etl.batch_upsert import build_upsert_sql, executemany_upsert
 from etl.change_detector import ChangeDetector
 from etl.etl_utils import parse_date, parse_decimal
 from etl.load_manager import LoadManager
@@ -76,6 +77,13 @@ class AwardsLoader(StagingMixin):
     _STG_KEY_COLS = ["contract_id", "modification_number"]
 
     BATCH_SIZE = 500
+
+    # Pre-computed upsert SQL (built once, not per record)
+    _UPSERT_SQL = build_upsert_sql(
+        table="fpds_contract",
+        columns=_UPSERT_COLS,
+        pk_fields={"contract_id", "modification_number"},
+    )
 
     def __init__(self, db_connection=None, change_detector=None, load_manager=None):
         """Initialize with optional DB connection, change detector, load manager.
@@ -154,6 +162,10 @@ class AwardsLoader(StagingMixin):
     def _process_awards(self, awards_data, load_id, existing_hashes):
         """Process a list of raw award dicts: stage, normalise, hash-compare, upsert.
 
+        Uses batch operations for staging writes, upserts, and staging marks.
+        Falls back to row-by-row processing if a batch upsert fails, to isolate
+        the bad record.
+
         Args:
             awards_data: list of raw award dicts.
             load_id: Current load ID.
@@ -177,78 +189,133 @@ class AwardsLoader(StagingMixin):
         stg_conn, stg_cursor = self._open_stg_conn()
 
         try:
-            batch_count = 0
-            for raw in awards_data:
-                stats["records_read"] += 1
-                record_key = None
-                staging_id = None
-                try:
-                    # --- staging write (before normalization) --------------
-                    key_vals = self._extract_staging_key(raw)
-                    staging_id = self._insert_staging(stg_cursor, load_id, key_vals, raw)
+            # Process in BATCH_SIZE chunks
+            for batch_start in range(0, len(awards_data), self.BATCH_SIZE):
+                batch_raw = awards_data[batch_start : batch_start + self.BATCH_SIZE]
 
-                    # --- normalise ----------------------------------------
-                    award_data = self._normalize_award(raw)
-                    contract_id = award_data.get("contract_id")
-                    mod_number = award_data.get("modification_number", "0")
-                    if not contract_id:
-                        raise ValueError("Missing piid in award record")
+                # --- Phase 1: Normalize all records, compute hashes, classify ---
+                staging_rows = []    # (key_vals, raw) for batch staging insert
+                normalized = []      # (raw, award_data, record_key, new_hash)
+                unchanged_indices = []  # indices into normalized for unchanged records
+                changed_records = []    # (raw, award_data, record_key, new_hash) for upsert
 
-                    record_key = _make_composite_key(contract_id, mod_number)
+                for raw in batch_raw:
+                    stats["records_read"] += 1
+                    try:
+                        key_vals = self._extract_staging_key(raw)
+                        staging_rows.append((key_vals, raw))
 
-                    # --- change detection ---------------------------------
-                    new_hash = self.change_detector.compute_hash(
-                        award_data, _AWARD_HASH_FIELDS
-                    )
-                    award_data["record_hash"] = new_hash
+                        award_data = self._normalize_award(raw)
+                        contract_id = award_data.get("contract_id")
+                        mod_number = award_data.get("modification_number", "0")
+                        if not contract_id:
+                            raise ValueError("Missing piid in award record")
 
-                    old_hash = existing_hashes.get(record_key)
-                    if old_hash and old_hash == new_hash:
-                        stats["records_unchanged"] += 1
-                        self._mark_staging(stg_cursor, staging_id, 'Y')
-                        batch_count += 1
-                        if batch_count >= self.BATCH_SIZE:
-                            conn.commit()
-                            batch_count = 0
-                        continue
+                        record_key = _make_composite_key(contract_id, mod_number)
 
-                    # --- upsert -------------------------------------------
-                    outcome = self._upsert_award(cursor, award_data, load_id)
-                    if outcome == "inserted":
-                        stats["records_inserted"] += 1
-                    elif outcome == "updated":
-                        stats["records_updated"] += 1
-                    else:
-                        stats["records_unchanged"] += 1
+                        new_hash = self.change_detector.compute_hash(
+                            award_data, _AWARD_HASH_FIELDS
+                        )
+                        award_data["record_hash"] = new_hash
 
-                    # Update in-memory hash cache
-                    existing_hashes[record_key] = new_hash
+                        old_hash = existing_hashes.get(record_key)
+                        if old_hash and old_hash == new_hash:
+                            stats["records_unchanged"] += 1
+                            unchanged_indices.append(len(normalized))
+                        else:
+                            changed_records.append(
+                                (raw, award_data, record_key, new_hash)
+                            )
 
-                    self._mark_staging(stg_cursor, staging_id, 'Y')
+                        normalized.append((raw, award_data, record_key, new_hash))
 
-                except Exception as rec_exc:
-                    stats["records_errored"] += 1
-                    identifier = record_key or f"record#{stats['records_read']}"
-                    self.logger.warning(
-                        "Error processing %s: %s", identifier, rec_exc
-                    )
-                    self.load_manager.log_record_error(
-                        load_id,
-                        record_identifier=identifier,
-                        error_type=type(rec_exc).__name__,
-                        error_message=str(rec_exc),
-                        raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
-                    )
-                    if staging_id:
-                        self._mark_staging(stg_cursor, staging_id, 'E', str(rec_exc))
-                    conn.rollback()
-                    batch_count = 0
-                    continue
+                    except Exception as rec_exc:
+                        stats["records_errored"] += 1
+                        identifier = f"record#{stats['records_read']}"
+                        self.logger.warning(
+                            "Error normalizing %s: %s", identifier, rec_exc
+                        )
+                        self.load_manager.log_record_error(
+                            load_id,
+                            record_identifier=identifier,
+                            error_type=type(rec_exc).__name__,
+                            error_message=str(rec_exc),
+                            raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
+                        )
+                        # Add placeholder so staging_rows indices stay aligned
+                        normalized.append(None)
 
-                batch_count += 1
-                if batch_count >= self.BATCH_SIZE:
-                    conn.commit()
-                    batch_count = 0
+                # --- Phase 2: Batch staging INSERT ---
+                staging_ids = self._insert_staging_batch(
+                    stg_cursor, load_id, staging_rows
+                )
+
+                # --- Phase 3: Batch upsert changed records ---
+                if changed_records:
+                    try:
+                        upsert_rows = []
+                        for _raw, award_data, _rk, _nh in changed_records:
+                            values = []
+                            for col in _UPSERT_COLS:
+                                if col == "last_load_id":
+                                    values.append(load_id)
+                                else:
+                                    values.append(award_data.get(col))
+                            upsert_rows.append(tuple(values))
+
+                        executemany_upsert(cursor, self._UPSERT_SQL, upsert_rows)
+
+                        # Count inserts vs updates: with executemany we cannot
+                        # distinguish per-row, so count based on hash cache
+                        for _raw, award_data, record_key, new_hash in changed_records:
+                            if record_key in existing_hashes:
+                                stats["records_updated"] += 1
+                            else:
+                                stats["records_inserted"] += 1
+                            existing_hashes[record_key] = new_hash
+
+                    except Exception as batch_exc:
+                        self.logger.warning(
+                            "Batch upsert failed (%d records), falling back to row-by-row: %s",
+                            len(changed_records), batch_exc,
+                        )
+                        conn.rollback()
+                        # Fall back to row-by-row for this batch
+                        for raw, award_data, record_key, new_hash in changed_records:
+                            try:
+                                outcome = self._upsert_award(cursor, award_data, load_id)
+                                if outcome == "inserted":
+                                    stats["records_inserted"] += 1
+                                elif outcome == "updated":
+                                    stats["records_updated"] += 1
+                                else:
+                                    stats["records_unchanged"] += 1
+                                existing_hashes[record_key] = new_hash
+                            except Exception as rec_exc:
+                                stats["records_errored"] += 1
+                                self.logger.warning(
+                                    "Error processing %s: %s", record_key, rec_exc
+                                )
+                                self.load_manager.log_record_error(
+                                    load_id,
+                                    record_identifier=record_key,
+                                    error_type=type(rec_exc).__name__,
+                                    error_message=str(rec_exc),
+                                    raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
+                                )
+                                conn.rollback()
+
+                # --- Phase 4: Batch mark staging as processed ---
+                # Mark all successfully processed staging rows
+                success_staging_ids = []
+                for idx, entry in enumerate(normalized):
+                    if entry is not None and idx < len(staging_ids):
+                        success_staging_ids.append(staging_ids[idx])
+                if success_staging_ids:
+                    self._mark_staging_batch(stg_cursor, success_staging_ids, 'Y')
+
+                # Commit the batch
+                conn.commit()
 
                 # Progress logging
                 if stats["records_read"] % self.BATCH_SIZE == 0:
@@ -260,9 +327,6 @@ class AwardsLoader(StagingMixin):
                         stats["records_unchanged"],
                         stats["records_errored"],
                     )
-
-            # Final commit for any remaining records in the last partial batch
-            conn.commit()
 
         finally:
             cursor.close()
@@ -450,11 +514,16 @@ class AwardsLoader(StagingMixin):
     # Database operations
     # =================================================================
 
-    def _get_existing_hashes(self):
+    def _get_existing_hashes(self, where_clause=None, where_params=None):
         """Fetch existing composite-key -> hash mappings from fpds_contract.
 
         Since the PK is (contract_id, modification_number), we concatenate
         them with a pipe separator for the in-memory dict.
+
+        Args:
+            where_clause: Optional additional WHERE condition (e.g.
+                "AND naics_code = %s"). Must start with "AND".
+            where_params: Parameters for the where_clause placeholders.
 
         Returns:
             dict of {"contract_id|modification_number": hash_string}
@@ -462,10 +531,16 @@ class AwardsLoader(StagingMixin):
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute(
+            sql = (
                 "SELECT contract_id, modification_number, record_hash "
                 "FROM fpds_contract WHERE record_hash IS NOT NULL"
             )
+            params = []
+            if where_clause:
+                sql += f" {where_clause}"
+                params = list(where_params or [])
+
+            cursor.execute(sql, params)
             result = {}
             for row in cursor.fetchall():
                 key = _make_composite_key(row[0], row[1])

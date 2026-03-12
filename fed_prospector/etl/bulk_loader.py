@@ -12,6 +12,7 @@ import tempfile
 import time
 
 from db.connection import get_connection
+from etl.etl_utils import escape_tsv_value as _escape_tsv_value
 from etl.load_manager import LoadManager
 from utils.hashing import compute_record_hash
 
@@ -103,29 +104,6 @@ _CHILD_TABLE_NAMES = [
     "entity_naics",
     "entity_address",
 ]
-
-
-def _escape_tsv_value(value):
-    """Escape a value for MySQL LOAD DATA INFILE TSV format.
-
-    - None becomes the literal string ``\\N`` (MySQL NULL).
-    - Backslashes are doubled.
-    - Tab characters are escaped to ``\\t``.
-    - Newline characters are escaped to ``\\n``.
-    - Carriage returns are escaped to ``\\r``.
-
-    Returns:
-        Escaped string suitable for writing into a TSV file.
-    """
-    if value is None:
-        return "\\N"
-    s = str(value)
-    # Backslash must be escaped first to avoid double-escaping
-    s = s.replace("\\", "\\\\")
-    s = s.replace("\t", "\\t")
-    s = s.replace("\n", "\\n")
-    s = s.replace("\r", "\\r")
-    return s
 
 
 class BulkLoader:
