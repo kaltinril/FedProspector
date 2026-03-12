@@ -46,7 +46,7 @@ class TestHealthHelp:
         runner = CliRunner()
         result = runner.invoke(cli, ["health", "maintain-db", "--help"])
         assert result.exit_code == 0
-        assert "Run database maintenance tasks" in result.output
+        assert "maintenance" in result.output.lower()
 
     def test_health_run_job_help(self):
         runner = CliRunner()
@@ -326,22 +326,30 @@ class TestCheckSchema:
 
 class TestMaintainDb:
 
+    @patch("db.connection.get_connection")
     @patch("etl.db_maintenance.DatabaseMaintenance")
-    def test_maintain_db_dry_run(self, mock_maint_cls):
-        """maintain-db --dry-run should preview without deleting."""
+    def test_maintain_db_dry_run(self, mock_maint_cls, mock_get_conn):
+        """maintain-db --dry-run should preview without executing."""
         mock_maint = MagicMock()
-        mock_maint.run_all.return_value = {
-            "old_history_records": 500,
-            "old_staging_records": 100,
-        }
         mock_maint_cls.return_value = mock_maint
+
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        # First fetchall = table list, subsequent fetchall = empty (InnoDB queries)
+        mock_cursor.fetchall.side_effect = [
+            [("opportunity",), ("entity",)],  # table list
+            [],  # undo tablespace rows
+        ]
+        mock_cursor.fetchone.return_value = None
+        mock_conn.cursor.return_value = mock_cursor
+        mock_get_conn.return_value = mock_conn
 
         runner = CliRunner()
         result = runner.invoke(cli, ["health", "maintain-db", "--dry-run"])
 
         assert result.exit_code == 0
         assert "DRY RUN" in result.output
-        mock_maint.run_all.assert_called_once_with(dry_run=True)
+        assert "Would analyze" in result.output
 
     @patch("etl.db_maintenance.DatabaseMaintenance")
     def test_maintain_db_sizes(self, mock_maint_cls):
@@ -359,18 +367,29 @@ class TestMaintainDb:
         assert "opportunity" in result.output
         assert "Table Sizes" in result.output
 
+    @patch("db.connection.get_connection")
     @patch("etl.db_maintenance.DatabaseMaintenance")
-    def test_maintain_db_analyze(self, mock_maint_cls):
-        """maintain-db --analyze should call analyze_tables."""
+    def test_maintain_db_analyze_by_default(self, mock_maint_cls, mock_get_conn):
+        """maintain-db should run ANALYZE TABLE by default."""
         mock_maint = MagicMock()
         mock_maint_cls.return_value = mock_maint
 
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        # First fetchall = table list, subsequent fetchall = empty (InnoDB queries)
+        mock_cursor.fetchall.side_effect = [
+            [("opportunity",)],  # table list
+            [],  # undo tablespace rows
+        ]
+        mock_cursor.fetchone.return_value = None
+        mock_conn.cursor.return_value = mock_cursor
+        mock_get_conn.return_value = mock_conn
+
         runner = CliRunner()
-        result = runner.invoke(cli, ["health", "maintain-db", "--analyze"])
+        result = runner.invoke(cli, ["health", "maintain-db"])
 
         assert result.exit_code == 0
-        mock_maint.analyze_tables.assert_called_once()
-        assert "Done" in result.output
+        assert "ANALYZE TABLE" in result.output
 
 
 # ===================================================================

@@ -66,7 +66,7 @@ public class UsaspendingAward
     [MaxLength(10)]
     public string? PscCode { get; set; }
 
-    [MaxLength(50)]
+    [MaxLength(100)]
     public string? TypeOfSetAside { get; set; }
 
     [MaxLength(200)]
@@ -84,7 +84,7 @@ public class UsaspendingAward
     [MaxLength(100)]
     public string? PopCity { get; set; }
 
-    [MaxLength(50)]
+    [MaxLength(100)]
     public string? SolicitationIdentifier { get; set; }
 
     public short? FiscalYear { get; set; }
@@ -99,6 +99,8 @@ public class UsaspendingAward
     public DateTime? FirstLoadedAt { get; set; }
 
     public DateTime? LastLoadedAt { get; set; }
+
+    public DateTime? DeletedAt { get; set; }
 
     /// <summary>
     /// Navigation to SAM entity via RecipientUei (no DB-level FK constraint).

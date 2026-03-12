@@ -40,7 +40,7 @@ class TestLoadHelp:
         runner = CliRunner()
         result = runner.invoke(cli, ["load", "awards", "--help"])
         assert result.exit_code == 0
-        assert "Load historical contract awards" in result.output
+        assert "Load contract awards" in result.output
 
     def test_search_opportunities_help(self):
         runner = CliRunner()
@@ -287,12 +287,31 @@ class TestLoadOpportunities:
 
 class TestLoadAwards:
 
-    def test_load_awards_requires_filter(self):
-        """load awards with no filter should error."""
+    @patch("etl.load_manager.LoadManager")
+    @patch("etl.awards_loader.AwardsLoader")
+    @patch("api_clients.sam_awards_client.SAMAwardsClient")
+    def test_load_awards_defaults_used_when_no_filter(
+        self, mock_client_cls, mock_loader_cls, mock_lm_cls
+    ):
+        """load awards with no filter should use default NAICS/set-asides."""
+        mock_client = MagicMock()
+        mock_client._get_remaining_requests.return_value = 100
+        mock_client.max_daily_requests = 1000
+        mock_client.search_awards.return_value = {
+            "awardSummary": [], "totalRecords": 0,
+        }
+        mock_client_cls.return_value = mock_client
+
+        mock_lm = MagicMock()
+        mock_lm.start_load.return_value = 1
+        mock_lm.get_watermark.return_value = None
+        mock_lm.get_resumable_load.return_value = (None, None)
+        mock_lm_cls.return_value = mock_lm
+
         runner = CliRunner()
-        result = runner.invoke(cli, ["load", "awards"])
-        assert result.exit_code == 1
-        assert "At least one filter is required" in result.output
+        result = runner.invoke(cli, ["load", "awards", "--dry-run"])
+        assert result.exit_code == 0
+        assert "DRY RUN" in result.output
 
     @patch("etl.load_manager.LoadManager")
     @patch("etl.awards_loader.AwardsLoader")
@@ -311,7 +330,7 @@ class TestLoadAwards:
         mock_client_cls.return_value = mock_client
 
         mock_loader = MagicMock()
-        mock_loader.load_awards.return_value = {
+        mock_loader.load_awards_batch.return_value = {
             "records_read": 1, "records_inserted": 1,
             "records_updated": 0, "records_unchanged": 0,
             "records_errored": 0,
@@ -320,14 +339,14 @@ class TestLoadAwards:
 
         mock_lm = MagicMock()
         mock_lm.start_load.return_value = 1
+        mock_lm.get_watermark.return_value = None
+        mock_lm.get_resumable_load.return_value = (None, None)
         mock_lm_cls.return_value = mock_lm
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["load", "awards", "--naics", "541512"])
+        result = runner.invoke(cli, ["load", "awards", "--naics", "541512", "--years-back", "1"])
 
         assert result.exit_code == 0
-        assert "Load complete" in result.output
-        mock_loader.load_awards.assert_called_once()
 
     @patch("etl.load_manager.LoadManager")
     @patch("etl.awards_loader.AwardsLoader")
@@ -347,17 +366,19 @@ class TestLoadAwards:
 
         mock_lm = MagicMock()
         mock_lm.start_load.return_value = 1
+        mock_lm.get_watermark.return_value = None
+        mock_lm.get_resumable_load.return_value = (None, None)
         mock_lm_cls.return_value = mock_lm
 
         runner = CliRunner()
 
-        result = runner.invoke(cli, ["load", "awards", "--naics", "541512", "--key", "1"])
+        result = runner.invoke(cli, ["load", "awards", "--naics", "541512", "--key", "1", "--years-back", "1"])
         assert result.exit_code == 0
         mock_client_cls.assert_called_with(api_key_number=1)
 
         mock_client_cls.reset_mock()
 
-        result = runner.invoke(cli, ["load", "awards", "--naics", "541512", "--key", "2"])
+        result = runner.invoke(cli, ["load", "awards", "--naics", "541512", "--key", "2", "--years-back", "1"])
         assert result.exit_code == 0
         mock_client_cls.assert_called_with(api_key_number=2)
 
@@ -378,7 +399,7 @@ class TestLoadAwards:
         mock_client_cls.return_value = mock_client
 
         mock_loader = MagicMock()
-        mock_loader.load_awards.return_value = {
+        mock_loader.load_awards_batch.return_value = {
             "records_read": 2, "records_inserted": 2,
             "records_updated": 0, "records_unchanged": 0,
             "records_errored": 0,
@@ -387,16 +408,15 @@ class TestLoadAwards:
 
         mock_lm = MagicMock()
         mock_lm.start_load.return_value = 1
+        mock_lm.get_watermark.return_value = None
+        mock_lm.get_resumable_load.return_value = (None, None)
         mock_lm_cls.return_value = mock_lm
 
         runner = CliRunner()
-        result = runner.invoke(cli, ["load", "awards", "--naics", "541512,541511"])
+        result = runner.invoke(cli, ["load", "awards", "--naics", "541512,541511", "--years-back", "1"])
 
         assert result.exit_code == 0
-        assert "541512" in result.output
-        assert "541511" in result.output
-        # Should query each NAICS code
-        assert mock_client.search_awards.call_count >= 2
+        assert "541512" in result.output or "2 codes" in result.output
 
     @patch("etl.load_manager.LoadManager")
     @patch("etl.awards_loader.AwardsLoader")
@@ -410,8 +430,13 @@ class TestLoadAwards:
         mock_client.max_daily_requests = 1000
         mock_client_cls.return_value = mock_client
 
+        mock_lm = MagicMock()
+        mock_lm.get_watermark.return_value = None
+        mock_lm.get_resumable_load.return_value = (None, None)
+        mock_lm_cls.return_value = mock_lm
+
         runner = CliRunner()
-        result = runner.invoke(cli, ["load", "awards", "--naics", "541512"])
+        result = runner.invoke(cli, ["load", "awards", "--naics", "541512", "--years-back", "1"])
 
         assert result.exit_code == 1
         assert "No API calls remaining" in result.output

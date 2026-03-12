@@ -189,17 +189,20 @@ public class AwardServiceTests : IDisposable
 
         result.Should().NotBeNull();
         result!.ContractId.Should().Be("CONTRACT-001");
-        result.NaicsCode.Should().Be("541512");
-        result.VendorName.Should().Be("Acme Corp");
-        result.DollarsObligated.Should().Be(1_000_000m);
+        result.Detail.Should().NotBeNull();
+        result.Detail!.NaicsCode.Should().Be("541512");
+        result.Detail.VendorName.Should().Be("Acme Corp");
+        result.Detail.DollarsObligated.Should().Be(1_000_000m);
     }
 
     [Fact]
-    public async Task GetDetailAsync_NonexistentContract_ReturnsNull()
+    public async Task GetDetailAsync_NonexistentContract_ReturnsNotLoaded()
     {
         var result = await _service.GetDetailAsync("NONEXISTENT");
 
-        result.Should().BeNull();
+        result.Should().NotBeNull();
+        result.DataStatus.Should().Be("not_loaded");
+        result.Detail.Should().BeNull();
     }
 
     [Fact]
@@ -210,7 +213,9 @@ public class AwardServiceTests : IDisposable
 
         var result = await _service.GetDetailAsync("CONTRACT-MOD-ONLY");
 
-        result.Should().BeNull();
+        result.Should().NotBeNull();
+        result.DataStatus.Should().Be("not_loaded");
+        result.Detail.Should().BeNull();
     }
 
     [Fact]
@@ -229,9 +234,10 @@ public class AwardServiceTests : IDisposable
         var result = await _service.GetDetailAsync("CONTRACT-001");
 
         result.Should().NotBeNull();
-        result!.VendorProfile.Should().NotBeNull();
-        result.VendorProfile!.LegalBusinessName.Should().Be("Acme Corporation");
-        result.VendorProfile.UeiSam.Should().Be("UEI000000001");
+        result!.Detail.Should().NotBeNull();
+        result.Detail!.VendorProfile.Should().NotBeNull();
+        result.Detail.VendorProfile!.LegalBusinessName.Should().Be("Acme Corporation");
+        result.Detail.VendorProfile.UeiSam.Should().Be("UEI000000001");
     }
 
     // -----------------------------------------------------------------------

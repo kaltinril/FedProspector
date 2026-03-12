@@ -16,9 +16,11 @@ public class EntityAddress
     [MaxLength(10)]
     public string AddressType { get; set; } = string.Empty;
 
+    [Column("address_line_1")]
     [MaxLength(150)]
     public string? AddressLine1 { get; set; }
 
+    [Column("address_line_2")]
     [MaxLength(150)]
     public string? AddressLine2 { get; set; }
 

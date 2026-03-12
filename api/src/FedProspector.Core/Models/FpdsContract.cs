@@ -11,12 +11,12 @@ public class FpdsContract
 {
     [Key]
     [Column("contract_id", Order = 0)]
-    [MaxLength(50)]
+    [MaxLength(100)]
     public string ContractId { get; set; } = string.Empty;
 
     [Key]
     [Column("modification_number", Order = 1)]
-    [MaxLength(10)]
+    [MaxLength(25)]
     public string ModificationNumber { get; set; } = "0";
 
     [MaxLength(50)]
@@ -113,7 +113,7 @@ public class FpdsContract
     [MaxLength(100)]
     public string? ReasonForModification { get; set; }
 
-    [MaxLength(100)]
+    [MaxLength(200)]
     public string? SolicitationNumber { get; set; }
 
     public DateOnly? SolicitationDate { get; set; }

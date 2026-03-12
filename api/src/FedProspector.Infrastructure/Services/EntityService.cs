@@ -114,8 +114,8 @@ public class EntityService : IEntityService
 
         if (entity == null) return null;
 
-        // Fetch all 6 child collections in parallel
-        var addressesTask = (from a in _context.EntityAddresses.AsNoTracking()
+        // Fetch child collections sequentially (EF Core DbContext is not thread-safe)
+        var addresses = await (from a in _context.EntityAddresses.AsNoTracking()
                 where a.UeiSam == uei
                 join cc in _context.RefCountryCodes on a.CountryCode equals cc.ThreeCode into countryJoin
                 from cc in countryJoin.DefaultIfEmpty()
@@ -133,7 +133,7 @@ public class EntityService : IEntityService
                 })
             .ToListAsync();
 
-        var naicsTask = (from n in _context.EntityNaicsCodes.AsNoTracking()
+        var naics = await (from n in _context.EntityNaicsCodes.AsNoTracking()
                 where n.UeiSam == uei
                 join r in _context.RefNaicsCodes on n.NaicsCode equals r.NaicsCode into refJoin
                 from r in refJoin.DefaultIfEmpty()
@@ -146,7 +146,7 @@ public class EntityService : IEntityService
                 })
             .ToListAsync();
 
-        var pscTask = (from p in _context.EntityPscCodes.AsNoTracking()
+        var psc = await (from p in _context.EntityPscCodes.AsNoTracking()
                 where p.UeiSam == uei
                 join r in _context.RefPscCodeLatest on p.PscCode equals r.PscCode into pscJoin
                 from r in pscJoin.DefaultIfEmpty()
@@ -157,7 +157,7 @@ public class EntityService : IEntityService
                 })
             .ToListAsync();
 
-        var businessTypesTask = (from bt in _context.EntityBusinessTypes.AsNoTracking()
+        var businessTypes = await (from bt in _context.EntityBusinessTypes.AsNoTracking()
                 where bt.UeiSam == uei
                 join r in _context.RefBusinessTypes on bt.BusinessTypeCode equals r.BusinessTypeCode into refJoin
                 from r in refJoin.DefaultIfEmpty()
@@ -168,7 +168,7 @@ public class EntityService : IEntityService
                 })
             .ToListAsync();
 
-        var sbaCertsTask = _context.EntitySbaCertifications.AsNoTracking()
+        var sbaCerts = await _context.EntitySbaCertifications.AsNoTracking()
             .Where(sc => sc.UeiSam == uei)
             .Select(sc => new EntitySbaCertificationDto
             {
@@ -179,7 +179,7 @@ public class EntityService : IEntityService
             })
             .ToListAsync();
 
-        var pocsTask = _context.EntityPocs.AsNoTracking()
+        var pocs = await _context.EntityPocs.AsNoTracking()
             .Where(pc => pc.UeiSam == uei)
             .Select(pc => new EntityPocDto
             {
@@ -193,8 +193,6 @@ public class EntityService : IEntityService
                 CountryCode = pc.CountryCode
             })
             .ToListAsync();
-
-        await Task.WhenAll(addressesTask, naicsTask, pscTask, businessTypesTask, sbaCertsTask, pocsTask);
 
         return new EntityDetailDto
         {
@@ -215,12 +213,12 @@ public class EntityService : IEntityService
             CountryOfIncorporation = entity.CountryOfIncorporation,
             ExclusionStatusFlag = entity.ExclusionStatusFlag,
             EftIndicator = entity.EftIndicator,
-            Addresses = await addressesTask,
-            NaicsCodes = await naicsTask,
-            PscCodes = await pscTask,
-            BusinessTypes = await businessTypesTask,
-            SbaCertifications = await sbaCertsTask,
-            PointsOfContact = await pocsTask
+            Addresses = addresses,
+            NaicsCodes = naics,
+            PscCodes = psc,
+            BusinessTypes = businessTypes,
+            SbaCertifications = sbaCerts,
+            PointsOfContact = pocs
         };
     }
 

@@ -28,9 +28,11 @@ public class EntityPoc
     [MaxLength(50)]
     public string? Title { get; set; }
 
+    [Column("address_line_1")]
     [MaxLength(150)]
     public string? AddressLine1 { get; set; }
 
+    [Column("address_line_2")]
     [MaxLength(150)]
     public string? AddressLine2 { get; set; }
 

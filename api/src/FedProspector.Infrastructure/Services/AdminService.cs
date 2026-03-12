@@ -34,15 +34,10 @@ public class AdminService : IAdminService
 
     public async Task<EtlStatusDto> GetEtlStatusAsync()
     {
-        var sourcesTask = GetSourceStatusesAsync();
-        var apiUsageTask = GetApiUsageAsync();
-        var errorsTask = GetRecentErrorsAsync();
-
-        await Task.WhenAll(sourcesTask, apiUsageTask, errorsTask);
-
-        var sources = await sourcesTask;
-        var apiUsage = await apiUsageTask;
-        var errors = await errorsTask;
+        // Await sequentially — EF Core DbContext is not thread-safe
+        var sources = await GetSourceStatusesAsync();
+        var apiUsage = await GetApiUsageAsync();
+        var errors = await GetRecentErrorsAsync();
 
         // Generate alerts
         var alerts = new List<string>();

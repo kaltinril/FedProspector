@@ -176,7 +176,7 @@ class TestCreateProspectValidation:
 
             pm = ProspectManager()
             with pytest.raises(ValueError, match="Invalid priority"):
-                pm.create_prospect("N1", "user", priority="URGENT")
+                pm.create_prospect("N1", "user", organization_id=1, priority="URGENT")
 
     def test_valid_priority_levels(self):
         assert ProspectManager.PRIORITY_LEVELS == ["LOW", "MEDIUM", "HIGH", "CRITICAL"]

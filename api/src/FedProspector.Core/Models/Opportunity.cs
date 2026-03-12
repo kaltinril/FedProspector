@@ -83,7 +83,7 @@ public class Opportunity
     [MaxLength(1)]
     public string? Active { get; set; }
 
-    [MaxLength(50)]
+    [MaxLength(200)]
     public string? AwardNumber { get; set; }
 
     public DateOnly? AwardDate { get; set; }

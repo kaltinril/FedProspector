@@ -162,7 +162,7 @@ public class FedProspectorDbContext : DbContext
             .IsUnique();
 
         modelBuilder.Entity<Prospect>()
-            .HasIndex(e => e.NoticeId)
+            .HasIndex(e => new { e.OrganizationId, e.NoticeId })
             .IsUnique();
 
         modelBuilder.Entity<OpportunityPoc>()
@@ -303,6 +303,10 @@ public class FedProspectorDbContext : DbContext
             .WithMany()
             .HasForeignKey(i => i.InvitedBy)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // ----- Soft-Delete Query Filters -----
+        modelBuilder.Entity<UsaspendingAward>()
+            .HasQueryFilter(a => a.DeletedAt == null);
 
         // ----- Cross-Schema Navigations (no DB-level FK) -----
         // Allow EF Core JOINs without real foreign keys.
