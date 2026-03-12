@@ -129,6 +129,7 @@ from cli.prospecting import (
     add_user, list_users, create_prospect, update_prospect,
     reassign_prospect, list_prospects, show_prospect, add_note,
     add_team_member, save_search, run_search, list_searches, dashboard,
+    auto_generate,
 )
 from cli.calc import load_calc
 from cli.awards import load_awards, search_awards, replay_awards
@@ -207,6 +208,7 @@ prospect.add_command(list_users, name="list-users")
 prospect.add_command(list_searches, name="list-searches")
 prospect.add_command(run_search, name="run-search")
 prospect.add_command(save_search, name="save-search")
+prospect.add_command(auto_generate, name="auto-generate")
 
 # ---------------------------------------------------------------------------
 # analyze group commands

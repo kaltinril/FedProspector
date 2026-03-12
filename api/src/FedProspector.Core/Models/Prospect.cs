@@ -14,6 +14,10 @@ public class Prospect
     public int OrganizationId { get; set; }
 
     [Required]
+    [MaxLength(20)]
+    public string Source { get; set; } = "MANUAL";
+
+    [Required]
     [MaxLength(100)]
     public string NoticeId { get; set; } = string.Empty;
 

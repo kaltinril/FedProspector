@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useSnackbar } from 'notistack';
 import { useQueryClient } from '@tanstack/react-query';
 import type { GridColDef, GridPaginationModel, GridSortModel, GridRowParams } from '@mui/x-data-grid';
@@ -106,11 +106,13 @@ interface FilterBarProps {
     dueThisWeek: boolean;
     highPriority: boolean;
     status: string;
+    source: string;
   };
   onToggleMyProspects: () => void;
   onToggleDueThisWeek: () => void;
   onToggleHighPriority: () => void;
   onStatusChange: (status: string) => void;
+  onSourceChange: (source: string) => void;
 }
 
 function FilterBar({
@@ -119,6 +121,7 @@ function FilterBar({
   onToggleDueThisWeek,
   onToggleHighPriority,
   onStatusChange,
+  onSourceChange,
 }: FilterBarProps) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, flexWrap: 'wrap' }} role="group" aria-label="Pipeline filters">
@@ -146,7 +149,21 @@ function FilterBar({
         clickable
         aria-pressed={filters.highPriority}
       />
-      <FormControl size="small" sx={{ minWidth: 140, ml: 'auto' }}>
+      <FormControl size="small" sx={{ minWidth: 120, ml: 'auto' }}>
+        <InputLabel id="source-filter-label">Source</InputLabel>
+        <Select
+          labelId="source-filter-label"
+          value={filters.source}
+          label="Source"
+          onChange={(e: SelectChangeEvent) => onSourceChange(e.target.value)}
+        >
+          <MenuItem value="">All</MenuItem>
+          <MenuItem value="MANUAL">Manual</MenuItem>
+          <MenuItem value="AUTO_MATCH">Auto-Match</MenuItem>
+          <MenuItem value="AUTO_RECOMPETE">Auto-Recompete</MenuItem>
+        </Select>
+      </FormControl>
+      <FormControl size="small" sx={{ minWidth: 140 }}>
         <InputLabel id="status-filter-label">Status</InputLabel>
         <Select
           labelId="status-filter-label"
@@ -663,6 +680,7 @@ function ListView({
 
 export default function ProspectPipelinePage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { enqueueSnackbar } = useSnackbar();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -670,13 +688,14 @@ export default function ProspectPipelinePage() {
   // View toggle
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
 
-  // Filter state
-  const [filters, setFilters] = useState({
+  // Filter state (initialize source from URL params)
+  const [filters, setFilters] = useState(() => ({
     myProspects: false,
     dueThisWeek: false,
     highPriority: false,
-    status: '',
-  });
+    status: searchParams.get('status') ?? '',
+    source: searchParams.get('source') ?? '',
+  }));
 
   // Pagination/sort state for list view
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({
@@ -697,6 +716,9 @@ export default function ProspectPipelinePage() {
     }
     if (filters.status) {
       params.status = filters.status;
+    }
+    if (filters.source) {
+      params.source = filters.source;
     }
     if (filters.dueThisWeek) {
       params.openOnly = true;
@@ -794,6 +816,10 @@ export default function ProspectPipelinePage() {
     setFilters((prev) => ({ ...prev, status }));
   }, []);
 
+  const handleSourceFilter = useCallback((source: string) => {
+    setFilters((prev) => ({ ...prev, source }));
+  }, []);
+
   // Empty state
   if (!isLoading && totalCount === 0) {
     return (
@@ -805,6 +831,7 @@ export default function ProspectPipelinePage() {
           onToggleDueThisWeek={toggleDueThisWeek}
           onToggleHighPriority={toggleHighPriority}
           onStatusChange={handleStatusFilter}
+          onSourceChange={handleSourceFilter}
         />
         <EmptyState
           title="No prospects yet"

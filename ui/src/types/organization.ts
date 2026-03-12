@@ -138,6 +138,39 @@ export interface NaicsSearchDto {
   title: string;
 }
 
+/** Organization entity link matching C# OrganizationEntityDto */
+export interface OrganizationEntityDto {
+  id: number;
+  ueiSam: string;
+  relationship: string;
+  isActive: boolean;
+  notes?: string | null;
+  addedByName?: string | null;
+  createdAt: string;
+  legalBusinessName?: string | null;
+  dbaName?: string | null;
+  cageCode?: string | null;
+  registrationStatus?: string | null;
+  primaryNaics?: string | null;
+  naicsCount: number;
+  certificationCount: number;
+}
+
+/** Link entity request matching C# LinkEntityRequest */
+export interface LinkEntityRequest {
+  ueiSam: string;
+  relationship: string;
+  notes?: string | null;
+}
+
+/** Refresh self entity response matching C# RefreshSelfEntityResponse */
+export interface RefreshSelfEntityResponse {
+  naicsCopied: number;
+  certificationsCopied: number;
+  profileUpdated: boolean;
+  message: string;
+}
+
 /** NAICS detail matching C# NaicsDetailDto */
 export interface NaicsDetailDto {
   code: string;

@@ -9,4 +9,5 @@ public class DashboardDto
     public List<SavedSearchSummaryDto> RecentSavedSearches { get; set; } = [];
     public int TotalOpenProspects { get; set; }
     public decimal PipelineValue { get; set; }
+    public int AutoMatchCount { get; set; }
 }

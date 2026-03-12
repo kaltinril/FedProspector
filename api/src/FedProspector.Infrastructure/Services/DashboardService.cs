@@ -29,6 +29,7 @@ public class DashboardService : IDashboardService
         var savedSearches = await GetRecentSavedSearchesAsync(organizationId);
         var totalOpen = await GetTotalOpenProspectsAsync(organizationId);
         var pipelineValue = await GetPipelineValueAsync(organizationId);
+        var autoMatchCount = await GetAutoMatchCountAsync(organizationId);
 
         return new DashboardDto
         {
@@ -38,7 +39,8 @@ public class DashboardService : IDashboardService
             WinLossMetrics = winLoss,
             RecentSavedSearches = savedSearches,
             TotalOpenProspects = totalOpen,
-            PipelineValue = pipelineValue
+            PipelineValue = pipelineValue,
+            AutoMatchCount = autoMatchCount
         };
     }
 
@@ -140,5 +142,15 @@ public class DashboardService : IDashboardService
                      && !TerminalStatuses.Contains(p.Status)
                      && p.EstimatedValue.HasValue)
             .SumAsync(p => p.EstimatedValue!.Value);
+    }
+
+    private async Task<int> GetAutoMatchCountAsync(int organizationId)
+    {
+        var weekAgo = DateTime.UtcNow.AddDays(-7);
+        return await _context.Prospects.AsNoTracking()
+            .CountAsync(p => p.OrganizationId == organizationId
+                && p.Source != "MANUAL"
+                && p.Status == "NEW"
+                && p.CreatedAt >= weekAgo);
     }
 }

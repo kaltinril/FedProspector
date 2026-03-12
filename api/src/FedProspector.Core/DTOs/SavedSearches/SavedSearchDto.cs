@@ -11,4 +11,11 @@ public class SavedSearchDto
     public DateTime? LastRunAt { get; set; }
     public int? LastNewResults { get; set; }
     public DateTime? CreatedAt { get; set; }
+
+    // Auto-prospect fields (Phase 91)
+    public string AutoProspectEnabled { get; set; } = "N";
+    public decimal MinPwinScore { get; set; } = 30.0m;
+    public int? AutoAssignTo { get; set; }
+    public DateTime? LastAutoRunAt { get; set; }
+    public int? LastAutoCreated { get; set; }
 }

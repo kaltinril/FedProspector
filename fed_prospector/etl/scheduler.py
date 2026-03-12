@@ -119,6 +119,17 @@ JOBS = {
         "catchup_safe": False,
         "estimated_api_calls": 0,   # Local DB queries only
     },
+    "auto_prospect": {
+        "description": "Auto-generate prospects from saved searches and recompete detection",
+        "command": ["python", "main.py", "prospect", "auto-generate", "--all-orgs"],
+        "source_system": None,  # No staleness tracking
+        "schedule": "Daily 07:30",
+        "staleness_hours": None,
+        "daily_freshness_hours": 1,
+        "priority": "Medium",
+        "catchup_safe": False,
+        "estimated_api_calls": 0,   # Calls local C# API only
+    },
 }
 
 

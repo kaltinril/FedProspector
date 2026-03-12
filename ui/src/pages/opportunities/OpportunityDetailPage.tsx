@@ -19,6 +19,7 @@ import Paper from '@mui/material/Paper';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import SavedSearchIcon from '@mui/icons-material/SavedSearch';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
@@ -808,6 +809,37 @@ export default function OpportunityDetailPage() {
         onClose={() => setSaveSearchOpen(false)}
         opp={opp}
       />
+
+      {/* Auto-match reasoning banner (Phase 91-D2) */}
+      {opp.prospect?.source && opp.prospect.source !== 'MANUAL' && (
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 1.5,
+            mb: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            bgcolor: 'info.50',
+            borderColor: 'info.light',
+          }}
+        >
+          <AutoAwesomeIcon color="info" fontSize="small" />
+          <Typography variant="body2" color="info.dark">
+            Auto-matched via{' '}
+            {opp.prospect.source === 'AUTO_RECOMPETE' ? 'recompete detection' : 'saved search'}
+          </Typography>
+          {opp.naicsCode && (
+            <Chip label={`NAICS ${opp.naicsCode}`} size="small" variant="outlined" color="info" />
+          )}
+          {opp.setAsideCode && (
+            <Chip label={opp.setAsideCode} size="small" variant="outlined" color="info" />
+          )}
+          {opp.prospect.winProbability != null && (
+            <Chip label={`pWin ${opp.prospect.winProbability}%`} size="small" color="info" />
+          )}
+        </Paper>
+      )}
 
       {/* Summary row: deadline, chips, estimated value */}
       <Box

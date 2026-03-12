@@ -36,6 +36,19 @@ public class SavedSearch
 
     public int? LastNewResults { get; set; }
 
+    // Auto-prospect columns (Phase 91-B2)
+    [MaxLength(1)]
+    public string AutoProspectEnabled { get; set; } = "N";
+
+    [Column(TypeName = "decimal(5,2)")]
+    public decimal? MinPwinScore { get; set; } = 30.0m;
+
+    public int? AutoAssignTo { get; set; }
+
+    public DateTime? LastAutoRunAt { get; set; }
+
+    public int? LastAutoCreated { get; set; } = 0;
+
     public DateTime? CreatedAt { get; set; }
 
     public DateTime? UpdatedAt { get; set; }
@@ -46,4 +59,7 @@ public class SavedSearch
 
     [ForeignKey("UserId")]
     public AppUser? User { get; set; }
+
+    [ForeignKey("AutoAssignTo")]
+    public AppUser? AutoAssignToUser { get; set; }
 }

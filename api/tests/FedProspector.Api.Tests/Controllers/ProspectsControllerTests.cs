@@ -18,11 +18,12 @@ namespace FedProspector.Api.Tests.Controllers;
 public class ProspectsControllerTests
 {
     private readonly Mock<IProspectService> _serviceMock = new();
+    private readonly Mock<IAutoProspectService> _autoProspectServiceMock = new();
     private readonly ProspectsController _controller;
 
     public ProspectsControllerTests()
     {
-        _controller = new ProspectsController(_serviceMock.Object);
+        _controller = new ProspectsController(_serviceMock.Object, _autoProspectServiceMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

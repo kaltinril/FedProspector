@@ -166,6 +166,8 @@ builder.Services.AddScoped<IExpiringContractService, ExpiringContractService>();
 builder.Services.AddScoped<IRecommendedOpportunityService, RecommendedOpportunityService>();
 builder.Services.AddScoped<IMarketIntelService, MarketIntelService>();
 builder.Services.AddScoped<IQualificationService, QualificationService>();
+builder.Services.AddScoped<IOrganizationEntityService, OrganizationEntityService>();
+builder.Services.AddScoped<IAutoProspectService, AutoProspectService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

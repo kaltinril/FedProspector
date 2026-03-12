@@ -9,6 +9,7 @@ namespace FedProspector.Infrastructure.Services;
 public class PWinService : IPWinService
 {
     private readonly FedProspectorDbContext _context;
+    private readonly IOrganizationEntityService _orgEntityService;
     private readonly ILogger<PWinService> _logger;
 
     /// <summary>
@@ -30,9 +31,10 @@ public class PWinService : IPWinService
         ["SDVOSBS"] = ["SDVOSB", "VOSB"],
     };
 
-    public PWinService(FedProspectorDbContext context, ILogger<PWinService> logger)
+    public PWinService(FedProspectorDbContext context, IOrganizationEntityService orgEntityService, ILogger<PWinService> logger)
     {
         _context = context;
+        _orgEntityService = orgEntityService;
         _logger = logger;
     }
 
@@ -56,6 +58,12 @@ public class PWinService : IPWinService
             .Select(n => n.NaicsCode)
             .ToListAsync();
 
+        // Get all linked entity UEIs for aggregate scoring (Phase 91-A6)
+        var linkedUeis = await _orgEntityService.GetLinkedUeisAsync(orgId);
+        // Include org's own UEI if not already in linked list
+        if (!string.IsNullOrEmpty(org.UeiSam) && !linkedUeis.Contains(org.UeiSam))
+            linkedUeis.Add(org.UeiSam);
+
         var factors = new List<PWinFactorDto>();
         var suggestions = new List<string>();
 
@@ -63,28 +71,28 @@ public class PWinService : IPWinService
         var setAsideFactor = ScoreSetAsideMatch(opp.SetAsideCode, orgCerts, suggestions);
         factors.Add(setAsideFactor);
 
-        // 2. NAICS experience (weight 0.20)
-        var naicsFactor = await ScoreNaicsExperienceAsync(opp.NaicsCode, orgId, org.UeiSam, suggestions);
+        // 2. NAICS experience (weight 0.20) — uses all linked UEIs
+        var naicsFactor = await ScoreNaicsExperienceAsync(opp.NaicsCode, orgId, linkedUeis, suggestions);
         factors.Add(naicsFactor);
 
         // 3. Competition level (weight 0.15)
         var competitionFactor = await ScoreCompetitionLevelAsync(opp.NaicsCode);
         factors.Add(competitionFactor);
 
-        // 4. Incumbent advantage (weight 0.15)
-        var incumbentFactor = await ScoreIncumbentAdvantageAsync(opp, org.UeiSam, suggestions);
+        // 4. Incumbent advantage (weight 0.15) — uses all linked UEIs
+        var incumbentFactor = await ScoreIncumbentAdvantageAsync(opp, linkedUeis, suggestions);
         factors.Add(incumbentFactor);
 
-        // 5. Teaming strength (weight 0.10)
-        var teamingFactor = await ScoreTeamingStrengthAsync(org.UeiSam, opp.NaicsCode);
+        // 5. Teaming strength (weight 0.10) — uses all linked UEIs
+        var teamingFactor = await ScoreTeamingStrengthAsync(linkedUeis, opp.NaicsCode);
         factors.Add(teamingFactor);
 
         // 6. Time to respond (weight 0.10)
         var timeFactor = ScoreTimeToRespond(opp.ResponseDeadline, suggestions);
         factors.Add(timeFactor);
 
-        // 7. Contract value fit (weight 0.10)
-        var valueFactor = await ScoreContractValueFitAsync(opp.EstimatedContractValue, orgId, org.UeiSam);
+        // 7. Contract value fit (weight 0.10) — uses all linked UEIs
+        var valueFactor = await ScoreContractValueFitAsync(opp.EstimatedContractValue, orgId, linkedUeis);
         factors.Add(valueFactor);
 
         var totalScore = factors.Sum(f => f.WeightedScore);
@@ -98,11 +106,17 @@ public class PWinService : IPWinService
             _ => "VeryLow"
         };
 
-        // Look up prospect if one exists
-        var prospectId = await _context.Prospects.AsNoTracking()
-            .Where(p => p.NoticeId == noticeId && p.OrganizationId == orgId)
-            .Select(p => (int?)p.ProspectId)
-            .FirstOrDefaultAsync();
+        // Look up prospect if one exists and persist the score (Phase 91-C2)
+        var prospect = await _context.Prospects
+            .FirstOrDefaultAsync(p => p.NoticeId == noticeId && p.OrganizationId == orgId);
+
+        int? prospectId = prospect?.ProspectId;
+        if (prospect != null)
+        {
+            prospect.WinProbability = (decimal)totalScore;
+            prospect.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+        }
 
         _logger.LogInformation("pWin calculated for opportunity {NoticeId}, org {OrgId}: {Score}% ({Category})",
             noticeId, orgId, totalScore, category);
@@ -174,7 +188,7 @@ public class PWinService : IPWinService
         };
     }
 
-    private async Task<PWinFactorDto> ScoreNaicsExperienceAsync(string? naicsCode, int orgId, string? orgUei, List<string> suggestions)
+    private async Task<PWinFactorDto> ScoreNaicsExperienceAsync(string? naicsCode, int orgId, List<string> linkedUeis, List<string> suggestions)
     {
         const decimal weight = 0.20m;
 
@@ -188,12 +202,12 @@ public class PWinService : IPWinService
             .Where(p => p.OrganizationId == orgId && p.NaicsCode == naicsCode)
             .CountAsync();
 
-        // Count FPDS contracts where org is vendor
+        // Count FPDS contracts where any linked entity is vendor
         var fpdsCount = 0;
-        if (!string.IsNullOrEmpty(orgUei))
+        if (linkedUeis.Count > 0)
         {
             fpdsCount = await _context.FpdsContracts.AsNoTracking()
-                .Where(c => c.VendorUei == orgUei && c.NaicsCode == naicsCode)
+                .Where(c => c.VendorUei != null && linkedUeis.Contains(c.VendorUei) && c.NaicsCode == naicsCode)
                 .Select(c => c.ContractId)
                 .Distinct()
                 .CountAsync();
@@ -280,7 +294,7 @@ public class PWinService : IPWinService
     }
 
     private async Task<PWinFactorDto> ScoreIncumbentAdvantageAsync(
-        Core.Models.Opportunity opp, string? orgUei, List<string> suggestions)
+        Core.Models.Opportunity opp, List<string> linkedUeis, List<string> suggestions)
     {
         const decimal weight = 0.15m;
 
@@ -312,11 +326,11 @@ public class PWinService : IPWinService
             score = 70;
             detail = "No incumbent identified — likely a new requirement";
         }
-        else if (!string.IsNullOrEmpty(orgUei) &&
-                 string.Equals(incumbentUei, orgUei, StringComparison.OrdinalIgnoreCase))
+        else if (linkedUeis.Count > 0 &&
+                 linkedUeis.Any(u => string.Equals(incumbentUei, u, StringComparison.OrdinalIgnoreCase)))
         {
             score = 100;
-            detail = "Your organization is the incumbent";
+            detail = "Your organization or a linked partner is the incumbent";
         }
         else
         {
@@ -329,18 +343,19 @@ public class PWinService : IPWinService
         return MakeFactor("Incumbent Advantage", score, weight, detail);
     }
 
-    private async Task<PWinFactorDto> ScoreTeamingStrengthAsync(string? orgUei, string? naicsCode)
+    private async Task<PWinFactorDto> ScoreTeamingStrengthAsync(List<string> linkedUeis, string? naicsCode)
     {
         const decimal weight = 0.10m;
 
-        if (string.IsNullOrEmpty(orgUei))
+        if (linkedUeis.Count == 0)
         {
             return MakeFactor("Teaming Strength", 30, weight, "No UEI on file — teaming data unavailable");
         }
 
-        // Find teaming partners from subaward data (org as prime or sub)
+        // Find teaming partners from subaward data (any linked entity as prime or sub)
         var partnerUeisQuery = _context.SamSubawards.AsNoTracking()
-            .Where(s => s.PrimeUei == orgUei || s.SubUei == orgUei);
+            .Where(s => (s.PrimeUei != null && linkedUeis.Contains(s.PrimeUei))
+                     || (s.SubUei != null && linkedUeis.Contains(s.SubUei)));
 
         // If NAICS is available, filter to relevant partners
         if (!string.IsNullOrEmpty(naicsCode))
@@ -349,8 +364,8 @@ public class PWinService : IPWinService
         }
 
         var partnerCount = await partnerUeisQuery
-            .Select(s => s.PrimeUei == orgUei ? s.SubUei : s.PrimeUei)
-            .Where(u => u != null)
+            .Select(s => linkedUeis.Contains(s.PrimeUei!) ? s.SubUei : s.PrimeUei)
+            .Where(u => u != null && !linkedUeis.Contains(u))
             .Distinct()
             .CountAsync();
 
@@ -420,7 +435,7 @@ public class PWinService : IPWinService
         return MakeFactor("Time to Respond", score, weight, detail);
     }
 
-    private async Task<PWinFactorDto> ScoreContractValueFitAsync(decimal? estimatedValue, int orgId, string? orgUei)
+    private async Task<PWinFactorDto> ScoreContractValueFitAsync(decimal? estimatedValue, int orgId, List<string> linkedUeis)
     {
         const decimal weight = 0.10m;
 
@@ -435,10 +450,10 @@ public class PWinService : IPWinService
             .Select(p => p.ContractValue!.Value)
             .ToListAsync();
 
-        if (!string.IsNullOrEmpty(orgUei))
+        if (linkedUeis.Count > 0)
         {
             var fpdsValues = await _context.FpdsContracts.AsNoTracking()
-                .Where(c => c.VendorUei == orgUei && c.BaseAndAllOptions != null && c.BaseAndAllOptions > 0)
+                .Where(c => c.VendorUei != null && linkedUeis.Contains(c.VendorUei) && c.BaseAndAllOptions != null && c.BaseAndAllOptions > 0)
                 .Select(c => c.BaseAndAllOptions!.Value)
                 .Take(100) // Limit to avoid pulling too many rows
                 .ToListAsync();

@@ -12,8 +12,13 @@ namespace FedProspector.Api.Controllers;
 public class ProspectsController : ApiControllerBase
 {
     private readonly IProspectService _service;
+    private readonly IAutoProspectService _autoProspectService;
 
-    public ProspectsController(IProspectService service) => _service = service;
+    public ProspectsController(IProspectService service, IAutoProspectService autoProspectService)
+    {
+        _service = service;
+        _autoProspectService = autoProspectService;
+    }
 
     /// <summary>
     /// Create a new prospect from an opportunity.
@@ -200,5 +205,35 @@ public class ProspectsController : ApiControllerBase
         {
             return ApiError(404, ex.Message);
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // Auto-Prospect Endpoints (Phase 91)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Generate auto-prospects from saved searches with auto_prospect_enabled.
+    /// </summary>
+    [HttpPost("auto-generate")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> AutoGenerate([FromBody] AutoProspectRequest? request = null)
+    {
+        var orgId = request?.OrganizationId ?? (await ResolveOrganizationIdAsync());
+        if (orgId == null) return Unauthorized();
+
+        var matchResult = await _autoProspectService.GenerateAutoProspectsAsync(orgId.Value);
+        var recompeteResult = await _autoProspectService.GenerateRecompeteProspectsAsync(orgId.Value);
+
+        // Merge results
+        var combined = new AutoProspectResult
+        {
+            Evaluated = matchResult.Evaluated + recompeteResult.Evaluated,
+            Created = matchResult.Created + recompeteResult.Created,
+            Skipped = matchResult.Skipped + recompeteResult.Skipped,
+            Errors = [.. matchResult.Errors, .. recompeteResult.Errors],
+            SearchResults = matchResult.SearchResults
+        };
+
+        return Ok(combined);
     }
 }

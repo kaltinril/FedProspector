@@ -16,6 +16,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
 import { BarChart } from '@mui/x-charts/BarChart';
 
@@ -235,6 +236,17 @@ export default function DashboardPage() {
             color="#9c27b0"
           />
         </Grid>
+        {data.autoMatchCount > 0 && (
+          <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+            <StatCard
+              title="Auto-Matches (7d)"
+              value={data.autoMatchCount}
+              icon={<AutoAwesomeIcon />}
+              color="#00897b"
+              onClick={() => navigate('/prospects?source=AUTO_MATCH')}
+            />
+          </Grid>
+        )}
       </Grid>
 
       {/* Row 2: Pipeline Overview */}

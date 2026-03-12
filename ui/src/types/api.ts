@@ -117,6 +117,7 @@ export interface RelatedAwardDto {
 
 export interface OpportunityProspectSummary {
   prospectId: number;
+  source?: string | null;
   status: string;
   priority?: string | null;
   goNoGoScore?: number | null;
@@ -501,6 +502,7 @@ export interface TeamingPartnerSearchParams {
 export interface ProspectListDto {
   prospectId: number;
   noticeId: string;
+  source?: string | null;
   status: string;
   priority?: string | null;
   goNoGoScore?: number | null;
@@ -518,6 +520,7 @@ export interface ProspectListDto {
 
 export interface ProspectSearchParams {
   status?: string;
+  source?: string;
   assignedTo?: number;
   captureManagerId?: number;
   priority?: string;
@@ -542,6 +545,7 @@ export interface ProspectDetailDto {
 export interface ProspectSummaryDto {
   prospectId: number;
   noticeId: string;
+  source?: string | null;
   status: string;
   priority?: string | null;
   goNoGoScore?: number | null;
@@ -757,6 +761,7 @@ export interface DashboardDto {
   recentSavedSearches: SavedSearchSummaryDto[];
   totalOpenProspects: number;
   pipelineValue: number;
+  autoMatchCount: number;
 }
 
 export interface StatusCountDto {

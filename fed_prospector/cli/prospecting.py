@@ -2,7 +2,8 @@
 
 Commands: add-user, list-users, create-prospect, update-prospect,
           reassign-prospect, list-prospects, show-prospect, add-note,
-          add-team-member, save-search, run-search, list-searches, dashboard
+          add-team-member, save-search, run-search, list-searches, dashboard,
+          auto-generate
 """
 
 import sys
@@ -662,3 +663,91 @@ def dashboard():
         click.echo("    (none)")
 
     click.echo(f"\n{'='*60}\n")
+
+
+@click.command("auto-generate")
+@click.option("--all-orgs", is_flag=True, default=False, help="Run for all active organizations")
+@click.option("--org-id", default=None, type=int, help="Run for a specific organization ID")
+@click.option("--api-url", default="http://localhost:5056", help="FedProspect API base URL")
+def auto_generate(all_orgs, org_id, api_url):
+    """Auto-generate prospects from saved searches and recompete detection.
+
+    Calls the C# API endpoint POST /api/v1/prospects/auto-generate for each
+    active organization. Requires the FedProspect API to be running.
+
+    Examples:
+        python main.py prospect auto-generate --all-orgs
+        python main.py prospect auto-generate --org-id 1
+    """
+    logger = setup_logging()
+    import requests
+    from db.connection import get_connection
+
+    if not all_orgs and not org_id:
+        click.echo("ERROR: Specify --all-orgs or --org-id")
+        sys.exit(1)
+
+    # Get org IDs to process
+    org_ids = []
+    if org_id:
+        org_ids = [org_id]
+    else:
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute("SELECT organization_id FROM organization WHERE is_active = 'Y'")
+            org_ids = [row["organization_id"] for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+            conn.close()
+
+    if not org_ids:
+        click.echo("No active organizations found.")
+        return
+
+    click.echo(f"\nAuto-prospect generation for {len(org_ids)} organization(s)")
+    click.echo(f"API: {api_url}")
+    click.echo()
+
+    total_created = 0
+    total_evaluated = 0
+    total_errors = 0
+
+    for oid in org_ids:
+        click.echo(f"  Org {oid}...", nl=False)
+        try:
+            resp = requests.post(
+                f"{api_url}/api/v1/prospects/auto-generate",
+                json={"organizationId": oid},
+                timeout=300,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                created = data.get("created", 0)
+                evaluated = data.get("evaluated", 0)
+                errors = data.get("errors", [])
+                total_created += created
+                total_evaluated += evaluated
+                total_errors += len(errors)
+                click.echo(f" evaluated={evaluated}, created={created}, errors={len(errors)}")
+                for err in errors:
+                    click.echo(f"    ERROR: {err}")
+            elif resp.status_code == 401:
+                click.echo(f" SKIP (auth required - endpoint needs internal/admin auth)")
+            else:
+                click.echo(f" FAIL (HTTP {resp.status_code}: {resp.text[:200]})")
+                total_errors += 1
+        except requests.ConnectionError:
+            click.echo(f" FAIL (cannot connect to {api_url})")
+            total_errors += 1
+            break
+        except Exception as e:
+            click.echo(f" FAIL ({e})")
+            total_errors += 1
+
+    click.echo(f"\n=== Summary ===")
+    click.echo(f"  Organizations: {len(org_ids)}")
+    click.echo(f"  Evaluated:     {total_evaluated}")
+    click.echo(f"  Created:       {total_created}")
+    click.echo(f"  Errors:        {total_errors}")
+    click.echo()

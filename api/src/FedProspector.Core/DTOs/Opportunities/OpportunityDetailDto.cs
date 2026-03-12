@@ -76,6 +76,7 @@ public class RelatedAwardDto
 public class ProspectSummaryDto
 {
     public int ProspectId { get; set; }
+    public string Source { get; set; } = "MANUAL";
     public string Status { get; set; } = string.Empty;
     public string? Priority { get; set; }
     public decimal? GoNoGoScore { get; set; }

@@ -225,6 +225,7 @@ public class OpportunityService : IOpportunityService
             prospect = new ProspectSummaryDto
             {
                 ProspectId = p.ProspectId,
+                Source = p.Source,
                 Status = p.Status,
                 Priority = p.Priority,
                 GoNoGoScore = p.GoNoGoScore,

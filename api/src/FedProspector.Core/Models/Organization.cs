@@ -102,4 +102,5 @@ public class Organization
     public ICollection<OrganizationNaics> NaicsCodes { get; set; } = new List<OrganizationNaics>();
     public ICollection<OrganizationCertification> Certifications { get; set; } = new List<OrganizationCertification>();
     public ICollection<OrganizationPastPerformance> PastPerformances { get; set; } = new List<OrganizationPastPerformance>();
+    public ICollection<OrganizationEntity> LinkedEntities { get; set; } = new List<OrganizationEntity>();
 }

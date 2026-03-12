@@ -13,11 +13,16 @@ public class OrganizationController : ApiControllerBase
 {
     private readonly IOrganizationService _service;
     private readonly ICompanyProfileService _profileService;
+    private readonly IOrganizationEntityService _entityService;
 
-    public OrganizationController(IOrganizationService service, ICompanyProfileService profileService)
+    public OrganizationController(
+        IOrganizationService service,
+        ICompanyProfileService profileService,
+        IOrganizationEntityService entityService)
     {
         _service = service;
         _profileService = profileService;
+        _entityService = entityService;
     }
 
     /// <summary>
@@ -240,4 +245,106 @@ public class OrganizationController : ApiControllerBase
         return NoContent();
     }
 
+    // -----------------------------------------------------------------------
+    // Entity Linking Endpoints (Phase 91)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Get all linked entities for the current organization.
+    /// </summary>
+    [HttpGet("entities")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetLinkedEntities()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _entityService.GetLinkedEntitiesAsync(orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Link an entity to the current organization. Requires OrgAdmin role.
+    /// </summary>
+    [HttpPost("entities")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> LinkEntity([FromBody] LinkEntityRequest request)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        try
+        {
+            var result = await _entityService.LinkEntityAsync(orgId.Value, userId.Value, request);
+            return StatusCode(201, result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiError(404, ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiError(400, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Deactivate an entity link. Requires OrgAdmin role.
+    /// </summary>
+    [HttpDelete("entities/{linkId:int}")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> DeactivateEntityLink(int linkId)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        try
+        {
+            await _entityService.DeactivateLinkAsync(orgId.Value, linkId);
+            return NoContent();
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiError(404, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Refresh organization profile from the linked SELF entity. Requires OrgAdmin role.
+    /// </summary>
+    [HttpPost("entities/refresh-self")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> RefreshFromSelfEntity()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        try
+        {
+            var result = await _entityService.RefreshFromSelfEntityAsync(orgId.Value);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiError(400, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Get aggregate NAICS codes across all linked entities and manual entries.
+    /// </summary>
+    [HttpGet("entities/aggregate-naics")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetAggregateNaics()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _entityService.GetAggregateNaicsAsync(orgId.Value);
+        return Ok(result);
+    }
 }
+

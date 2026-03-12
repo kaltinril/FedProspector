@@ -8,6 +8,7 @@ import { OrgSettingsTab } from './OrgSettingsTab';
 import { OrgMembersTab } from './OrgMembersTab';
 import { OrgInvitesTab } from './OrgInvitesTab';
 import { OrgActivityLogTab } from './OrgActivityLogTab';
+import { OrgEntitiesTab } from './OrgEntitiesTab';
 
 export default function OrganizationPage() {
   const [tab, setTab] = useState(0);
@@ -27,15 +28,17 @@ export default function OrganizationPage() {
         sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}
       >
         <Tab label="Settings" />
+        <Tab label="Entity Linking" />
         <Tab label="Members" />
         <Tab label="Invites" />
         <Tab label="Activity Log" />
       </Tabs>
 
       {tab === 0 && <OrgSettingsTab />}
-      {tab === 1 && <OrgMembersTab />}
-      {tab === 2 && <OrgInvitesTab />}
-      {tab === 3 && <OrgActivityLogTab />}
+      {tab === 1 && <OrgEntitiesTab />}
+      {tab === 2 && <OrgMembersTab />}
+      {tab === 3 && <OrgInvitesTab />}
+      {tab === 4 && <OrgActivityLogTab />}
     </Box>
   );
 }

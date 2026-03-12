@@ -154,6 +154,9 @@ public class ProspectService : IProspectService
         if (!string.IsNullOrWhiteSpace(request.Priority))
             query = query.Where(p => p.Priority == request.Priority);
 
+        if (!string.IsNullOrWhiteSpace(request.Source))
+            query = query.Where(p => p.Source == request.Source);
+
         if (request.OpenOnly)
             query = query.Where(p => p.Status != "WON" && p.Status != "LOST" && p.Status != "DECLINED" && p.Status != "NO_BID");
 
@@ -187,6 +190,7 @@ public class ProspectService : IProspectService
                         {
                             ProspectId = p.ProspectId,
                             NoticeId = p.NoticeId,
+                            Source = p.Source,
                             Status = p.Status,
                             Priority = p.Priority,
                             GoNoGoScore = p.GoNoGoScore,
@@ -323,6 +327,7 @@ public class ProspectService : IProspectService
             {
                 ProspectId = prospect.ProspectId,
                 NoticeId = prospect.NoticeId,
+                Source = prospect.Source,
                 Status = prospect.Status,
                 Priority = prospect.Priority,
                 GoNoGoScore = prospect.GoNoGoScore,

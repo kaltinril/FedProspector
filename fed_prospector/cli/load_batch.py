@@ -11,7 +11,7 @@ from config.logging_config import setup_logging
 
 
 # Job sequences for each batch mode
-DAILY_SEQUENCE = ["opportunities", "awards", "saved_searches"]
+DAILY_SEQUENCE = ["opportunities", "awards", "saved_searches", "auto_prospect"]
 FULL_SEQUENCE = [
     "entity_daily", "opportunities", "awards",
     "subawards", "hierarchy", "saved_searches",
@@ -118,8 +118,9 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
                     lm = LoadManager()
                     wm = lm.get_watermark("SAM_AWARDS", date_key="date_to")
                     _, resume_params = lm.get_resumable_load("SAM_AWARDS")
-                    naics_count = len(settings.DEFAULT_AWARDS_NAICS.split(","))
-                    sa_count = len(settings.DEFAULT_AWARDS_SET_ASIDES.split(","))
+                    from etl.etl_utils import get_tracked_naics, get_tracked_set_asides
+                    naics_count = len(get_tracked_naics())
+                    sa_count = len(get_tracked_set_asides())
                     wm_display = f"{wm} to today" if wm else "none (1yr fallback)"
                     if resume_params:
                         done = len(resume_params.get("completed_combos", []))

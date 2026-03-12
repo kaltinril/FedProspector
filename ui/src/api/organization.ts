@@ -13,6 +13,9 @@ import type {
   CreatePastPerformanceRequest,
   NaicsSearchDto,
   NaicsDetailDto,
+  OrganizationEntityDto,
+  LinkEntityRequest,
+  RefreshSelfEntityResponse,
 } from '@/types/organization';
 
 // Organization management
@@ -94,4 +97,25 @@ export function getNaicsDetail(code: string): Promise<NaicsDetailDto> {
 
 export function getCertificationTypes(): Promise<string[]> {
   return apiClient.get('/reference/certifications').then((r) => r.data);
+}
+
+// Entity linking (Phase 91)
+export function getLinkedEntities(): Promise<OrganizationEntityDto[]> {
+  return apiClient.get('/org/entities').then((r) => r.data);
+}
+
+export function linkEntity(data: LinkEntityRequest): Promise<OrganizationEntityDto> {
+  return apiClient.post('/org/entities', data).then((r) => r.data);
+}
+
+export function deactivateEntityLink(linkId: number): Promise<void> {
+  return apiClient.delete(`/org/entities/${linkId}`).then((r) => r.data);
+}
+
+export function refreshSelfEntity(): Promise<RefreshSelfEntityResponse> {
+  return apiClient.post('/org/entities/refresh-self').then((r) => r.data);
+}
+
+export function getAggregateNaics(): Promise<string[]> {
+  return apiClient.get('/org/entities/aggregate-naics').then((r) => r.data);
 }

@@ -64,9 +64,11 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
     # Apply default filters when none specified (fixes scheduler "no filter" error)
     using_defaults = False
     if not any([naics, set_aside, agency, awardee_uei, piid, fiscal_year]):
-        naics = settings.DEFAULT_AWARDS_NAICS
-        naics_codes = [c.strip() for c in naics.split(',') if c.strip()]
-        set_aside = settings.DEFAULT_AWARDS_SET_ASIDES  # comma-separated string
+        from etl.etl_utils import get_tracked_naics, get_tracked_set_asides
+        naics_codes = get_tracked_naics()
+        naics = ",".join(naics_codes)
+        set_aside_list = get_tracked_set_asides()
+        set_aside = ",".join(set_aside_list)
         using_defaults = True
 
     # Build set-aside iteration list
