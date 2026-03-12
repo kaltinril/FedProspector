@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS sam_subaward (
     first_loaded_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_load_id            INT,
+    UNIQUE KEY uk_sub_key (prime_piid, sub_uei, sub_date),
     INDEX idx_sub_prime_uei (prime_uei),
     INDEX idx_sub_sub_uei (sub_uei),
     INDEX idx_sub_naics (naics_code),

@@ -11,6 +11,7 @@ from datetime import datetime, date, timezone
 from decimal import Decimal, InvalidOperation
 
 from db.connection import get_connection
+from etl.batch_upsert import build_upsert_sql, executemany_upsert
 from etl.change_detector import ChangeDetector
 from etl.etl_utils import parse_date, parse_decimal
 from etl.load_manager import LoadManager
@@ -31,6 +32,25 @@ _OPPORTUNITY_HASH_FIELDS = [
     "awardee_uei", "awardee_name", "contracting_office_id",
 ]
 
+# All opportunity columns used in upsert (order matters for values list)
+_UPSERT_COLS = [
+    "notice_id", "title", "solicitation_number",
+    "department_name", "sub_tier", "office",
+    "posted_date", "response_deadline", "archive_date",
+    "type", "base_type",
+    "set_aside_code", "set_aside_description",
+    "classification_code", "naics_code",
+    "pop_state", "pop_zip", "pop_country", "pop_city",
+    "active",
+    "award_number", "award_date", "award_amount",
+    "awardee_uei", "awardee_name",
+    "awardee_cage_code", "awardee_city", "awardee_state", "awardee_zip",
+    "full_parent_path_name", "full_parent_path_code",
+    "description_url", "link", "resource_links",
+    "contracting_office_id",
+    "record_hash", "last_load_id",
+]
+
 
 class OpportunityLoader(StagingMixin):
     """Transform and load SAM.gov opportunity data into MySQL."""
@@ -39,6 +59,13 @@ class OpportunityLoader(StagingMixin):
 
     _STG_TABLE = "stg_opportunity_raw"
     _STG_KEY_COLS = ["notice_id"]
+
+    # Pre-computed upsert SQL (built once, not per record)
+    _UPSERT_SQL = build_upsert_sql(
+        table="opportunity",
+        columns=_UPSERT_COLS,
+        pk_fields={"notice_id"},
+    )
 
     # -----------------------------------------------------------------
     # Construction
@@ -99,10 +126,11 @@ class OpportunityLoader(StagingMixin):
     # =================================================================
 
     def _process_opportunities(self, opps_iter, load_id):
-        """Iterate over raw opportunities, normalise, detect changes, upsert.
+        """Iterate over raw opportunities, normalise, detect changes, batch upsert.
 
-        Processes in batches of BATCH_SIZE and commits after each batch.
-        Returns a stats dict compatible with LoadManager.complete_load().
+        Uses batch operations for staging writes, upserts, and staging marks.
+        POC writes and history logging are batched per BATCH_SIZE chunk.
+        Falls back to row-by-row if a batch upsert fails.
 
         Args:
             opps_iter: Iterator of raw opportunity dicts.
@@ -121,6 +149,9 @@ class OpportunityLoader(StagingMixin):
             "opportunity", "notice_id", "record_hash"
         )
 
+        # Materialize iterator for batch slicing
+        opps_list = list(opps_iter)
+
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
 
@@ -129,100 +160,173 @@ class OpportunityLoader(StagingMixin):
         stg_conn, stg_cursor = self._open_stg_conn()
 
         try:
-            batch_count = 0
-            for raw in opps_iter:
-                stats["records_read"] += 1
-                notice_id = None
-                staging_id = None
-                try:
-                    # --- write raw record to staging BEFORE normalization ---
-                    key_vals = self._extract_staging_key(raw)
-                    staging_id = self._insert_staging(stg_cursor, load_id, key_vals, raw)
+            for batch_start in range(0, len(opps_list), self.BATCH_SIZE):
+                batch_raw = opps_list[batch_start : batch_start + self.BATCH_SIZE]
 
-                    # --- normalise ----------------------------------------
-                    opp_data = self._normalize_opportunity(raw)
-                    notice_id = opp_data.get("notice_id")
-                    if not notice_id:
-                        raise ValueError("Missing noticeId in opportunity record")
+                # --- Phase 1: Normalize, compute hashes, classify ---
+                staging_rows = []
+                normalized = []
+                changed_records = []  # (raw, opp_data, notice_id, new_hash, pocs, old_hash)
 
-                    # --- change detection ---------------------------------
-                    new_hash = self.change_detector.compute_hash(
-                        opp_data, _OPPORTUNITY_HASH_FIELDS
-                    )
-                    opp_data["record_hash"] = new_hash
+                for raw in batch_raw:
+                    stats["records_read"] += 1
+                    try:
+                        key_vals = self._extract_staging_key(raw)
+                        staging_rows.append((key_vals, raw))
 
-                    old_hash = existing_hashes.get(notice_id)
-                    if old_hash and old_hash == new_hash:
-                        stats["records_unchanged"] += 1
-                        self._mark_staging(stg_cursor, staging_id, 'Y')
-                        batch_count += 1
-                        if batch_count >= self.BATCH_SIZE:
-                            conn.commit()
-                            batch_count = 0
-                        continue
+                        opp_data = self._normalize_opportunity(raw)
+                        notice_id = opp_data.get("notice_id")
+                        if not notice_id:
+                            raise ValueError("Missing noticeId in opportunity record")
 
-                    # --- fetch old record for history (updates only) -------
-                    if old_hash is not None:
-                        old_record = self._fetch_opportunity_row(cursor, notice_id)
-                    else:
-                        old_record = None
-
-                    # --- extract POCs before upsert (not a DB column) ----
-                    pocs = opp_data.pop("_pocs", [])
-
-                    # --- upsert -------------------------------------------
-                    outcome = self._upsert_opportunity(cursor, opp_data, load_id)
-                    if outcome == "inserted":
-                        stats["records_inserted"] += 1
-                    elif outcome == "updated":
-                        stats["records_updated"] += 1
-                    else:
-                        stats["records_unchanged"] += 1
-
-                    # --- upsert POCs --------------------------------------
-                    if pocs:
-                        self._upsert_pocs(cursor, notice_id, pocs)
-
-                    # --- history logging (updates only) --------------------
-                    if old_record is not None and outcome == "updated":
-                        diffs = self.change_detector.compute_field_diff(
-                            old_record, opp_data, _OPPORTUNITY_HASH_FIELDS
+                        new_hash = self.change_detector.compute_hash(
+                            opp_data, _OPPORTUNITY_HASH_FIELDS
                         )
-                        if diffs:
-                            self._log_changes(cursor, notice_id, diffs, load_id)
+                        opp_data["record_hash"] = new_hash
+                        pocs = opp_data.pop("_pocs", [])
 
-                    # Update in-memory hash cache
-                    existing_hashes[notice_id] = new_hash
+                        old_hash = existing_hashes.get(notice_id)
+                        if old_hash and old_hash == new_hash:
+                            stats["records_unchanged"] += 1
+                        else:
+                            changed_records.append(
+                                (raw, opp_data, notice_id, new_hash, pocs, old_hash)
+                            )
 
-                    # --- mark staging processed ----------------------------
-                    self._mark_staging(stg_cursor, staging_id, 'Y')
+                        normalized.append((raw, opp_data, notice_id, new_hash))
 
-                except Exception as rec_exc:
-                    stats["records_errored"] += 1
-                    identifier = notice_id or f"record#{stats['records_read']}"
-                    self.logger.warning(
-                        "Error processing %s: %s", identifier, rec_exc
+                    except Exception as rec_exc:
+                        stats["records_errored"] += 1
+                        identifier = f"record#{stats['records_read']}"
+                        self.logger.warning(
+                            "Error normalizing %s: %s", identifier, rec_exc
+                        )
+                        self.load_manager.log_record_error(
+                            load_id,
+                            record_identifier=identifier,
+                            error_type=type(rec_exc).__name__,
+                            error_message=str(rec_exc),
+                            raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
+                        )
+                        normalized.append(None)
+
+                # --- Phase 2: Batch staging INSERT ---
+                staging_ids = self._insert_staging_batch(
+                    stg_cursor, load_id, staging_rows
+                )
+
+                # --- Phase 2.5: Batch-fetch old records for history (updates only) ---
+                update_notice_ids = [
+                    notice_id for (_r, _od, notice_id, _nh, _p, old_hash)
+                    in changed_records if old_hash is not None
+                ]
+                old_records = {}
+                if update_notice_ids:
+                    old_records = self._fetch_opportunity_rows(
+                        cursor, update_notice_ids
                     )
-                    self.load_manager.log_record_error(
-                        load_id,
-                        record_identifier=identifier,
-                        error_type=type(rec_exc).__name__,
-                        error_message=str(rec_exc),
-                        raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
-                    )
-                    if staging_id:
-                        self._mark_staging(stg_cursor, staging_id, 'E', str(rec_exc))
-                    # Rollback the failed record, then keep going
-                    conn.rollback()
-                    batch_count = 0
-                    continue
 
-                batch_count += 1
-                if batch_count >= self.BATCH_SIZE:
-                    conn.commit()
-                    batch_count = 0
+                # --- Phase 3: Batch upsert changed records ---
+                if changed_records:
+                    try:
+                        upsert_rows = []
+                        for _raw, opp_data, _nid, _nh, _p, _oh in changed_records:
+                            values = [opp_data.get(c) for c in _UPSERT_COLS[:-1]]
+                            values.append(load_id)  # last_load_id
+                            upsert_rows.append(tuple(values))
 
-                # Progress logging
+                        executemany_upsert(cursor, self._UPSERT_SQL, upsert_rows)
+
+                        # Count inserts vs updates, upsert POCs, log history
+                        all_history_rows = []
+                        for _raw, opp_data, notice_id, new_hash, pocs, old_hash in changed_records:
+                            if notice_id in existing_hashes:
+                                stats["records_updated"] += 1
+                                # History logging for updates
+                                old_record = old_records.get(notice_id)
+                                if old_record is not None:
+                                    diffs = self.change_detector.compute_field_diff(
+                                        old_record, opp_data, _OPPORTUNITY_HASH_FIELDS
+                                    )
+                                    if diffs:
+                                        for field, old_val, new_val in diffs:
+                                            all_history_rows.append((
+                                                notice_id,
+                                                field,
+                                                _str_or_none(old_val),
+                                                _str_or_none(new_val),
+                                                load_id,
+                                            ))
+                            else:
+                                stats["records_inserted"] += 1
+
+                            # Upsert POCs (still per-record due to officer_id lookup)
+                            if pocs:
+                                self._upsert_pocs(cursor, notice_id, pocs)
+
+                            existing_hashes[notice_id] = new_hash
+
+                        # Batch insert history rows
+                        if all_history_rows:
+                            cursor.executemany(
+                                "INSERT INTO opportunity_history "
+                                "(notice_id, field_name, old_value, new_value, load_id) "
+                                "VALUES (%s, %s, %s, %s, %s)",
+                                all_history_rows,
+                            )
+
+                    except Exception as batch_exc:
+                        self.logger.warning(
+                            "Batch upsert failed (%d records), falling back to row-by-row: %s",
+                            len(changed_records), batch_exc,
+                        )
+                        conn.rollback()
+                        for raw, opp_data, notice_id, new_hash, pocs, old_hash in changed_records:
+                            try:
+                                outcome = self._upsert_opportunity(cursor, opp_data, load_id)
+                                if outcome == "inserted":
+                                    stats["records_inserted"] += 1
+                                elif outcome == "updated":
+                                    stats["records_updated"] += 1
+                                else:
+                                    stats["records_unchanged"] += 1
+
+                                if pocs:
+                                    self._upsert_pocs(cursor, notice_id, pocs)
+
+                                old_record = old_records.get(notice_id)
+                                if old_record is not None and outcome == "updated":
+                                    diffs = self.change_detector.compute_field_diff(
+                                        old_record, opp_data, _OPPORTUNITY_HASH_FIELDS
+                                    )
+                                    if diffs:
+                                        self._log_changes(cursor, notice_id, diffs, load_id)
+
+                                existing_hashes[notice_id] = new_hash
+                            except Exception as rec_exc:
+                                stats["records_errored"] += 1
+                                self.logger.warning(
+                                    "Error processing %s: %s", notice_id, rec_exc
+                                )
+                                self.load_manager.log_record_error(
+                                    load_id,
+                                    record_identifier=str(notice_id),
+                                    error_type=type(rec_exc).__name__,
+                                    error_message=str(rec_exc),
+                                    raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
+                                )
+                                conn.rollback()
+
+                # --- Phase 4: Batch mark staging ---
+                success_staging_ids = []
+                for idx, entry in enumerate(normalized):
+                    if entry is not None and idx < len(staging_ids):
+                        success_staging_ids.append(staging_ids[idx])
+                if success_staging_ids:
+                    self._mark_staging_batch(stg_cursor, success_staging_ids, 'Y')
+
+                conn.commit()
+
                 if stats["records_read"] % self.BATCH_SIZE == 0:
                     self.logger.info(
                         "Progress: read=%d ins=%d upd=%d unch=%d err=%d",
@@ -232,9 +336,6 @@ class OpportunityLoader(StagingMixin):
                         stats["records_unchanged"],
                         stats["records_errored"],
                     )
-
-            # Final commit for any remaining records in the last partial batch
-            conn.commit()
 
         finally:
             cursor.close()
@@ -376,6 +477,9 @@ class OpportunityLoader(StagingMixin):
     def _upsert_opportunity(self, cursor, opp_data, load_id):
         """INSERT ... ON DUPLICATE KEY UPDATE for the opportunity table.
 
+        Per-record fallback method. The batch path uses executemany_upsert
+        with self._UPSERT_SQL instead.
+
         Args:
             cursor: Active DB cursor.
             opp_data: Normalised opportunity dict.
@@ -384,44 +488,10 @@ class OpportunityLoader(StagingMixin):
         Returns:
             'inserted', 'updated', or 'unchanged'
         """
-        cols = [
-            "notice_id", "title", "solicitation_number",
-            "department_name", "sub_tier", "office",
-            "posted_date", "response_deadline", "archive_date",
-            "type", "base_type",
-            "set_aside_code", "set_aside_description",
-            "classification_code", "naics_code",
-            "pop_state", "pop_zip", "pop_country", "pop_city",
-            "active",
-            "award_number", "award_date", "award_amount",
-            "awardee_uei", "awardee_name",
-            "awardee_cage_code", "awardee_city", "awardee_state", "awardee_zip",
-            "full_parent_path_name", "full_parent_path_code",
-            "description_url", "link", "resource_links",
-            "contracting_office_id",
-            "record_hash", "last_load_id",
-        ]
-
-        placeholders = ", ".join(["%s"] * len(cols))
-        col_list = ", ".join(cols)
-
-        # ON DUPLICATE KEY UPDATE: update all mutable columns
-        update_pairs = ", ".join(
-            f"{c} = VALUES({c})" for c in cols if c != "notice_id"
-        )
-        # Also update last_loaded_at on every touch
-        update_pairs += ", last_loaded_at = NOW()"
-
-        sql = (
-            f"INSERT INTO opportunity ({col_list}, first_loaded_at, last_loaded_at) "
-            f"VALUES ({placeholders}, NOW(), NOW()) "
-            f"ON DUPLICATE KEY UPDATE {update_pairs}"
-        )
-
-        values = [opp_data.get(c) for c in cols[:-1]]  # all except last_load_id
+        values = [opp_data.get(c) for c in _UPSERT_COLS[:-1]]  # all except last_load_id
         values.append(load_id)  # last_load_id
 
-        cursor.execute(sql, values)
+        cursor.execute(self._UPSERT_SQL, values)
 
         # MySQL returns rowcount: 0 = unchanged, 1 = inserted, 2 = updated
         rc = cursor.rowcount
@@ -508,8 +578,34 @@ class OpportunityLoader(StagingMixin):
         row = cursor.fetchone()
         if row is None:
             return None
-        # cursor is dictionary=True, so row is already a dict.
-        # Convert date/datetime/Decimal values to strings for comparison.
+        return self._clean_row(row)
+
+    def _fetch_opportunity_rows(self, cursor, notice_ids):
+        """Batch-fetch opportunity rows for diff comparison.
+
+        Args:
+            cursor: Active DB cursor (dictionary=True).
+            notice_ids: List of notice_id strings.
+
+        Returns:
+            dict mapping notice_id -> cleaned row dict.
+        """
+        if not notice_ids:
+            return {}
+
+        placeholders = ", ".join(["%s"] * len(notice_ids))
+        cursor.execute(
+            f"SELECT * FROM opportunity WHERE notice_id IN ({placeholders})",
+            notice_ids,
+        )
+        result = {}
+        for row in cursor.fetchall():
+            result[row["notice_id"]] = self._clean_row(row)
+        return result
+
+    @staticmethod
+    def _clean_row(row):
+        """Convert date/datetime/Decimal values to strings for comparison."""
         clean = {}
         for k, v in row.items():
             if isinstance(v, datetime):

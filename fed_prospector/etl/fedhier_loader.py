@@ -12,6 +12,7 @@ import json
 import logging
 
 from db.connection import get_connection
+from etl.batch_upsert import build_upsert_sql, executemany_upsert
 from etl.change_detector import ChangeDetector
 from etl.etl_utils import fetch_existing_hashes, parse_date
 from etl.load_manager import LoadManager
@@ -57,6 +58,13 @@ class FedHierLoader(StagingMixin):
     BATCH_SIZE = 500
     _STG_TABLE = "stg_fedhier_raw"
     _STG_KEY_COLS = ["fh_org_id"]
+
+    # Pre-computed upsert SQL (built once, not per record)
+    _UPSERT_SQL = build_upsert_sql(
+        table="federal_organization",
+        columns=_UPSERT_COLS,
+        pk_fields={"fh_org_id"},
+    )
 
     def __init__(self, db_connection=None, change_detector=None, load_manager=None):
         """Initialize with optional DB connection, change detector, load manager.
@@ -131,10 +139,10 @@ class FedHierLoader(StagingMixin):
     # =================================================================
 
     def _process_orgs(self, orgs_data, load_id):
-        """Iterate over raw org records, normalise, detect changes, upsert.
+        """Iterate over raw org records, normalise, detect changes, batch upsert.
 
-        Shared implementation used by both load_organizations() and
-        load_organization_batch().
+        Uses batch operations for staging writes, upserts, and staging marks.
+        Falls back to row-by-row processing if a batch upsert fails.
 
         Args:
             orgs_data: Iterable of raw org dicts from the API.
@@ -154,85 +162,132 @@ class FedHierLoader(StagingMixin):
         # Pre-fetch existing hashes for change detection
         existing_hashes = fetch_existing_hashes("federal_organization", "fh_org_id")
 
+        # Materialize to list for batch slicing
+        orgs_list = list(orgs_data)
+
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         stg_conn = stg_cursor = None
 
         try:
             stg_conn, stg_cursor = self._open_stg_conn()
-            batch_count = 0
-            for raw in orgs_data:
-                stats["records_read"] += 1
-                record_key = None
-                staging_id = None
-                try:
-                    # --- staging write ------------------------------------
-                    key_vals = self._extract_staging_key(raw)
-                    staging_id = self._insert_staging(stg_cursor, load_id, key_vals, raw)
 
-                    # --- normalise ----------------------------------------
-                    org_data = self._normalize_org(raw)
-                    fh_org_id = org_data.get("fh_org_id")
-                    if not fh_org_id:
-                        raise ValueError("Missing fhorgid in organization record")
+            for batch_start in range(0, len(orgs_list), self.BATCH_SIZE):
+                batch_raw = orgs_list[batch_start : batch_start + self.BATCH_SIZE]
 
-                    record_key = str(fh_org_id)
+                # --- Phase 1: Normalize, compute hashes, classify ---
+                staging_rows = []
+                normalized = []
+                changed_records = []
 
-                    # --- change detection ---------------------------------
-                    new_hash = self.change_detector.compute_hash(
-                        org_data, _ORG_HASH_FIELDS
-                    )
-                    org_data["record_hash"] = new_hash
+                for raw in batch_raw:
+                    stats["records_read"] += 1
+                    try:
+                        key_vals = self._extract_staging_key(raw)
+                        staging_rows.append((key_vals, raw))
 
-                    old_hash = existing_hashes.get(fh_org_id)
-                    if old_hash and old_hash == new_hash:
-                        stats["records_unchanged"] += 1
-                        self._mark_staging(stg_cursor, staging_id, "Y")
-                        batch_count += 1
-                        if batch_count >= self.BATCH_SIZE:
-                            conn.commit()
-                            batch_count = 0
-                        continue
+                        org_data = self._normalize_org(raw)
+                        fh_org_id = org_data.get("fh_org_id")
+                        if not fh_org_id:
+                            raise ValueError("Missing fhorgid in organization record")
 
-                    # --- upsert -------------------------------------------
-                    outcome = self._upsert_org(cursor, org_data, load_id)
-                    if outcome == "inserted":
-                        stats["records_inserted"] += 1
-                    elif outcome == "updated":
-                        stats["records_updated"] += 1
-                    else:
-                        stats["records_unchanged"] += 1
+                        new_hash = self.change_detector.compute_hash(
+                            org_data, _ORG_HASH_FIELDS
+                        )
+                        org_data["record_hash"] = new_hash
 
-                    # Update in-memory hash cache
-                    existing_hashes[fh_org_id] = new_hash
+                        old_hash = existing_hashes.get(fh_org_id)
+                        if old_hash and old_hash == new_hash:
+                            stats["records_unchanged"] += 1
+                        else:
+                            changed_records.append(
+                                (raw, org_data, fh_org_id, new_hash)
+                            )
 
-                    self._mark_staging(stg_cursor, staging_id, "Y")
+                        normalized.append((raw, org_data, fh_org_id, new_hash))
 
-                except Exception as rec_exc:
-                    stats["records_errored"] += 1
-                    identifier = record_key or f"record#{stats['records_read']}"
-                    self.logger.warning(
-                        "Error processing %s: %s", identifier, rec_exc
-                    )
-                    self.load_manager.log_record_error(
-                        load_id,
-                        record_identifier=identifier,
-                        error_type=type(rec_exc).__name__,
-                        error_message=str(rec_exc),
-                        raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
-                    )
-                    if staging_id:
-                        self._mark_staging(stg_cursor, staging_id, "E", str(rec_exc))
-                    conn.rollback()
-                    batch_count = 0
-                    continue
+                    except Exception as rec_exc:
+                        stats["records_errored"] += 1
+                        identifier = f"record#{stats['records_read']}"
+                        self.logger.warning(
+                            "Error normalizing %s: %s", identifier, rec_exc
+                        )
+                        self.load_manager.log_record_error(
+                            load_id,
+                            record_identifier=identifier,
+                            error_type=type(rec_exc).__name__,
+                            error_message=str(rec_exc),
+                            raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
+                        )
+                        normalized.append(None)
 
-                batch_count += 1
-                if batch_count >= self.BATCH_SIZE:
-                    conn.commit()
-                    batch_count = 0
+                # --- Phase 2: Batch staging INSERT ---
+                staging_ids = self._insert_staging_batch(
+                    stg_cursor, load_id, staging_rows
+                )
 
-                # Progress logging
+                # --- Phase 3: Batch upsert changed records ---
+                if changed_records:
+                    try:
+                        upsert_rows = []
+                        for _raw, org_data, _fhid, _nh in changed_records:
+                            values = []
+                            for col in _UPSERT_COLS:
+                                if col == "last_load_id":
+                                    values.append(load_id)
+                                else:
+                                    values.append(org_data.get(col))
+                            upsert_rows.append(tuple(values))
+
+                        executemany_upsert(cursor, self._UPSERT_SQL, upsert_rows)
+
+                        for _raw, org_data, fh_org_id, new_hash in changed_records:
+                            if fh_org_id in existing_hashes:
+                                stats["records_updated"] += 1
+                            else:
+                                stats["records_inserted"] += 1
+                            existing_hashes[fh_org_id] = new_hash
+
+                    except Exception as batch_exc:
+                        self.logger.warning(
+                            "Batch upsert failed (%d records), falling back to row-by-row: %s",
+                            len(changed_records), batch_exc,
+                        )
+                        conn.rollback()
+                        for raw, org_data, fh_org_id, new_hash in changed_records:
+                            try:
+                                outcome = self._upsert_org(cursor, org_data, load_id)
+                                if outcome == "inserted":
+                                    stats["records_inserted"] += 1
+                                elif outcome == "updated":
+                                    stats["records_updated"] += 1
+                                else:
+                                    stats["records_unchanged"] += 1
+                                existing_hashes[fh_org_id] = new_hash
+                            except Exception as rec_exc:
+                                stats["records_errored"] += 1
+                                self.logger.warning(
+                                    "Error processing %s: %s", fh_org_id, rec_exc
+                                )
+                                self.load_manager.log_record_error(
+                                    load_id,
+                                    record_identifier=str(fh_org_id),
+                                    error_type=type(rec_exc).__name__,
+                                    error_message=str(rec_exc),
+                                    raw_data=json.dumps(raw) if isinstance(raw, dict) else str(raw),
+                                )
+                                conn.rollback()
+
+                # --- Phase 4: Batch mark staging ---
+                success_staging_ids = []
+                for idx, entry in enumerate(normalized):
+                    if entry is not None and idx < len(staging_ids):
+                        success_staging_ids.append(staging_ids[idx])
+                if success_staging_ids:
+                    self._mark_staging_batch(stg_cursor, success_staging_ids, 'Y')
+
+                conn.commit()
+
                 if stats["records_read"] % self.BATCH_SIZE == 0:
                     self.logger.info(
                         "Progress: read=%d ins=%d upd=%d unch=%d err=%d",
@@ -242,9 +297,6 @@ class FedHierLoader(StagingMixin):
                         stats["records_unchanged"],
                         stats["records_errored"],
                     )
-
-            # Final commit for any remaining records in the last partial batch
-            conn.commit()
 
         finally:
             if stg_cursor:
