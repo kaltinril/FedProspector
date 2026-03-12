@@ -308,6 +308,271 @@ def _load_hierarchy_incremental(logger, client, loader, load_manager,
         click.echo("  Run the same command again to continue.")
 
 
+@click.command("load-offices")
+@click.option("--max-calls", default=200, type=int, help="Max API calls for this invocation (default: 200)")
+@click.option("--key", "api_key_number", default=2, type=click.IntRange(1, 2),
+              help="Which SAM API key to use (1 or 2, default: 2)")
+@click.option("--force", is_flag=True, default=False,
+              help="Ignore previous progress and start fresh")
+def load_offices(max_calls, api_key_number, force):
+    """Load Level 3 office organizations from SAM.gov Federal Hierarchy API.
+
+    Fetches Level 3 (Office) organizations by querying the hierarchy
+    endpoint for each Level 2 sub-tier already in the database. This
+    requires one API call per sub-tier (~738 calls), so the command
+    supports resume across multiple runs via --max-calls budget control.
+
+    Level 2 sub-tiers must be loaded first via 'load hierarchy'.
+
+    Progress is saved after each sub-tier is fully loaded. If interrupted
+    or budget is exhausted, re-run the same command to continue from the
+    last completed sub-tier. Use --force to restart from scratch.
+
+    Examples:
+        python main.py load offices
+        python main.py load offices --max-calls 100
+        python main.py load offices --force
+        python main.py load offices --key 1
+    """
+    logger = setup_logging()
+
+    import json as _json
+    from api_clients.sam_fedhier_client import SAMFedHierClient
+    from api_clients.base_client import RateLimitExceeded
+    from etl.fedhier_loader import FedHierLoader
+    from etl.load_manager import LoadManager
+    from db.connection import get_connection, get_cursor
+
+    client = SAMFedHierClient(api_key_number=api_key_number)
+    loader = FedHierLoader()
+    load_manager = LoadManager()
+
+    SOURCE_SYSTEM = "SAM_FEDHIER_OFFICES"
+
+    remaining = client._get_remaining_requests()
+
+    click.echo("SAM.gov Federal Hierarchy — Level 3 Office Load")
+    click.echo(f"  API key:      #{api_key_number} (limit: {client.max_daily_requests}/day)")
+    click.echo(f"  Max calls:    {max_calls}")
+    click.echo(f"  API calls remaining today: {remaining}")
+
+    if remaining < 1:
+        click.echo("\nERROR: No API calls remaining today.")
+        sys.exit(1)
+
+    # ---- Query Level 2 sub-tiers from the database ----
+    with get_cursor(dictionary=True) as cursor:
+        cursor.execute(
+            "SELECT fh_org_id, fh_org_name FROM federal_organization "
+            "WHERE level = 2 AND status = 'Active' "
+            "ORDER BY fh_org_id"
+        )
+        subtiers = cursor.fetchall()
+
+    if not subtiers:
+        click.echo("\nERROR: No Level 2 sub-tiers found. Run 'load hierarchy' first.")
+        sys.exit(1)
+
+    click.echo(f"  Sub-tiers:    {len(subtiers)} Level 2 orgs in database")
+
+    # ---- Resume support ----
+    completed_orgs = []
+    resume_load = None
+    resume_params = None
+
+    if not force:
+        # Clean up stale RUNNING loads
+        load_manager.cleanup_stale_running(SOURCE_SYSTEM)
+
+        resume_load, resume_params = load_manager.get_resumable_load(SOURCE_SYSTEM)
+
+        if resume_params:
+            completed_orgs = resume_params.get("completed_orgs", [])
+            prev_calls = resume_params.get("calls_made", 0)
+            prev_fetched = resume_params.get("total_fetched", 0)
+            is_complete = resume_params.get("complete", False)
+
+            if is_complete:
+                click.echo(f"\nAll sub-tiers already processed "
+                           f"(load_id={resume_load['load_id']}, "
+                           f"{prev_fetched} offices fetched). Skipping.")
+                click.echo("  Use --force to reload from scratch.")
+                return
+
+            if completed_orgs:
+                click.echo(f"  Resuming: {len(completed_orgs)} of {len(subtiers)} "
+                           f"sub-tiers already done ({prev_calls} calls, "
+                           f"{prev_fetched} offices fetched)")
+
+    # ---- Create load entry ----
+    load_id = load_manager.start_load(
+        SOURCE_SYSTEM, "INCREMENTAL",
+        parameters={
+            "completed_orgs": completed_orgs,
+            "total_subtiers": len(subtiers),
+            "current_org": None,
+            "current_page": 0,
+            "complete": False,
+            "calls_made": resume_params.get("calls_made", 0) if resume_params else 0,
+            "total_fetched": resume_params.get("total_fetched", 0) if resume_params else 0,
+        },
+    )
+    click.echo(f"\nLoad started (load_id={load_id})")
+
+    t_start = time.time()
+    calls_made = resume_params.get("calls_made", 0) if resume_params else 0
+    total_fetched = resume_params.get("total_fetched", 0) if resume_params else 0
+    calls_this_run = 0
+    cumulative = {
+        "records_read": 0, "records_inserted": 0, "records_updated": 0,
+        "records_unchanged": 0, "records_errored": 0,
+    }
+    rate_limited = False
+    completed_orgs_set = set(str(x) for x in completed_orgs)
+
+    # ---- Process each sub-tier ----
+    subtiers_remaining = [
+        s for s in subtiers if str(s["fh_org_id"]) not in completed_orgs_set
+    ]
+    click.echo(f"  Processing {len(subtiers_remaining)} remaining sub-tiers...\n")
+
+    try:
+        for idx, subtier in enumerate(subtiers_remaining, 1):
+            fhorgid = subtier["fh_org_id"]
+            org_name = subtier["fh_org_name"] or f"ID:{fhorgid}"
+
+            if calls_this_run >= max_calls:
+                click.echo(f"\n  Budget exhausted ({calls_this_run} calls this run). "
+                           f"Saving progress.")
+                break
+
+            # Update current_org in progress
+            _save_offices_progress(
+                load_manager, load_id, completed_orgs, len(subtiers),
+                str(fhorgid), 0, False, calls_made, total_fetched, cumulative,
+            )
+
+            # Fetch all pages of children for this sub-tier
+            subtier_offices = 0
+            try:
+                for child_orgs, offset, total_records in client.iter_org_children_pages(
+                    fhorgid, start_offset=0, max_pages=max_calls - calls_this_run,
+                ):
+                    calls_made += 1
+                    calls_this_run += 1
+
+                    if child_orgs:
+                        # Ensure parent_org_id is set for child records that
+                        # may not have fhorgparenthistory
+                        for org in child_orgs:
+                            if not org.get("fhorgparenthistory"):
+                                # Inject parent info so _normalize_org can
+                                # extract the correct parent_org_id
+                                org.setdefault("_injected_parent_org_id", fhorgid)
+
+                        page_stats = loader.load_organization_batch(child_orgs, load_id)
+                        for k in cumulative:
+                            cumulative[k] += page_stats.get(k, 0)
+                        subtier_offices += len(child_orgs)
+                        total_fetched += len(child_orgs)
+
+                    if calls_this_run >= max_calls:
+                        break
+
+            except RateLimitExceeded:
+                rate_limited = True
+                click.echo(f"  Rate limit reached during sub-tier {org_name}")
+                break
+            except Exception as e:
+                if isinstance(getattr(e, '__context__', None), KeyboardInterrupt):
+                    raise KeyboardInterrupt from None
+                if "429" in str(e):
+                    rate_limited = True
+                    click.echo(f"  Server rate limit (429) during sub-tier {org_name}")
+                    break
+                logger.warning("Error fetching children for %s: %s", fhorgid, e)
+                # Mark as completed to avoid infinite retries on permanently
+                # failing sub-tiers
+                click.echo(f"  WARN: Error on sub-tier {org_name}: {e} — skipping")
+
+            # Mark this sub-tier as completed
+            completed_orgs.append(str(fhorgid))
+            completed_orgs_set.add(str(fhorgid))
+
+            done_total = len(completed_orgs)
+            click.echo(
+                f"  [{done_total}/{len(subtiers)}] {org_name}: "
+                f"{subtier_offices} offices "
+                f"(calls: {calls_this_run}/{max_calls})"
+            )
+
+            # Save progress after each sub-tier
+            _save_offices_progress(
+                load_manager, load_id, completed_orgs, len(subtiers),
+                None, 0, False, calls_made, total_fetched, cumulative,
+            )
+
+    except KeyboardInterrupt:
+        click.echo(f"\n  Interrupted. Progress saved ({len(completed_orgs)} sub-tiers done).")
+        _save_offices_progress(
+            load_manager, load_id, completed_orgs, len(subtiers),
+            None, 0, False, calls_made, total_fetched, cumulative,
+        )
+        click.echo("  Run the same command again to continue.")
+        return
+
+    # ---- Check if all sub-tiers are done ----
+    is_complete = len(completed_orgs) >= len(subtiers)
+
+    _save_offices_progress(
+        load_manager, load_id, completed_orgs, len(subtiers),
+        None, 0, is_complete, calls_made, total_fetched, cumulative,
+    )
+
+    if is_complete:
+        load_manager.complete_load(load_id, **cumulative)
+
+    # ---- Summary ----
+    elapsed = time.time() - t_start
+    remaining_after = client._get_remaining_requests()
+    status_str = "COMPLETE" if is_complete else f"PARTIAL ({len(completed_orgs)}/{len(subtiers)} sub-tiers)"
+
+    click.echo(f"\nOffice load {status_str}! ({elapsed:.1f}s)")
+    click.echo(f"  Sub-tiers processed:  {len(completed_orgs):>6,d} / {len(subtiers):,d}")
+    click.echo(f"  Offices fetched:      {total_fetched:>10,d}")
+    click.echo(f"  Records read:         {cumulative['records_read']:>10,d}")
+    click.echo(f"  Records inserted:     {cumulative['records_inserted']:>10,d}")
+    click.echo(f"  Records updated:      {cumulative['records_updated']:>10,d}")
+    click.echo(f"  Records unchanged:    {cumulative['records_unchanged']:>10,d}")
+    click.echo(f"  Records errored:      {cumulative['records_errored']:>10,d}")
+    click.echo(f"  API calls this run:   {calls_this_run:>10,d}")
+    click.echo(f"  API calls total:      {calls_made:>10,d}")
+    click.echo(f"  API calls remaining:  {remaining_after}")
+    if not is_complete:
+        click.echo("  Run the same command again to continue.")
+        if rate_limited and api_key_number == 1:
+            click.echo("  Tip: Use --key=2 for the 1000/day tier.")
+
+
+def _save_offices_progress(load_manager, load_id, completed_orgs, total_subtiers,
+                           current_org, current_page, complete, calls_made,
+                           total_fetched, cumulative):
+    """Save office load progress to etl_load_log."""
+    load_manager.save_load_progress(
+        load_id,
+        parameters={
+            "completed_orgs": completed_orgs,
+            "total_subtiers": total_subtiers,
+            "current_org": current_org,
+            "current_page": current_page,
+            "complete": complete,
+            "calls_made": calls_made,
+            "total_fetched": total_fetched,
+        },
+        **cumulative,
+    )
+
+
 @click.command("search-agencies")
 @click.option("--name", default=None, help="Organization name to search (partial match)")
 @click.option("--code", default=None, help="Agency code to search")
