@@ -103,9 +103,9 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 88 | Documentation Refresh | COMPLETE | [88-DOCUMENTATION-REFRESH.md](phases/completed/88-DOCUMENTATION-REFRESH.md) |
 | 89 | UI Bug Fixes | COMPLETE | [89-UI-BUG-FIXES.md](phases/completed/89-UI-BUG-FIXES.md) |
 | 90 | Smart Daily Load | COMPLETE | [90-SMART-DAILY-LOAD.md](phases/completed/90-SMART-DAILY-LOAD.md) |
-| 91 | Org Intelligence & Auto-Prospects | BACKLOG | [91-ORG-INTELLIGENCE-AND-AUTO-PROSPECTS.md](phases/91-ORG-INTELLIGENCE-AND-AUTO-PROSPECTS.md) |
-| 92 | ETL Bulk Loading Refactor | BACKLOG | [92-ETL-BULK-LOADING.md](phases/92-ETL-BULK-LOADING.md) |
-| 93 | Federal Hierarchy Level 3 Offices | BACKLOG | [93-FEDHIER-LEVEL3-OFFICES.md](phases/93-FEDHIER-LEVEL3-OFFICES.md) |
+| 91 | Org Intelligence & Auto-Prospects | COMPLETE | [91-ORG-INTELLIGENCE-AND-AUTO-PROSPECTS.md](phases/completed/91-ORG-INTELLIGENCE-AND-AUTO-PROSPECTS.md) |
+| 92 | ETL Bulk Loading Refactor | COMPLETE | [92-ETL-BULK-LOADING.md](phases/completed/92-ETL-BULK-LOADING.md) |
+| 93 | Federal Hierarchy Level 3 Offices | COMPLETE | [93-FEDHIER-LEVEL3-OFFICES.md](phases/completed/93-FEDHIER-LEVEL3-OFFICES.md) |
 | 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 
