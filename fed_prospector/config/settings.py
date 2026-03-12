@@ -41,6 +41,15 @@ USASPENDING_API_BASE_URL = "https://api.usaspending.gov"
 # SAM.gov Contract Awards API (replacement for FPDS)
 SAM_CONTRACT_AWARDS_URL = "https://api.sam.gov/contract-awards/v1/search"
 
+# Default awards filters (used when no --naics/--set-aside specified)
+DEFAULT_AWARDS_NAICS = os.getenv(
+    "DEFAULT_AWARDS_NAICS",
+    "336611,488190,519210,541219,541330,541511,541512,541513,541519,"
+    "541611,541612,541613,541690,541990,561110,561210,561510,561990,"
+    "611430,611710,621111,621399,624190,812910"
+)
+DEFAULT_AWARDS_SET_ASIDES = os.getenv("DEFAULT_AWARDS_SET_ASIDES", "8A,WOSB,SBA")
+
 # SAM.gov Subaward Reporting API
 SAM_SUBAWARD_URL = "https://api.sam.gov/prod/contract/v1/subcontracts/search"
 

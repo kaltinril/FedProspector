@@ -7,8 +7,6 @@ disable-model-invocation: true
 
 **Arguments**: `$ARGUMENTS` = `<PageName> <api-entity>` (e.g., `OpportunitySearch opportunities`)
 
-**Pre-check**: If `ui/src/` doesn't exist or Phase 20 foundation isn't in place, warn the user and stop.
-
 ## Files to Create
 
 Read `references/templates.md` for code templates before creating files.

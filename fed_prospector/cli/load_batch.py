@@ -11,9 +11,9 @@ from config.logging_config import setup_logging
 
 
 # Job sequences for each batch mode
-DAILY_SEQUENCE = ["opportunities", "awards", "exclusions", "saved_searches"]
+DAILY_SEQUENCE = ["opportunities", "awards", "saved_searches"]
 FULL_SEQUENCE = [
-    "entity_daily", "opportunities", "awards", "exclusions",
+    "entity_daily", "opportunities", "awards",
     "subawards", "hierarchy", "saved_searches",
 ]
 WEEKLY_SEQUENCE = [
@@ -21,7 +21,7 @@ WEEKLY_SEQUENCE = [
     "subawards", "saved_searches",
 ]
 MONTHLY_SEQUENCE = [
-    "entity_daily", "opportunities", "awards", "exclusions",
+    "entity_daily", "opportunities", "awards",
     "subawards", "hierarchy", "calc_rates", "usaspending", "saved_searches",
 ]
 
@@ -58,11 +58,84 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
     click.echo()
 
     if dry_run:
+        runner = JobRunner()
+        would_run = 0
+        would_skip = 0
         for i, job_name in enumerate(jobs, 1):
             pad = "." * max(1, 25 - len(job_name))
-            click.echo(f"  [{i}/{len(jobs)}] {job_name} {pad} [DRY RUN]")
+            job_def = JOBS.get(job_name)
+            if not job_def:
+                click.echo(f"  [{i}/{len(jobs)}] {job_name} {pad} SKIP (unknown job)")
+                would_skip += 1
+                continue
+
+            source = job_def.get("source_system")
+            staleness_h = job_def.get("staleness_hours")
+
+            if not force and source and staleness_h:
+                status_info = runner.get_job_status(job_name)
+                threshold = job_def.get("daily_freshness_hours", staleness_h / 2)
+                if status_info and status_info.get("hours_since_last_run") is not None:
+                    hours_ago = status_info["hours_since_last_run"]
+                    last_status = status_info.get("last_status")
+                    if last_status == "SUCCESS" and hours_ago < threshold:
+                        click.echo(
+                            f"  [{i}/{len(jobs)}] {job_name} {pad} "
+                            f"SKIP  (fresh - {hours_ago:.0f}h ago, threshold {threshold:.0f}h)"
+                        )
+                        would_skip += 1
+                        continue
+                    elif last_status == "SUCCESS":
+                        click.echo(
+                            f"  [{i}/{len(jobs)}] {job_name} {pad} "
+                            f"RUN   (stale - {hours_ago:.0f}h ago, threshold {threshold:.0f}h)"
+                        )
+                    elif last_status:
+                        click.echo(
+                            f"  [{i}/{len(jobs)}] {job_name} {pad} "
+                            f"RUN   (last {last_status.lower()} {hours_ago:.0f}h ago)"
+                        )
+                    else:
+                        click.echo(
+                            f"  [{i}/{len(jobs)}] {job_name} {pad} "
+                            f"RUN   (never loaded)"
+                        )
+                else:
+                    click.echo(
+                        f"  [{i}/{len(jobs)}] {job_name} {pad} "
+                        f"RUN   (never loaded)"
+                    )
+            else:
+                if force:
+                    click.echo(f"  [{i}/{len(jobs)}] {job_name} {pad} RUN   (--force)")
+                else:
+                    click.echo(f"  [{i}/{len(jobs)}] {job_name} {pad} RUN   (no freshness tracking)")
+            # Show awards parameter preview
+            if job_name == "awards":
+                try:
+                    from etl.load_manager import LoadManager
+                    from config import settings
+                    lm = LoadManager()
+                    wm = lm.get_watermark("SAM_AWARDS", date_key="date_to")
+                    _, resume_params = lm.get_resumable_load("SAM_AWARDS")
+                    naics_count = len(settings.DEFAULT_AWARDS_NAICS.split(","))
+                    sa_count = len(settings.DEFAULT_AWARDS_SET_ASIDES.split(","))
+                    wm_display = f"{wm} to today" if wm else "none (1yr fallback)"
+                    if resume_params:
+                        done = len(resume_params.get("completed_combos", []))
+                        cur_sa = resume_params.get("current_set_aside", "?")
+                        cur_n = resume_params.get("current_naics", "?")
+                        cur_p = resume_params.get("current_page", 0)
+                        resume_display = f"{done} done, next: {cur_sa}/{cur_n} pg {cur_p}"
+                    else:
+                        resume_display = "none"
+                    click.echo(f"         watermark: {wm_display} | {naics_count} NAICS x {sa_count} set-asides | resume: {resume_display}")
+                except Exception:
+                    pass  # Don't let preview errors block dry-run
+
+            would_run += 1
         click.echo(f"\n=== Summary ===")
-        click.echo(f"  [DRY RUN] {len(jobs)} jobs would run")
+        click.echo(f"  [DRY RUN] {would_run} would run, {would_skip} would skip (fresh)")
         return
 
     runner = JobRunner()
@@ -88,19 +161,19 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
                 threshold = job_def.get("daily_freshness_hours", job_def["staleness_hours"] / 2)
                 hours_ago = status_info["hours_since_last_run"]
                 last_status = status_info.get("last_status")
-                if last_status == "COMPLETED" and hours_ago < threshold:
+                if last_status == "SUCCESS" and hours_ago < threshold:
                     pad = "." * max(1, 25 - len(job_name))
                     click.echo(
                         f"  [{i}/{len(jobs)}] {job_name} {pad} "
-                        f"SKIP (fresh — completed {hours_ago:.0f}h ago)"
+                        f"SKIP (fresh - {hours_ago:.0f}h ago)"
                     )
                     skipped += 1
                     continue
-                if last_status and last_status != "COMPLETED":
+                if last_status and last_status != "SUCCESS":
                     pad = "." * max(1, 25 - len(job_name))
                     click.echo(
                         f"  [{i}/{len(jobs)}] {job_name} {pad} "
-                        f"(last run {last_status.lower()} {hours_ago:.0f}h ago — re-running)"
+                        f"(last run {last_status.lower()} {hours_ago:.0f}h ago - re-running)"
                     )
 
         # Apply key override for SAM jobs that have --key in their command
@@ -176,15 +249,15 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
 def load_daily(key, full, skip, dry_run, continue_on_failure, force):
     """Run the daily load sequence.
 
-    Standard: opportunities, awards, exclusions, saved_searches
-    Full (--full): entity_daily, opportunities, awards, exclusions,
+    Standard: opportunities, awards, saved_searches
+    Full (--full): entity_daily, opportunities, awards,
                    subawards, hierarchy, saved_searches
 
     Examples:
         python main.py load daily
         python main.py load daily --key 1
         python main.py load daily --full
-        python main.py load daily --skip awards --skip exclusions
+        python main.py load daily --skip awards
         python main.py load daily --dry-run
     """
     sequence = FULL_SEQUENCE if full else DAILY_SEQUENCE
@@ -230,7 +303,7 @@ def load_weekly(key, skip, dry_run, continue_on_failure, force):
 def load_monthly(key, skip, dry_run, continue_on_failure, force):
     """Run the monthly load sequence.
 
-    Sequence: entity_daily, opportunities, awards, exclusions,
+    Sequence: entity_daily, opportunities, awards,
               subawards, hierarchy, calc_rates, usaspending, saved_searches
 
     Examples:

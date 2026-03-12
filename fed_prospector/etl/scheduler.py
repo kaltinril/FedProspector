@@ -72,7 +72,8 @@ JOBS = {
         "daily_freshness_hours": 24,
         "priority": "Medium",
         "catchup_safe": True,
-        "estimated_api_calls": 10,  # Default --max-calls
+        # 24 NAICS x 3 set-asides; budget-limited per run, resume handles multi-day completion
+        "estimated_api_calls": 72,
     },
     "calc_rates": {
         "description": "Refresh GSA CALC+ labor rates",

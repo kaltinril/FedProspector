@@ -164,3 +164,80 @@ class LoadManager:
         finally:
             cursor.close()
             conn.close()
+
+    def cleanup_stale_running(self, source_system):
+        """Mark RUNNING loads older than 2 hours as FAILED (crashed process cleanup)."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE etl_load_log SET status = 'FAILED', "
+                "completed_at = NOW(), error_message = 'Stale RUNNING load cleaned up (>2 hours)' "
+                "WHERE source_system = %s AND status = 'RUNNING' "
+                "AND started_at < NOW() - INTERVAL 2 HOUR",
+                (source_system,)
+            )
+            affected = cursor.rowcount
+            conn.commit()
+            if affected:
+                self.logger.info(f"Cleaned up {affected} stale RUNNING load(s) for {source_system}")
+            return affected
+        finally:
+            cursor.close()
+            conn.close()
+
+    def get_resumable_load(self, source_system):
+        """Find the most recent incomplete (but checkpointed) load for resume.
+
+        Returns (row_dict, parsed_parameters) or (None, None).
+        Only matches Phase 90+ loads that have explicit "complete": false.
+        Old loads without the 'complete' field are ignored.
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT * FROM etl_load_log "
+                "WHERE source_system = %s AND status = 'SUCCESS' "
+                "AND JSON_EXTRACT(parameters, '$.complete') = false "
+                "ORDER BY started_at DESC LIMIT 1",
+                (source_system,)
+            )
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if row and row.get("parameters"):
+            import json
+            return row, json.loads(row["parameters"])
+        return None, None
+
+    def get_watermark(self, source_system, date_key="date_to"):
+        """Get the high-water mark date from the last completed load.
+
+        Old loads (no 'complete' field) are treated as completed (NULL IS NULL).
+        Phase 90+ loads must have 'complete': true to be treated as completed.
+        Returns the date string or None.
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT parameters FROM etl_load_log "
+                "WHERE source_system = %s AND status = 'SUCCESS' "
+                "AND (JSON_EXTRACT(parameters, '$.complete') = true "
+                "    OR JSON_EXTRACT(parameters, '$.complete') IS NULL) "
+                "ORDER BY started_at DESC LIMIT 1",
+                (source_system,)
+            )
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if row and row.get("parameters"):
+            import json
+            params = json.loads(row["parameters"])
+            return params.get(date_key)
+        return None
