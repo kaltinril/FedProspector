@@ -205,7 +205,7 @@ public class AutoProspectService : IAutoProspectService
                 && c.UltimateCompletionDate <= cutoff
                 && c.NaicsCode != null
                 && orgNaics.Contains(c.NaicsCode))
-            .Select(c => new { c.SolicitationNumber, c.AgencyId, c.NaicsCode })
+            .Select(c => new { c.SolicitationNumber, c.AgencyId, c.NaicsCode, c.FundingAgencyName })
             .Distinct()
             .ToListAsync();
 
@@ -229,10 +229,10 @@ public class AutoProspectService : IAutoProspectService
             }
 
             // Match by agency + NAICS pattern
-            if (matchedNoticeId == null && !string.IsNullOrEmpty(contract.AgencyId))
+            if (matchedNoticeId == null && !string.IsNullOrEmpty(contract.FundingAgencyName))
             {
                 matchedNoticeId = await _context.Opportunities.AsNoTracking()
-                    .Where(o => o.DepartmentName != null
+                    .Where(o => o.DepartmentName == contract.FundingAgencyName
                         && o.NaicsCode == contract.NaicsCode
                         && o.Active == "Y"
                         && o.ResponseDeadline != null

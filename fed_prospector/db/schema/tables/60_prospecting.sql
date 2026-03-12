@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS app_user (
 CREATE TABLE IF NOT EXISTS prospect (
     prospect_id          INT AUTO_INCREMENT PRIMARY KEY,
     organization_id      INT NOT NULL,
+    source               VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
     notice_id            VARCHAR(100) NOT NULL,
     assigned_to          INT,
     capture_manager_id   INT,
@@ -137,9 +138,15 @@ CREATE TABLE IF NOT EXISTS saved_search (
     is_active            CHAR(1) DEFAULT 'Y',
     last_run_at          DATETIME,
     last_new_results     INT,
+    auto_prospect_enabled CHAR(1) NOT NULL DEFAULT 'N',
+    min_pwin_score       DECIMAL(5,2) NULL DEFAULT 30.0,
+    auto_assign_to       INT NULL,
+    last_auto_run_at     DATETIME NULL,
+    last_auto_created    INT NULL DEFAULT 0,
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_ss_user FOREIGN KEY (user_id) REFERENCES app_user(user_id),
     CONSTRAINT fk_ss_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    CONSTRAINT fk_ss_auto_user FOREIGN KEY (auto_assign_to) REFERENCES app_user(user_id),
     INDEX idx_ss_org (organization_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -190,6 +190,24 @@ CREATE TABLE IF NOT EXISTS organization_past_performance (
     INDEX idx_orgperf_org (organization_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Organization intelligence (Phase 91 — track entities of interest per org)
+
+CREATE TABLE IF NOT EXISTS organization_entity (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id INT NOT NULL,
+    uei_sam         VARCHAR(12) NOT NULL,
+    relationship    VARCHAR(20) NOT NULL,
+    is_active       CHAR(1) NOT NULL DEFAULT 'Y',
+    added_by        INT NULL,
+    notes           TEXT NULL,
+    created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_org_entity (organization_id, uei_sam, relationship),
+    CONSTRAINT fk_oe_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id),
+    CONSTRAINT fk_oe_entity FOREIGN KEY (uei_sam) REFERENCES entity(uei_sam),
+    CONSTRAINT fk_oe_user FOREIGN KEY (added_by) REFERENCES app_user(user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- =============================================================================
 -- Migration: Phase 44.3 Batch 1 (Item 1.1) — POC data loading
 -- Run against existing databases that already have the contracting_officer table.
