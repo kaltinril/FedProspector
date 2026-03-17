@@ -15,6 +15,7 @@ import {
   CircularProgress,
 } from '@mui/material';
 
+import axios from 'axios';
 import * as authApi from '@/api/auth';
 
 const registerSchema = z
@@ -74,23 +75,19 @@ export default function RegisterPage() {
         navigate('/login', { replace: true });
       }, 2000);
     } catch (err: unknown) {
-      if (
-        err &&
-        typeof err === 'object' &&
-        'response' in err &&
-        typeof (err as Record<string, unknown>).response === 'object'
-      ) {
-        const response = (err as { response: { status: number; data?: { message?: string } } })
-          .response;
-        if (response.status === 400) {
-          setError(response.data?.message ?? 'Invalid registration data. Please check your inputs.');
-        } else if (response.status === 409) {
+      if (axios.isAxiosError<{ message?: string }>(err) && err.response) {
+        const { status, data } = err.response;
+        if (status === 400) {
+          setError(data?.message ?? 'Invalid registration data. Please check your inputs.');
+        } else if (status === 409) {
           setError('An account with this email already exists.');
         } else {
-          setError('An unexpected error occurred. Please try again.');
+          setError(data?.message ?? 'An unexpected error occurred. Please try again.');
         }
+      } else if (err instanceof Error) {
+        setError(err.message);
       } else {
-        setError('Unable to connect to the server. Please try again later.');
+        setError('An unexpected error occurred. Please try again later.');
       }
     }
   };

@@ -36,6 +36,7 @@ import {
   useRunSavedSearch,
 } from '@/queries/useSavedSearches';
 import { formatRelative } from '@/utils/dateFormatters';
+import { SAVED_SEARCH_SAVED_SEARCH_SET_ASIDE_OPTIONS } from '@/constants/options';
 import type {
   SavedSearchDto,
   SavedSearchFilterCriteria,
@@ -48,18 +49,6 @@ import type {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
-
-const SET_ASIDE_OPTIONS = [
-  { value: 'SBA', label: 'Small Business' },
-  { value: 'SBP', label: 'Small Business Set-Aside' },
-  { value: '8A', label: '8(a)' },
-  { value: '8AN', label: '8(a) Sole Source' },
-  { value: 'WOSB', label: 'WOSB' },
-  { value: 'EDWOSB', label: 'EDWOSB' },
-  { value: 'HZC', label: 'HUBZone' },
-  { value: 'SDVOSBS', label: 'SDVOSB Sole Source' },
-  { value: 'SDVOSBC', label: 'SDVOSB Competitive' },
-];
 
 const TYPE_OPTIONS = [
   { value: 'o', label: 'Solicitation' },
@@ -241,10 +230,10 @@ function SavedSearchDialog({ open, editing, onClose, onSave, saving }: SavedSear
 
           <Autocomplete
             multiple
-            options={SET_ASIDE_OPTIONS}
+            options={SAVED_SEARCH_SET_ASIDE_OPTIONS}
             getOptionLabel={(o) => o.label}
             isOptionEqualToValue={(a, b) => a.value === b.value}
-            value={SET_ASIDE_OPTIONS.filter((o) =>
+            value={SAVED_SEARCH_SET_ASIDE_OPTIONS.filter((o) =>
               (form.criteria.setAsideCodes ?? []).includes(o.value),
             )}
             onChange={(_e, val) => setCriteria({ setAsideCodes: val.map((v) => v.value) })}

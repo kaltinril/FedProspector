@@ -177,6 +177,11 @@ builder.Services.AddValidatorsFromAssemblyContaining<LoginRequestValidator>();
 
 // --- CORS ---
 var corsOptions = builder.Configuration.GetSection(AppCorsOptions.SectionName).Get<AppCorsOptions>();
+if (corsOptions?.AllowedOrigins is null && !builder.Environment.IsDevelopment())
+{
+    Log.Warning("CORS AllowedOrigins not configured — falling back to http://localhost:5173. " +
+                "Set Cors:AllowedOrigins in appsettings to configure allowed origins for this environment.");
+}
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>

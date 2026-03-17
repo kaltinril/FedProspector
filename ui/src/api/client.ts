@@ -3,6 +3,7 @@ import { dispatchApiError } from '@/utils/apiErrorHandler';
 
 const apiClient = axios.create({
   baseURL: '/api/v1',
+  timeout: 30000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -29,8 +30,13 @@ apiClient.interceptors.request.use((config) => {
 // tab correctly. Cross-tab coordination (e.g., BroadcastChannel) is unnecessary
 // for a small-team tool.
 let isRefreshing = false;
+let isLoggingOut = false;
 let refreshFailCount = 0;
 const MAX_REFRESH_FAILURES = 3;
+
+export function setLoggingOut(value: boolean) {
+  isLoggingOut = value;
+}
 let failedQueue: Array<{
   resolve: (value: unknown) => void;
   reject: (reason: unknown) => void;
@@ -81,6 +87,10 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    if (status === 401 && isLoggingOut) {
+      return Promise.reject(error);
+    }
+
     if (status === 401 && !originalRequest._retry && !originalRequest.url?.startsWith('/auth/')) {
       // If refresh has failed too many times consecutively, skip straight to login
       if (refreshFailCount >= MAX_REFRESH_FAILURES) {
@@ -100,7 +110,7 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        await axios.post('/api/v1/auth/refresh', {}, { withCredentials: true });
+        await apiClient.post('/auth/refresh', {});
         refreshFailCount = 0;
         processQueue(null);
         return apiClient(originalRequest);

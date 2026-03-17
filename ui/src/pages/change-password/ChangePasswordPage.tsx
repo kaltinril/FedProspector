@@ -4,6 +4,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
@@ -11,9 +12,10 @@ import axios from 'axios';
 
 import { useAuth } from '@/auth/useAuth';
 import * as authApi from '@/api/auth';
+import { passwordMeetsRequirements, isPasswordChangeValid } from '@/utils/validation';
 
 export default function ChangePasswordPage() {
-  const { isAuthenticated, forcePasswordChange, logout, clearSession } = useAuth();
+  const { isAuthenticated, forcePasswordChange, logout, clearSession, isLoading } = useAuth();
   const navigate = useNavigate();
 
   const [currentPassword, setCurrentPassword] = useState('');
@@ -22,6 +24,14 @@ export default function ChangePasswordPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  if (isLoading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress size={48} />
+      </Box>
+    );
+  }
+
   // Use <Navigate> instead of navigate() during render to avoid React warnings
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -29,14 +39,6 @@ export default function ChangePasswordPage() {
 
   if (!forcePasswordChange) {
     return <Navigate to="/dashboard" replace />;
-  }
-
-  function passwordValid(): boolean {
-    return (
-      currentPassword.length > 0 &&
-      newPassword.length >= 8 &&
-      newPassword === confirmPassword
-    );
   }
 
   async function handleChangePassword() {
@@ -124,8 +126,8 @@ export default function ChangePasswordPage() {
               fullWidth
               size="small"
               autoComplete="new-password"
-              helperText="Minimum 8 characters"
-              error={newPassword.length > 0 && newPassword.length < 8}
+              helperText="At least 8 characters, one uppercase, one lowercase, and one digit"
+              error={newPassword.length > 0 && !passwordMeetsRequirements(newPassword)}
             />
             <TextField
               label="Confirm New Password"
@@ -149,7 +151,7 @@ export default function ChangePasswordPage() {
               fullWidth
               size="large"
               onClick={handleChangePassword}
-              disabled={!passwordValid() || saving}
+              disabled={!isPasswordChangeValid(currentPassword, newPassword, confirmPassword) || saving}
             >
               Change Password
             </Button>

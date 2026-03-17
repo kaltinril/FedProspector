@@ -15,24 +15,14 @@ import { queryKeys } from '@/queries/queryKeys';
 import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
 import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { AwardSearchResult, AwardSearchParams } from '@/types/api';
-
-const SET_ASIDE_OPTIONS = [
-  { value: 'SBA', label: 'Small Business' },
-  { value: 'SBP', label: 'Small Business Set-Aside' },
-  { value: '8A', label: '8(a)' },
-  { value: '8AN', label: '8(a) Sole Source' },
-  { value: 'WOSB', label: 'WOSB' },
-  { value: 'EDWOSB', label: 'EDWOSB' },
-  { value: 'HZC', label: 'HUBZone' },
-  { value: 'SDVOSBC', label: 'SDVOSB' },
-];
+import { AWARD_SET_ASIDE_OPTIONS } from '@/constants/options';
 
 const FILTER_CONFIGS: FilterConfig[] = [
   { key: 'solicitation', label: 'Solicitation Number', type: 'text' },
   { key: 'naics', label: 'NAICS Code', type: 'text' },
   { key: 'agency', label: 'Agency', type: 'text' },
   { key: 'vendorSearch', label: 'Vendor UEI or Name', type: 'text' },
-  { key: 'setAside', label: 'Set-Aside Type', type: 'select', options: SET_ASIDE_OPTIONS },
+  { key: 'setAside', label: 'Set-Aside Type', type: 'select', options: AWARD_SET_ASIDE_OPTIONS },
   { key: 'minValue', label: 'Award Value Min', type: 'text' },
   { key: 'maxValue', label: 'Award Value Max', type: 'text' },
   { key: 'dateRange', label: 'Date Signed', type: 'dateRange' },

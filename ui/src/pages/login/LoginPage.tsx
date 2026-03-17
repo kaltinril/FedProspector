@@ -19,7 +19,7 @@ import { useAuth } from '@/auth/useAuth';
 
 const loginSchema = z.object({
   email: z.string().min(1, 'Email is required').email('Enter a valid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(1, 'Password is required'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
@@ -72,6 +72,7 @@ export default function LoginPage() {
 
   const onSubmit = async (data: LoginFormData) => {
     setError(null);
+    setSessionExpired(false);
     try {
       await login(data.email, data.password);
       // AuthContext.login calls refreshSession which updates user state.
@@ -89,8 +90,10 @@ export default function LoginPage() {
         } else {
           setError(data?.message ?? data?.error ?? 'An unexpected error occurred. Please try again.');
         }
+      } else if (err instanceof Error) {
+        setError(err.message);
       } else {
-        setError('Unable to connect to the server. Please try again later.');
+        setError('An unexpected error occurred. Please try again later.');
       }
     }
   };

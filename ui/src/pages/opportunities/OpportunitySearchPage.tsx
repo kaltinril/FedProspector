@@ -24,19 +24,11 @@ import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
 import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { OpportunitySearchResult, OpportunitySearchParams } from '@/types/api';
 import { getSetAsideChipProps } from '@/utils/constants';
+import { OPPORTUNITY_SET_ASIDE_OPTIONS } from '@/constants/options';
 
 // ---------------------------------------------------------------------------
 // Filter configuration
 // ---------------------------------------------------------------------------
-
-const SET_ASIDE_OPTIONS = [
-  { value: 'WOSB', label: 'WOSB' },
-  { value: 'EDWOSB', label: 'EDWOSB' },
-  { value: '8(A)', label: '8(a)' },
-  { value: 'HUBZone', label: 'HUBZone' },
-  { value: 'SDVOSB', label: 'SDVOSB' },
-  { value: 'SBA', label: 'Total Small Business' },
-];
 
 const OPEN_ONLY_OPTIONS = [
   { value: 'yes', label: 'Yes' },
@@ -48,7 +40,7 @@ const FILTER_CONFIGS: FilterConfig[] = [
   { key: 'keyword', label: 'Keyword', type: 'text' },
   { key: 'solicitation', label: 'Solicitation #', type: 'text' },
   { key: 'naics', label: 'NAICS Code', type: 'text' },
-  { key: 'setAside', label: 'Set-Aside', type: 'select', options: SET_ASIDE_OPTIONS },
+  { key: 'setAside', label: 'Set-Aside', type: 'select', options: OPPORTUNITY_SET_ASIDE_OPTIONS },
   { key: 'department', label: 'Department', type: 'text' },
   { key: 'state', label: 'State (POP)', type: 'text' },
   { key: 'daysOut', label: 'Days Out', type: 'text' },

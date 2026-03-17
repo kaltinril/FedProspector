@@ -20,23 +20,15 @@ import { createProspect } from '@/api/prospects';
 import { queryKeys } from '@/queries/queryKeys';
 import type { TargetOpportunityDto, TargetSearchParams } from '@/types/api';
 import { getSetAsideChipProps } from '@/utils/constants';
+import { OPPORTUNITY_SET_ASIDE_OPTIONS } from '@/constants/options';
 
 // ---------------------------------------------------------------------------
 // Filter configuration
 // ---------------------------------------------------------------------------
 
-const SET_ASIDE_OPTIONS = [
-  { value: 'WOSB', label: 'WOSB' },
-  { value: 'EDWOSB', label: 'EDWOSB' },
-  { value: '8(A)', label: '8(a)' },
-  { value: 'HUBZone', label: 'HUBZone' },
-  { value: 'SDVOSB', label: 'SDVOSB' },
-  { value: 'SBA', label: 'Total Small Business' },
-];
-
 const FILTER_CONFIGS: FilterConfig[] = [
   { key: 'naicsSector', label: 'NAICS Sector', type: 'text' },
-  { key: 'setAside', label: 'Set-Aside', type: 'select', options: SET_ASIDE_OPTIONS },
+  { key: 'setAside', label: 'Set-Aside', type: 'select', options: OPPORTUNITY_SET_ASIDE_OPTIONS },
   { key: 'department', label: 'Department', type: 'text' },
   { key: 'state', label: 'State (POP)', type: 'text' },
   { key: 'minValue', label: 'Min Value', type: 'text' },

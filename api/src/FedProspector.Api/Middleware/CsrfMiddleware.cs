@@ -18,12 +18,14 @@ public class CsrfMiddleware
         "POST", "PUT", "PATCH", "DELETE"
     };
 
-    // Auth endpoints exempt from CSRF — these establish sessions before a token exists
+    // Auth endpoints exempt from CSRF — these establish sessions before a token exists.
+    // /auth/refresh is NOT exempt: the client already has a CSRF token at that point,
+    // and the refresh_token httpOnly cookie would otherwise be vulnerable to CSRF.
     private static readonly HashSet<string> CsrfExemptPaths = new(StringComparer.OrdinalIgnoreCase)
     {
         "/api/v1/auth/login",
         "/api/v1/auth/register",
-        "/api/v1/auth/refresh"
+        "/api/v1/auth/logout"
     };
 
     public CsrfMiddleware(RequestDelegate next, ILogger<CsrfMiddleware> logger)

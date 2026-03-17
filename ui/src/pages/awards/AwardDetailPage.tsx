@@ -25,6 +25,7 @@ import { getSubawardsByPrime } from '@/api/subawards';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate } from '@/utils/dateFormatters';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
+import { buildPlaceOfPerformance } from '@/utils/format';
 import type { AwardDetail, AwardSearchResult, TransactionDto, MonthlySpendDto, SubawardDetailDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -87,19 +88,6 @@ const transactionColumns: GridColDef<TransactionDto>[] = [
       value ? formatDate(value) : '--',
   },
 ];
-
-// ---------------------------------------------------------------------------
-// Helper: build place of performance string
-// ---------------------------------------------------------------------------
-
-function buildPlaceOfPerformance(award: AwardDetail): string | null {
-  const parts: string[] = [];
-  if (award.popState) parts.push(award.popState);
-  if (award.popCountry && award.popCountry !== 'USA' && award.popCountry !== 'US')
-    parts.push(award.popCountry);
-  if (award.popZip) parts.push(award.popZip);
-  return parts.length > 0 ? parts.join(', ') : null;
-}
 
 // ---------------------------------------------------------------------------
 // Tab: Contract Details

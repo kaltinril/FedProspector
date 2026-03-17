@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
@@ -15,6 +16,7 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { useAuth } from '@/auth/useAuth';
 import * as authApi from '@/api/auth';
 import { formatDate } from '@/utils/dateFormatters';
+import { passwordMeetsRequirements, isPasswordChangeValid } from '@/utils/validation';
 
 export default function ProfilePage() {
   const { user, refreshSession } = useAuth();
@@ -59,20 +61,13 @@ export default function ProfilePage() {
       setEditing(false);
       enqueueSnackbar('Profile updated', { variant: 'success' });
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : 'Failed to update profile';
+      const msg = axios.isAxiosError(err)
+        ? (err.response?.data?.error ?? err.response?.data?.message ?? err.message)
+        : (err instanceof Error ? err.message : 'Failed to update profile');
       setProfileError(msg);
     } finally {
       setProfileSaving(false);
     }
-  }
-
-  function passwordValid(): boolean {
-    return (
-      currentPassword.length > 0 &&
-      newPassword.length >= 8 &&
-      newPassword === confirmPassword
-    );
   }
 
   async function handleChangePassword() {
@@ -85,8 +80,9 @@ export default function ProfilePage() {
       });
       navigate('/login');
     } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : 'Failed to change password';
+      const msg = axios.isAxiosError(err)
+        ? (err.response?.data?.error ?? err.response?.data?.message ?? err.message)
+        : (err instanceof Error ? err.message : 'Failed to change password');
       setPasswordError(msg);
     } finally {
       setPasswordSaving(false);
@@ -209,8 +205,8 @@ export default function ProfilePage() {
               fullWidth
               size="small"
               autoComplete="new-password"
-              helperText="Minimum 8 characters"
-              error={newPassword.length > 0 && newPassword.length < 8}
+              helperText="At least 8 characters, one uppercase, one lowercase, and one digit"
+              error={newPassword.length > 0 && !passwordMeetsRequirements(newPassword)}
             />
             <TextField
               label="Confirm New Password"
@@ -233,7 +229,7 @@ export default function ProfilePage() {
               <Button
                 variant="contained"
                 onClick={handleChangePassword}
-                disabled={!passwordValid() || passwordSaving}
+                disabled={!isPasswordChangeValid(currentPassword, newPassword, confirmPassword) || passwordSaving}
               >
                 Change Password
               </Button>

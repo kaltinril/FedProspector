@@ -47,7 +47,7 @@ Quick reference for FedProspect's auth system and organization isolation model.
 
 - **Middleware**: `CsrfMiddleware` runs on all POST/PUT/PATCH/DELETE requests.
 - **Mechanism**: Double-submit cookie. JS reads `XSRF-TOKEN` cookie, sends it as `X-XSRF-TOKEN` header.
-- **Exempt paths**: `/api/v1/auth/login`, `/api/v1/auth/register`, `/api/v1/auth/refresh` (no token exists yet).
+- **Exempt paths**: `/api/v1/auth/login`, `/api/v1/auth/register` (no token exists yet). `/auth/refresh` requires CSRF since the client already has a token.
 - **Skipped for**: Bearer token auth (non-browser clients).
 
 ## Brute-Force Protections

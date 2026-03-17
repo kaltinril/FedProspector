@@ -52,6 +52,7 @@ import { createSavedSearch } from '@/api/savedSearches';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatDate, formatDateTime } from '@/utils/dateFormatters';
 import { formatCurrency } from '@/utils/formatters';
+import { buildPlaceOfPerformance } from '@/utils/format';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -85,16 +86,6 @@ function getLocationIndicator(
   return 'OCONUS';
 }
 
-function buildPlaceOfPerformance(opp: OpportunityDetail): string {
-  const parts: string[] = [];
-  if (opp.popCity) parts.push(opp.popCity);
-  if (opp.popState) parts.push(opp.popState);
-  if (opp.popZip) parts.push(opp.popZip);
-  if (opp.popCountry && opp.popCountry !== 'USA' && opp.popCountry !== 'US') {
-    parts.push(opp.popCountry);
-  }
-  return parts.length > 0 ? parts.join(', ') : '--';
-}
 
 function parseResourceLinks(raw: string | null | undefined): { label: string; url: string }[] {
   if (!raw) return [];
@@ -183,7 +174,7 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
       },
       {
         label: 'Place of Performance',
-        value: `${buildPlaceOfPerformance(opp)} (${locationIndicator})`,
+        value: `${buildPlaceOfPerformance(opp, '--')} (${locationIndicator})`,
       },
       {
         label: 'Security Clearance',

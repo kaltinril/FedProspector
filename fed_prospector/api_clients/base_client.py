@@ -289,8 +289,7 @@ class BaseAPIClient:
     def get(self, endpoint, params=None, **kwargs):
         """Convenience method for GET requests."""
         url = f"{self.base_url}{endpoint}"
-        if params is None:
-            params = {}
+        params = dict(params or {})
         if self.api_key:  # Only add if non-empty string (Win 4 fix)
             params["api_key"] = self.api_key
         return self._request_with_retry("GET", url, params=params, **kwargs)
@@ -321,8 +320,7 @@ class BaseAPIClient:
             requests.HTTPError: On non-200 HTTP responses after all retries.
         """
         url = f"{self.base_url}{endpoint}"
-        if params is None:
-            params = {}
+        params = dict(params or {})
         if self.api_key:
             params["api_key"] = self.api_key
         return self._request_with_retry("GET", url, params=params, stream=stream, **kwargs)
