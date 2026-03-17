@@ -54,7 +54,7 @@ public class AuthController : ApiControllerBase
         // Set httpOnly cookies for browser clients
         SetAuthCookies(result);
 
-        return Ok(new { result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
+        return Ok(new { Success = true, result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
     }
 
     /// <summary>
@@ -62,31 +62,24 @@ public class AuthController : ApiControllerBase
     /// Clears auth cookies.
     /// </summary>
     [HttpPost("logout")]
-    [Authorize]
+    [AllowAnonymous]
     public async Task<IActionResult> Logout()
     {
+        // Always clear cookies first — client is logged out regardless of token state
+        ClearAuthCookies();
+
         var userIdClaim = User.FindFirst(JwtRegisteredClaimNames.Sub)
                           ?? User.FindFirst(ClaimTypes.NameIdentifier);
 
-        if (userIdClaim is null || !int.TryParse(userIdClaim.Value, out var userId))
+        if (userIdClaim is not null && int.TryParse(userIdClaim.Value, out var userId))
         {
-            return Unauthorized(new { error = "Invalid token." });
+            var rawToken = ExtractAccessToken();
+            if (!string.IsNullOrEmpty(rawToken))
+            {
+                var tokenHash = ComputeSha256Hash(rawToken);
+                await _authService.LogoutAsync(userId, tokenHash);
+            }
         }
-
-        // Extract the raw token from cookie or Authorization header
-        var rawToken = ExtractAccessToken();
-        if (string.IsNullOrEmpty(rawToken))
-        {
-            return Unauthorized(new { error = "Missing token." });
-        }
-
-        var tokenHash = ComputeSha256Hash(rawToken);
-
-        // Always clear cookies first — client is logged out regardless of DB state
-        ClearAuthCookies();
-
-        // Fire-and-forget if session not found; session absence is not a client error
-        await _authService.LogoutAsync(userId, tokenHash);
 
         return Ok(new { message = "Logged out successfully." });
     }
@@ -115,7 +108,7 @@ public class AuthController : ApiControllerBase
         // Set httpOnly cookies for browser clients
         SetAuthCookies(result);
 
-        return Ok(new { result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
+        return Ok(new { Success = true, result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
     }
 
     /// <summary>
@@ -145,7 +138,7 @@ public class AuthController : ApiControllerBase
         // Set new cookies
         SetAuthCookies(result);
 
-        return Ok(new { result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
+        return Ok(new { Success = true, result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
     }
 
     /// <summary>
@@ -190,8 +183,23 @@ public class AuthController : ApiControllerBase
             return Unauthorized(new { error = "Invalid token." });
         }
 
-        var profile = await _authService.GetProfileAsync(userId.Value);
-        return Ok(profile);
+        try
+        {
+            var profile = await _authService.GetProfileAsync(userId.Value);
+            return Ok(profile);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { message = "An unexpected error occurred." });
+        }
     }
 
     /// <summary>
@@ -207,8 +215,23 @@ public class AuthController : ApiControllerBase
             return Unauthorized(new { error = "Invalid token." });
         }
 
-        var profile = await _authService.UpdateProfileAsync(userId.Value, request);
-        return Ok(profile);
+        try
+        {
+            var profile = await _authService.UpdateProfileAsync(userId.Value, request);
+            return Ok(profile);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+        catch (Exception)
+        {
+            return StatusCode(500, new { message = "An unexpected error occurred." });
+        }
     }
 
     /// <summary>

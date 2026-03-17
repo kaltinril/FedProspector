@@ -35,6 +35,7 @@ import {
   refreshSelfEntity,
 } from '@/api/organization';
 import { searchEntities } from '@/api/entities';
+import { queryKeys } from '@/queries/queryKeys';
 import type { OrganizationEntityDto } from '@/types/organization';
 import type { EntitySearchResult } from '@/types/api';
 
@@ -54,56 +55,72 @@ export function OrgEntitiesTab() {
   const [relationship, setRelationship] = useState('SELF');
   const [notes, setNotes] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  const { data: linkedEntities = [], isLoading } = useQuery({
-    queryKey: ['org-entities'],
+  const { data: linkedEntities = [], isLoading, isError, error } = useQuery({
+    queryKey: queryKeys.organization.entities,
     queryFn: getLinkedEntities,
   });
 
   const linkMutation = useMutation({
     mutationFn: linkEntity,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['org-entities'] });
-      queryClient.invalidateQueries({ queryKey: ['org-profile'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.entities });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.profile });
+      setMutationError(null);
       setLinkDialogOpen(false);
       setSelectedEntity(null);
       setNotes('');
-      setSearchResults([]);
-      setSearchQuery('');
     },
   });
 
   const deactivateMutation = useMutation({
     mutationFn: deactivateEntityLink,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['org-entities'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.entities });
+      setMutationError(null);
+    },
+    onError: (err: Error) => {
+      setMutationError(err.message || 'Failed to unlink entity');
     },
   });
 
   const refreshMutation = useMutation({
     mutationFn: refreshSelfEntity,
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['org-entities'] });
-      queryClient.invalidateQueries({ queryKey: ['org-profile'] });
-      queryClient.invalidateQueries({ queryKey: ['org-naics'] });
-      queryClient.invalidateQueries({ queryKey: ['org-certifications'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.entities });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.profile });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.naics });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.certifications });
+      setMutationError(null);
       setSuccessMessage(data.message);
       setTimeout(() => setSuccessMessage(''), 5000);
+    },
+    onError: (err: Error) => {
+      setMutationError(err.message || 'Failed to refresh entity data');
     },
   });
 
   const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
     setSearching(true);
+    setSearchError(null);
     try {
+      const isUei = /^[A-Z0-9]{12}$/i.test(trimmed);
       const result = await searchEntities({
-        name: searchQuery,
-        uei: searchQuery,
+        name: isUei ? undefined : trimmed,
+        uei: isUei ? trimmed : undefined,
         pageSize: 10,
       });
       setSearchResults(result.items);
-    } catch {
+    } catch (err: unknown) {
       setSearchResults([]);
+      const axiosErr = err as { response?: { data?: { error?: string; message?: string } } };
+      setSearchError(
+        axiosErr.response?.data?.error ?? axiosErr.response?.data?.message ?? 'Search failed',
+      );
     }
     setSearching(false);
   };
@@ -153,6 +170,12 @@ export function OrgEntitiesTab() {
         </Alert>
       )}
 
+      {mutationError && (
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setMutationError(null)}>
+          {mutationError}
+        </Alert>
+      )}
+
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h6">Linked Entities</Typography>
         {hasSelf && (
@@ -180,7 +203,7 @@ export function OrgEntitiesTab() {
         <Box sx={{ display: 'flex', gap: 1 }}>
           <TextField
             size="small"
-            placeholder="Search by name, UEI, or CAGE code..."
+            placeholder="Search by name or UEI..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -195,6 +218,12 @@ export function OrgEntitiesTab() {
             Search
           </Button>
         </Box>
+
+        {searchError && (
+          <Alert severity="error" sx={{ mt: 1 }} onClose={() => setSearchError(null)}>
+            {searchError}
+          </Alert>
+        )}
 
         {searchResults.length > 0 && (
           <TableContainer sx={{ mt: 2 }}>
@@ -257,6 +286,10 @@ export function OrgEntitiesTab() {
       {/* Linked entities table */}
       {isLoading ? (
         <CircularProgress />
+      ) : isError ? (
+        <Alert severity="error">
+          Failed to load linked entities: {(error as Error)?.message || 'Unknown error'}
+        </Alert>
       ) : linkedEntities.length === 0 ? (
         <Alert severity="info">
           No entities linked yet. Search above to link your SAM.gov entity.
@@ -321,7 +354,7 @@ export function OrgEntitiesTab() {
       )}
 
       {/* Link confirmation dialog */}
-      <Dialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} disableRestoreFocus maxWidth="sm" fullWidth>
         <DialogTitle>Link Entity</DialogTitle>
         <DialogContent>
           {selectedEntity && (

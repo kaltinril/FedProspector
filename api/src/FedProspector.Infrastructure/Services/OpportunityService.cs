@@ -88,7 +88,7 @@ public class OpportunityService : IOpportunityService
             from sc in stateJoin.DefaultIfEmpty()
             join cc in _context.RefCountryCodes on o.PopCountry equals cc.ThreeCode into countryJoin
             from cc in countryJoin.DefaultIfEmpty()
-            orderby o.ResponseDeadline ascending
+            orderby o.PostedDate descending
             select new OpportunitySearchDto
             {
                 NoticeId = o.NoticeId,
@@ -126,7 +126,13 @@ public class OpportunityService : IOpportunityService
             {
                 "posteddate" => request.SortDescending ? enriched.OrderByDescending(x => x.PostedDate) : enriched.OrderBy(x => x.PostedDate),
                 "title" => request.SortDescending ? enriched.OrderByDescending(x => x.Title) : enriched.OrderBy(x => x.Title),
-                _ => enriched
+                "responsedeadline" => request.SortDescending ? enriched.OrderByDescending(x => x.ResponseDeadline) : enriched.OrderBy(x => x.ResponseDeadline),
+                "departmentname" => request.SortDescending ? enriched.OrderByDescending(x => x.DepartmentName) : enriched.OrderBy(x => x.DepartmentName),
+                "naicscode" => request.SortDescending ? enriched.OrderByDescending(x => x.NaicsCode) : enriched.OrderBy(x => x.NaicsCode),
+                "baseandalloptions" => request.SortDescending ? enriched.OrderByDescending(x => x.BaseAndAllOptions) : enriched.OrderBy(x => x.BaseAndAllOptions),
+                "popstate" => request.SortDescending ? enriched.OrderByDescending(x => x.PopState) : enriched.OrderBy(x => x.PopState),
+                "solicitationnumber" => request.SortDescending ? enriched.OrderByDescending(x => x.SolicitationNumber) : enriched.OrderBy(x => x.SolicitationNumber),
+                _ => request.SortDescending ? enriched.OrderByDescending(x => x.PostedDate) : enriched.OrderBy(x => x.PostedDate)
             };
         }
 
@@ -377,6 +383,11 @@ public class OpportunityService : IOpportunityService
                 "posteddate" => request.SortDescending ? query.OrderByDescending(t => t.PostedDate) : query.OrderBy(t => t.PostedDate),
                 "title" => request.SortDescending ? query.OrderByDescending(t => t.Title) : query.OrderBy(t => t.Title),
                 "awardamount" => request.SortDescending ? query.OrderByDescending(t => t.AwardAmount) : query.OrderBy(t => t.AwardAmount),
+                "solicitationnumber" => request.SortDescending ? query.OrderByDescending(t => t.SolicitationNumber) : query.OrderBy(t => t.SolicitationNumber),
+                "departmentname" => request.SortDescending ? query.OrderByDescending(t => t.DepartmentName) : query.OrderBy(t => t.DepartmentName),
+                "naicscode" => request.SortDescending ? query.OrderByDescending(t => t.NaicsCode) : query.OrderBy(t => t.NaicsCode),
+                "responsedeadline" => request.SortDescending ? query.OrderByDescending(t => t.ResponseDeadline) : query.OrderBy(t => t.ResponseDeadline),
+                "popstate" => request.SortDescending ? query.OrderByDescending(t => t.PopState) : query.OrderBy(t => t.PopState),
                 _ => ordered
             };
         }
@@ -481,9 +492,30 @@ public class OpportunityService : IOpportunityService
                 .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber)
                 .Max(o2 => o2.PostedDate));
 
+        // Apply sort (same fields as SearchAsync)
+        IOrderedQueryable<Core.Models.Opportunity> orderedQuery;
+        if (!string.IsNullOrWhiteSpace(request.SortBy))
+        {
+            orderedQuery = request.SortBy.ToLowerInvariant() switch
+            {
+                "posteddate" => request.SortDescending ? query.OrderByDescending(o => o.PostedDate) : query.OrderBy(o => o.PostedDate),
+                "title" => request.SortDescending ? query.OrderByDescending(o => o.Title) : query.OrderBy(o => o.Title),
+                "solicitationnumber" => request.SortDescending ? query.OrderByDescending(o => o.SolicitationNumber) : query.OrderBy(o => o.SolicitationNumber),
+                "departmentname" => request.SortDescending ? query.OrderByDescending(o => o.DepartmentName) : query.OrderBy(o => o.DepartmentName),
+                "naicscode" => request.SortDescending ? query.OrderByDescending(o => o.NaicsCode) : query.OrderBy(o => o.NaicsCode),
+                "responsedeadline" => request.SortDescending ? query.OrderByDescending(o => o.ResponseDeadline) : query.OrderBy(o => o.ResponseDeadline),
+                "baseandalloptions" => request.SortDescending ? query.OrderByDescending(o => o.AwardAmount) : query.OrderBy(o => o.AwardAmount),
+                "popstate" => request.SortDescending ? query.OrderByDescending(o => o.PopState) : query.OrderBy(o => o.PopState),
+                _ => request.SortDescending ? query.OrderByDescending(o => o.ResponseDeadline) : query.OrderBy(o => o.ResponseDeadline)
+            };
+        }
+        else
+        {
+            orderedQuery = query.OrderBy(o => o.ResponseDeadline);
+        }
+
         // Limit to 5000 rows for CSV export
-        var items = await query
-            .OrderBy(o => o.ResponseDeadline)
+        var items = await orderedQuery
             .Take(5000)
             .Select(o => new
             {

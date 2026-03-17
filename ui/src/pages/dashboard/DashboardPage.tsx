@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
@@ -9,9 +10,12 @@ import Paper from '@mui/material/Paper';
 import Chip from '@mui/material/Chip';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import ListItemSecondaryAction from '@mui/material/ListItemSecondaryAction';
 import Button from '@mui/material/Button';
+import Skeleton from '@mui/material/Skeleton';
+import Alert from '@mui/material/Alert';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
@@ -27,7 +31,10 @@ import { ErrorState } from '@/components/shared/ErrorState';
 import { DataTable } from '@/components/shared/DataTable';
 import { formatCurrency } from '@/utils/formatters';
 import { formatCountdown, formatRelative } from '@/utils/dateFormatters';
-import type { DueOpportunityDto } from '@/types/api';
+import { getRecommendedOpportunities } from '@/api/opportunities';
+import { getExpiringContracts } from '@/api/awards';
+import { queryKeys } from '@/queries/queryKeys';
+import type { DueOpportunityDto, RecommendedOpportunityDto, ExpiringContractDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // StatCard
@@ -124,6 +131,18 @@ const dueColumns: GridColDef[] = [
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { data, isLoading, isError, refetch } = useDashboard();
+
+  const { data: recommendations, isLoading: recsLoading } = useQuery({
+    queryKey: queryKeys.opportunities.recommended(5),
+    queryFn: () => getRecommendedOpportunities(5),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: expiringSoon, isLoading: expiringLoading } = useQuery({
+    queryKey: queryKeys.awards.expiring({ monthsAhead: 6, limit: 5 }),
+    queryFn: () => getExpiringContracts({ monthsAhead: 6, limit: 5 }),
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Compute win rate
   const winRate = useMemo(() => {
@@ -249,7 +268,125 @@ export default function DashboardPage() {
         )}
       </Grid>
 
-      {/* Row 2: Pipeline Overview */}
+      {/* Row 2: Intelligence Widgets */}
+      <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
+        {/* Top Recommendations */}
+        <Grid size={{ xs: 12, md: 7 }}>
+          <Paper sx={{ p: { xs: 2, md: 3 } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">Top Recommendations</Typography>
+              <Button size="small" onClick={() => navigate('/opportunities/recommended')}>
+                View All
+              </Button>
+            </Box>
+            {recsLoading ? (
+              <Box>
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} height={56} sx={{ mb: 0.5 }} />
+                ))}
+              </Box>
+            ) : !recommendations || recommendations.length === 0 ? (
+              <Alert severity="info">
+                No recommendations yet. Link your SAM.gov entity to get started.
+              </Alert>
+            ) : (
+              <List disablePadding>
+                {recommendations.map((rec: RecommendedOpportunityDto) => (
+                  <ListItemButton
+                    key={rec.noticeId}
+                    divider
+                    onClick={() => navigate(`/opportunities/${encodeURIComponent(rec.noticeId)}`)}
+                    sx={{ px: 1 }}
+                  >
+                    <ListItemText
+                      primary={rec.title ?? rec.solicitationNumber ?? rec.noticeId}
+                      secondary={rec.departmentName ?? undefined}
+                      primaryTypographyProps={{ variant: 'body2', fontWeight: 500, noWrap: true }}
+                      secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
+                    />
+                    <Box sx={{ display: 'flex', gap: 1, ml: 1, flexShrink: 0 }}>
+                      {rec.daysRemaining != null && (
+                        <Chip
+                          label={`${rec.daysRemaining}d`}
+                          size="small"
+                          color={rec.daysRemaining < 7 ? 'error' : rec.daysRemaining < 14 ? 'warning' : 'default'}
+                          variant="outlined"
+                        />
+                      )}
+                      <Chip
+                        label={rec.pWinScore}
+                        size="small"
+                        color={rec.pWinScore >= 70 ? 'success' : rec.pWinScore >= 40 ? 'warning' : 'error'}
+                      />
+                    </Box>
+                  </ListItemButton>
+                ))}
+              </List>
+            )}
+          </Paper>
+        </Grid>
+
+        {/* Expiring Soon */}
+        <Grid size={{ xs: 12, md: 5 }}>
+          <Paper sx={{ p: { xs: 2, md: 3 } }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="h6">Expiring Soon</Typography>
+              <Button size="small" onClick={() => navigate('/awards/expiring')}>
+                View All
+              </Button>
+            </Box>
+            {expiringLoading ? (
+              <Box>
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} height={56} sx={{ mb: 0.5 }} />
+                ))}
+              </Box>
+            ) : !expiringSoon || expiringSoon.length === 0 ? (
+              <Alert severity="info">
+                No expiring contracts found matching your NAICS codes.
+              </Alert>
+            ) : (
+              <List disablePadding>
+                {expiringSoon.map((contract: ExpiringContractDto) => (
+                  <ListItemButton
+                    key={contract.piid}
+                    divider
+                    onClick={() => navigate(`/awards/${encodeURIComponent(contract.piid)}`)}
+                    sx={{ px: 1 }}
+                  >
+                    <ListItemText
+                      primary={contract.description ?? contract.piid}
+                      secondary={contract.vendorName ?? undefined}
+                      primaryTypographyProps={{ variant: 'body2', fontWeight: 500, noWrap: true }}
+                      secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
+                    />
+                    <Box sx={{ display: 'flex', gap: 1, ml: 1, flexShrink: 0 }}>
+                      {contract.contractValue != null && (
+                        <Chip
+                          label={formatCurrency(contract.contractValue, true)}
+                          size="small"
+                          variant="outlined"
+                        />
+                      )}
+                      <Chip
+                        label={contract.monthsRemaining != null ? `${contract.monthsRemaining}mo` : '--'}
+                        size="small"
+                        color={
+                          contract.monthsRemaining == null ? 'default' :
+                          contract.monthsRemaining < 3 ? 'error' :
+                          contract.monthsRemaining < 6 ? 'warning' : 'success'
+                        }
+                      />
+                    </Box>
+                  </ListItemButton>
+                ))}
+              </List>
+            )}
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Row 3: Pipeline Overview */}
       <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
           Pipeline Overview

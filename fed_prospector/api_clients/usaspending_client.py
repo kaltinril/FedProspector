@@ -501,29 +501,43 @@ class USASpendingClient(BaseAPIClient):
     # Bulk download
     # -----------------------------------------------------------------
 
-    def request_bulk_download(self, fiscal_year, award_types=None):
-        """Request a bulk CSV download for a fiscal year.
+    def request_bulk_download(self, fiscal_year, award_types=None,
+                              start_date=None, end_date=None):
+        """Request a bulk CSV download for a fiscal year or custom date range.
 
         Args:
-            fiscal_year: Federal fiscal year (e.g. 2025).
+            fiscal_year: Federal fiscal year (e.g. 2025). Ignored when
+                start_date/end_date are provided.
             award_types: List of award type codes. Defaults to CONTRACT_AWARD_TYPES.
+            start_date: Optional start date string (YYYY-MM-DD). When provided
+                with end_date, overrides the fiscal_year date range.
+            end_date: Optional end date string (YYYY-MM-DD).
 
         Returns:
             dict: API response with file_url for download, or status_url
                 for pending downloads.
         """
+        if start_date and end_date:
+            sd = self._format_date(start_date) if not isinstance(start_date, str) else start_date
+            ed = self._format_date(end_date) if not isinstance(end_date, str) else end_date
+            date_range = {"start_date": sd, "end_date": ed}
+            log_label = f"{start_date} to {end_date}"
+        else:
+            date_range = {
+                "start_date": f"{fiscal_year - 1}-10-01",
+                "end_date": f"{fiscal_year}-09-30",
+            }
+            log_label = f"FY{fiscal_year}"
+
         body = {
             "filters": {
                 "prime_award_types": award_types or CONTRACT_AWARD_TYPES,
                 "date_type": "action_date",
-                "date_range": {
-                    "start_date": f"{fiscal_year - 1}-10-01",
-                    "end_date": f"{fiscal_year}-09-30",
-                },
+                "date_range": date_range,
             },
         }
 
-        self.logger.info("Requesting bulk download for FY%d", fiscal_year)
+        self.logger.info("Requesting bulk download for %s", log_label)
         response = self.post(self.BULK_DOWNLOAD_ENDPOINT, json_body=body, timeout=120)
         data = response.json()
         self._validate_response(

@@ -211,15 +211,27 @@ public class ProspectService : IProspectService
         {
             projected = request.SortBy.ToLowerInvariant() switch
             {
-                "responsedeadline" => request.SortDescending
-                    ? projected.OrderByDescending(x => x.ResponseDeadline)
-                    : projected.OrderBy(x => x.ResponseDeadline),
-                "estimatedvalue" => request.SortDescending
-                    ? projected.OrderByDescending(x => x.EstimatedValue)
-                    : projected.OrderBy(x => x.EstimatedValue),
+                "opportunitytitle" => request.SortDescending
+                    ? projected.OrderByDescending(x => x.OpportunityTitle)
+                    : projected.OrderBy(x => x.OpportunityTitle),
+                "status" => request.SortDescending
+                    ? projected.OrderByDescending(x => x.Status)
+                    : projected.OrderBy(x => x.Status),
+                "priority" => request.SortDescending
+                    ? projected.OrderByDescending(x => x.Priority)
+                    : projected.OrderBy(x => x.Priority),
                 "gonogoscore" => request.SortDescending
                     ? projected.OrderByDescending(x => x.GoNoGoScore)
                     : projected.OrderBy(x => x.GoNoGoScore),
+                "assignedtoname" => request.SortDescending
+                    ? projected.OrderByDescending(x => x.AssignedToName)
+                    : projected.OrderBy(x => x.AssignedToName),
+                "estimatedvalue" => request.SortDescending
+                    ? projected.OrderByDescending(x => x.EstimatedValue)
+                    : projected.OrderBy(x => x.EstimatedValue),
+                "responsedeadline" => request.SortDescending
+                    ? projected.OrderByDescending(x => x.ResponseDeadline)
+                    : projected.OrderBy(x => x.ResponseDeadline),
                 "createdat" => request.SortDescending
                     ? projected.OrderByDescending(x => x.CreatedAt)
                     : projected.OrderBy(x => x.CreatedAt),

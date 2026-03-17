@@ -67,6 +67,11 @@ public class EntityService : IEntityService
             ordered = request.SortBy.ToLowerInvariant() switch
             {
                 "name" or "legalbusinessname" => request.SortDescending ? query.OrderByDescending(e => e.LegalBusinessName) : query.OrderBy(e => e.LegalBusinessName),
+                "dbaname" => request.SortDescending ? query.OrderByDescending(e => e.DbaName) : query.OrderBy(e => e.DbaName),
+                "ueisam" => request.SortDescending ? query.OrderByDescending(e => e.UeiSam) : query.OrderBy(e => e.UeiSam),
+                "primarynaics" => request.SortDescending ? query.OrderByDescending(e => e.PrimaryNaics) : query.OrderBy(e => e.PrimaryNaics),
+                "registrationstatus" => request.SortDescending ? query.OrderByDescending(e => e.RegistrationStatus) : query.OrderBy(e => e.RegistrationStatus),
+                "entityurl" => request.SortDescending ? query.OrderByDescending(e => e.EntityUrl) : query.OrderBy(e => e.EntityUrl),
                 "lastupdatedate" => request.SortDescending ? query.OrderByDescending(e => e.LastUpdateDate) : query.OrderBy(e => e.LastUpdateDate),
                 "registrationexpirationdate" => request.SortDescending ? query.OrderByDescending(e => e.RegistrationExpirationDate) : query.OrderBy(e => e.RegistrationExpirationDate),
                 _ => ordered

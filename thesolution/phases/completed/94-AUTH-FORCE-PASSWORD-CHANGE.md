@@ -1,6 +1,6 @@
 # Phase 94: Auth — Force Password Change UI Flow
 
-## Status: PLANNED
+## Status: COMPLETE
 
 ## Problem
 After login, users with `force_password_change = 'Y'` in the DB get 403 Forbidden on ALL API calls. The `ForcePasswordChangeMiddleware` correctly blocks endpoints, but the UI has no handling — it shows a generic "Something went wrong" error wall instead of redirecting to a password change screen.

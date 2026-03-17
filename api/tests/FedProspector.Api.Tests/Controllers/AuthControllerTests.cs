@@ -107,22 +107,22 @@ public class AuthControllerTests
     // --- Logout ---
 
     [Fact]
-    public async Task Logout_NoUserClaim_ReturnsUnauthorized()
+    public async Task Logout_NoUserClaim_ReturnsOk()
     {
-        // No user claims set
+        // No user claims set — logout still succeeds (clears cookies)
         var result = await _controller.Logout();
 
-        result.Should().BeOfType<UnauthorizedObjectResult>();
+        result.Should().BeOfType<OkObjectResult>();
     }
 
     [Fact]
-    public async Task Logout_NoBearerToken_ReturnsUnauthorized()
+    public async Task Logout_NoBearerToken_ReturnsOk()
     {
         SetAuthenticatedUser();
 
         var result = await _controller.Logout();
 
-        result.Should().BeOfType<UnauthorizedObjectResult>();
+        result.Should().BeOfType<OkObjectResult>();
     }
 
     [Fact]
@@ -246,15 +246,15 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task GetProfile_UserNotFound_ThrowsKeyNotFound()
+    public async Task GetProfile_UserNotFound_ReturnsNotFound()
     {
         SetAuthenticatedUser(userId: 999);
         _authServiceMock.Setup(s => s.GetProfileAsync(999))
             .ThrowsAsync(new KeyNotFoundException("User not found"));
 
-        var act = () => _controller.GetProfile();
+        var result = await _controller.GetProfile();
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        result.Should().BeOfType<NotFoundObjectResult>();
     }
 
     // --- UpdateProfile ---
@@ -283,28 +283,28 @@ public class AuthControllerTests
     }
 
     [Fact]
-    public async Task UpdateProfile_InvalidOperation_ThrowsInvalidOperation()
+    public async Task UpdateProfile_InvalidOperation_ReturnsBadRequest()
     {
         SetAuthenticatedUser(userId: 2);
         var request = new UpdateProfileRequest { Email = "taken@test.com" };
         _authServiceMock.Setup(s => s.UpdateProfileAsync(2, request))
             .ThrowsAsync(new InvalidOperationException("Email taken"));
 
-        var act = () => _controller.UpdateProfile(request);
+        var result = await _controller.UpdateProfile(request);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        result.Should().BeOfType<BadRequestObjectResult>();
     }
 
     [Fact]
-    public async Task UpdateProfile_UserNotFound_ThrowsKeyNotFound()
+    public async Task UpdateProfile_UserNotFound_ReturnsNotFound()
     {
         SetAuthenticatedUser(userId: 999);
         var request = new UpdateProfileRequest { DisplayName = "test" };
         _authServiceMock.Setup(s => s.UpdateProfileAsync(999, request))
             .ThrowsAsync(new KeyNotFoundException());
 
-        var act = () => _controller.UpdateProfile(request);
+        var result = await _controller.UpdateProfile(request);
 
-        await act.Should().ThrowAsync<KeyNotFoundException>();
+        result.Should().BeOfType<NotFoundObjectResult>();
     }
 }

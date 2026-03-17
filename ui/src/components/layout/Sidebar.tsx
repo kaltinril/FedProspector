@@ -20,6 +20,7 @@ import BookmarkBorderOutlined from '@mui/icons-material/BookmarkBorderOutlined';
 import CorporateFareOutlined from '@mui/icons-material/CorporateFareOutlined';
 import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
 import EventBusyOutlined from '@mui/icons-material/EventBusyOutlined';
+import RecommendOutlined from '@mui/icons-material/RecommendOutlined';
 import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import ChevronRight from '@mui/icons-material/ChevronRight';
@@ -54,19 +55,20 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'Pipeline',
+    items: [
+      { label: 'Recommended', icon: <RecommendOutlined />, route: '/opportunities/recommended' },
+      { label: 'Expiring Contracts', icon: <EventBusyOutlined />, route: '/awards/expiring' },
+      { label: 'Prospects', icon: <TrackChangesOutlined />, route: '/prospects' },
+    ],
+  },
+  {
     title: 'Research',
     items: [
       { label: 'Opportunities', icon: <SearchOutlined />, route: '/opportunities' },
       { label: 'Awards', icon: <EmojiEventsOutlined />, route: '/awards' },
-      { label: 'Expiring Contracts', icon: <EventBusyOutlined />, route: '/awards/expiring' },
       { label: 'Entities', icon: <BusinessOutlined />, route: '/entities' },
       { label: 'Teaming', icon: <GroupsOutlined />, route: '/subawards/teaming' },
-    ],
-  },
-  {
-    title: 'Pipeline',
-    items: [
-      { label: 'Prospects', icon: <TrackChangesOutlined />, route: '/prospects' },
     ],
   },
   {

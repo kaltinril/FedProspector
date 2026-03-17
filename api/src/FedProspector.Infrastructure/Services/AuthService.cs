@@ -75,7 +75,7 @@ public class AuthService : IAuthService
         await ApplyProgressiveDelayAsync(normalizedEmail);
 
         var user = await _db.AppUsers
-            .FirstOrDefaultAsync(u => u.Email == email);
+            .FirstOrDefaultAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
 
         if (user is null)
         {

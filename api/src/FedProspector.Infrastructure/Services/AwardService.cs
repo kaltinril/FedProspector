@@ -80,10 +80,14 @@ public class AwardService : IAwardService
         {
             ordered = request.SortBy.ToLowerInvariant() switch
             {
+                "contractid" => request.SortDescending ? query.OrderByDescending(c => c.ContractId) : query.OrderBy(c => c.ContractId),
                 "datesigned" => request.SortDescending ? query.OrderByDescending(c => c.DateSigned) : query.OrderBy(c => c.DateSigned),
-                "baseandalloptionsvalue" or "value" => request.SortDescending ? query.OrderByDescending(c => c.BaseAndAllOptions) : query.OrderBy(c => c.BaseAndAllOptions),
+                "baseandalloptions" or "baseandalloptionsvalue" or "value" => request.SortDescending ? query.OrderByDescending(c => c.BaseAndAllOptions) : query.OrderBy(c => c.BaseAndAllOptions),
                 "vendorname" => request.SortDescending ? query.OrderByDescending(c => c.VendorName) : query.OrderBy(c => c.VendorName),
                 "agencyname" => request.SortDescending ? query.OrderByDescending(c => c.AgencyName) : query.OrderBy(c => c.AgencyName),
+                "naicscode" => request.SortDescending ? query.OrderByDescending(c => c.NaicsCode) : query.OrderBy(c => c.NaicsCode),
+                "setasidetype" => request.SortDescending ? query.OrderByDescending(c => c.SetAsideType) : query.OrderBy(c => c.SetAsideType),
+                "typeofcontract" => request.SortDescending ? query.OrderByDescending(c => c.TypeOfContract) : query.OrderBy(c => c.TypeOfContract),
                 _ => ordered
             };
         }
@@ -605,10 +609,13 @@ public class AwardService : IAwardService
         {
             ordered = request.SortBy.ToLowerInvariant() switch
             {
+                "contractid" => request.SortDescending ? query.OrderByDescending(ua => ua.Piid) : query.OrderBy(ua => ua.Piid),
                 "datesigned" => request.SortDescending ? query.OrderByDescending(ua => ua.StartDate) : query.OrderBy(ua => ua.StartDate),
-                "baseandalloptionsvalue" or "value" => request.SortDescending ? query.OrderByDescending(ua => ua.BaseAndAllOptionsValue) : query.OrderBy(ua => ua.BaseAndAllOptionsValue),
+                "baseandalloptions" or "baseandalloptionsvalue" or "value" => request.SortDescending ? query.OrderByDescending(ua => ua.BaseAndAllOptionsValue) : query.OrderBy(ua => ua.BaseAndAllOptionsValue),
                 "vendorname" => request.SortDescending ? query.OrderByDescending(ua => ua.RecipientName) : query.OrderBy(ua => ua.RecipientName),
                 "agencyname" => request.SortDescending ? query.OrderByDescending(ua => ua.AwardingAgencyName) : query.OrderBy(ua => ua.AwardingAgencyName),
+                "naicscode" => request.SortDescending ? query.OrderByDescending(ua => ua.NaicsCode) : query.OrderBy(ua => ua.NaicsCode),
+                "setasidetype" => request.SortDescending ? query.OrderByDescending(ua => ua.TypeOfSetAside) : query.OrderBy(ua => ua.TypeOfSetAside),
                 _ => ordered
             };
         }

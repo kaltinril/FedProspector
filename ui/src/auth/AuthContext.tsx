@@ -1,8 +1,9 @@
 import { createContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import axios from 'axios';
+import { useQueryClient } from '@tanstack/react-query';
 import * as authApi from '@/api/auth';
-import { resetRefreshFailCount } from '@/api/client';
+import { resetRefreshFailCount, setLoggingOut } from '@/api/client';
 import type { UserProfileDto } from '@/types/auth';
 
 export interface AuthContextType {
@@ -26,6 +27,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<UserProfileDto | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -59,12 +61,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   const logout = useCallback(async () => {
+    setLoggingOut(true);
     try {
       await authApi.logout();
     } finally {
       setUser(null);
+      queryClient.clear();
+      setLoggingOut(false);
     }
-  }, []);
+  }, [queryClient]);
 
   const clearSession = useCallback(() => {
     setUser(null);

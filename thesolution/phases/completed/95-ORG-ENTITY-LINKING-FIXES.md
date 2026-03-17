@@ -1,6 +1,6 @@
 # Phase 95: Organization — Entity Linking Tab Fixes
 
-## Status: PLANNED
+## Status: COMPLETE
 
 ## Problem
 The Organization page's Entity Linking tab (Phase 91 deliverable) has a critical search bug and several quality gaps compared to the other Organization tabs (Settings, Members, Invites).
