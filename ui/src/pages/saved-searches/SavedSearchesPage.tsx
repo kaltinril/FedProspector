@@ -36,7 +36,7 @@ import {
   useRunSavedSearch,
 } from '@/queries/useSavedSearches';
 import { formatRelative } from '@/utils/dateFormatters';
-import { SAVED_SEARCH_SAVED_SEARCH_SET_ASIDE_OPTIONS } from '@/constants/options';
+import { SAVED_SEARCH_SET_ASIDE_OPTIONS } from '@/constants/options';
 import type {
   SavedSearchDto,
   SavedSearchFilterCriteria,

@@ -116,6 +116,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
         <ListItemButton
           onClick={() => handleNav(item.route)}
           selected={active}
+          aria-current={active ? 'page' : undefined}
           sx={{
             minHeight: 44,
             justifyContent: collapsed ? 'center' : 'initial',

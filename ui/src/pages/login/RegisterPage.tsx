@@ -132,6 +132,7 @@ export default function RegisterPage() {
                 {...register('firstName')}
                 label="First Name"
                 fullWidth
+                autoComplete="given-name"
                 error={!!errors.firstName}
                 helperText={errors.firstName?.message}
               />
@@ -139,6 +140,7 @@ export default function RegisterPage() {
                 {...register('lastName')}
                 label="Last Name"
                 fullWidth
+                autoComplete="family-name"
                 error={!!errors.lastName}
                 helperText={errors.lastName?.message}
               />

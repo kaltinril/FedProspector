@@ -3,6 +3,7 @@ import Box from '@mui/material/Box';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { OrgSettingsTab } from './OrgSettingsTab';
 import { OrgMembersTab } from './OrgMembersTab';
@@ -34,11 +35,11 @@ export default function OrganizationPage() {
         <Tab label="Activity Log" />
       </Tabs>
 
-      {tab === 0 && <OrgSettingsTab />}
-      {tab === 1 && <OrgEntitiesTab />}
-      {tab === 2 && <OrgMembersTab />}
-      {tab === 3 && <OrgInvitesTab />}
-      {tab === 4 && <OrgActivityLogTab />}
+      {tab === 0 && <ErrorBoundary><OrgSettingsTab /></ErrorBoundary>}
+      {tab === 1 && <ErrorBoundary><OrgEntitiesTab /></ErrorBoundary>}
+      {tab === 2 && <ErrorBoundary><OrgMembersTab /></ErrorBoundary>}
+      {tab === 3 && <ErrorBoundary><OrgInvitesTab /></ErrorBoundary>}
+      {tab === 4 && <ErrorBoundary><OrgActivityLogTab /></ErrorBoundary>}
     </Box>
   );
 }

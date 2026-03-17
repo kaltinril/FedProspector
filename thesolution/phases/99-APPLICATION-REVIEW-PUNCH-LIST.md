@@ -1,6 +1,6 @@
 # Phase 99: Application Review Punch List
 
-**Status**: PLANNED
+**Status**: IN PROGRESS
 **Priority**: Mixed (bugs = high, improvements = medium, tech debt = low)
 **Created**: 2026-03-16
 **Source**: Automated high-level review + manual validation across all layers
@@ -13,32 +13,27 @@ Full-stack skim review of the FedProspect application. Initial automated review 
 
 ---
 
-## 1. DATABASE SCHEMA (6 items)
+## 1. DATABASE SCHEMA (2 items)
 
 ### Consistency
 
 | # | File | Issue |
 |---|------|-------|
-| DB-1 | Multiple DDL files | FK naming inconsistent: some use 3-letter prefix (`fk_addr_entity`), others long names (`fk_prospect_opp`) |
-| DB-2 | `70_usaspending.sql:108` | `usaspending_load_checkpoint` uses `utf8mb4_0900_ai_ci` while all other tables use `utf8mb4_unicode_ci` |
-| DB-3 | `20_entity.sql` | `stg_entity_raw` has no FK to `entity`, unlike other staging tables in `80_raw_staging.sql` |
+| DB-1 | `70_usaspending.sql:108` | `usaspending_load_checkpoint` uses `utf8mb4_0900_ai_ci` while all other tables use `utf8mb4_unicode_ci` |
 
 ### Tech Debt
 
 | # | File | Issue |
 |---|------|-------|
-| DB-4 | History tables (`opportunity_history`, `entity_history`, `etl_load_error`, `activity_log`) | No partitioning strategy for high-volume tables. `etl_load_error` grows unbounded |
-
-### Improvements
-
-| # | File | Issue |
-|---|------|-------|
-| DB-5 | `60_prospecting.sql` | Some FK columns lack explicit indexes (`prospect.organization_id`, `prospect.assigned_to`) |
-| DB-6 | `40_federal.sql` | `federal_organization.parent_org_id` has no self-referencing FK (likely intentional for ETL insert-order, but worth documenting) |
+| DB-2 | History tables (`opportunity_history`, `entity_history`, `etl_load_error`, `activity_log`) | No partitioning strategy for high-volume tables. `etl_load_error` grows unbounded |
 
 #### Removed after validation
 - ~~DB-2 (soft-delete conflict)~~: Soft-delete IS the solution — comment in DDL explains it
 - ~~DB-8 (quality rules abandoned)~~: `data_cleaner.py` queries `etl_data_quality_rule`; `entity_loader.py` uses it
+- ~~DB-1 (FK naming)~~: Cosmetic, not worth churn
+- ~~DB-3 (stg_entity_raw FK)~~: No FKs on staging tables by design
+- ~~DB-5 (FK column indexes)~~: MySQL auto-creates indexes for FKs; explicit ones unnecessary
+- ~~DB-6 (self-referencing FK)~~: Intentional — FKs cause ETL load-order problems and block legitimate deletes
 
 ---
 
@@ -105,7 +100,7 @@ Full-stack skim review of the FedProspect application. Initial automated review 
 |---|------|-------|
 | API-6 | `EntitiesController.cs:35,42`, `SubawardsController.cs:34` | No length/format validation on `uei` and `primePiid` string params |
 | API-7 | `ProspectService.cs:46`, `ProposalService.cs:54` | `CreateAsync()` assumes non-null request — no defensive guard |
-| API-8 | All delete services | No FK validation before delete — cryptic DB error instead of user-friendly 400 |
+| ~~API-8~~ | ~~All delete services~~ | ~~No FK validation before delete~~ — removed: FKs intentionally loose, app handles orphans |
 | API-9 | `ProspectService.cs:112-119` | Go/No-Go scoring failure swallowed — prospect created but no activity log for the error |
 | API-10 | `SecurityHeadersMiddleware.cs:17-18` | CSP has `unsafe-inline` for styles, no env-specific config for CDN/fonts |
 | API-11 | `Program.cs:179-189` | CORS falls back to `localhost:5173` if config missing — safe default but should log a warning in non-dev |

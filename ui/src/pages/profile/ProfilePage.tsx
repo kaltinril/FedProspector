@@ -121,6 +121,7 @@ export default function ProfilePage() {
               disabled
               fullWidth
               size="small"
+              autoComplete="username"
             />
             <TextField
               label="Display Name"
@@ -129,6 +130,7 @@ export default function ProfilePage() {
               disabled={!editing}
               fullWidth
               size="small"
+              autoComplete="name"
             />
             <TextField
               label="Email"
@@ -138,6 +140,7 @@ export default function ProfilePage() {
               fullWidth
               size="small"
               type="email"
+              autoComplete="email"
             />
 
             {editing && (

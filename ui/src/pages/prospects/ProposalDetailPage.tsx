@@ -19,6 +19,7 @@ import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
+import { useSnackbar } from 'notistack';
 import { BackToSearch } from '@/components/shared/BackToSearch';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { StatusChip } from '@/components/shared/StatusChip';
@@ -84,6 +85,7 @@ function nextMilestoneStatus(current: string): string {
 
 function EditProposalSection({ proposal }: { proposal: ProposalDetailDto }) {
   const updateProposal = useUpdateProposal();
+  const { enqueueSnackbar } = useSnackbar();
 
   const [status, setStatus] = useState(proposal.proposalStatus);
   const [estimatedValue, setEstimatedValue] = useState(
@@ -97,15 +99,25 @@ function EditProposalSection({ proposal }: { proposal: ProposalDetailDto }) {
   );
 
   const handleSave = () => {
-    updateProposal.mutate({
-      id: proposal.proposalId,
-      data: {
-        status,
-        estimatedValue: estimatedValue ? Number(estimatedValue) : null,
-        winProbabilityPct: winProbability ? Number(winProbability) : null,
-        lessonsLearned: lessonsLearned || null,
+    updateProposal.mutate(
+      {
+        id: proposal.proposalId,
+        data: {
+          status,
+          estimatedValue: estimatedValue ? Number(estimatedValue) : null,
+          winProbabilityPct: winProbability ? Number(winProbability) : null,
+          lessonsLearned: lessonsLearned || null,
+        },
       },
-    });
+      {
+        onSuccess: () => {
+          enqueueSnackbar('Proposal updated', { variant: 'success' });
+        },
+        onError: () => {
+          enqueueSnackbar('Failed to update proposal', { variant: 'error' });
+        },
+      },
+    );
   };
 
   return (
@@ -176,6 +188,7 @@ function EditProposalSection({ proposal }: { proposal: ProposalDetailDto }) {
 function MilestoneTrackerSection({ proposal }: { proposal: ProposalDetailDto }) {
   const createMilestone = useCreateMilestone();
   const updateMilestoneM = useUpdateMilestone();
+  const { enqueueSnackbar } = useSnackbar();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
@@ -198,6 +211,10 @@ function MilestoneTrackerSection({ proposal }: { proposal: ProposalDetailDto }) 
           setNewName('');
           setNewDueDate('');
           setNewAssignedTo('');
+          enqueueSnackbar('Milestone added', { variant: 'success' });
+        },
+        onError: () => {
+          enqueueSnackbar('Failed to add milestone', { variant: 'error' });
         },
       },
     );
@@ -206,14 +223,21 @@ function MilestoneTrackerSection({ proposal }: { proposal: ProposalDetailDto }) 
   const handleStatusCycle = (milestone: ProposalMilestoneDto) => {
     const next = nextMilestoneStatus(milestone.status);
     if (next === milestone.status) return;
-    updateMilestoneM.mutate({
-      proposalId: proposal.proposalId,
-      milestoneId: milestone.milestoneId,
-      data: {
-        status: next,
-        completedDate: next === 'COMPLETED' ? new Date().toISOString() : null,
+    updateMilestoneM.mutate(
+      {
+        proposalId: proposal.proposalId,
+        milestoneId: milestone.milestoneId,
+        data: {
+          status: next,
+          completedDate: next === 'COMPLETED' ? new Date().toISOString() : null,
+        },
       },
-    });
+      {
+        onError: () => {
+          enqueueSnackbar('Failed to update milestone status', { variant: 'error' });
+        },
+      },
+    );
   };
 
   const milestoneStatusColor = (status: string): 'default' | 'warning' | 'success' | 'info' => {
@@ -321,6 +345,7 @@ function MilestoneTrackerSection({ proposal }: { proposal: ProposalDetailDto }) 
 
 function DocumentRegistrySection({ proposal }: { proposal: ProposalDetailDto }) {
   const addDocument = useAddDocument();
+  const { enqueueSnackbar } = useSnackbar();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [docName, setDocName] = useState('');
   const [docType, setDocType] = useState('');
@@ -342,6 +367,10 @@ function DocumentRegistrySection({ proposal }: { proposal: ProposalDetailDto }) 
           setDocName('');
           setDocType('');
           setDocSize('');
+          enqueueSnackbar('Document added', { variant: 'success' });
+        },
+        onError: () => {
+          enqueueSnackbar('Failed to add document', { variant: 'error' });
         },
       },
     );

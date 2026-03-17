@@ -7,8 +7,15 @@ Used by awards, fedhier, usaspending, and opportunity loaders.
 """
 
 import logging
+import time
+
+import mysql.connector
 
 logger = logging.getLogger(__name__)
+
+# Deadlock retry settings
+_MAX_DEADLOCK_RETRIES = 3
+_DEADLOCK_BACKOFF_FACTOR = 0.5  # seconds, multiplied by 2^attempt
 
 
 def build_upsert_sql(table: str, columns: list[str], pk_fields: set[str],
@@ -78,5 +85,17 @@ def executemany_upsert(cursor, sql: str, rows: list[tuple]) -> int:
     if not rows:
         return 0
 
-    cursor.executemany(sql, rows)
-    return cursor.rowcount
+    for attempt in range(_MAX_DEADLOCK_RETRIES + 1):
+        try:
+            cursor.executemany(sql, rows)
+            return cursor.rowcount
+        except mysql.connector.errors.DatabaseError as e:
+            if e.errno == 1213 and attempt < _MAX_DEADLOCK_RETRIES:
+                wait = _DEADLOCK_BACKOFF_FACTOR * (2 ** attempt)
+                logger.warning(
+                    "Deadlock on batch upsert (attempt %d/%d), retrying in %.1fs",
+                    attempt + 1, _MAX_DEADLOCK_RETRIES, wait,
+                )
+                time.sleep(wait)
+            else:
+                raise
