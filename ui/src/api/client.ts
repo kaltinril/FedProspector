@@ -14,7 +14,7 @@ apiClient.interceptors.request.use((config) => {
   const token = document.cookie
     .split('; ')
     .find((row) => row.startsWith('XSRF-TOKEN='))
-    ?.split('=')[1];
+    ?.split('=').slice(1).join('=');
   if (token) {
     config.headers['X-XSRF-TOKEN'] = decodeURIComponent(token);
   } else if (config.method !== 'get' && !config.url?.startsWith('/auth/')) {
@@ -73,6 +73,14 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // 403 Force password change
+    if (status === 403 && error.response?.data?.error === 'Password change required') {
+      if (window.location.pathname !== '/change-password') {
+        window.location.href = '/change-password';
+      }
+      return Promise.reject(error);
+    }
+
     if (status === 401 && !originalRequest._retry && !originalRequest.url?.startsWith('/auth/')) {
       // If refresh has failed too many times consecutively, skip straight to login
       if (refreshFailCount >= MAX_REFRESH_FAILURES) {
@@ -111,5 +119,9 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+export function resetRefreshFailCount() {
+  refreshFailCount = 0;
+}
 
 export default apiClient;

@@ -2,6 +2,7 @@ import { createContext, useState, useEffect, useCallback, useMemo } from 'react'
 import type { ReactNode } from 'react';
 import axios from 'axios';
 import * as authApi from '@/api/auth';
+import { resetRefreshFailCount } from '@/api/client';
 import type { UserProfileDto } from '@/types/auth';
 
 export interface AuthContextType {
@@ -10,8 +11,10 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isOrgAdmin: boolean;
   isSystemAdmin: boolean;
+  forcePasswordChange: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  clearSession: () => void;
   refreshSession: () => Promise<void>;
 }
 
@@ -49,6 +52,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = useCallback(
     async (email: string, password: string) => {
       await authApi.login({ email, password });
+      resetRefreshFailCount();
       await refreshSession();
     },
     [refreshSession],
@@ -62,9 +66,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  const clearSession = useCallback(() => {
+    setUser(null);
+  }, []);
+
   const isAuthenticated = user !== null;
   const isOrgAdmin = user?.isOrgAdmin ?? false;
   const isSystemAdmin = user?.isSystemAdmin ?? false;
+  const forcePasswordChange = user?.forcePasswordChange ?? false;
 
   const value = useMemo<AuthContextType>(
     () => ({
@@ -73,11 +82,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isAuthenticated,
       isOrgAdmin,
       isSystemAdmin,
+      forcePasswordChange,
       login,
       logout,
+      clearSession,
       refreshSession,
     }),
-    [user, isLoading, isAuthenticated, isOrgAdmin, isSystemAdmin, login, logout, refreshSession],
+    [user, isLoading, isAuthenticated, isOrgAdmin, isSystemAdmin, forcePasswordChange, login, logout, clearSession, refreshSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

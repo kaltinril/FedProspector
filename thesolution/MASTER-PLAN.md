@@ -106,7 +106,10 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 91 | Org Intelligence & Auto-Prospects | COMPLETE | [91-ORG-INTELLIGENCE-AND-AUTO-PROSPECTS.md](phases/completed/91-ORG-INTELLIGENCE-AND-AUTO-PROSPECTS.md) |
 | 92 | ETL Bulk Loading Refactor | COMPLETE | [92-ETL-BULK-LOADING.md](phases/completed/92-ETL-BULK-LOADING.md) |
 | 93 | Federal Hierarchy Level 3 Offices | COMPLETE | [93-FEDHIER-LEVEL3-OFFICES.md](phases/completed/93-FEDHIER-LEVEL3-OFFICES.md) |
+| 94 | Auth — Force Password Change UI | IN PROGRESS | [94-AUTH-FORCE-PASSWORD-CHANGE.md](phases/94-AUTH-FORCE-PASSWORD-CHANGE.md) |
+| 95 | Org Entity Linking Fixes | PLANNED | [95-ORG-ENTITY-LINKING-FIXES.md](phases/95-ORG-ENTITY-LINKING-FIXES.md) |
 | 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
+| 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 
 ## Success Criteria

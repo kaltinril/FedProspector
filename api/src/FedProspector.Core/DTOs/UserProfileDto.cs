@@ -11,4 +11,5 @@ public class UserProfileDto
     public bool IsSystemAdmin { get; set; }
     public DateTime? LastLoginAt { get; set; }
     public DateTime? CreatedAt { get; set; }
+    public bool ForcePasswordChange { get; set; }
 }

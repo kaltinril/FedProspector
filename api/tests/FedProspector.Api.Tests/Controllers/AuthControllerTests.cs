@@ -6,6 +6,7 @@ using FedProspector.Core.Interfaces;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
 using Moq;
 
@@ -15,11 +16,13 @@ public class AuthControllerTests
 {
     private readonly Mock<IAuthService> _authServiceMock = new();
     private readonly Mock<ILogger<AuthController>> _loggerMock = new();
+    private readonly Mock<IWebHostEnvironment> _environmentMock = new();
     private readonly AuthController _controller;
 
     public AuthControllerTests()
     {
-        _controller = new AuthController(_authServiceMock.Object, _loggerMock.Object);
+        _environmentMock.Setup(e => e.EnvironmentName).Returns("Development");
+        _controller = new AuthController(_authServiceMock.Object, _loggerMock.Object, _environmentMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

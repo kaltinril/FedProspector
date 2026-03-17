@@ -164,7 +164,8 @@ public class AuthService : IAuthService
             RefreshToken = refreshToken,
             UserId = user.UserId,
             UserName = user.DisplayName,
-            ExpiresAt = accessExpiresAt
+            ExpiresAt = accessExpiresAt,
+            ForcePasswordChange = user.ForcePasswordChange == "Y"
         };
     }
 
@@ -333,7 +334,8 @@ public class AuthService : IAuthService
             RefreshToken = refreshToken,
             UserId = user.UserId,
             UserName = user.DisplayName,
-            ExpiresAt = accessExpiresAt
+            ExpiresAt = accessExpiresAt,
+            ForcePasswordChange = false
         };
     }
 
@@ -513,7 +515,8 @@ public class AuthService : IAuthService
             RefreshToken = newRefreshToken,
             UserId = user.UserId,
             UserName = user.DisplayName,
-            ExpiresAt = accessExpiresAt
+            ExpiresAt = accessExpiresAt,
+            ForcePasswordChange = user.ForcePasswordChange == "Y"
         };
     }
 
@@ -615,7 +618,8 @@ public class AuthService : IAuthService
             IsOrgAdmin = user.IsOrgAdmin == "Y",
             IsSystemAdmin = user.IsSystemAdmin,
             LastLoginAt = user.LastLoginAt,
-            CreatedAt = user.CreatedAt
+            CreatedAt = user.CreatedAt,
+            ForcePasswordChange = user.ForcePasswordChange == "Y"
         };
     }
 

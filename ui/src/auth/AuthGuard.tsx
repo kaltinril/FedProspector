@@ -8,7 +8,7 @@ interface AuthGuardProps {
 }
 
 export function AuthGuard({ children }: AuthGuardProps) {
-  const { isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated, forcePasswordChange } = useAuth();
 
   if (isLoading) {
     return (
@@ -27,6 +27,10 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (forcePasswordChange) {
+    return <Navigate to="/change-password" replace />;
   }
 
   return <>{children}</>;

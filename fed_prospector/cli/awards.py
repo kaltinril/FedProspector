@@ -20,13 +20,16 @@ from config import settings
 @click.option("--years-back", default=None, type=int, help="Years of history to load")
 @click.option("--days-back", default=None, type=int, help="Days of history to load (overrides --years-back)")
 @click.option("--fiscal-year", default=None, type=int, help="Specific fiscal year (overrides --years-back)")
+@click.option("--date-from", "date_from_str", default=None, help="Start date YYYY-MM-DD (overrides --years-back/--days-back)")
+@click.option("--date-to", "date_to_str", default=None, help="End date YYYY-MM-DD (overrides --years-back/--days-back)")
 @click.option("--max-calls", default=10, type=int, help="Max API calls for this invocation (default: 10)")
 @click.option("--key", "api_key_number", default=2, type=click.IntRange(1, 2),
               help="Which SAM API key to use (1 or 2, default: 2)")
 @click.option("--force", "-f", is_flag=True, default=False, help="Skip resume and start fresh")
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would load without making API calls")
 def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
-                days_back, fiscal_year, max_calls, api_key_number, force, dry_run):
+                days_back, fiscal_year, date_from_str, date_to_str,
+                max_calls, api_key_number, force, dry_run):
     """Load contract awards from SAM.gov Contract Awards API.
 
     Supports watermark-based incremental loading, resume after interruption,
@@ -77,11 +80,16 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
     else:
         set_aside_codes = [None]  # Single iteration with no set-aside filter
 
-    # Date range: watermark -> explicit override -> fallback
-    explicit_date_override = fiscal_year is not None or years_back is not None or days_back is not None
+    # Date range: explicit dates -> fiscal year -> days-back -> years-back -> watermark -> fallback
+    explicit_date_override = (date_from_str is not None or date_to_str is not None or
+                              fiscal_year is not None or years_back is not None or days_back is not None)
     watermark_date = None
 
-    if fiscal_year:
+    if date_from_str or date_to_str:
+        from datetime import datetime as dt
+        date_from = dt.strptime(date_from_str, "%Y-%m-%d").date() if date_from_str else today - timedelta(days=365)
+        date_to = dt.strptime(date_to_str, "%Y-%m-%d").date() if date_to_str else today
+    elif fiscal_year:
         date_from = date(fiscal_year - 1, 10, 1)
         date_to = date(fiscal_year, 9, 30)
     elif days_back is not None:
@@ -120,22 +128,16 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
     resume_page = 0
 
     if not force:
-        prev_row, prev_params = load_manager.get_resumable_load("SAM_AWARDS")
+        prev_row, prev_params = load_manager.get_resumable_load("SAM_AWARDS", date_from=str(date_from), date_to=str(date_to))
         if prev_params:
-            # Check if date range + filters match
-            prev_date_from = prev_params.get("date_from", "")
-            prev_date_to = prev_params.get("date_to", "")
-            if prev_date_from == str(date_from) and prev_date_to == str(date_to):
-                completed_combos = list(prev_params.get("completed_combos", []))
-                resume_set_aside = prev_params.get("current_set_aside")
-                resume_naics = prev_params.get("current_naics")
-                resume_page = prev_params.get("current_page", 0)
-                click.echo(f"Resuming from previous partial load (load_id={prev_row['load_id']})")
-                click.echo(f"  Completed combos: {len(completed_combos)}/{len(naics_codes) * len(set_aside_codes)}")
-                if resume_set_aside and resume_naics:
-                    click.echo(f"  Continuing from: {resume_set_aside}/{resume_naics} page {resume_page}")
-            else:
-                click.echo(f"Previous partial load has different date range — starting fresh.")
+            completed_combos = list(prev_params.get("completed_combos", []))
+            resume_set_aside = prev_params.get("current_set_aside")
+            resume_naics = prev_params.get("current_naics")
+            resume_page = prev_params.get("current_page", 0)
+            click.echo(f"Resuming from previous partial load (load_id={prev_row['load_id']})")
+            click.echo(f"  Completed combos: {len(completed_combos)}/{len(naics_codes) * len(set_aside_codes)}")
+            if resume_set_aside and resume_naics:
+                click.echo(f"  Continuing from: {resume_set_aside}/{resume_naics} page {resume_page}")
 
     codes_to_load = naics_codes if naics_codes else [None]
     sa_to_load = set_aside_codes

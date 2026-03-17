@@ -18,11 +18,13 @@ public class AuthController : ApiControllerBase
 {
     private readonly IAuthService _authService;
     private readonly ILogger<AuthController> _logger;
+    private readonly bool _secureCookies;
 
-    public AuthController(IAuthService authService, ILogger<AuthController> logger)
+    public AuthController(IAuthService authService, ILogger<AuthController> logger, IWebHostEnvironment environment)
     {
         _authService = authService;
         _logger = logger;
+        _secureCookies = !environment.IsDevelopment();
     }
 
     /// <summary>
@@ -52,7 +54,7 @@ public class AuthController : ApiControllerBase
         // Set httpOnly cookies for browser clients
         SetAuthCookies(result);
 
-        return Ok(new { result.UserId, result.UserName, result.ExpiresAt });
+        return Ok(new { result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
     }
 
     /// <summary>
@@ -113,7 +115,7 @@ public class AuthController : ApiControllerBase
         // Set httpOnly cookies for browser clients
         SetAuthCookies(result);
 
-        return Ok(new { result.UserId, result.UserName, result.ExpiresAt });
+        return Ok(new { result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
     }
 
     /// <summary>
@@ -143,7 +145,7 @@ public class AuthController : ApiControllerBase
         // Set new cookies
         SetAuthCookies(result);
 
-        return Ok(new { result.UserId, result.UserName, result.ExpiresAt });
+        return Ok(new { result.UserId, result.UserName, result.ExpiresAt, result.ForcePasswordChange });
     }
 
     /// <summary>
@@ -219,7 +221,7 @@ public class AuthController : ApiControllerBase
             Response.Cookies.Append("access_token", result.Token, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = true,
+                Secure = _secureCookies,
                 SameSite = SameSiteMode.Strict,
                 Path = "/api",
                 Expires = result.ExpiresAt
@@ -231,7 +233,7 @@ public class AuthController : ApiControllerBase
             Response.Cookies.Append("refresh_token", result.RefreshToken, new CookieOptions
             {
                 HttpOnly = true,
-                Secure = true,
+                Secure = _secureCookies,
                 SameSite = SameSiteMode.Strict,
                 Path = "/api/v1/auth",
                 Expires = DateTimeOffset.UtcNow.AddDays(7)
@@ -243,7 +245,7 @@ public class AuthController : ApiControllerBase
         Response.Cookies.Append("XSRF-TOKEN", csrfToken, new CookieOptions
         {
             HttpOnly = false,
-            Secure = true,
+            Secure = _secureCookies,
             SameSite = SameSiteMode.Strict,
             Path = "/",
             Expires = result.ExpiresAt
@@ -258,7 +260,7 @@ public class AuthController : ApiControllerBase
         Response.Cookies.Append("access_token", string.Empty, new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
+            Secure = _secureCookies,
             SameSite = SameSiteMode.Strict,
             Path = "/api",
             MaxAge = TimeSpan.Zero
@@ -267,7 +269,7 @@ public class AuthController : ApiControllerBase
         Response.Cookies.Append("refresh_token", string.Empty, new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
+            Secure = _secureCookies,
             SameSite = SameSiteMode.Strict,
             Path = "/api/v1/auth",
             MaxAge = TimeSpan.Zero
@@ -276,7 +278,7 @@ public class AuthController : ApiControllerBase
         Response.Cookies.Append("XSRF-TOKEN", string.Empty, new CookieOptions
         {
             HttpOnly = false,
-            Secure = true,
+            Secure = _secureCookies,
             SameSite = SameSiteMode.Strict,
             Path = "/",
             MaxAge = TimeSpan.Zero

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams, Link as RouterLink, Navigate } from 'react-router-dom';
+import { useSearchParams, Link as RouterLink, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,8 +25,7 @@ const loginSchema = z.object({
 type LoginFormData = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
-  const navigate = useNavigate();
+  const { login, isAuthenticated, forcePasswordChange, isLoading: authLoading } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [sessionExpired, setSessionExpired] = useState(false);
@@ -63,6 +62,10 @@ export default function LoginPage() {
     );
   }
 
+  if (isAuthenticated && forcePasswordChange) {
+    return <Navigate to="/change-password" replace />;
+  }
+
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
@@ -71,7 +74,9 @@ export default function LoginPage() {
     setError(null);
     try {
       await login(data.email, data.password);
-      navigate('/dashboard', { replace: true });
+      // AuthContext.login calls refreshSession which updates user state.
+      // The <Navigate> components above (lines 66-72) handle routing on re-render
+      // based on isAuthenticated and forcePasswordChange — no imperative navigate needed.
     } catch (err: unknown) {
       if (axios.isAxiosError<{ error?: string; message?: string }>(err) && err.response) {
         const { status, data } = err.response;

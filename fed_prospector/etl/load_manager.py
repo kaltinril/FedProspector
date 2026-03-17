@@ -186,30 +186,40 @@ class LoadManager:
             cursor.close()
             conn.close()
 
-    def get_resumable_load(self, source_system):
+    def get_resumable_load(self, source_system, date_from=None, date_to=None):
         """Find the most recent incomplete (but checkpointed) load for resume.
 
         Returns (row_dict, parsed_parameters) or (None, None).
         Only matches Phase 90+ loads that have explicit "complete": false.
         Old loads without the 'complete' field are ignored.
+        When date_from/date_to are provided, only matches loads with that exact date range.
         """
+        import json
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            cursor.execute(
+            sql = (
                 "SELECT * FROM etl_load_log "
                 "WHERE source_system = %s AND status = 'SUCCESS' "
                 "AND JSON_EXTRACT(parameters, '$.complete') = false "
-                "ORDER BY started_at DESC LIMIT 1",
-                (source_system,)
             )
+            params = [source_system]
+
+            if date_from is not None:
+                sql += "AND JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.date_from')) = %s "
+                params.append(date_from)
+            if date_to is not None:
+                sql += "AND JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.date_to')) = %s "
+                params.append(date_to)
+
+            sql += "ORDER BY started_at DESC LIMIT 1"
+            cursor.execute(sql, params)
             row = cursor.fetchone()
         finally:
             cursor.close()
             conn.close()
 
         if row and row.get("parameters"):
-            import json
             return row, json.loads(row["parameters"])
         return None, None
 

@@ -35,6 +35,7 @@ export interface AuthResult {
   userId?: number | null;
   userName?: string | null;
   expiresAt?: string | null;
+  forcePasswordChange: boolean;
 }
 
 /** User profile matching C# UserProfileDto */
@@ -48,4 +49,5 @@ export interface UserProfileDto {
   isSystemAdmin: boolean;
   lastLoginAt?: string | null;
   createdAt?: string | null;
+  forcePasswordChange: boolean;
 }

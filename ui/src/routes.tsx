@@ -8,6 +8,7 @@ import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 
 const LoginPage = lazy(() => import('@/pages/login/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/login/RegisterPage'));
+const ChangePasswordPage = lazy(() => import('@/pages/change-password/ChangePasswordPage'));
 const DashboardPage = lazy(() => import('@/pages/dashboard/DashboardPage'));
 const SetupPage = lazy(() => import('@/pages/setup/SetupPage'));
 const OpportunitySearchPage = lazy(
@@ -81,6 +82,7 @@ export function AppRoutes() {
       {/* Public routes */}
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/change-password" element={<ChangePasswordPage />} />
 
       {/* Authenticated routes with layout */}
       <Route
