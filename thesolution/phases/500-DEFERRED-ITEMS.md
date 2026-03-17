@@ -251,3 +251,106 @@ Implemented as `_check_and_rebuild_indexes()` in `USASpendingBulkLoader`. Runs o
 3. Consider adding richer org-level admin features to the Organization page (audit log, settings, billing)
 
 **Estimated effort**: ~0.5 day
+
+---
+
+### 500N: Phase 99 Punch List Deferrals
+
+**Original phase**: 99
+**Deferred because**: Cosmetic, polish, low-risk tech debt, or items that work correctly but aren't ideal. None affect correctness or security.
+
+#### Database
+
+| # | Issue |
+|---|-------|
+| DB-1 | `usaspending_load_checkpoint` uses different collation than other tables |
+| DB-2 | No partitioning strategy for high-volume history/log tables |
+
+#### ETL Pipeline
+
+| # | Issue |
+|---|-------|
+| ETL-2 | Broad `except Exception` without per-record context logging |
+| ETL-4 | No DB connection health check before `start_load()` |
+| ETL-5 | Batch sizes hardcoded as class constants, not configurable |
+| ETL-7 | Staging batch insert silently falls back to row-by-row |
+| ETL-8 | `etl_load_error` insert failure skews final error count |
+| ETL-9 | No rollback strategy on partial load failure |
+| ETL-10 | Rate counter incremented before response parsing |
+| ETL-12 | `max_pages` pagination cutoff — callers unaware results truncated |
+| ETL-13 | Monkey-patches `PooledMySQLConnection` — fragile on library upgrade |
+| ETL-14 | Pool size default and tuning guidance undocumented |
+| ETL-15 | No request deduplication across retries |
+
+#### C# API
+
+| # | Issue |
+|---|-------|
+| API-2 | Inconsistent null check order on org/user resolution |
+| API-3 | Mixed exception types for missing resources |
+| API-4 | Invalid query params silently coerced instead of 400 |
+| API-5 | Rate limit policy names are magic strings |
+| API-6 | No length/format validation on UEI and PIID params |
+| API-7 | `CreateAsync()` assumes non-null request |
+| API-9 | Go/No-Go scoring failure swallowed silently |
+| API-10 | CSP `unsafe-inline` for styles, no env-specific config |
+| API-12 | Status flow dictionaries hardcoded as static fields |
+| API-13 | ForcePasswordChange allowed paths hardcoded |
+| API-14 | ReferenceController has no tests (read-only static data) |
+
+#### React UI
+
+| # | Issue |
+|---|-------|
+| UI-2 | AwardDetailPage error state doesn't distinguish sub-queries |
+| UI-4 | Dashboard loading skeletons missing for some queries |
+| UI-5 | `useRemoveTeamMember` has no error UI |
+| UI-6 | `refreshSession` doesn't notify user of network errors |
+| UI-7 | `navigator.clipboard.writeText` no error handling |
+| UI-8 | No UEI format validation before API call |
+| UI-9 | `searchResults` local state won't auto-update on mutation |
+| UI-11 | No cross-step validation in setup wizard |
+| UI-12 | `NotFoundLayout` shows blank instead of spinner |
+| UI-13 | Stale times vary widely with no documented rationale |
+| UI-14 | Mixed error notification patterns across pages |
+| UI-15 | TabbedDetailPage missing ARIA attributes |
+| UI-16 | DataTable skeleton/loading patterns inconsistent |
+| UI-17 | Dashboard sections load without skeleton placeholders |
+| UI-18 | OrganizationsTab no loading skeleton |
+| UI-21 | Redundant `resourceLinks` types in DTOs |
+| UI-22 | No cross-tab refresh coordination |
+| UI-23 | OrgEntitiesTab entity search uses manual await instead of useQuery |
+| UI-26 | DataTable `aria-label` prop rarely used by instances |
+| UI-27 | PWIN_FORMULA table has no semantic table element |
+
+#### Python CLI
+
+| # | Issue |
+|---|-------|
+| CLI-1 | "No API calls remaining" doesn't suggest `--key=1` fallback |
+| CLI-2 | Error leaks implementation details about record counts |
+| CLI-3 | Inconsistent exit codes across commands |
+| CLI-4 | Mixed severity logging for SQL errors |
+| CLI-5 | `hc.save_snapshot()` failure only logged as warning |
+| CLI-6 | Subprocess failures printed but not logged |
+| CLI-7 | `dry_run` flag checked in 6+ places — duplicated logic |
+| CLI-8 | CLI commands mixed with business logic |
+
+#### Test Coverage Gaps (moved from Phase 99 remaining)
+
+| # | Issue |
+|---|-------|
+| API-15 | 8 intelligence services missing unit tests (CompanyProfileService, ExpiringContractService, MarketIntelService, OrganizationEntityService, PWinService, QualificationService, RecommendedOpportunityService, AutoProspectService) |
+| TEST-1 | `etl/demand_loader.py` has no tests |
+| TEST-2 | `etl/resource_link_resolver.py` has no tests |
+| TEST-3 | CLI: `calc`, `fedhier`, `spending`, `exclusions`, `subaward` commands not covered |
+| TEST-4 | CLI: All 8 admin commands have no tests |
+| TEST-5 | CLI: `update` commands (link-metadata, fetch-descriptions, build-relationships) no tests |
+| TEST-6 | CLI: `demand` process-requests no tests |
+| TEST-9 | Pre-existing test failure: `test_all_valid_note_types_accepted[STATUS_CHANGE]` |
+
+#### Cross-Cutting
+
+| # | Issue |
+|---|-------|
+| CROSS-1 | Audit for hardcoded absolute paths — file paths should be relative or configurable via env vars |

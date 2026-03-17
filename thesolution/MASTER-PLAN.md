@@ -111,7 +111,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 96 | Intelligence-First UI | COMPLETE | [96-INTELLIGENCE-FIRST-UI.md](phases/completed/96-INTELLIGENCE-FIRST-UI.md) |
 | 97 | USASpending Bulk — `--check-available` | PLANNED | [97-USASPENDING-CHECK-AVAILABLE.md](phases/97-USASPENDING-CHECK-AVAILABLE.md) |
 | 98 | API Sorting Fixes | PLANNED | [phases/98-API-SORTING-FIXES.md](phases/98-API-SORTING-FIXES.md) |
-| 99 | Application Review Punch List | IN PROGRESS | [99-APPLICATION-REVIEW-PUNCH-LIST.md](phases/99-APPLICATION-REVIEW-PUNCH-LIST.md) |
+| 99 | Application Review Punch List | COMPLETE | [99-APPLICATION-REVIEW-PUNCH-LIST.md](phases/completed/99-APPLICATION-REVIEW-PUNCH-LIST.md) |
 | 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
