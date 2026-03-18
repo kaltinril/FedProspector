@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     classification_code  VARCHAR(10),
     naics_code           VARCHAR(6),
     pop_state            VARCHAR(6),       -- ISO 3166-2 subdivision: US='VA', foreign='IN-MH'
-    pop_zip              VARCHAR(10),
+    pop_zip              VARCHAR(20),      -- Military APO/FPO zips can be 17+ chars
     pop_country          VARCHAR(3),
     pop_city             VARCHAR(100),
     period_of_performance_start DATE,      -- Reserved: not in public Opportunities API v2 response
@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS opportunity (
     awardee_name         VARCHAR(200),
     awardee_cage_code    VARCHAR(10),
     awardee_city         VARCHAR(100),
-    awardee_state        VARCHAR(6),
-    awardee_zip          VARCHAR(10),
+    awardee_state        VARCHAR(50),
+    awardee_zip          VARCHAR(20),      -- Military APO/FPO zips can be 17+ chars
     full_parent_path_name VARCHAR(500),
     full_parent_path_code VARCHAR(200),
     description_url      VARCHAR(500),      -- URL to fetch description text via SAM.gov API
@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS opportunity_relationship (
 -- =============================================================================
 -- ALTER TABLE opportunity ADD COLUMN awardee_cage_code VARCHAR(10) AFTER awardee_name;
 -- ALTER TABLE opportunity ADD COLUMN awardee_city VARCHAR(100) AFTER awardee_cage_code;
--- ALTER TABLE opportunity ADD COLUMN awardee_state VARCHAR(6) AFTER awardee_city;
+-- ALTER TABLE opportunity ADD COLUMN awardee_state VARCHAR(50) AFTER awardee_city;
 -- ALTER TABLE opportunity ADD COLUMN awardee_zip VARCHAR(10) AFTER awardee_state;
 -- ALTER TABLE opportunity ADD COLUMN full_parent_path_name VARCHAR(500) AFTER awardee_zip;
 -- ALTER TABLE opportunity ADD COLUMN full_parent_path_code VARCHAR(200) AFTER full_parent_path_name;

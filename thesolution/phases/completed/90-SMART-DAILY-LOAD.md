@@ -203,7 +203,7 @@ In the dry-run path, after freshness status, show key parameters:
 1. **Awards API uses PAGE INDEX pagination** (offset = page number, not record offset) — different from Opportunities API
 2. **`totalRecords` returned as STRING** — must `int()` parse
 3. **Date format is `[MM/DD/YYYY,MM/DD/YYYY]`** — not ISO 8601
-4. **Only ONE set-aside per request** — can't pass multiple; must loop through each
+4. **Set-aside filter is optional** — omit `typeOfSetAside` to return all opportunities regardless of set-aside type
 5. **Offset-shifting risk** — new records can shift page offsets between runs; mitigated by watermark (fresh date window each run)
 6. **Shared 1,000/day rate limit** across ALL SAM APIs — budget must account for opportunities, entities, hierarchy too
 

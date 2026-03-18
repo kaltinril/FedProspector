@@ -7,6 +7,7 @@ Follows the same patterns as entity_loader.py.
 
 import json
 import logging
+import re
 from datetime import datetime, date, timezone
 from decimal import Decimal, InvalidOperation
 
@@ -305,8 +306,15 @@ class OpportunityLoader(StagingMixin):
                                 existing_hashes[notice_id] = new_hash
                             except Exception as rec_exc:
                                 stats["records_errored"] += 1
+                                # Extract column name from "Data too long for column 'X'" errors
+                                err_detail = str(rec_exc)
+                                col_match = re.search(r"column '(\w+)'", err_detail)
+                                if col_match and opp_data:
+                                    col_name = col_match.group(1)
+                                    val = opp_data.get(col_name)
+                                    err_detail += f" — len={len(str(val)) if val else 0}, value={val!r}"
                                 self.logger.warning(
-                                    "Error processing %s: %s", notice_id, rec_exc
+                                    "Error processing %s: %s", notice_id, err_detail
                                 )
                                 self.load_manager.log_record_error(
                                     load_id,
@@ -327,7 +335,8 @@ class OpportunityLoader(StagingMixin):
 
                 conn.commit()
 
-                if stats["records_read"] % self.BATCH_SIZE == 0:
+                # Progress logging only at 5000+ record intervals to reduce noise
+                if stats["records_read"] % 5000 == 0:
                     self.logger.info(
                         "Progress: read=%d ins=%d upd=%d unch=%d err=%d",
                         stats["records_read"],

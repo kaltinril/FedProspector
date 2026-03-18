@@ -119,6 +119,12 @@ class SAMOpportunityClient(BaseAPIClient):
             RateLimitExceeded: If daily API limit is reached during pagination.
             requests.HTTPError: On non-retryable HTTP errors.
         """
+        if naics is not None and "," in str(naics):
+            raise ValueError(
+                "SAM.gov Opportunities API only accepts a single NAICS code per call. "
+                "Split comma-separated codes at the CLI layer and make one call per code."
+            )
+
         date_chunks = self._split_date_range(posted_from, posted_to)
 
         set_aside_label = set_aside or "all"
@@ -209,6 +215,12 @@ class SAMOpportunityClient(BaseAPIClient):
         Raises:
             RateLimitExceeded: If daily API limit is reached.
         """
+        if naics is not None and "," in str(naics):
+            raise ValueError(
+                "SAM.gov Opportunities API only accepts a single NAICS code per call. "
+                "Split comma-separated codes at the CLI layer and make one call per code."
+            )
+
         date_chunks = self._split_date_range(posted_from, posted_to)
 
         set_aside_label = set_aside or "all"
@@ -345,6 +357,12 @@ class SAMOpportunityClient(BaseAPIClient):
         WOSB, EDWOSB, WOSBSS, EDWOSBSS. Results are deduplicated by
         noticeId.
 
+        Note: The CLI load command now handles multi-set-aside iteration
+        directly. Omitting typeOfSetAside from the API call returns all
+        set-aside types in a single request. This method remains available
+        for programmatic use cases that need WOSB-specific filtering with
+        deduplication.
+
         Args:
             posted_from: Start date.
             posted_to: End date.
@@ -364,6 +382,12 @@ class SAMOpportunityClient(BaseAPIClient):
 
         Makes separate API calls for each 8(a)-related set-aside code:
         8A, 8AN. Results are deduplicated by noticeId.
+
+        Note: The CLI load command now handles multi-set-aside iteration
+        directly. Omitting typeOfSetAside from the API call returns all
+        set-aside types in a single request. This method remains available
+        for programmatic use cases that need 8(a)-specific filtering with
+        deduplication.
 
         Args:
             posted_from: Start date.
@@ -386,6 +410,12 @@ class SAMOpportunityClient(BaseAPIClient):
         deduplicated by noticeId. Respects the instance call_budget;
         set-aside types are queried in priority order so the most
         important ones are fetched first if the budget runs out.
+
+        Note: The CLI load command now handles multi-set-aside iteration
+        directly. Omitting typeOfSetAside from the API call returns all
+        set-aside types in a single request. This method remains available
+        for programmatic use cases that need batch loading with
+        deduplication.
 
         Args:
             posted_from: Start date.

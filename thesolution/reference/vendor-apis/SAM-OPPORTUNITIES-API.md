@@ -29,7 +29,7 @@ Beyond active bidding, the Opportunities API data enables competitive intelligen
 
 | Parameter | Type | Example | Notes |
 |-----------|------|---------|-------|
-| `typeOfSetAside` | string | `WOSB` | Set-aside code. **Only ONE value per request.** |
+| `typeOfSetAside` | string | `WOSB` | Set-aside code. Omit to return all opportunities regardless of set-aside. |
 | `postedFrom` | string | `01/01/2026` | Start date (required with `limit`). `MM/dd/yyyy` format. |
 | `postedTo` | string | `03/01/2026` | End date (required with `limit`). `MM/dd/yyyy` format. |
 | `ncode` | string | `541511` | NAICS code filter (max 6 digits). |
@@ -164,7 +164,7 @@ The response includes `totalRecords` indicating the total result count for the q
 
 1. **365-day range rejection**: The API rejects date ranges of exactly 365 days with the error "Date range must be null year(s) apart." Our client uses a maximum of 364 days per chunk (`MAX_DATE_RANGE_DAYS = 364`) to stay safely under the limit.
 
-2. **Only ONE set-aside per request**: The `typeOfSetAside` parameter accepts only a single value. To search across WOSB, EDWOSB, 8A, and 8AN, you must make 4 separate API calls. Our client's `_search_multiple_set_asides()` method handles this with deduplication by `noticeId`.
+2. **Set-aside filter is optional**: Omitting `typeOfSetAside` returns opportunities of ALL set-aside types (including non-SB). A single value like `WOSB` filters to that type. Whether comma-separated values are accepted is untested — our loader omits the parameter to fetch all, then filters locally if needed.
 
 3. **Feb 29 rejection**: The API rejects February 29 as a start date in leap years. Our historical loader skips leap day.
 

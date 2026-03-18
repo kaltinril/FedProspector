@@ -15,10 +15,11 @@ from config import settings
 @click.option("--days-back", default=7, type=int,
               help="Load opportunities posted in the last N days (default: 7)")
 @click.option("--set-aside", "set_aside", default=None,
-              help="Filter by set-aside code (e.g., WOSB, 8A, SBA). "
-                   "If not specified, loads priority set-asides within call budget.")
+              help="Set-aside filter. Comma-separated codes (WOSB,8A), "
+                   "'all' for all 12 SB types. "
+                   "Default: none (fetches all types, filter in the app).")
 @click.option("--naics", default=None,
-              help="Filter by NAICS code")
+              help="NAICS code(s) to search -- comma-separated for multiple: 541512,541511")
 @click.option("--posted-from", "posted_from", default=None,
               help="Start date (MM/dd/yyyy) - overrides --days-back")
 @click.option("--posted-to", "posted_to", default=None,
@@ -45,17 +46,27 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     10/day free-tier limit), saving the other 5 for entity/other work.
     Use --max-calls to adjust.
 
-    When no --set-aside is specified, loads the top 4 priority set-asides
-    (WOSB, EDWOSB, 8A, 8AN) which fit within the 5-call budget for date
-    ranges up to 1 year.
+    Set-aside behaviour:
+      (omitted)       Use org's certification-based set-asides from DB
+      --set-aside none     Omit typeOfSetAside param (returns ALL types)
+      --set-aside all      All 12 SB set-aside codes, one call each
+      --set-aside WOSB,8A  Specific codes, one call per code
+      --set-aside WOSB     Single code
+
+    NAICS behaviour:
+      (omitted)            No NAICS filter (fetch all)
+      --naics 541511       Single NAICS code
+      --naics 541511,541512  Comma-separated, one API sweep per code
 
     WARNING: Each API call uses 1 of your daily API calls. Multiple
-    set-aside types and date chunks each require separate API calls.
+    NAICS codes and set-aside types each require separate API calls.
 
     Examples:
         python main.py load opportunities
         python main.py load opportunities --days-back=30
         python main.py load opportunities --set-aside=WOSB --naics=541511
+        python main.py load opportunities --set-aside=none --naics=541511,541512
+        python main.py load opportunities --set-aside=all --max-calls=20
         python main.py load opportunities --posted-from=01/01/2026 --posted-to=02/01/2026
         python main.py load opportunities --historical
         python main.py load opportunities --max-calls=8
@@ -106,27 +117,45 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     posted_from_str = dt_from.isoformat()
     posted_to_str = dt_to.isoformat()
 
+    # --- Parse NAICS codes ---
+    naics_codes = [c.strip() for c in naics.split(',') if c.strip()] if naics else []
+    # For iteration: [None] means "no NAICS filter"
+    naics_codes_to_load = naics_codes if naics_codes else [None]
+
     # --- Determine which set-aside codes to query ---
-    if set_aside:
-        # User specified a single set-aside type
-        query_codes = [set_aside]
-        set_aside_label = set_aside
-        is_multi = False
+    sa_strategy = "default"  # for display
+    if set_aside is not None:
+        sa_lower = set_aside.strip().lower()
+        if sa_lower == "none":
+            # Omit typeOfSetAside entirely -- returns all types
+            query_codes = [None]
+            set_aside_label = "none (all types)"
+            sa_strategy = "none"
+        elif sa_lower == "all":
+            query_codes = list(ALL_SB_SET_ASIDES)
+            set_aside_label = f"all {len(query_codes)} SB"
+            sa_strategy = "all"
+        else:
+            # Comma-separated list of specific codes
+            query_codes = [c.strip() for c in set_aside.split(',') if c.strip()]
+            set_aside_label = ', '.join(query_codes)
+            sa_strategy = "explicit"
     else:
-        # Default: use priority set-asides (WOSB, EDWOSB, 8A, 8AN) which
-        # fit within the 5-call budget for date ranges up to 1 year.
-        # With a larger budget, use all 12 set-aside types.
-        query_codes = PRIORITY_SET_ASIDES if max_calls <= 5 else ALL_SB_SET_ASIDES
-        set_aside_label = (f"top {len(query_codes)} priority"
-                           if query_codes == PRIORITY_SET_ASIDES
-                           else f"all {len(query_codes)} SB")
-        is_multi = True
+        # Default: no set-aside filter — fetch everything, filter downstream
+        query_codes = [None]
+        set_aside_label = "none (all types)"
+        sa_strategy = "none"
+
+    # Total combos for progress tracking
+    total_combos = len(naics_codes_to_load) * len(query_codes)
 
     # --- Check previous loads for this date range (resume support) ---
+    completed_combos = []
+    resume_naics = None
+    resume_set_aside = None
     resume_page = 0
-    completed_set_asides = []
-    current_set_aside = None
-    current_pages_in_sa = 0
+    pages_fetched_total = 0
+    prev_load = None
 
     if not force:
         conn = get_connection()
@@ -164,34 +193,39 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
                 return
 
             if prev_pages > 0:
-                if is_multi:
-                    completed_set_asides = list(prev_params.get("completed_set_asides", []))
-                    current_set_aside = prev_params.get("current_set_aside")
-                    current_pages_in_sa = prev_params.get("current_pages_in_set_aside", 0)
+                completed_combos = list(prev_params.get("completed_combos", []))
+                resume_naics = prev_params.get("current_naics")
+                resume_set_aside = prev_params.get("current_set_aside")
+                resume_page = prev_params.get("current_page", 0)
+                pages_fetched_total = prev_pages
+                click.echo(
+                    f"Resuming from previous partial load (load_id={prev_load['load_id']})"
+                )
+                click.echo(
+                    f"  Completed combos: {len(completed_combos)}/{total_combos}, "
+                    f"total pages so far: {prev_pages}"
+                )
+                if resume_naics or resume_set_aside:
                     click.echo(
-                        f"Resuming multi-set-aside load from {current_set_aside} "
-                        f"page {current_pages_in_sa} "
-                        f"(completed: {', '.join(completed_set_asides) or 'none'}, "
-                        f"total pages so far: {prev_pages})."
-                    )
-                else:
-                    resume_page = prev_pages
-                    click.echo(
-                        f"Resuming from page {resume_page} "
-                        f"(previous run loaded {prev_pages} pages, "
-                        f"~{prev_pages * 1000} records)."
+                        f"  Continuing from: naics={resume_naics or 'ALL'} "
+                        f"sa={resume_set_aside or 'ALL'} page {resume_page}"
                     )
 
     # --- Estimate API calls and warn user ---
     remaining = client._get_remaining_requests()
-    est_calls = client.estimate_calls_needed(query_codes, dt_from, dt_to)
+    # Estimate: one call per (naics, set-aside) combo per date chunk, at minimum
+    num_chunks = len(client._split_date_range(dt_from, dt_to))
+    est_calls = total_combos * num_chunks
 
     click.echo("SAM.gov Opportunities Load")
     click.echo(f"  API key:     #{api_key_number} (limit: {client.max_daily_requests}/day)")
     click.echo(f"  Date range:  {posted_from_str} to {posted_to_str}")
-    click.echo(f"  Set-asides:  {set_aside_label} ({', '.join(query_codes)})")
-    if naics:
-        click.echo(f"  NAICS:       {naics}")
+    click.echo(f"  Set-asides:  {set_aside_label}")
+    if naics_codes:
+        click.echo(f"  NAICS:       {', '.join(naics_codes)} ({len(naics_codes)} codes)")
+    else:
+        click.echo(f"  NAICS:       all (no filter)")
+    click.echo(f"  Combos:      {total_combos - len(completed_combos)} remaining of {total_combos}")
     click.echo(f"  Load type:   {load_type}")
     click.echo(f"  Call budget: {max_calls}")
     click.echo(f"  Est. API calls: ~{est_calls} (at minimum, more with pagination)")
@@ -200,19 +234,19 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     if est_calls > max_calls:
         click.echo(
             f"\nWARNING: Estimated calls ({est_calls}) exceed call budget "
-            f"({max_calls}). Some set-aside types will be skipped."
+            f"({max_calls}). Some combos will be skipped."
         )
 
     if est_calls > remaining:
         click.echo(
             f"\nWARNING: Estimated calls ({est_calls}) may exceed remaining "
-            f"daily quota ({remaining}). Some set-aside types may not be queried."
+            f"daily quota ({remaining}). Some combos may not be queried."
         )
 
     if historical:
         click.echo(
             "\nHistorical load will fetch 2 years of data across "
-            f"{len(query_codes)} set-aside types."
+            f"{total_combos} combos."
         )
         if est_calls > max_calls:
             click.echo(
@@ -225,29 +259,23 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
             return
 
     # --- Create load log entry ---
-    pages_fetched_total = resume_page  # single set-aside: resume from page N
-    if is_multi and not force and (completed_set_asides or current_pages_in_sa):
-        # Carry forward the total page count from previous partial load
-        if prev_load:
-            prev_params = _json.loads(prev_load["parameters"]) if prev_load["parameters"] else {}
-            pages_fetched_total = prev_params.get("pages_fetched", 0)
-
     params_dict = {
         "posted_from": posted_from_str,
         "posted_to": posted_to_str,
         "set_aside": set_aside,
-        "set_aside_codes": query_codes,
+        "set_aside_codes": [c for c in query_codes if c is not None] or ["none"],
         "naics": naics,
+        "naics_codes": naics_codes or [],
         "historical": historical,
         "max_calls": max_calls,
         "pages_fetched": pages_fetched_total,
         "total_records": None,
         "complete": False,
+        "completed_combos": completed_combos,
+        "current_naics": resume_naics,
+        "current_set_aside": resume_set_aside,
+        "current_page": resume_page,
     }
-    if is_multi:
-        params_dict["completed_set_asides"] = completed_set_asides
-        params_dict["current_set_aside"] = current_set_aside
-        params_dict["current_pages_in_set_aside"] = current_pages_in_sa
 
     load_id = load_mgr.start_load(
         source_system="SAM_OPPORTUNITY",
@@ -256,7 +284,7 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     )
     click.echo(f"\nLoad started (load_id={load_id})")
 
-    # --- Page-by-page fetch and load ---
+    # --- Nested-loop fetch and load ---
     cumulative = {
         "records_read": 0, "records_inserted": 0, "records_updated": 0,
         "records_unchanged": 0, "records_errored": 0,
@@ -265,23 +293,97 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     rate_limited = False
 
     try:
-        if is_multi:
-            # --- Multi-set-aside path ---
-            _load_multi_set_aside(
-                client, loader, load_mgr, load_id,
-                query_codes, dt_from, dt_to, naics,
-                completed_set_asides, current_set_aside, current_pages_in_sa,
-                pages_fetched_total, remaining_budget,
-                cumulative, params_dict,
-            )
-        else:
-            # --- Single set-aside path ---
-            _load_single_set_aside(
-                client, loader, load_mgr, load_id,
-                set_aside, dt_from, dt_to, naics,
-                resume_page, remaining_budget,
-                cumulative, params_dict,
-            )
+        budget_exhausted = False
+
+        for naics_code in naics_codes_to_load:
+            if budget_exhausted:
+                break
+
+            for sa_code in query_codes:
+                if budget_exhausted:
+                    break
+
+                # Build combo key for tracking (matches awards pattern)
+                combo = [naics_code or "", sa_code or ""]
+
+                # Skip completed combos
+                if combo in completed_combos:
+                    continue
+
+                naics_label = naics_code or "ALL"
+                sa_label = sa_code or "ALL"
+                label = f"{sa_label}/{naics_label}"
+
+                # Determine start page (resume within a combo)
+                start_pg = 0
+                if sa_code == resume_set_aside and naics_code == resume_naics:
+                    start_pg = resume_page
+                    resume_set_aside = None  # Clear resume state after using it
+                    resume_naics = None
+                    resume_page = 0
+                    if start_pg > 0:
+                        click.echo(f"    Resuming from page {start_pg}")
+
+                if remaining_budget <= 0:
+                    budget_exhausted = True
+                    click.echo(f"\n  Budget exhausted ({max_calls} calls). Progress saved.")
+                    click.echo(f"     Run again to resume from {label}.")
+                    break
+
+                click.echo(
+                    f"\n  [{len(completed_combos)+1}/{total_combos}] "
+                    f"sa={sa_label} naics={naics_label} (page {start_pg})..."
+                )
+
+                combo_exhausted = True  # assume we'll finish unless budget runs out
+                for opps, page_num, total in client.iter_opportunity_pages(
+                    posted_from=dt_from, posted_to=dt_to,
+                    set_aside=sa_code, naics=naics_code,
+                    start_page=start_pg, max_pages=remaining_budget,
+                ):
+                    if opps:
+                        page_stats = loader.load_opportunity_batch(opps, load_id)
+                        for k in cumulative:
+                            cumulative[k] += page_stats.get(k, 0)
+
+                    pages_fetched_total += 1
+                    remaining_budget -= 1
+                    pages_in_combo = page_num + 1
+
+                    params_dict.update({
+                        "current_naics": naics_code,
+                        "current_set_aside": sa_code,
+                        "current_page": pages_in_combo,
+                        "completed_combos": completed_combos,
+                        "pages_fetched": pages_fetched_total,
+                        "total_records": total,
+                        "complete": False,
+                    })
+                    load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
+
+                    click.echo(f"    pg {page_num}: {len(opps)} rows")
+
+                    if remaining_budget <= 0:
+                        combo_exhausted = False
+                        break
+                else:
+                    # for-loop completed without break => combo fully loaded
+                    combo_exhausted = True
+
+                if combo_exhausted:
+                    completed_combos.append(combo)
+                    params_dict["completed_combos"] = completed_combos
+                    load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
+                    click.echo(f"  Done: {label}")
+                else:
+                    budget_exhausted = True
+                    click.echo(f"\n  Budget exhausted ({max_calls} calls). Progress saved.")
+                    click.echo(f"     Run again to resume from {label} page {pages_in_combo}.")
+
+        # Check if all combos complete
+        if len(completed_combos) >= total_combos:
+            params_dict["complete"] = True
+            load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
 
     except KeyboardInterrupt:
         click.echo(f"\n  Interrupted. Progress saved.")
@@ -311,6 +413,7 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     remaining_after = client._get_remaining_requests()
     status = "COMPLETE" if is_complete else "PARTIAL"
     click.echo(f"\nOpportunity load {status}!")
+    click.echo(f"  Combos completed:  {len(completed_combos)}/{total_combos}")
     click.echo(f"  Records read:      {cumulative['records_read']:>10,d}")
     click.echo(f"  Records inserted:  {cumulative['records_inserted']:>10,d}")
     click.echo(f"  Records updated:   {cumulative['records_updated']:>10,d}")
@@ -319,119 +422,6 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     click.echo(f"  API calls remaining: {remaining_after}")
     if not is_complete:
         click.echo("  Run the same command again to continue.")
-
-
-def _load_single_set_aside(client, loader, load_mgr, load_id,
-                            set_aside, dt_from, dt_to, naics,
-                            resume_page, remaining_budget,
-                            cumulative, params_dict):
-    """Page-by-page load for a single set-aside code."""
-    pages_fetched_total = resume_page
-
-    click.echo(f"Searching for set-aside: {set_aside} (page-by-page)...")
-
-    for opps, page_num, total in client.iter_opportunity_pages(
-        posted_from=dt_from, posted_to=dt_to,
-        set_aside=set_aside, naics=naics,
-        start_page=resume_page, max_pages=remaining_budget,
-    ):
-        if opps:
-            page_stats = loader.load_opportunity_batch(opps, load_id)
-            for k in cumulative:
-                cumulative[k] += page_stats.get(k, 0)
-
-        pages_fetched_total = page_num + 1
-        remaining_budget -= 1
-
-        is_complete = (
-            total is not None
-            and (pages_fetched_total * 1000) >= total
-        )
-
-        params_dict.update({
-            "pages_fetched": pages_fetched_total,
-            "total_records": total,
-            "complete": is_complete,
-        })
-
-        load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
-
-        click.echo(
-            f"  Page {page_num}: {len(opps)} opps "
-            f"({pages_fetched_total} pages, "
-            f"total={total or '?'})"
-        )
-
-
-def _load_multi_set_aside(client, loader, load_mgr, load_id,
-                           query_codes, dt_from, dt_to, naics,
-                           completed_set_asides, current_set_aside,
-                           current_pages_in_sa, pages_fetched_total,
-                           remaining_budget, cumulative, params_dict):
-    """Page-by-page load across multiple set-aside codes."""
-    click.echo(f"Searching {len(query_codes)} set-aside types (page-by-page)...")
-
-    for sa_code in query_codes:
-        if sa_code in completed_set_asides:
-            continue
-
-        # Determine start page within this set-aside
-        start_pg = current_pages_in_sa if sa_code == current_set_aside else 0
-
-        if remaining_budget <= 0:
-            click.echo(f"  Budget exhausted. Remaining set-asides deferred.")
-            break
-
-        click.echo(f"  Set-aside: {sa_code} (starting at page {start_pg})...")
-
-        sa_exhausted = True  # assume we'll finish unless we break early
-        for opps, page_num, total in client.iter_opportunity_pages(
-            posted_from=dt_from, posted_to=dt_to,
-            set_aside=sa_code, naics=naics,
-            start_page=start_pg, max_pages=remaining_budget,
-        ):
-            if opps:
-                page_stats = loader.load_opportunity_batch(opps, load_id)
-                for k in cumulative:
-                    cumulative[k] += page_stats.get(k, 0)
-
-            pages_fetched_total += 1
-            remaining_budget -= 1
-            pages_in_sa = page_num + 1
-
-            params_dict.update({
-                "current_set_aside": sa_code,
-                "current_pages_in_set_aside": pages_in_sa,
-                "completed_set_asides": completed_set_asides,
-                "pages_fetched": pages_fetched_total,
-                "total_records": total,
-                "complete": False,
-            })
-
-            load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
-
-            click.echo(
-                f"    Page {page_num}: {len(opps)} opps "
-                f"(sa={sa_code}, total={total or '?'})"
-            )
-
-            if remaining_budget <= 0:
-                sa_exhausted = False
-                break
-        else:
-            # for-loop completed without break => set-aside fully loaded
-            sa_exhausted = True
-
-        if sa_exhausted:
-            completed_set_asides.append(sa_code)
-            params_dict["completed_set_asides"] = completed_set_asides
-            load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
-            click.echo(f"  Completed set-aside: {sa_code}")
-
-    # Check if all set-asides are done
-    if set(completed_set_asides) >= set(query_codes):
-        params_dict["complete"] = True
-        load_mgr.save_load_progress(load_id, parameters=params_dict, **cumulative)
 
 
 @click.command("search")

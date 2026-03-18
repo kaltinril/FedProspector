@@ -50,7 +50,7 @@ This document catalogs all identified federal government data sources for contra
 | Max per page | 1,000 records |
 
 **Key Parameters**:
-- `typeOfSetAside` - Filter by set-aside code (one value per request)
+- `typeOfSetAside` - Filter by set-aside code (optional; omit to return all set-aside types)
 - `postedFrom` / `postedTo` - Date range (mandatory, max 1 year, `MM/dd/yyyy`)
 - `ncode` - NAICS code filter (max 6 digits)
 - `ptype` - Procurement type: `o` (solicitation), `k` (combined synopsis/solicitation), `p` (presolicitation), `r` (sources sought)
