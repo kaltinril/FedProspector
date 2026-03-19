@@ -19,6 +19,7 @@ import {
   searchNaics,
   getNaicsDetail,
   getCertificationTypes,
+  getLinkedEntities,
 } from '@/api/organization';
 import type {
   UpdateOrganizationRequest,
@@ -179,6 +180,15 @@ export function useDeletePastPerformance() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.organization.pastPerformance });
     },
+  });
+}
+
+// Linked entities
+export function useOrgEntities() {
+  return useQuery({
+    queryKey: queryKeys.organization.entities,
+    queryFn: getLinkedEntities,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 

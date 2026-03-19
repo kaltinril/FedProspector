@@ -159,6 +159,7 @@ CREATE TABLE IF NOT EXISTS organization_certification (
     certification_number VARCHAR(100),
     expiration_date      DATETIME,
     is_active            VARCHAR(1) NOT NULL,
+    source               VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
     created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_orgcert_org FOREIGN KEY (organization_id) REFERENCES organization(organization_id) ON DELETE CASCADE,
     INDEX idx_orgcert_org (organization_id)

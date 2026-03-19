@@ -141,7 +141,8 @@ public class CompanyProfileService : ICompanyProfileService
                 CertifyingAgency = c.CertifyingAgency,
                 CertificationNumber = c.CertificationNumber,
                 ExpirationDate = c.ExpirationDate,
-                IsActive = c.IsActive == "Y"
+                IsActive = c.IsActive == "Y",
+                Source = c.Source
             })
             .ToListAsync();
     }
@@ -151,13 +152,13 @@ public class CompanyProfileService : ICompanyProfileService
         var orgExists = await _context.Organizations.AnyAsync(o => o.OrganizationId == orgId);
         if (!orgExists) throw new KeyNotFoundException($"Organization {orgId} not found.");
 
-        // Remove existing
+        // Remove only MANUAL rows — leave SAM_ENTITY rows untouched
         var existing = await _context.OrganizationCertifications
-            .Where(c => c.OrganizationId == orgId)
+            .Where(c => c.OrganizationId == orgId && c.Source == "MANUAL")
             .ToListAsync();
         _context.OrganizationCertifications.RemoveRange(existing);
 
-        // Add new
+        // Add new (always MANUAL source from this endpoint)
         var entities = certifications.Select(dto => new OrganizationCertification
         {
             OrganizationId = orgId,
@@ -166,13 +167,14 @@ public class CompanyProfileService : ICompanyProfileService
             CertificationNumber = dto.CertificationNumber,
             ExpirationDate = dto.ExpirationDate,
             IsActive = dto.IsActive ? "Y" : "N",
+            Source = "MANUAL",
             CreatedAt = DateTime.UtcNow
         }).ToList();
 
         _context.OrganizationCertifications.AddRange(entities);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Organization {OrgId} certifications updated ({Count} certs)", orgId, entities.Count);
+        _logger.LogInformation("Organization {OrgId} certifications updated ({Count} manual certs)", orgId, entities.Count);
 
         return entities.Select(c => new OrgCertificationDto
         {
@@ -181,7 +183,8 @@ public class CompanyProfileService : ICompanyProfileService
             CertifyingAgency = c.CertifyingAgency,
             CertificationNumber = c.CertificationNumber,
             ExpirationDate = c.ExpirationDate,
-            IsActive = c.IsActive == "Y"
+            IsActive = c.IsActive == "Y",
+            Source = c.Source
         }).ToList();
     }
 
@@ -365,7 +368,8 @@ public class CompanyProfileService : ICompanyProfileService
                 CertifyingAgency = c.CertifyingAgency,
                 CertificationNumber = c.CertificationNumber,
                 ExpirationDate = c.ExpirationDate,
-                IsActive = c.IsActive == "Y"
+                IsActive = c.IsActive == "Y",
+                Source = c.Source
             }).ToList()
         };
     }

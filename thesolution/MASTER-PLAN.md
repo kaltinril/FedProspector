@@ -114,6 +114,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 98 | API Sorting Fixes | COMPLETE | [98-API-SORTING-FIXES.md](phases/completed/98-API-SORTING-FIXES.md) |
 | 99 | Application Review Punch List | COMPLETE | [99-APPLICATION-REVIEW-PUNCH-LIST.md](phases/completed/99-APPLICATION-REVIEW-PUNCH-LIST.md) |
 | 100 | Recommended Opps Dedup & Quality | COMPLETE | [100-RECOMMENDED-OPPS-DEDUP.md](phases/completed/100-RECOMMENDED-OPPS-DEDUP.md) |
+| 101 | Org Set-Aside Eligibility | COMPLETE | [101-ORG-SET-ASIDE-ELIGIBILITY.md](phases/completed/101-ORG-SET-ASIDE-ELIGIBILITY.md) |
 | 102 | Dependency Updates -- Stable/LTS Versions | TODO | [102-DEPENDENCY-UPDATES.md](phases/102-DEPENDENCY-UPDATES.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |

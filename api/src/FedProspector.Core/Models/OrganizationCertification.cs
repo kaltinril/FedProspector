@@ -30,6 +30,10 @@ public class OrganizationCertification
     public string IsActive { get; set; } = "Y";
 
     [Required]
+    [MaxLength(20)]
+    public string Source { get; set; } = "MANUAL";
+
+    [Required]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties

@@ -13,6 +13,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
+import Skeleton from '@mui/material/Skeleton';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
@@ -36,7 +37,6 @@ import { KeyFactsGrid } from '@/components/shared/KeyFactsGrid';
 import { DeadlineCountdown } from '@/components/shared/DeadlineCountdown';
 import { BurnRateChart } from '@/components/shared/BurnRateChart';
 
-import { QualificationChecklist } from '@/components/shared/QualificationChecklist';
 import { DataTable } from '@/components/shared/DataTable';
 import { StatusChip } from '@/components/shared/StatusChip';
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay';
@@ -45,7 +45,7 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import QualificationPWinTab from './QualificationPWinTab';
 import CompetitiveIntelTab from './CompetitiveIntelTab';
-import { getOpportunity } from '@/api/opportunities';
+import { getOpportunity, getQualification } from '@/api/opportunities';
 import { getBurnRate } from '@/api/awards';
 import { createProspect } from '@/api/prospects';
 import { createSavedSearch } from '@/api/savedSearches';
@@ -137,10 +137,72 @@ function getResourceLinksForDisplay(
 }
 
 // ---------------------------------------------------------------------------
+// Qualification Summary (compact, for Overview tab)
+// ---------------------------------------------------------------------------
+
+const QUAL_STATUS_COLOR: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
+  Qualified: 'success',
+  'Partially Qualified': 'warning',
+  'Not Qualified': 'error',
+};
+
+function QualificationSummary({
+  noticeId,
+  onViewDetails,
+}: {
+  noticeId: string;
+  onViewDetails: () => void;
+}) {
+  const { data: qual, isLoading, isError } = useQuery({
+    queryKey: queryKeys.opportunities.qualification(noticeId),
+    queryFn: () => getQualification(noticeId),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+        Qualification Summary
+      </Typography>
+      {isLoading ? (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Skeleton variant="rounded" width={140} height={24} />
+          <Skeleton variant="text" width={180} />
+        </Box>
+      ) : isError || !qual ? (
+        <Typography variant="body2" color="text.secondary">
+          Could not load qualification data.
+        </Typography>
+      ) : (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+          <Chip
+            label={qual.overallStatus}
+            color={QUAL_STATUS_COLOR[qual.overallStatus] ?? 'default'}
+            size="small"
+          />
+          <Typography variant="body2" color="text.secondary">
+            {qual.passCount} Pass &middot; {qual.failCount} Fail &middot; {qual.warningCount} Warning
+          </Typography>
+          <Button size="small" onClick={onViewDetails}>
+            View details
+          </Button>
+        </Box>
+      )}
+    </Paper>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Tab: Overview
 // ---------------------------------------------------------------------------
 
-function OverviewTab({ opp }: { opp: OpportunityDetail }) {
+function OverviewTab({
+  opp,
+  onViewQualification,
+}: {
+  opp: OpportunityDetail;
+  onViewQualification: () => void;
+}) {
   const [expanded, setExpanded] = useState(false);
   const description = opp.descriptionText ?? opp.descriptionUrl ?? '';
   const isLong = description.length > 300;
@@ -267,30 +329,8 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
         )}
       </Paper>
 
-      {/* Qualification Checklist */}
-      <Paper variant="outlined" sx={{ p: 2 }}>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Qualification Checklist
-        </Typography>
-        <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-          Automated matching against your organization profile is coming soon. All items shown as
-          unknown for now.
-        </Typography>
-        <QualificationChecklist
-          overallStatus="Unknown"
-          passCount={0}
-          failCount={0}
-          warningCount={0}
-          checks={[
-            { name: 'Set-aside eligibility', category: 'Certification', status: 'Unknown', detail: 'Requires organization profile' },
-            { name: 'NAICS code match', category: 'Experience', status: 'Unknown', detail: 'Requires organization profile' },
-            { name: 'Size standard compliance', category: 'Compliance', status: 'Unknown', detail: 'Requires organization profile' },
-            { name: 'Security clearance', category: 'Compliance', status: 'Unknown', detail: 'Requires organization profile' },
-            { name: 'Past performance', category: 'Experience', status: 'Unknown', detail: 'Requires organization profile' },
-            { name: 'Geographic eligibility', category: 'Logistics', status: 'Unknown', detail: 'Requires organization profile' },
-          ]}
-        />
-      </Paper>
+      {/* Qualification Summary */}
+      <QualificationSummary noticeId={opp.noticeId} onViewDetails={onViewQualification} />
 
       {/* Amendment History */}
       {opp.amendments && opp.amendments.length > 0 && (
@@ -733,6 +773,7 @@ export default function OpportunityDetailPage() {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
   const {
     data: opp,
@@ -805,7 +846,7 @@ export default function OpportunityDetailPage() {
     {
       label: 'Overview',
       value: 'overview',
-      content: <OverviewTab opp={opp} />,
+      content: <OverviewTab opp={opp} onViewQualification={() => setActiveTab('qualification')} />,
     },
     {
       label: 'Qualification & pWin',
@@ -836,7 +877,7 @@ export default function OpportunityDetailPage() {
   ];
 
   return (
-    <TabbedDetailPage tabs={tabs}>
+    <TabbedDetailPage tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
       {/* Back button */}
       <BackToSearch searchPath="/opportunities" />
 

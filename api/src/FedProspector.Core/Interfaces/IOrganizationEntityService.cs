@@ -10,4 +10,6 @@ public interface IOrganizationEntityService
     Task<RefreshSelfEntityResponse> RefreshFromSelfEntityAsync(int orgId);
     Task<List<string>> GetAggregateNaicsAsync(int orgId);
     Task<List<string>> GetLinkedUeisAsync(int orgId);
+    Task<int> SyncEntityCertsAsync(int orgId);
+    Task<int> ResyncAllOrgsAsync();
 }

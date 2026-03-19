@@ -38,6 +38,7 @@ import { searchEntities } from '@/api/entities';
 import { queryKeys } from '@/queries/queryKeys';
 import type { OrganizationEntityDto } from '@/types/organization';
 import type { EntitySearchResult } from '@/types/api';
+import { SetAsideEligibilityPanel } from './SetAsideEligibilityPanel';
 
 const RELATIONSHIP_OPTIONS = [
   { value: 'SELF', label: 'Self (Your Organization)' },
@@ -68,6 +69,7 @@ export function OrgEntitiesTab() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.organization.entities });
       queryClient.invalidateQueries({ queryKey: queryKeys.organization.profile });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.certifications });
       setMutationError(null);
       setLinkDialogOpen(false);
       setSelectedEntity(null);
@@ -79,6 +81,8 @@ export function OrgEntitiesTab() {
     mutationFn: deactivateEntityLink,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.organization.entities });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.profile });
+      queryClient.invalidateQueries({ queryKey: queryKeys.organization.certifications });
       setMutationError(null);
     },
     onError: (err: Error) => {
@@ -140,7 +144,7 @@ export function OrgEntitiesTab() {
   };
 
   const hasSelf = linkedEntities.some(
-    (e: OrganizationEntityDto) => e.relationship === 'SELF',
+    (e: OrganizationEntityDto) => e.relationship === 'SELF' && e.isActive,
   );
 
   const relationshipColor = (rel: string) => {
@@ -175,6 +179,11 @@ export function OrgEntitiesTab() {
           {mutationError}
         </Alert>
       )}
+
+      <SetAsideEligibilityPanel
+        linkedEntities={linkedEntities}
+        isLoadingEntities={isLoading}
+      />
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h6">Linked Entities</Typography>

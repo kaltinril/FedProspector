@@ -19,4 +19,6 @@ public class OrgCertificationDto
     public DateTime? ExpirationDate { get; set; }
 
     public bool IsActive { get; set; } = true;
+
+    public string? Source { get; set; }
 }

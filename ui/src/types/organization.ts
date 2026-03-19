@@ -106,6 +106,7 @@ export interface OrgCertificationDto {
   certificationNumber?: string | null;
   expirationDate?: string | null;
   isActive: boolean;
+  source?: string | null;
 }
 
 /** Org past performance matching C# OrgPastPerformanceDto */

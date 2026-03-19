@@ -14,16 +14,24 @@ interface TabbedDetailPageProps {
   children?: React.ReactNode;
   tabs: TabConfig[];
   defaultTab?: string;
+  /** Controlled mode: external active tab value. */
+  activeTab?: string;
+  /** Controlled mode: called when the user clicks a tab. */
+  onTabChange?: (tab: string) => void;
 }
 
 export function TabbedDetailPage({
   children,
   tabs,
   defaultTab,
+  activeTab: controlledTab,
+  onTabChange,
 }: TabbedDetailPageProps) {
-  const [activeTab, setActiveTab] = useState(
+  const [internalTab, setInternalTab] = useState(
     defaultTab ?? tabs[0]?.value ?? '',
   );
+  const activeTab = controlledTab ?? internalTab;
+  const handleTabChange = onTabChange ?? setInternalTab;
 
   return (
     <Box>
@@ -31,7 +39,7 @@ export function TabbedDetailPage({
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs
           value={activeTab}
-          onChange={(_, value: string) => setActiveTab(value)}
+          onChange={(_, value: string) => handleTabChange(value)}
           variant="scrollable"
           scrollButtons="auto"
         >

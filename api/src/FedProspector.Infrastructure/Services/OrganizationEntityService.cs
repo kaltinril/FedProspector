@@ -48,9 +48,16 @@ public class OrganizationEntityService : IOrganizationEntityService
                     .AsNoTracking()
                     .CountAsync(n => n.UeiSam == link.UeiSam);
 
-                dto.CertificationCount = await _context.EntitySbaCertifications
-                    .AsNoTracking()
-                    .CountAsync(c => c.UeiSam == link.UeiSam && c.CertificationExitDate == null);
+                var todayForCount = DateOnly.FromDateTime(DateTime.UtcNow);
+                var sbaCount = await _context.EntitySbaCertifications.AsNoTracking()
+                    .CountAsync(c => c.UeiSam == link.UeiSam
+                        && (c.CertificationExitDate == null || c.CertificationExitDate > todayForCount));
+
+                var relevantBtCodes = new[] { "8W", "8E", "8C", "8D", "QF", "A5" };
+                var btCount = await _context.EntityBusinessTypes.AsNoTracking()
+                    .CountAsync(bt => bt.UeiSam == link.UeiSam && relevantBtCodes.Contains(bt.BusinessTypeCode));
+
+                dto.CertificationCount = sbaCount + btCount;
             }
 
             result.Add(dto);
@@ -91,6 +98,12 @@ public class OrganizationEntityService : IOrganizationEntityService
             _logger.LogInformation("Reactivated entity link {UeiSam} ({Relationship}) for org {OrgId}",
                 request.UeiSam, relationship, orgId);
 
+            // Sync certs after reactivation (profile + NAICS for SELF)
+            if (relationship == "SELF")
+                await PopulateFromSelfEntityAsync(orgId, request.UeiSam);
+            else
+                await SyncEntityCertsAsync(orgId);
+
             return await GetSingleDtoAsync(existing);
         }
 
@@ -121,10 +134,15 @@ public class OrganizationEntityService : IOrganizationEntityService
         _logger.LogInformation("Linked entity {UeiSam} ({Relationship}) to org {OrgId}",
             request.UeiSam, relationship, orgId);
 
-        // If linking SELF entity, auto-populate org profile
+        // If linking SELF entity, auto-populate org profile (fields + NAICS)
         if (relationship == "SELF")
         {
             await PopulateFromSelfEntityAsync(orgId, request.UeiSam);
+        }
+        else
+        {
+            // For non-SELF links, still sync certs from all linked entities
+            await SyncEntityCertsAsync(orgId);
         }
 
         return await GetSingleDtoAsync(link);
@@ -136,12 +154,29 @@ public class OrganizationEntityService : IOrganizationEntityService
             .FirstOrDefaultAsync(oe => oe.Id == linkId && oe.OrganizationId == orgId)
             ?? throw new KeyNotFoundException($"Entity link {linkId} not found.");
 
+        var wasSelf = link.Relationship == "SELF";
+
         link.IsActive = "N";
         link.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Deactivated entity link {LinkId} ({UeiSam} / {Relationship}) for org {OrgId}",
             linkId, link.UeiSam, link.Relationship, orgId);
+
+        // If SELF entity was delinked, clear the UeiSam on the org
+        if (wasSelf)
+        {
+            var org = await _context.Organizations.FindAsync(orgId);
+            if (org != null)
+            {
+                org.UeiSam = null;
+                org.UpdatedAt = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+        }
+
+        // Re-sync certs from remaining active entities
+        await SyncEntityCertsAsync(orgId);
     }
 
     /// <summary>
@@ -201,6 +236,131 @@ public class OrganizationEntityService : IOrganizationEntityService
             .Where(oe => oe.OrganizationId == orgId && oe.IsActive == "Y")
             .Select(oe => oe.UeiSam)
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// Sync certifications from all active linked entities into organization_certification.
+    /// Deletes existing SAM_ENTITY rows and re-inserts from entity_business_type + entity_sba_certification.
+    /// </summary>
+    public async Task<int> SyncEntityCertsAsync(int orgId)
+    {
+        // 1. Get all active linked UEIs
+        var linkedUeis = await GetLinkedUeisAsync(orgId);
+        if (!linkedUeis.Any())
+        {
+            // No linked entities — remove all SAM_ENTITY certs
+            var stale = await _context.OrganizationCertifications
+                .Where(c => c.OrganizationId == orgId && c.Source == "SAM_ENTITY")
+                .ToListAsync();
+            _context.OrganizationCertifications.RemoveRange(stale);
+            await _context.SaveChangesAsync();
+            return 0;
+        }
+
+        // 2. Query entity_business_type for all linked UEIs
+        var businessTypes = await _context.EntityBusinessTypes.AsNoTracking()
+            .Where(bt => linkedUeis.Contains(bt.UeiSam))
+            .Select(bt => bt.BusinessTypeCode)
+            .ToListAsync();
+
+        // 3. Query entity_sba_certification for all linked UEIs (active only)
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var sbaCerts = await _context.EntitySbaCertifications.AsNoTracking()
+            .Where(c => linkedUeis.Contains(c.UeiSam)
+                && (c.CertificationExitDate == null || c.CertificationExitDate > today))
+            .ToListAsync();
+
+        // 4. Map to CertificationType values
+        var certTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Business type mapping
+        var btMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["8W"] = "WOSB",
+            ["8C"] = "WOSB",
+            ["8E"] = "EDWOSB",
+            ["8D"] = "EDWOSB",
+            ["QF"] = "SDVOSB",
+            ["A5"] = "VOSB",
+        };
+
+        foreach (var code in businessTypes)
+        {
+            if (btMap.TryGetValue(code, out var certType))
+                certTypes.Add(certType);
+        }
+
+        // SBA cert mapping
+        var sbaMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["A4"] = "8(a)",
+            ["A6"] = "8(a)",
+            ["XX"] = "HUBZone",
+        };
+
+        foreach (var cert in sbaCerts)
+        {
+            if (cert.SbaTypeCode != null && sbaMap.TryGetValue(cert.SbaTypeCode, out var certType))
+                certTypes.Add(certType);
+        }
+
+        // General rule: any small-business-related code -> SDB
+        if (certTypes.Any())
+            certTypes.Add("SDB");
+
+        // 5. Delete existing SAM_ENTITY rows, insert new ones
+        var existing = await _context.OrganizationCertifications
+            .Where(c => c.OrganizationId == orgId && c.Source == "SAM_ENTITY")
+            .ToListAsync();
+        _context.OrganizationCertifications.RemoveRange(existing);
+
+        foreach (var ct in certTypes)
+        {
+            // Find the best SBA cert for expiration date (if applicable)
+            EntitySbaCertification? matchingSba = null;
+            if (ct == "8(a)")
+                matchingSba = sbaCerts.FirstOrDefault(c => c.SbaTypeCode == "A4" || c.SbaTypeCode == "A6");
+            else if (ct == "HUBZone")
+                matchingSba = sbaCerts.FirstOrDefault(c => c.SbaTypeCode == "XX");
+
+            _context.OrganizationCertifications.Add(new OrganizationCertification
+            {
+                OrganizationId = orgId,
+                CertificationType = ct,
+                CertifyingAgency = "SAM.gov",
+                CertificationNumber = null,
+                ExpirationDate = matchingSba?.CertificationExitDate.HasValue == true
+                    ? matchingSba.CertificationExitDate.Value.ToDateTime(TimeOnly.MinValue)
+                    : null,
+                IsActive = "Y",
+                Source = "SAM_ENTITY",
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Synced {CertCount} certifications from linked entities for org {OrgId}",
+            certTypes.Count, orgId);
+        return certTypes.Count;
+    }
+
+    /// <summary>
+    /// Re-sync certifications for all organizations that have active linked entities.
+    /// </summary>
+    public async Task<int> ResyncAllOrgsAsync()
+    {
+        var orgIds = await _context.OrganizationEntities
+            .Where(oe => oe.IsActive == "Y")
+            .Select(oe => oe.OrganizationId)
+            .Distinct()
+            .ToListAsync();
+
+        int total = 0;
+        foreach (var orgId in orgIds)
+        {
+            total += await SyncEntityCertsAsync(orgId);
+        }
+        return total;
     }
 
     // -----------------------------------------------------------------------
@@ -266,44 +426,21 @@ public class OrganizationEntityService : IOrganizationEntityService
             });
         }
 
-        // Copy certifications from entity_sba_certification
-        var entityCerts = await _context.EntitySbaCertifications.AsNoTracking()
-            .Where(c => c.UeiSam == ueiSam && c.CertificationExitDate == null)
-            .ToListAsync();
-
-        var existingCerts = await _context.OrganizationCertifications
-            .Where(c => c.OrganizationId == orgId)
-            .ToListAsync();
-        _context.OrganizationCertifications.RemoveRange(existingCerts);
-
-        foreach (var ec in entityCerts)
-        {
-            _context.OrganizationCertifications.Add(new OrganizationCertification
-            {
-                OrganizationId = orgId,
-                CertificationType = ec.SbaTypeDesc ?? ec.SbaTypeCode ?? "SBA",
-                CertifyingAgency = "SBA",
-                CertificationNumber = null,
-                ExpirationDate = ec.CertificationExitDate.HasValue
-                    ? ec.CertificationExitDate.Value.ToDateTime(TimeOnly.MinValue)
-                    : null,
-                IsActive = "Y",
-                CreatedAt = DateTime.UtcNow
-            });
-        }
-
         await _context.SaveChangesAsync();
+
+        // Sync certifications from ALL linked entities (not just SELF)
+        var certCount = await SyncEntityCertsAsync(orgId);
 
         _logger.LogInformation(
             "Populated org {OrgId} from SELF entity {UeiSam}: {NaicsCount} NAICS, {CertCount} certs",
-            orgId, ueiSam, entityNaics.Count, entityCerts.Count);
+            orgId, ueiSam, entityNaics.Count, certCount);
 
         return new RefreshSelfEntityResponse
         {
             NaicsCopied = entityNaics.Count,
-            CertificationsCopied = entityCerts.Count,
+            CertificationsCopied = certCount,
             ProfileUpdated = true,
-            Message = $"Copied {entityNaics.Count} NAICS codes, {entityCerts.Count} certifications, and profile fields from {entity.LegalBusinessName}."
+            Message = $"Copied {entityNaics.Count} NAICS codes, {certCount} certifications, and profile fields from {entity.LegalBusinessName}."
         };
     }
 
@@ -319,8 +456,17 @@ public class OrganizationEntityService : IOrganizationEntityService
         var dto = MapToDto(loaded);
         dto.NaicsCount = await _context.EntityNaicsCodes.AsNoTracking()
             .CountAsync(n => n.UeiSam == link.UeiSam);
-        dto.CertificationCount = await _context.EntitySbaCertifications.AsNoTracking()
-            .CountAsync(c => c.UeiSam == link.UeiSam && c.CertificationExitDate == null);
+
+        var todayForDto = DateOnly.FromDateTime(DateTime.UtcNow);
+        var sbaCountDto = await _context.EntitySbaCertifications.AsNoTracking()
+            .CountAsync(c => c.UeiSam == link.UeiSam
+                && (c.CertificationExitDate == null || c.CertificationExitDate > todayForDto));
+
+        var relevantBtCodesDto = new[] { "8W", "8E", "8C", "8D", "QF", "A5" };
+        var btCountDto = await _context.EntityBusinessTypes.AsNoTracking()
+            .CountAsync(bt => bt.UeiSam == link.UeiSam && relevantBtCodesDto.Contains(bt.BusinessTypeCode));
+
+        dto.CertificationCount = sbaCountDto + btCountDto;
 
         return dto;
     }

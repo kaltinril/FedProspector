@@ -334,6 +334,20 @@ public class OrganizationController : ApiControllerBase
     }
 
     /// <summary>
+    /// Re-sync certifications from all linked entities for the current organization.
+    /// </summary>
+    [HttpPost("entities/resync-certs")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> ResyncCerts()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var count = await _entityService.SyncEntityCertsAsync(orgId.Value);
+        return Ok(new { message = $"Re-synced {count} certifications from linked entities" });
+    }
+
+    /// <summary>
     /// Get aggregate NAICS codes across all linked entities and manual entries.
     /// </summary>
     [HttpGet("entities/aggregate-naics")]
