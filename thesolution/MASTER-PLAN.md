@@ -115,7 +115,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 99 | Application Review Punch List | COMPLETE | [99-APPLICATION-REVIEW-PUNCH-LIST.md](phases/completed/99-APPLICATION-REVIEW-PUNCH-LIST.md) |
 | 100 | Recommended Opps Dedup & Quality | COMPLETE | [100-RECOMMENDED-OPPS-DEDUP.md](phases/completed/100-RECOMMENDED-OPPS-DEDUP.md) |
 | 101 | Org Set-Aside Eligibility | COMPLETE | [101-ORG-SET-ASIDE-ELIGIBILITY.md](phases/completed/101-ORG-SET-ASIDE-ELIGIBILITY.md) |
-| 102 | Dependency Updates -- Stable/LTS Versions | TODO | [102-DEPENDENCY-UPDATES.md](phases/102-DEPENDENCY-UPDATES.md) |
+| 102 | Dependency Updates -- Stable/LTS Versions | COMPLETE | [102-DEPENDENCY-UPDATES.md](phases/completed/102-DEPENDENCY-UPDATES.md) |
 | 103 | qScore & pWin Visibility | PLANNED | [103-QSCORE-PWIN-VISIBILITY.md](phases/103-QSCORE-PWIN-VISIBILITY.md) |
 | 104 | JV Past Performance & Entity Award Loading | PLANNED | [104-JV-PAST-PERFORMANCE-AWARDS.md](phases/104-JV-PAST-PERFORMANCE-AWARDS.md) |
 | 105 | Fix Competitive Intelligence Tab | PLANNED | [105-COMPETITIVE-INTEL-FIX.md](phases/105-COMPETITIVE-INTEL-FIX.md) |

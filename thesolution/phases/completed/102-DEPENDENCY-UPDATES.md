@@ -122,7 +122,7 @@ All other Python packages already at latest stable.
 | 102-5 | Audit Python packages for available stable updates | DONE |
 | 102-6 | Update Python packages and fix breaking changes | DONE |
 | 102-7 | Run full test suite (C# + Python) and verify builds | DONE |
-| 102-8 | Manual smoke test of UI and API | TODO |
+| 102-8 | Manual smoke test of UI and API | DONE |
 
 ### 102-1: Audit C# NuGet Packages
 
