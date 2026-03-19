@@ -100,6 +100,17 @@ On the Opportunity Detail page Overview tab:
 - Already partially done by the `QualificationSummary` component from Phase 101
 - May need to also fetch and display the pWin number alongside the qualification status
 
+### Task 6: Fix pWin bar charts — static values and decimal display
+
+**Known bugs:**
+1. **Bar charts never change value** — the pWin factor bar charts on the Qualification & pWin tab always render the same lengths regardless of the actual factor scores. Likely the component is receiving static/default data or not binding to the real per-factor values from the API response.
+2. **Percentages shown as decimals** — pWin values display as raw decimals (e.g., `0.10`) instead of user-friendly percentages (`10%`). Format all pWin-related display values as whole-number percentages.
+
+**Fix scope:**
+- Trace the pWin factor breakdown from `PWinService` → DTO → UI component to find where values are lost or hardcoded
+- Ensure each bar's width/value reflects the actual factor score from the API
+- Apply `× 100` + `%` formatting to all pWin display values (factor scores, overall pWin)
+
 ---
 
 ## Out of Scope
@@ -129,3 +140,4 @@ On the Opportunity Detail page Overview tab:
 | 3 | Show pWin on Recommended page + search results | Full stack | Medium | — |
 | 4 | Show qScore on Opportunity Detail page | Frontend | Low | Task 2 |
 | 5 | Show pWin prominently on Opportunity Detail Overview tab | Frontend | Low | — |
+| 6 | Fix pWin bar charts (static values) and format decimals as percentages | Full stack | Medium | — |
