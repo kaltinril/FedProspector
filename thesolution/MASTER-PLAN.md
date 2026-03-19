@@ -116,6 +116,8 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 100 | Recommended Opps Dedup & Quality | COMPLETE | [100-RECOMMENDED-OPPS-DEDUP.md](phases/completed/100-RECOMMENDED-OPPS-DEDUP.md) |
 | 101 | Org Set-Aside Eligibility | COMPLETE | [101-ORG-SET-ASIDE-ELIGIBILITY.md](phases/completed/101-ORG-SET-ASIDE-ELIGIBILITY.md) |
 | 102 | Dependency Updates -- Stable/LTS Versions | TODO | [102-DEPENDENCY-UPDATES.md](phases/102-DEPENDENCY-UPDATES.md) |
+| 103 | qScore & pWin Visibility | PLANNED | [103-QSCORE-PWIN-VISIBILITY.md](phases/103-QSCORE-PWIN-VISIBILITY.md) |
+| 104 | JV Past Performance & Entity Award Loading | PLANNED | [104-JV-PAST-PERFORMANCE-AWARDS.md](phases/104-JV-PAST-PERFORMANCE-AWARDS.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
