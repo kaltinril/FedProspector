@@ -19,7 +19,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | Rate Limit Strategy | Bulk extracts first, API for incremental | Monthly extract = 1 call for all entities. |
 | Credentials | `.env` + python-dotenv | Never hardcode. |
 | Web API | ASP.NET Core (.NET 10) | Type-safe, high-perf backend. EF Core for MySQL. |
-| Frontend | Vite 7 + React 19 + TypeScript + MUI v7 | Modern stack, enterprise component library. |
+| Frontend | Vite 8 + React 19 + TypeScript + MUI v7 | Modern stack, enterprise component library. |
 | Multi-Tenancy | Shared public data + org-isolated capture data | Government data shared; prospects/proposals private per company. |
 
 ## Phase Roadmap
@@ -119,6 +119,8 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 103 | qScore & pWin Visibility | PLANNED | [103-QSCORE-PWIN-VISIBILITY.md](phases/103-QSCORE-PWIN-VISIBILITY.md) |
 | 104 | JV Past Performance & Entity Award Loading | PLANNED | [104-JV-PAST-PERFORMANCE-AWARDS.md](phases/104-JV-PAST-PERFORMANCE-AWARDS.md) |
 | 105 | Fix Competitive Intelligence Tab | PLANNED | [105-COMPETITIVE-INTEL-FIX.md](phases/105-COMPETITIVE-INTEL-FIX.md) |
+| 109 | Set-Aside Shift Analysis | PLANNED | [109-SET-ASIDE-SHIFT-ANALYSIS.md](phases/109-SET-ASIDE-SHIFT-ANALYSIS.md) |
+| 110 | Attachment Intelligence | PLANNED | [110-ATTACHMENT-INTELLIGENCE.md](phases/110-ATTACHMENT-INTELLIGENCE.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |

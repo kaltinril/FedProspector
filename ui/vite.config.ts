@@ -22,17 +22,23 @@ export default defineConfig({
         //   index (app shell): 97KB gz, vendor-react: 17KB gz, vendor-query: 11KB gz.
         //   All @mui/icons-material imports use deep paths (tree-shakeable).
         //   date-fns imports are per-function. No barrel-import issues found.
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-mui': [
-            '@mui/material',
-            '@mui/icons-material',
-            '@emotion/react',
-            '@emotion/styled',
-          ],
-          'vendor-query': ['@tanstack/react-query'],
-          'vendor-charts': ['@mui/x-charts'],
-          'vendor-datagrid': ['@mui/x-data-grid'],
+        // Vite 8 / Rolldown requires manualChunks as a function, not an object.
+        manualChunks(id: string) {
+          if (id.includes('node_modules/react-dom/') || id.includes('node_modules/react/') || id.includes('node_modules/react-router-dom/')) {
+            return 'vendor-react';
+          }
+          if (id.includes('node_modules/@mui/material/') || id.includes('node_modules/@mui/icons-material/') || id.includes('node_modules/@emotion/')) {
+            return 'vendor-mui';
+          }
+          if (id.includes('node_modules/@tanstack/react-query/')) {
+            return 'vendor-query';
+          }
+          if (id.includes('node_modules/@mui/x-charts/')) {
+            return 'vendor-charts';
+          }
+          if (id.includes('node_modules/@mui/x-data-grid/')) {
+            return 'vendor-datagrid';
+          }
         },
       },
     },

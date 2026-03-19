@@ -1,9 +1,9 @@
 requests==2.32.5
 mysql-connector-python==9.6.0
-python-dotenv==1.2.1
+python-dotenv==1.2.2
 lxml==6.0.2
 apscheduler==3.11.2
 click==8.3.1
 tqdm==4.67.3
-ijson==3.4.0.post0
+ijson==3.5.0
 bcrypt==5.0.0

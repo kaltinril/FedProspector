@@ -19,100 +19,109 @@ Update all packages across Python, C# (.NET), and Node.js/React to the highest s
 
 Target framework: `net10.0` (all projects)
 
-| Package | Current Version | Project |
-|---------|----------------|---------|
-| AutoMapper | 16.0.0 | Core |
-| BCrypt.Net-Next | 4.1.0 | Infrastructure |
-| coverlet.collector | 6.0.4 | Api.Tests, Core.Tests |
-| EFCore.NamingConventions | 9.0.0 | Infrastructure |
-| FluentAssertions | 8.8.0 | Api.Tests, Core.Tests |
-| FluentValidation | 12.1.1 | Core |
-| FluentValidation.DependencyInjectionExtensions | 12.1.1 | Api |
-| Microsoft.AspNetCore.Authentication.JwtBearer | 10.0.3 | Api, Infrastructure |
-| Microsoft.AspNetCore.Mvc.Testing | 10.0.3 | Api.Tests |
-| Microsoft.EntityFrameworkCore.Design | 9.0.7 | Api |
-| Microsoft.EntityFrameworkCore.InMemory | 9.0.7 | Api.Tests |
-| Microsoft.EntityFrameworkCore.Relational | 9.0.7 | Api.Tests |
-| Microsoft.Extensions.Logging.Abstractions | 10.0.3 | Core.Tests |
-| Microsoft.NET.Test.Sdk | 17.14.1 | Api.Tests, Core.Tests |
-| Microsoft.OpenApi | 2.4.1 | Api |
-| Moq | 4.20.72 | Api.Tests, Core.Tests |
-| Pomelo.EntityFrameworkCore.MySql | 9.0.0 | Infrastructure |
-| Serilog.AspNetCore | 10.0.0 | Api |
-| Serilog.Sinks.File | 7.0.0 | Api |
-| Swashbuckle.AspNetCore | 10.1.4 | Api |
-| xunit | 2.9.3 | Api.Tests, Core.Tests |
-| xunit.runner.visualstudio | 3.1.4 | Api.Tests, Core.Tests |
+| Package | Old Version | New Version | Project |
+|---------|-------------|-------------|---------|
+| AutoMapper | 16.0.0 | **16.1.1** | Core |
+| BCrypt.Net-Next | 4.1.0 | 4.1.0 (latest) | Infrastructure |
+| coverlet.collector | 6.0.4 | **8.0.1** | Api.Tests, Core.Tests |
+| EFCore.NamingConventions | 9.0.0 | 9.0.0 (blocked) | Infrastructure |
+| FluentAssertions | 8.8.0 | **8.9.0** | Api.Tests, Core.Tests |
+| FluentValidation | 12.1.1 | 12.1.1 (latest) | Core |
+| FluentValidation.DependencyInjectionExtensions | 12.1.1 | 12.1.1 (latest) | Api |
+| Microsoft.AspNetCore.Authentication.JwtBearer | 10.0.3 | **10.0.5** | Api, Infrastructure |
+| Microsoft.AspNetCore.Mvc.Testing | 10.0.3 | **10.0.5** | Api.Tests |
+| Microsoft.EntityFrameworkCore.Design | 9.0.7 | 9.0.7 (blocked) | Api |
+| Microsoft.EntityFrameworkCore.InMemory | 9.0.7 | 9.0.7 (blocked) | Api.Tests |
+| Microsoft.EntityFrameworkCore.Relational | 9.0.7 | 9.0.7 (blocked) | Api.Tests |
+| Microsoft.Extensions.Logging.Abstractions | 10.0.3 | **10.0.5** | Core.Tests |
+| Microsoft.NET.Test.Sdk | 17.14.1 | **18.3.0** | Api.Tests, Core.Tests |
+| Microsoft.OpenApi | 2.4.1 | **3.4.0** | Api |
+| Moq | 4.20.72 | 4.20.72 (latest) | Api.Tests, Core.Tests |
+| Pomelo.EntityFrameworkCore.MySql | 9.0.0 | 9.0.0 (blocked) | Infrastructure |
+| Serilog.AspNetCore | 10.0.0 | 10.0.0 (latest) | Api |
+| Serilog.Sinks.File | 7.0.0 | 7.0.0 (latest) | Api |
+| Swashbuckle.AspNetCore | 10.1.4 | **10.1.5** | Api |
+| xunit | 2.9.3 | 2.9.3 (latest) | Api.Tests, Core.Tests |
+| xunit.runner.visualstudio | 3.1.4 | **3.1.5** | Api.Tests, Core.Tests |
+
+**NOT upgraded (blocked):** EF Core stack (Design 9.0.7, InMemory 9.0.7, Relational 9.0.7, NamingConventions 9.0.0) -- Pomelo.EntityFrameworkCore.MySql has no 10.x release yet. All other packages were already at latest.
 
 ### Node.js / React (npm)
 
-| Package | Current Version | Type |
-|---------|----------------|------|
-| @dnd-kit/core | ^6.3.1 | dep |
-| @dnd-kit/sortable | ^10.0.0 | dep |
-| @emotion/react | ^11.14.0 | dep |
-| @emotion/styled | ^11.14.1 | dep |
-| @hookform/resolvers | ^5.2.2 | dep |
-| @mui/icons-material | ^7.3.9 | dep |
-| @mui/material | ^7.3.9 | dep |
-| @mui/x-charts | ^8.27.4 | dep |
-| @mui/x-data-grid | ^8.27.4 | dep |
-| @tanstack/react-query | ^5.90.21 | dep |
-| @tanstack/react-query-devtools | ^5.91.3 | dep |
-| axios | ^1.13.6 | dep |
-| date-fns | ^4.1.0 | dep |
-| dompurify | ^3.3.2 | dep |
-| notistack | ^3.0.2 | dep |
-| react | ^19.2.0 | dep |
-| react-dom | ^19.2.0 | dep |
-| react-error-boundary | ^6.1.1 | dep |
-| react-hook-form | ^7.71.2 | dep |
-| react-router-dom | ^7.13.1 | dep |
-| zod | ^4.3.6 | dep |
-| @eslint/js | ^9.39.1 | devDep |
-| @types/dompurify | ^3.0.5 | devDep |
-| @types/node | ^22.0.0 | devDep |
-| @types/react | ^19.2.7 | devDep |
-| @types/react-dom | ^19.2.3 | devDep |
-| @typescript-eslint/eslint-plugin | ^8.56.1 | devDep |
-| @typescript-eslint/parser | ^8.56.1 | devDep |
-| @vitejs/plugin-react | ^5.1.4 | devDep |
-| eslint | ^9.39.3 | devDep |
-| eslint-plugin-jsx-a11y | ^6.10.2 | devDep |
-| eslint-plugin-react-hooks | ^7.0.1 | devDep |
-| eslint-plugin-react-refresh | ^0.4.24 | devDep |
-| globals | ^16.5.0 | devDep |
-| prettier | ^3.8.1 | devDep |
-| typescript | ~5.9.3 | devDep |
-| typescript-eslint | ^8.48.0 | devDep |
-| rollup-plugin-visualizer | ^5.14.0 | devDep |
-| vite | ^7.3.1 | devDep |
+| Package | Old Version | New Version | Type |
+|---------|-------------|-------------|------|
+| @dnd-kit/core | ^6.3.1 | ^6.3.1 (latest) | dep |
+| @dnd-kit/sortable | ^10.0.0 | ^10.0.0 (latest) | dep |
+| @emotion/react | ^11.14.0 | ^11.14.0 (latest) | dep |
+| @emotion/styled | ^11.14.1 | ^11.14.1 (latest) | dep |
+| @hookform/resolvers | ^5.2.2 | ^5.2.2 (latest) | dep |
+| @mui/icons-material | ^7.3.9 | ^7.3.9 (latest) | dep |
+| @mui/material | ^7.3.9 | ^7.3.9 (latest) | dep |
+| @mui/x-charts | ^8.27.4 | **^8.27.5** | dep |
+| @mui/x-data-grid | ^8.27.4 | **^8.27.5** | dep |
+| @tanstack/react-query | ^5.90.21 | **^5.91.2** | dep |
+| @tanstack/react-query-devtools | ^5.91.3 | ^5.91.3 (latest) | dep |
+| axios | ^1.13.6 | ^1.13.6 (latest) | dep |
+| date-fns | ^4.1.0 | ^4.1.0 (latest) | dep |
+| dompurify | ^3.3.2 | **^3.3.3** | dep |
+| notistack | ^3.0.2 | ^3.0.2 (latest) | dep |
+| react | ^19.2.0 | ^19.2.0 (latest) | dep |
+| react-dom | ^19.2.0 | ^19.2.0 (latest) | dep |
+| react-error-boundary | ^6.1.1 | ^6.1.1 (latest) | dep |
+| react-hook-form | ^7.71.2 | ^7.71.2 (latest) | dep |
+| react-router-dom | ^7.13.1 | ^7.13.1 (latest) | dep |
+| zod | ^4.3.6 | ^4.3.6 (latest) | dep |
+| @eslint/js | ^9.39.1 | **^9.39.4** | devDep |
+| @types/node | ^22.0.0 | ^22.0.0 (latest for Node 22) | devDep |
+| @types/react | ^19.2.7 | **^19.2.14** | devDep |
+| @types/react-dom | ^19.2.3 | ^19.2.3 (latest) | devDep |
+| @vitejs/plugin-react | ^5.1.4 | **^6.0.1** | devDep |
+| eslint | ^9.39.3 | **^9.39.4** | devDep |
+| eslint-plugin-jsx-a11y | ^6.10.2 | ^6.10.2 (latest) | devDep |
+| eslint-plugin-react-hooks | ^7.0.1 | ^7.0.1 (latest) | devDep |
+| eslint-plugin-react-refresh | ^0.4.24 | **^0.5.2** | devDep |
+| globals | ^16.5.0 | **^17.4.0** | devDep |
+| prettier | ^3.8.1 | ^3.8.1 (latest) | devDep |
+| typescript | ~5.9.3 | ~5.9.3 (latest) | devDep |
+| typescript-eslint | ^8.48.0 | **^8.57.1** | devDep |
+| rollup-plugin-visualizer | ^5.14.0 | **^7.0.1** | devDep |
+| vite | ^7.3.1 | **^8.0.1** | devDep |
+
+**Removed:** @types/dompurify (deprecated), @typescript-eslint/eslint-plugin (redundant), @typescript-eslint/parser (redundant)
+
+**NOT upgraded:** eslint 10 (plugins don't support it yet), @types/node 25 (project runs Node 22)
+
+**Breaking change fixed:** vite.config.ts `manualChunks` changed from object to function syntax for Vite 8/Rolldown.
 
 ### Python (pip)
 
-| Package | Current Version |
-|---------|----------------|
-| requests | 2.32.5 |
-| mysql-connector-python | 9.6.0 |
-| python-dotenv | 1.2.1 |
-| lxml | 6.0.2 |
-| apscheduler | 3.11.2 |
-| click | 8.3.1 |
-| tqdm | 4.67.3 |
-| ijson | 3.4.0.post0 |
-| bcrypt | 5.0.0 |
+| Package | Old Version | New Version |
+|---------|-------------|-------------|
+| requests | 2.32.5 | 2.32.5 (latest) |
+| mysql-connector-python | 9.6.0 | 9.6.0 (latest) |
+| python-dotenv | 1.2.1 | **1.2.2** |
+| lxml | 6.0.2 | 6.0.2 (latest) |
+| apscheduler | 3.11.2 | 3.11.2 (latest) |
+| click | 8.3.1 | 8.3.1 (latest) |
+| tqdm | 4.67.3 | 4.67.3 (latest) |
+| ijson | 3.4.0.post0 | **3.5.0** |
+| bcrypt | 5.0.0 | 5.0.0 (latest) |
+| certifi | 2026.1.4 | **2026.2.25** (transitive) |
+| charset-normalizer | 3.4.4 | **3.4.6** (transitive) |
+
+All other Python packages already at latest stable.
 
 ## Tasks
 
 | # | Task | Status |
 |---|------|--------|
-| 102-1 | Audit C# NuGet packages for available stable updates | TODO |
-| 102-2 | Update NuGet packages and fix breaking changes | TODO |
-| 102-3 | Audit npm packages for available stable updates | TODO |
-| 102-4 | Update npm packages and fix breaking changes | TODO |
-| 102-5 | Audit Python packages for available stable updates | TODO |
-| 102-6 | Update Python packages and fix breaking changes | TODO |
-| 102-7 | Run full test suite (C# + Python) and verify builds | TODO |
+| 102-1 | Audit C# NuGet packages for available stable updates | DONE |
+| 102-2 | Update NuGet packages and fix breaking changes | DONE |
+| 102-3 | Audit npm packages for available stable updates | DONE |
+| 102-4 | Update npm packages and fix breaking changes | DONE |
+| 102-5 | Audit Python packages for available stable updates | DONE |
+| 102-6 | Update Python packages and fix breaking changes | DONE |
+| 102-7 | Run full test suite (C# + Python) and verify builds | DONE |
 | 102-8 | Manual smoke test of UI and API | TODO |
 
 ### 102-1: Audit C# NuGet Packages
@@ -157,6 +166,22 @@ Run all tests:
 
 Start all services and verify basic functionality works end-to-end.
 
+## Results
+
+### Test Results
+
+- **C#:** 577 passed, 0 failed
+- **Python:** 632 passed, 1 failed (pre-existing STATUS_CHANGE test in test_prospect_manager.py, not from upgrades)
+- **npm:** `tsc --noEmit` clean, `npm run build` success, `npm audit` 0 vulnerabilities
+
+### Key Outcomes
+
+- **AutoMapper CVE fixed** -- upgraded 16.0.0 to 16.1.1, eliminating GHSA-rvv3-g6hj-g44x build warning
+- **Vite 8 with Rolldown bundler** -- build time dropped from ~33s to <1s; required `manualChunks` syntax change from object to function
+- **EF Core blocked at 9.x** -- Pomelo.EntityFrameworkCore.MySql has no 10.x release; EF Core stack stays at 9.0.7/9.0.0 until Pomelo ships a compatible version
+- **Removed 3 redundant npm packages** -- @types/dompurify (deprecated), @typescript-eslint/eslint-plugin and @typescript-eslint/parser (subsumed by typescript-eslint)
+- **No breaking changes** beyond the Vite 8 manualChunks syntax fix
+
 ## Known Issue Driving This Phase
 
-AutoMapper 16.0.0 has CVE GHSA-rvv3-g6hj-g44x (high severity). This shows as a build warning on every build.
+AutoMapper 16.0.0 has CVE GHSA-rvv3-g6hj-g44x (high severity). This shows as a build warning on every build. **Resolved** by upgrading to 16.1.1.
