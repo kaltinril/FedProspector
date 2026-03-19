@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AutoMapper;
+using FedProspector.Core.Constants;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.DTOs.SavedSearches;
 using FedProspector.Core.Interfaces;
@@ -105,6 +106,9 @@ public class SavedSearchService : ISavedSearchService
             query = query.Where(o => o.ResponseDeadline != null && o.ResponseDeadline > DateTime.UtcNow);
         }
 
+        // Mandatory: exclude non-biddable notice types
+        query = query.Where(o => !OpportunityFilters.NonBiddableTypes.Contains(o.Type!));
+
         if (criteria.Types?.Count > 0)
             query = query.Where(o => criteria.Types.Contains(o.Type!));
 
@@ -113,6 +117,14 @@ public class SavedSearchService : ISavedSearchService
             var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-criteria.DaysBack.Value));
             query = query.Where(o => o.PostedDate >= cutoff);
         }
+
+        // Dedup: keep latest notice per solicitation
+        query = query.Where(o =>
+            (o.SolicitationNumber == null || o.SolicitationNumber == "") ||
+            o.PostedDate == _context.Opportunities
+                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber
+                           && !OpportunityFilters.NonBiddableTypes.Contains(o2.Type!))
+                .Max(o2 => o2.PostedDate));
 
         // Execute and get results (limit 200)
         var results = await query

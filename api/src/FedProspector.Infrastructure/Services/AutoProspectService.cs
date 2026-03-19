@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FedProspector.Core.Constants;
 using FedProspector.Core.DTOs.Prospects;
 using FedProspector.Core.DTOs.SavedSearches;
 using FedProspector.Core.Interfaces;
@@ -222,6 +223,7 @@ public class AutoProspectService : IAutoProspectService
                 matchedNoticeId = await _context.Opportunities.AsNoTracking()
                     .Where(o => o.SolicitationNumber == contract.SolicitationNumber
                         && o.Active == "Y"
+                        && !OpportunityFilters.NonBiddableTypes.Contains(o.Type!)
                         && o.ResponseDeadline != null
                         && o.ResponseDeadline > DateTime.UtcNow)
                     .Select(o => o.NoticeId)
@@ -235,6 +237,7 @@ public class AutoProspectService : IAutoProspectService
                     .Where(o => o.DepartmentName == contract.FundingAgencyName
                         && o.NaicsCode == contract.NaicsCode
                         && o.Active == "Y"
+                        && !OpportunityFilters.NonBiddableTypes.Contains(o.Type!)
                         && o.ResponseDeadline != null
                         && o.ResponseDeadline > DateTime.UtcNow)
                     .Select(o => o.NoticeId)
@@ -328,6 +331,9 @@ public class AutoProspectService : IAutoProspectService
         if (criteria.MaxAwardAmount.HasValue)
             query = query.Where(o => o.AwardAmount <= criteria.MaxAwardAmount);
 
+        // Mandatory: exclude non-biddable notice types
+        query = query.Where(o => !OpportunityFilters.NonBiddableTypes.Contains(o.Type!));
+
         if (criteria.Types?.Count > 0)
             query = query.Where(o => criteria.Types.Contains(o.Type!));
 
@@ -336,6 +342,14 @@ public class AutoProspectService : IAutoProspectService
             var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-criteria.DaysBack.Value));
             query = query.Where(o => o.PostedDate >= cutoff);
         }
+
+        // Dedup: keep latest notice per solicitation
+        query = query.Where(o =>
+            (o.SolicitationNumber == null || o.SolicitationNumber == "") ||
+            o.PostedDate == _context.Opportunities
+                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber
+                           && !OpportunityFilters.NonBiddableTypes.Contains(o2.Type!))
+                .Max(o2 => o2.PostedDate));
 
         // Dedup: exclude opportunities that already have a prospect for this org
         var existingNoticeIds = _context.Prospects

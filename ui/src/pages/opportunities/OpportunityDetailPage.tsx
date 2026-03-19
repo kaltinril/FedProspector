@@ -302,32 +302,48 @@ function OverviewTab({ opp }: { opp: OpportunityDetail }) {
             This solicitation has {opp.amendments.length + 1} version{opp.amendments.length > 0 ? 's' : ''}. You are viewing the latest.
           </Typography>
           <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
-            <Table size="small" sx={{ minWidth: 480 }}>
+            <Table size="small" sx={{ minWidth: 640 }}>
               <TableHead>
                 <TableRow>
                   <TableCell>Posted</TableCell>
                   <TableCell>Type</TableCell>
+                  <TableCell>Awardee</TableCell>
+                  <TableCell align="right">Award $</TableCell>
                   <TableCell>Response Deadline</TableCell>
                   <TableCell />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {opp.amendments.map((a) => (
-                  <TableRow key={a.noticeId}>
-                    <TableCell>{formatDate(a.postedDate)}</TableCell>
-                    <TableCell>{a.type ?? '--'}</TableCell>
-                    <TableCell>{formatDate(a.responseDeadline)}</TableCell>
-                    <TableCell>
-                      <Button
-                        size="small"
-                        component={RouterLink}
-                        to={`/opportunities/${encodeURIComponent(a.noticeId)}`}
-                      >
-                        View
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {opp.amendments.map((a) => {
+                  const isAwardNotice = a.type === 'Award Notice';
+                  return (
+                    <TableRow key={a.noticeId}>
+                      <TableCell>{formatDate(a.postedDate)}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {a.type ?? '--'}
+                          {isAwardNotice && (
+                            <Chip label="Awarded" size="small" color="success" />
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell>{isAwardNotice && a.awardeeName ? a.awardeeName : '--'}</TableCell>
+                      <TableCell align="right">
+                        {isAwardNotice && a.awardAmount != null ? formatCurrency(a.awardAmount) : '--'}
+                      </TableCell>
+                      <TableCell>{formatDate(a.responseDeadline)}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          component={RouterLink}
+                          to={`/opportunities/${encodeURIComponent(a.noticeId)}`}
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </TableContainer>
@@ -399,6 +415,7 @@ function HistoryTab({ opp }: { opp: OpportunityDetail }) {
   const isRecompete = !!(opp.awardeeUei || opp.awardNumber);
   const incumbentUei = opp.incumbentUei ?? opp.awardeeUei;
   const incumbentName = opp.incumbentName ?? opp.awardeeName;
+  const hasAmendments = opp.amendments && opp.amendments.length > 0;
 
   const firstAward = opp.relatedAwards?.[0];
   const { data: burnRateData } = useQuery({
@@ -408,55 +425,121 @@ function HistoryTab({ opp }: { opp: OpportunityDetail }) {
     enabled: isRecompete && !!firstAward?.contractId,
   });
 
-  if (!isRecompete) {
+  const incumbentFacts = isRecompete
+    ? [
+        { label: 'Re-compete Status', value: 'Re-compete' },
+        {
+          label: 'Incumbent',
+          value: incumbentUei ? (
+            <Link
+              component={RouterLink}
+              to={`/entities/${encodeURIComponent(incumbentUei)}`}
+            >
+              {incumbentName ?? incumbentUei}
+            </Link>
+          ) : (
+            incumbentName ?? '--'
+          ),
+        },
+        { label: 'Incumbent UEI', value: incumbentUei ?? '--' },
+        { label: 'Award Number', value: opp.awardNumber ?? '--' },
+        { label: 'Award Date', value: formatDate(opp.awardDate) },
+        { label: 'Award Amount', value: formatCurrency(opp.awardAmount) },
+      ]
+    : null;
+
+  // Show empty state only when there is truly no history data at all
+  if (!isRecompete && !hasAmendments && opp.relatedAwards.length === 0) {
     return (
       <EmptyState
-        title="New Solicitation"
-        message="No incumbent information available for this opportunity."
+        title="No History Available"
+        message="No amendment history, awards, or incumbent information available for this opportunity."
         icon={<InfoOutlinedIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />}
       />
     );
   }
 
-  const incumbentFacts = [
-    { label: 'Re-compete Status', value: 'Re-compete' },
-    {
-      label: 'Incumbent',
-      value: incumbentUei ? (
-        <Link
-          component={RouterLink}
-          to={`/entities/${encodeURIComponent(incumbentUei)}`}
-        >
-          {incumbentName ?? incumbentUei}
-        </Link>
-      ) : (
-        incumbentName ?? '--'
-      ),
-    },
-    { label: 'Incumbent UEI', value: incumbentUei ?? '--' },
-    { label: 'Award Number', value: opp.awardNumber ?? '--' },
-    { label: 'Award Date', value: formatDate(opp.awardDate) },
-    { label: 'Award Amount', value: formatCurrency(opp.awardAmount) },
-  ];
-
   return (
     <Box>
-      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-        <Typography variant="subtitle2" sx={{ mb: 2 }}>
-          Incumbent Information
-        </Typography>
-        <KeyFactsGrid facts={incumbentFacts} columns={2} />
-      </Paper>
+      {/* Incumbent section — only for recompetes */}
+      {incumbentFacts && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <Typography variant="subtitle2" sx={{ mb: 2 }}>
+            Incumbent Information
+          </Typography>
+          <KeyFactsGrid facts={incumbentFacts} columns={2} />
+        </Paper>
+      )}
 
-      {/* Burn Rate Chart */}
-      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-        <BurnRateChart
-          data={burnRateData?.monthlyBreakdown?.map(m => ({ month: m.yearMonth, amount: m.amount })) ?? []}
-          totalObligated={burnRateData?.totalObligated}
-          baseAndAllOptions={burnRateData?.baseAndAllOptions ?? undefined}
-          title="Previous Contract Burn Rate"
-        />
-      </Paper>
+      {/* Burn Rate Chart — only for recompetes with contract data */}
+      {isRecompete && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <BurnRateChart
+            data={burnRateData?.monthlyBreakdown?.map(m => ({ month: m.yearMonth, amount: m.amount })) ?? []}
+            totalObligated={burnRateData?.totalObligated}
+            baseAndAllOptions={burnRateData?.baseAndAllOptions ?? undefined}
+            title="Previous Contract Burn Rate"
+          />
+        </Paper>
+      )}
+
+      {/* Solicitation Timeline — amendment history for all opportunities */}
+      {hasAmendments && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Solicitation Timeline
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            This solicitation has {opp.amendments!.length + 1} version{opp.amendments!.length > 0 ? 's' : ''} in the SAM.gov record.
+          </Typography>
+          <TableContainer sx={{ overflowX: 'auto' }}>
+            <Table size="small" sx={{ minWidth: 640 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Posted</TableCell>
+                  <TableCell>Type</TableCell>
+                  <TableCell>Awardee</TableCell>
+                  <TableCell align="right">Award $</TableCell>
+                  <TableCell>Response Deadline</TableCell>
+                  <TableCell />
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {opp.amendments!.map((a) => {
+                  const isAwardNotice = a.type === 'Award Notice';
+                  return (
+                    <TableRow key={a.noticeId}>
+                      <TableCell>{formatDate(a.postedDate)}</TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          {a.type ?? '--'}
+                          {isAwardNotice && (
+                            <Chip label="Awarded" size="small" color="success" />
+                          )}
+                        </Box>
+                      </TableCell>
+                      <TableCell>{isAwardNotice && a.awardeeName ? a.awardeeName : '--'}</TableCell>
+                      <TableCell align="right">
+                        {isAwardNotice && a.awardAmount != null ? formatCurrency(a.awardAmount) : '--'}
+                      </TableCell>
+                      <TableCell>{formatDate(a.responseDeadline)}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="small"
+                          component={RouterLink}
+                          to={`/opportunities/${encodeURIComponent(a.noticeId)}`}
+                        >
+                          View
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Paper>
+      )}
 
       {/* Related awards table */}
       {opp.relatedAwards.length > 0 && (

@@ -47,6 +47,52 @@ function scoreChip(score: number | null | undefined) {
   return <Chip label={score} size="small" color={color} />;
 }
 
+function noticeTypeChip(noticeType: string | null | undefined) {
+  if (!noticeType) return <Chip label="--" size="small" color="default" />;
+
+  let label: string;
+  let color: ChipColor;
+
+  switch (noticeType) {
+    case 'Combined Synopsis/Solicitation':
+      label = 'Combined';
+      color = 'primary';
+      break;
+    case 'Solicitation':
+      label = 'Solicitation';
+      color = 'primary';
+      break;
+    case 'Presolicitation':
+      label = 'Presol';
+      color = 'info';
+      break;
+    case 'Sources Sought':
+      label = 'Sources Sought';
+      color = 'warning';
+      break;
+    case 'Special Notice':
+      label = 'Special';
+      color = 'default';
+      break;
+    default:
+      label = noticeType.length > 16 ? noticeType.slice(0, 14) + '...' : noticeType;
+      color = 'default';
+      break;
+  }
+
+  const chip = <Chip label={label} size="small" color={color} />;
+
+  // Show full name in tooltip when the label is abbreviated
+  if (label !== noticeType) {
+    return (
+      <Tooltip title={noticeType} arrow>
+        {chip}
+      </Tooltip>
+    );
+  }
+  return chip;
+}
+
 function truncate(text: string | null | undefined, maxLen: number): string {
   if (!text) return '--';
   if (text.length <= maxLen) return text;
@@ -65,6 +111,15 @@ function buildColumns(): GridColDef<RecommendedOpportunityDto>[] {
       flex: 2,
       minWidth: 200,
       valueFormatter: (value: string | null | undefined) => value ?? '--',
+    },
+    {
+      field: 'noticeType',
+      headerName: 'Type',
+      width: 140,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params) => noticeTypeChip(params.value as string | null | undefined),
+      sortable: true,
     },
     {
       field: 'departmentName',
@@ -151,6 +206,7 @@ const LIMIT_OPTIONS = [
 ];
 
 const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
+  noticeType: 'md',
   departmentName: 'md',
   naicsCode: 'lg',
   setAsideDescription: 'md',

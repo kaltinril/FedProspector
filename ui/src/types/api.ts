@@ -96,6 +96,8 @@ export interface AmendmentSummary {
   type?: string | null;
   postedDate?: string | null;
   responseDeadline?: string | null;
+  awardeeName: string | null;
+  awardAmount: number | null;
 }
 
 export interface ResourceLinkDto {

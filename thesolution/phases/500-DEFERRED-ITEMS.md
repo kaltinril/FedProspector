@@ -38,7 +38,7 @@
 **Original phase**: 100
 **Deferred because**: Single-developer local-dev setup. Not needed until staging/production prep.
 
-See [100-SECURITY-HARDENING.md](100-SECURITY-HARDENING.md) for full details. Items include:
+See [150-SECURITY-HARDENING.md](150-SECURITY-HARDENING.md) for full details. Items include:
 - Production AllowedHosts configuration
 - JWT secret replacement
 - Token lifetime tuning

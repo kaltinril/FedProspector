@@ -1,5 +1,6 @@
 -- views/10_target_opportunities.sql
 -- Target opportunities view - WOSB/8(a) opportunities with prospect status
+-- Selects from v_opportunity_latest (deduped, non-biddable types excluded)
 
 USE fed_contracts;
 
@@ -32,7 +33,7 @@ SELECT
     p.priority AS prospect_priority,
     u.display_name AS assigned_to,
     p.organization_id
-FROM opportunity o
+FROM v_opportunity_latest o
 LEFT JOIN ref_naics_code n ON n.naics_code = o.naics_code
 LEFT JOIN ref_naics_code sector
     ON sector.naics_code = LEFT(o.naics_code, 2)
@@ -41,6 +42,5 @@ LEFT JOIN ref_sba_size_standard ss ON ss.naics_code = o.naics_code
 LEFT JOIN ref_set_aside_type sa ON sa.set_aside_code = o.set_aside_code
 LEFT JOIN prospect p ON p.notice_id = o.notice_id
 LEFT JOIN app_user u ON u.user_id = p.assigned_to
-WHERE o.active = 'Y'
-  AND o.set_aside_code IN ('WOSB', 'EDWOSB', 'WOSBSS', 'EDWOSBSS', 'SBA', '8A', '8AN')
+WHERE o.set_aside_code IN ('WOSB', 'EDWOSB', 'WOSBSS', 'EDWOSBSS', 'SBA', '8A', '8AN')
   AND o.response_deadline > NOW();

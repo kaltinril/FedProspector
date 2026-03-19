@@ -113,7 +113,9 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 97 | USASpending Bulk — `--check-available` | COMPLETE | [97-USASPENDING-CHECK-AVAILABLE.md](phases/completed/97-USASPENDING-CHECK-AVAILABLE.md) |
 | 98 | API Sorting Fixes | COMPLETE | [98-API-SORTING-FIXES.md](phases/completed/98-API-SORTING-FIXES.md) |
 | 99 | Application Review Punch List | COMPLETE | [99-APPLICATION-REVIEW-PUNCH-LIST.md](phases/completed/99-APPLICATION-REVIEW-PUNCH-LIST.md) |
-| 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
+| 100 | Recommended Opps Dedup & Quality | COMPLETE | [100-RECOMMENDED-OPPS-DEDUP.md](phases/completed/100-RECOMMENDED-OPPS-DEDUP.md) |
+| 102 | Dependency Updates -- Stable/LTS Versions | TODO | [102-DEPENDENCY-UPDATES.md](phases/102-DEPENDENCY-UPDATES.md) |
+| 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 

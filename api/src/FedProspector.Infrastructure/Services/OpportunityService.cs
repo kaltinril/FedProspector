@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FedProspector.Core.Constants;
 using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
@@ -63,12 +64,16 @@ public class OpportunityService : IOpportunityService
         if (!string.IsNullOrWhiteSpace(request.State))
             query = query.Where(o => o.PopState == request.State);
 
+        // Exclude non-biddable notice types
+        query = query.Where(o => !OpportunityFilters.NonBiddableTypes.Contains(o.Type!));
+
         // Show only the latest notice per solicitation number (amendments supersede originals).
         // Opportunities without a solicitation number are always shown.
         query = query.Where(o =>
-            o.SolicitationNumber == null ||
+            (o.SolicitationNumber == null || o.SolicitationNumber == "") ||
             o.PostedDate == _context.Opportunities
-                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber)
+                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber
+                           && !OpportunityFilters.NonBiddableTypes.Contains(o2.Type!))
                 .Max(o2 => o2.PostedDate));
 
         // Count before joining (more efficient)
@@ -274,7 +279,9 @@ public class OpportunityService : IOpportunityService
                     Title = o.Title,
                     Type = o.Type,
                     PostedDate = o.PostedDate,
-                    ResponseDeadline = o.ResponseDeadline
+                    ResponseDeadline = o.ResponseDeadline,
+                    AwardeeName = o.AwardeeName,
+                    AwardAmount = o.AwardAmount
                 })
                 .Take(50)
                 .ToListAsync();
@@ -484,12 +491,16 @@ public class OpportunityService : IOpportunityService
         if (!string.IsNullOrWhiteSpace(request.State))
             query = query.Where(o => o.PopState == request.State);
 
+        // Exclude non-biddable notice types
+        query = query.Where(o => !OpportunityFilters.NonBiddableTypes.Contains(o.Type!));
+
         // Show only the latest notice per solicitation number (amendments supersede originals).
         // Opportunities without a solicitation number are always shown.
         query = query.Where(o =>
-            o.SolicitationNumber == null ||
+            (o.SolicitationNumber == null || o.SolicitationNumber == "") ||
             o.PostedDate == _context.Opportunities
-                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber)
+                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber
+                           && !OpportunityFilters.NonBiddableTypes.Contains(o2.Type!))
                 .Max(o2 => o2.PostedDate));
 
         // Apply sort (same fields as SearchAsync)

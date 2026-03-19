@@ -23,7 +23,7 @@ Phase 88 addressed documentation staleness identified during the review sweep. O
 | 88-7 | DONE | Database schema doc updated with comprehensive table inventory |
 | 88-8 | SKIPPED | Already exists: Phase 87 created backup procedures in operational docs |
 | 88-9 | DEFERRED | Auth/tenancy reference doc would be useful but is a future enhancement |
-| 88-10 | DONE | CLAUDE.md updated with Phase 100/200 deferred guidance |
+| 88-10 | DONE | CLAUDE.md updated with Phase 150/200 deferred guidance |
 | 88-11 | SKIPPED | Already done: MASTER-PLAN.md phase table already includes phases 80-88 |
 
 ---
@@ -40,7 +40,7 @@ Review identified stale references, broken links, outdated counts, and documenta
 
 **88-1 — Broken Phase Link in 500-DEFERRED-ITEMS.md** -- DONE
 File: `thesolution/phases/500-DEFERRED-ITEMS.md:36-41`
-Section 500C references `80-SECURITY-HARDENING.md` which doesn't exist. Actual file is `100-SECURITY-HARDENING.md`. Replace `80-SECURITY-HARDENING.md` with `100-SECURITY-HARDENING.md`. Update "Original phase: 80" to "Original phase: 100".
+Section 500C references `80-SECURITY-HARDENING.md` which doesn't exist. Actual file is `150-SECURITY-HARDENING.md`. Replace `80-SECURITY-HARDENING.md` with `150-SECURITY-HARDENING.md`. Update "Original phase: 80" to "Original phase: 150".
 
 ---
 
@@ -84,9 +84,9 @@ No document covers backup procedures, restore steps, or disaster recovery. Creat
 **88-9 — Missing Reference Doc: Authentication & Multi-Tenancy** -- DEFERRED
 No standalone reference doc for auth flow, multi-tenancy model, or RBAC. Covered in completed phase docs (13, 14.5) but not consolidated. Create `thesolution/reference/12-AUTHENTICATION-AND-TENANCY.md` with overview.
 
-**88-10 — CLAUDE.md Missing Phase 100/200 Guidance** -- DONE
+**88-10 — CLAUDE.md Missing Phase 150/200 Guidance** -- DONE
 File: `CLAUDE.md:25-39`
-"When Working on This Project" doesn't mention that Phases 100/200 are deferred/planned with special handling. Add note: "Phases 100 (Security) and 200 (Normalization) are deferred/planned. Do not start without explicit instruction."
+"When Working on This Project" doesn't mention that Phases 150/200 are deferred/planned with special handling. Add note: "Phases 150 (Security) and 200 (Normalization) are deferred/planned. Do not start without explicit instruction."
 
 **88-11 — Update MASTER-PLAN.md Phase Table** -- SKIPPED (already done: phases 80-88 already present)
 File: `thesolution/MASTER-PLAN.md`
@@ -104,5 +104,5 @@ Phase table needs to include new phases 80-88 from this review. Add rows for pha
 - [x] 88-6: SKIPPED — low value
 - [x] 88-7: Database schema doc covers all tables
 - [x] 88-8: SKIPPED — already exists from Phase 87
-- [x] 88-10: CLAUDE.md mentions Phase 100/200 as deferred
+- [x] 88-10: CLAUDE.md mentions Phase 150/200 as deferred
 - [x] 88-11: SKIPPED — already done

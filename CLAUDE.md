@@ -36,7 +36,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 8. **Ignore OLD_ATTEMPTS and OLD_RESOURCES**: Relevant data already in `workdir/converted/`.
 9. **Keep DDL files and live DB in sync**: When changing SQL schema or view files, always apply changes to the live database in the same step.
 10. **Completed phases**: Docs in `thesolution/phases/completed/`. Only read for historical context.
-11. **Deferred phases**: Phases 100 (Security Hardening) and 500 (Deferred Items) are intentionally deferred. Do not start without explicit instruction.
+11. **Deferred phases**: Phases 150 (Security Hardening) and 500 (Deferred Items) are intentionally deferred. Do not start without explicit instruction.
 
 ### Key Conventions
 

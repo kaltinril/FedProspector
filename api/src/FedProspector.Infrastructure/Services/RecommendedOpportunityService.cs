@@ -1,3 +1,4 @@
+using FedProspector.Core.Constants;
 using FedProspector.Core.DTOs.Intelligence;
 using FedProspector.Core.Interfaces;
 using FedProspector.Infrastructure.Data;
@@ -82,6 +83,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         var candidates = await _context.Opportunities.AsNoTracking()
             .Where(o => naicsCodes.Contains(o.NaicsCode!)
                         && o.Active != "N"
+                        && !OpportunityFilters.NonBiddableTypes.Contains(o.Type!)
                         && (o.ResponseDeadline == null || o.ResponseDeadline > now))
             .Select(o => new
             {
@@ -105,10 +107,16 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             })
             .ToListAsync();
 
-        // 3. Filter by set-aside compatibility and score
+        // 3. Dedup: keep latest notice per solicitation
+        var deduped = candidates
+            .GroupBy(c => string.IsNullOrEmpty(c.SolicitationNumber) ? c.NoticeId : c.SolicitationNumber)
+            .Select(g => g.OrderByDescending(c => c.PostedDate).ThenByDescending(c => c.NoticeId).First())
+            .ToList();
+
+        // 4. Filter by set-aside compatibility and score
         var scored = new List<(RecommendedOpportunityDto Dto, decimal RawScore)>();
 
-        foreach (var c in candidates)
+        foreach (var c in deduped)
         {
             var setAsideCode = (c.SetAsideCode ?? "").Trim();
 
@@ -224,14 +232,14 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             scored.Add((dto, normalized));
         }
 
-        // 4. Order by score DESC, take top N
+        // 5. Order by score DESC, take top N
         var topN = scored
             .OrderByDescending(s => s.RawScore)
             .Take(limit)
             .Select(s => s.Dto)
             .ToList();
 
-        // 5. Enrich with NAICS descriptions (batch lookup)
+        // 6. Enrich with NAICS descriptions (batch lookup)
         var distinctNaics = topN
             .Where(d => d.NaicsCode != null)
             .Select(d => d.NaicsCode!)
@@ -242,7 +250,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             .Where(n => distinctNaics.Contains(n.NaicsCode))
             .ToDictionaryAsync(n => n.NaicsCode, n => n.Description);
 
-        // 6. Check re-compete status (batch lookup by solicitation numbers)
+        // 7. Check re-compete status (batch lookup by solicitation numbers)
         var solNums = topN
             .Where(d => !string.IsNullOrEmpty(d.SolicitationNumber))
             .Select(d => d.SolicitationNumber!)
@@ -261,7 +269,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 .ToDictionaryAsync(x => x.SolicitationNumber!, x => x.VendorName)
             : new Dictionary<string, string?>();
 
-        // 7. Apply enrichments
+        // 8. Apply enrichments
         foreach (var dto in topN)
         {
             if (dto.NaicsCode != null && naicsDescriptions.TryGetValue(dto.NaicsCode, out var desc))
@@ -276,8 +284,8 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         }
 
         _logger.LogInformation(
-            "Recommended {Count} opportunities for org {OrgId} (from {Total} candidates)",
-            topN.Count, orgId, candidates.Count);
+            "Recommended {Count} opportunities for org {OrgId} (from {Total} candidates, {Deduped} after dedup)",
+            topN.Count, orgId, candidates.Count, deduped.Count);
 
         return topN;
     }

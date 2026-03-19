@@ -4,7 +4,7 @@
 
 **Priority**: IMMEDIATE — must be completed before any shared/production deployment
 **Depends on**: None
-**Overlaps**: Phase 100 (Security Hardening) — Phase 80 covers the subset of security issues that are critical and should not be deferred.
+**Overlaps**: Phase 150 (Security Hardening) — Phase 80 covers the subset of security issues that are critical and should not be deferred.
 
 ---
 
@@ -94,6 +94,6 @@ Fix: Remove `[AllowAnonymous]` and add `[Authorize]`. Pass organization ID from 
 
 ---
 
-## Relationship to Phase 100
+## Relationship to Phase 150
 
-Phase 100 (Security Hardening) covers MEDIUM/LOW items like MySQL TLS, email masking in logs, distributed rate limiting. Phase 80 covers the CRITICAL/HIGH items that should be fixed first regardless of deployment timeline.
+Phase 150 (Security Hardening) covers MEDIUM/LOW items like MySQL TLS, email masking in logs, distributed rate limiting. Phase 80 covers the CRITICAL/HIGH items that should be fixed first regardless of deployment timeline.

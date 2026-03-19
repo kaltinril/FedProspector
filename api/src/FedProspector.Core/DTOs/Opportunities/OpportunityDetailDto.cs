@@ -91,6 +91,8 @@ public class AmendmentSummaryDto
     public string? Type { get; set; }
     public DateOnly? PostedDate { get; set; }
     public DateTime? ResponseDeadline { get; set; }
+    public string? AwardeeName { get; set; }
+    public decimal? AwardAmount { get; set; }
 }
 
 public class UsaspendingSummaryDto

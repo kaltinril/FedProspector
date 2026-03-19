@@ -577,4 +577,142 @@ public class SavedSearchServiceTests : IDisposable
         result!.TotalCount.Should().Be(200);
         result.Results.Should().HaveCount(200);
     }
+
+    // --- Phase 100: Type Filtering Tests ---
+
+    [Fact]
+    public async Task RunAsync_ExcludesNonBiddableTypes()
+    {
+        var criteria = new SavedSearchFilterCriteria { OpenOnly = false };
+        var search = SeedSavedSearch(userId: 1, criteria: criteria);
+
+        SeedOpportunities(
+            new Opportunity { NoticeId = "BIDDABLE-001", Title = "IT Services", Type = "Combined Synopsis/Solicitation" },
+            new Opportunity { NoticeId = "AWARD-001", Title = "Award", Type = "Award Notice" },
+            new Opportunity { NoticeId = "JUST-001", Title = "Justification", Type = "Justification" },
+            new Opportunity { NoticeId = "SURPLUS-001", Title = "Surplus", Type = "Sale of Surplus Property" },
+            new Opportunity { NoticeId = "BUNDLE-001", Title = "Bundle", Type = "Consolidate/(Substantially) Bundle" }
+        );
+
+        var result = await _service.RunAsync(userId: 1, searchId: search.SearchId);
+
+        result!.TotalCount.Should().Be(1);
+        result.Results.Should().ContainSingle(r => r.NoticeId == "BIDDABLE-001");
+    }
+
+    [Fact]
+    public async Task RunAsync_MandatoryTypeExclusionOverridesUserTypeCriteria()
+    {
+        // Even if user explicitly includes Award Notice in their type filter,
+        // the mandatory exclusion should still prevent it from appearing
+        var criteria = new SavedSearchFilterCriteria
+        {
+            Types = ["Award Notice", "Combined Synopsis/Solicitation"],
+            OpenOnly = false
+        };
+        var search = SeedSavedSearch(userId: 1, criteria: criteria);
+
+        SeedOpportunities(
+            new Opportunity { NoticeId = "BIDDABLE-001", Title = "IT Services", Type = "Combined Synopsis/Solicitation" },
+            new Opportunity { NoticeId = "AWARD-001", Title = "Award", Type = "Award Notice" }
+        );
+
+        var result = await _service.RunAsync(userId: 1, searchId: search.SearchId);
+
+        result!.TotalCount.Should().Be(1);
+        result.Results.Should().ContainSingle(r => r.NoticeId == "BIDDABLE-001");
+    }
+
+    // --- Phase 100: Dedup Tests ---
+
+    [Fact]
+    public async Task RunAsync_DedupsBySolicitationNumber_KeepsLatest()
+    {
+        var criteria = new SavedSearchFilterCriteria { OpenOnly = false };
+        var search = SeedSavedSearch(userId: 1, criteria: criteria);
+
+        SeedOpportunities(
+            new Opportunity
+            {
+                NoticeId = "SOL1-OLD",
+                Title = "Old Notice",
+                SolicitationNumber = "SOL-001",
+                PostedDate = new DateOnly(2026, 1, 1),
+                Type = "Combined Synopsis/Solicitation"
+            },
+            new Opportunity
+            {
+                NoticeId = "SOL1-NEW",
+                Title = "New Notice",
+                SolicitationNumber = "SOL-001",
+                PostedDate = new DateOnly(2026, 3, 1),
+                Type = "Solicitation"
+            }
+        );
+
+        var result = await _service.RunAsync(userId: 1, searchId: search.SearchId);
+
+        result!.TotalCount.Should().Be(1);
+        result.Results[0].NoticeId.Should().Be("SOL1-NEW");
+    }
+
+    [Fact]
+    public async Task RunAsync_NullSolicitationNumber_TreatedAsUnique()
+    {
+        var criteria = new SavedSearchFilterCriteria { OpenOnly = false };
+        var search = SeedSavedSearch(userId: 1, criteria: criteria);
+
+        SeedOpportunities(
+            new Opportunity
+            {
+                NoticeId = "NULL-1",
+                Title = "Null Sol 1",
+                SolicitationNumber = null,
+                PostedDate = new DateOnly(2026, 1, 1),
+                Type = "Special Notice"
+            },
+            new Opportunity
+            {
+                NoticeId = "NULL-2",
+                Title = "Null Sol 2",
+                SolicitationNumber = null,
+                PostedDate = new DateOnly(2026, 2, 1),
+                Type = "Special Notice"
+            }
+        );
+
+        var result = await _service.RunAsync(userId: 1, searchId: search.SearchId);
+
+        result!.TotalCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task RunAsync_EmptyStringSolicitationNumber_TreatedAsUnique()
+    {
+        var criteria = new SavedSearchFilterCriteria { OpenOnly = false };
+        var search = SeedSavedSearch(userId: 1, criteria: criteria);
+
+        SeedOpportunities(
+            new Opportunity
+            {
+                NoticeId = "EMPTY-1",
+                Title = "Empty Sol 1",
+                SolicitationNumber = "",
+                PostedDate = new DateOnly(2026, 1, 1),
+                Type = "Special Notice"
+            },
+            new Opportunity
+            {
+                NoticeId = "EMPTY-2",
+                Title = "Empty Sol 2",
+                SolicitationNumber = "",
+                PostedDate = new DateOnly(2026, 2, 1),
+                Type = "Special Notice"
+            }
+        );
+
+        var result = await _service.RunAsync(userId: 1, searchId: search.SearchId);
+
+        result!.TotalCount.Should().Be(2);
+    }
 }
