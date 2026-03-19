@@ -42,6 +42,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 12 | Capture Management API | COMPLETE | [12-CAPTURE-MANAGEMENT-API.md](phases/completed/12-CAPTURE-MANAGEMENT-API.md) |
 | 13 | Auth, Notifications & Production | COMPLETE | [13-AUTH-AND-PRODUCTION.md](phases/completed/13-AUTH-AND-PRODUCTION.md) |
 | 14 | Testing Strategy | COMPLETE | [14-TESTING.md](phases/completed/14-TESTING.md) |
+| 14.4 | Raw Tables | COMPLETE | [14.4-RAW_TABLES.md](phases/completed/14.4-RAW_TABLES.md) |
 | 14.5 | Multi-Tenancy & Security | COMPLETE | [14.5-MULTI-TENANCY-SECURITY.md](phases/completed/14.5-MULTI-TENANCY-SECURITY.md) |
 | 14.6 | Admin Operability | COMPLETE | [14.6-ADMIN-OPERABILITY.md](phases/completed/14.6-ADMIN-OPERABILITY.md) |
 | 14.7 | CLI Command Hierarchy | COMPLETE | [14.7-CLI-HIERARCHY.md](phases/completed/14.7-CLI-HIERARCHY.md) |
@@ -109,8 +110,8 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 94 | Auth — Force Password Change UI | COMPLETE | [94-AUTH-FORCE-PASSWORD-CHANGE.md](phases/completed/94-AUTH-FORCE-PASSWORD-CHANGE.md) |
 | 95 | Org Entity Linking Fixes | COMPLETE | [95-ORG-ENTITY-LINKING-FIXES.md](phases/completed/95-ORG-ENTITY-LINKING-FIXES.md) |
 | 96 | Intelligence-First UI | COMPLETE | [96-INTELLIGENCE-FIRST-UI.md](phases/completed/96-INTELLIGENCE-FIRST-UI.md) |
-| 97 | USASpending Bulk — `--check-available` | PLANNED | [97-USASPENDING-CHECK-AVAILABLE.md](phases/97-USASPENDING-CHECK-AVAILABLE.md) |
-| 98 | API Sorting Fixes | PLANNED | [phases/98-API-SORTING-FIXES.md](phases/98-API-SORTING-FIXES.md) |
+| 97 | USASpending Bulk — `--check-available` | COMPLETE | [97-USASPENDING-CHECK-AVAILABLE.md](phases/completed/97-USASPENDING-CHECK-AVAILABLE.md) |
+| 98 | API Sorting Fixes | COMPLETE | [98-API-SORTING-FIXES.md](phases/completed/98-API-SORTING-FIXES.md) |
 | 99 | Application Review Punch List | COMPLETE | [99-APPLICATION-REVIEW-PUNCH-LIST.md](phases/completed/99-APPLICATION-REVIEW-PUNCH-LIST.md) |
 | 100 | Security Hardening | DEFERRED | [100-SECURITY-HARDENING.md](phases/100-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
