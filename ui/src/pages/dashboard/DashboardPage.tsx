@@ -314,9 +314,9 @@ export default function DashboardPage() {
                         />
                       )}
                       <Chip
-                        label={rec.pWinScore}
+                        label={rec.qScore}
                         size="small"
-                        color={rec.pWinScore >= 70 ? 'success' : rec.pWinScore >= 40 ? 'warning' : 'error'}
+                        color={rec.qScore >= 70 ? 'success' : rec.qScore >= 40 ? 'warning' : 'error'}
                       />
                     </Box>
                   </ListItemButton>

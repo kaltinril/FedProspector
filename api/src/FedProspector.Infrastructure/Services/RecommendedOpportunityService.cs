@@ -126,6 +126,10 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
 
             // Score calculation (out of 60)
             decimal score = 0;
+            decimal setAsidePoints = 0;
+            decimal naicsPoints = 0;
+            decimal timePoints = 0;
+            decimal valuePoints = 0;
 
             // Set-aside match: exact cert match = 20pts, any small business set-aside = 10pts, none = 0pts
             if (string.IsNullOrEmpty(setAsideCode))
@@ -135,30 +139,32 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             else if (SetAsideToCertType.TryGetValue(setAsideCode, out var requiredCert)
                      && orgCertSet.Contains(requiredCert))
             {
-                score += 20;
+                setAsidePoints = 20;
             }
             else if (SmallBusinessSetAsides.Contains(setAsideCode) && orgCertSet.Count > 0)
             {
                 // Org has some cert, but not the exact match
-                score += 10;
+                setAsidePoints = 10;
             }
             else if (!string.IsNullOrEmpty(setAsideCode) && SetAsideToCertType.ContainsKey(setAsideCode))
             {
                 // Set-aside requires a cert we don't have — skip entirely
                 continue;
             }
+            score += setAsidePoints;
 
             // NAICS match: primary = 20pts, secondary = 15pts
             if (primaryNaics.Contains(c.NaicsCode!))
-                score += 20;
+                naicsPoints = 20;
             else
-                score += 15;
+                naicsPoints = 15;
+            score += naicsPoints;
 
             // Time remaining
             if (c.ResponseDeadline.HasValue)
             {
                 var daysLeft = (c.ResponseDeadline.Value - now).Days;
-                score += daysLeft switch
+                timePoints = daysLeft switch
                 {
                     >= 30 => 10,
                     >= 14 => 7,
@@ -168,14 +174,15 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             }
             else
             {
-                score += 5;
+                timePoints = 5;
             }
+            score += timePoints;
 
             // Value scoring — use EstimatedContractValue if available, else AwardAmount
             var value = c.EstimatedContractValue ?? c.AwardAmount;
             if (value.HasValue)
             {
-                score += value.Value switch
+                valuePoints = value.Value switch
                 {
                     > 1_000_000m => 10,
                     > 500_000m => 8,
@@ -186,8 +193,9 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             }
             else
             {
-                score += 3;
+                valuePoints = 3;
             }
+            score += valuePoints;
 
             // Normalize to 0-100
             var normalized = Math.Round(score / 60m * 100m, 1);
@@ -225,8 +233,15 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 PopState = c.PopState,
                 PopCity = c.PopCity,
                 PopCountry = c.PopCountry,
-                PWinScore = normalized,
-                PWinCategory = category
+                QScore = normalized,
+                QScoreCategory = category,
+                QScoreFactors = new List<QScoreFactorDto>
+                {
+                    new() { Name = "Set-Aside Match", Points = setAsidePoints, MaxPoints = 20 },
+                    new() { Name = "NAICS Match", Points = naicsPoints, MaxPoints = 20 },
+                    new() { Name = "Time Remaining", Points = timePoints, MaxPoints = 10 },
+                    new() { Name = "Contract Value", Points = valuePoints, MaxPoints = 10 }
+                }
             };
 
             scored.Add((dto, normalized));

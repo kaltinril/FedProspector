@@ -1047,10 +1047,17 @@ export interface RecommendedOpportunityDto {
   popState: string | null;
   popCity: string | null;
   popCountry: string | null;
-  pWinScore: number;
-  pWinCategory: string;
+  qScore: number;
+  qScoreCategory: string;
+  qScoreFactors: QScoreFactorDto[];
   isRecompete: boolean;
   incumbentName: string | null;
+}
+
+export interface QScoreFactorDto {
+  name: string;
+  points: number;
+  maxPoints: number;
 }
 
 export interface ExpiringContractDto {

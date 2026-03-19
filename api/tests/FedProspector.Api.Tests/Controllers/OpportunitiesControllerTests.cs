@@ -325,7 +325,7 @@ public class OpportunitiesControllerTests
         SetAuthenticatedUser(userId: 1, orgId: 10);
         var expected = new List<RecommendedOpportunityDto>
         {
-            new() { NoticeId = "REC-001", PWinScore = 85.0m, PWinCategory = "High" }
+            new() { NoticeId = "REC-001", QScore = 85.0m, QScoreCategory = "High" }
         };
         _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 10))
             .ReturnsAsync(expected);

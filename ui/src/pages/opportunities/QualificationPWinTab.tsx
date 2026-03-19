@@ -97,12 +97,12 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
                         {factor.name}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        {factor.score}/{factor.weight}
+                        {factor.score} (wt {Math.round(factor.weight * 100)}%)
                       </Typography>
                     </Box>
                     <LinearProgress
                       variant="determinate"
-                      value={factor.weight > 0 ? (factor.score / factor.weight) * 100 : 0}
+                      value={factor.score}
                       sx={{ height: 8, borderRadius: 1 }}
                     />
                     <Typography variant="caption" color="text.secondary">

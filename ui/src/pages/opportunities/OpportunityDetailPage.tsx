@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link as RouterLink } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import type { GridColDef } from '@mui/x-data-grid';
@@ -7,6 +7,7 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -36,6 +37,7 @@ import { TabbedDetailPage } from '@/components/shared/TabbedDetailPage';
 import { KeyFactsGrid } from '@/components/shared/KeyFactsGrid';
 import { DeadlineCountdown } from '@/components/shared/DeadlineCountdown';
 import { BurnRateChart } from '@/components/shared/BurnRateChart';
+import PWinGauge from '@/components/shared/PWinGauge';
 
 import { DataTable } from '@/components/shared/DataTable';
 import { StatusChip } from '@/components/shared/StatusChip';
@@ -45,7 +47,7 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import QualificationPWinTab from './QualificationPWinTab';
 import CompetitiveIntelTab from './CompetitiveIntelTab';
-import { getOpportunity, getQualification } from '@/api/opportunities';
+import { getOpportunity, getQualification, getPWin } from '@/api/opportunities';
 import { getBurnRate } from '@/api/awards';
 import { createProspect } from '@/api/prospects';
 import { createSavedSearch } from '@/api/savedSearches';
@@ -60,7 +62,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 
-import type { OpportunityDetail, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
+import type { OpportunityDetail, QScoreFactorDto, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -199,9 +201,17 @@ function QualificationSummary({
 function OverviewTab({
   opp,
   onViewQualification,
+  qScoreState,
+  pWinScore,
+  pWinCategory,
+  pWinLoading,
 }: {
   opp: OpportunityDetail;
   onViewQualification: () => void;
+  qScoreState?: { qScore: number; qScoreCategory: string; qScoreFactors: QScoreFactorDto[] };
+  pWinScore?: number;
+  pWinCategory?: string;
+  pWinLoading?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const description = opp.descriptionText ?? opp.descriptionUrl ?? '';
@@ -328,6 +338,43 @@ function OverviewTab({
           </Box>
         )}
       </Paper>
+
+      {/* qScore (passed from Recommended page) */}
+      {qScoreState && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+            <Typography variant="subtitle2">qScore</Typography>
+            <Chip
+              label={qScoreState.qScore}
+              size="small"
+              color={qScoreState.qScore >= 70 ? 'success' : qScoreState.qScore >= 40 ? 'warning' : 'error'}
+            />
+            {qScoreState.qScoreFactors.length > 0 && (
+              <Typography variant="body2" color="text.secondary">
+                {qScoreState.qScoreFactors.map((f) => `${f.name} ${f.points}/${f.maxPoints}`).join(' \u00b7 ')}
+              </Typography>
+            )}
+          </Box>
+        </Paper>
+      )}
+
+      {/* Win Probability */}
+      {(pWinLoading || (pWinScore != null && pWinCategory)) && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <Typography variant="subtitle2" sx={{ mb: 1.5 }}>
+            Win Probability
+          </Typography>
+          {pWinLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <PWinGauge score={pWinScore!} category={pWinCategory!} size="medium" />
+            </Box>
+          )}
+        </Paper>
+      )}
 
       {/* Qualification Summary */}
       <QualificationSummary noticeId={opp.noticeId} onViewDetails={onViewQualification} />
@@ -770,10 +817,17 @@ export default function OpportunityDetailPage() {
   const { noticeId } = useParams<{ noticeId: string }>();
   const decodedId = noticeId ? decodeURIComponent(noticeId) : '';
   const navigate = useNavigate();
+  const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
+
+  // qScore passed from RecommendedOpportunitiesPage via navigation state
+  const locState = location.state as { qScore?: number; qScoreCategory?: string; qScoreFactors?: QScoreFactorDto[] } | null;
+  const qScoreState = locState?.qScore != null
+    ? { qScore: locState.qScore, qScoreCategory: locState.qScoreCategory ?? '', qScoreFactors: locState.qScoreFactors ?? [] }
+    : undefined;
 
   const {
     data: opp,
@@ -783,6 +837,13 @@ export default function OpportunityDetailPage() {
   } = useQuery({
     queryKey: queryKeys.opportunities.detail(decodedId),
     queryFn: () => getOpportunity(decodedId),
+    enabled: !!decodedId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const { data: pWinData, isLoading: pWinLoading } = useQuery({
+    queryKey: queryKeys.opportunities.pwin(decodedId),
+    queryFn: () => getPWin(decodedId),
     enabled: !!decodedId,
     staleTime: 5 * 60 * 1000,
   });
@@ -846,7 +907,16 @@ export default function OpportunityDetailPage() {
     {
       label: 'Overview',
       value: 'overview',
-      content: <OverviewTab opp={opp} onViewQualification={() => setActiveTab('qualification')} />,
+      content: (
+        <OverviewTab
+          opp={opp}
+          onViewQualification={() => setActiveTab('qualification')}
+          qScoreState={qScoreState}
+          pWinScore={pWinData?.score}
+          pWinCategory={pWinData?.category}
+          pWinLoading={pWinLoading}
+        />
+      ),
     },
     {
       label: 'Qualification & pWin',

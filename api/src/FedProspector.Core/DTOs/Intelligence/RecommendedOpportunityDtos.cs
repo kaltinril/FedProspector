@@ -21,9 +21,17 @@ public class RecommendedOpportunityDto
     public string? PopCity { get; set; }
     public string? PopCountry { get; set; }
     // Scoring
-    public decimal PWinScore { get; set; }
-    public string PWinCategory { get; set; } = "";
+    public decimal QScore { get; set; }
+    public string QScoreCategory { get; set; } = "";
+    public List<QScoreFactorDto> QScoreFactors { get; set; } = new();
     // Re-compete indicator
     public bool IsRecompete { get; set; }
     public string? IncumbentName { get; set; }
+}
+
+public class QScoreFactorDto
+{
+    public string Name { get; set; } = "";
+    public decimal Points { get; set; }
+    public decimal MaxPoints { get; set; }
 }

@@ -1,6 +1,6 @@
 # Phase 103: qScore & pWin Visibility
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** Medium — UX clarity, no data bugs
 **Dependencies:** None
 
@@ -133,11 +133,11 @@ On the Opportunity Detail page Overview tab:
 
 ## Task Summary
 
-| # | Task | Layer | Complexity | Depends On |
-|---|------|-------|------------|------------|
-| 1 | Rename "Score" to "qScore" with tooltip explanation | Frontend | Low | — |
-| 2 | Add qScore hover breakdown (extend DTO if needed) | Full stack | Medium | — |
-| 3 | Show pWin on Recommended page + search results | Full stack | Medium | — |
-| 4 | Show qScore on Opportunity Detail page | Frontend | Low | Task 2 |
-| 5 | Show pWin prominently on Opportunity Detail Overview tab | Frontend | Low | — |
-| 6 | Fix pWin bar charts (static values) and format decimals as percentages | Full stack | Medium | — |
+| # | Task | Layer | Complexity | Depends On | Status |
+|---|------|-------|------------|------------|--------|
+| 1 | Rename "Score" to "qScore" with tooltip explanation | Frontend | Low | — | DONE |
+| 2 | Add qScore hover breakdown (extend DTO if needed) | Full stack | Medium | — | DONE |
+| 3 | Show pWin on Recommended page + search results | Full stack | Medium | — | DONE |
+| 4 | Show qScore on Opportunity Detail page | Frontend | Low | Task 2 | DONE |
+| 5 | Show pWin prominently on Opportunity Detail Overview tab | Frontend | Low | — | DONE |
+| 6 | Fix pWin bar charts (static values) and format decimals as percentages | Full stack | Medium | — | DONE |

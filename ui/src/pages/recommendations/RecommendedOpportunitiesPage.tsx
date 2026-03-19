@@ -6,18 +6,22 @@ import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import FormControl from '@mui/material/FormControl';
+import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import Tooltip from '@mui/material/Tooltip';
+import CalculateOutlinedIcon from '@mui/icons-material/CalculateOutlined';
 
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
-import { getRecommendedOpportunities } from '@/api/opportunities';
+import PWinGauge from '@/components/shared/PWinGauge';
+import { getRecommendedOpportunities, getPWin } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatCurrency } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateFormatters';
@@ -100,6 +104,41 @@ function truncate(text: string | null | undefined, maxLen: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// pWin on-demand cell
+// ---------------------------------------------------------------------------
+
+function PWinCell({ noticeId }: { noticeId: string }) {
+  const { data, isFetching, refetch } = useQuery({
+    queryKey: queryKeys.opportunities.pwin(noticeId),
+    queryFn: () => getPWin(noticeId),
+    enabled: false,
+    staleTime: 10 * 60 * 1000,
+  });
+
+  if (isFetching) {
+    return <CircularProgress size={20} />;
+  }
+
+  if (data) {
+    return <PWinGauge score={data.score} category={data.category} size="small" showCategory={false} />;
+  }
+
+  return (
+    <Tooltip title="Calculate pWin" arrow>
+      <IconButton
+        size="small"
+        onClick={(e) => {
+          e.stopPropagation();
+          refetch();
+        }}
+      >
+        <CalculateOutlinedIcon fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Columns
 // ---------------------------------------------------------------------------
 
@@ -164,12 +203,44 @@ function buildColumns(): GridColDef<RecommendedOpportunityDto>[] {
       renderCell: (params) => daysRemainingChip(params.value as number | null | undefined),
     },
     {
-      field: 'pWinScore',
-      headerName: 'Score',
+      field: 'qScore',
+      headerName: 'qScore',
       width: 90,
       align: 'center',
       headerAlign: 'center',
-      renderCell: (params) => scoreChip(params.value as number | null | undefined),
+      description: 'Quick Score — rates how well this opportunity matches your profile based on set-aside, NAICS, timeline, and value.',
+      renderCell: (params) => {
+        const row = params.row;
+        const chip = scoreChip(params.value as number | null | undefined);
+        if (params.value == null || !row.qScoreFactors || row.qScoreFactors.length === 0) {
+          return chip;
+        }
+        const lines = row.qScoreFactors.map(
+          (f) => `${f.name.padEnd(20)} ${f.points}/${f.maxPoints}`,
+        );
+        const tooltipText = `qScore: ${params.value}\n${lines.join('\n')}`;
+        return (
+          <Tooltip
+            title={
+              <Box sx={{ whiteSpace: 'pre', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                {tooltipText}
+              </Box>
+            }
+            arrow
+          >
+            {chip}
+          </Tooltip>
+        );
+      },
+    },
+    {
+      field: 'pWin',
+      headerName: 'pWin',
+      width: 80,
+      align: 'center',
+      headerAlign: 'center',
+      sortable: false,
+      renderCell: (params) => <PWinCell noticeId={params.row.noticeId} />,
     },
     {
       field: 'isRecompete',
@@ -211,6 +282,7 @@ const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
   naicsCode: 'lg',
   setAsideDescription: 'md',
   awardAmount: 'md',
+  pWin: 'lg',
 };
 
 export default function RecommendedOpportunitiesPage() {
@@ -232,7 +304,14 @@ export default function RecommendedOpportunitiesPage() {
 
   const handleRowClick = useCallback(
     (params: GridRowParams<RecommendedOpportunityDto>) => {
-      navigate(`/opportunities/${encodeURIComponent(params.row.noticeId)}`);
+      const row = params.row;
+      navigate(`/opportunities/${encodeURIComponent(row.noticeId)}`, {
+        state: {
+          qScore: row.qScore,
+          qScoreCategory: row.qScoreCategory,
+          qScoreFactors: row.qScoreFactors,
+        },
+      });
     },
     [navigate],
   );

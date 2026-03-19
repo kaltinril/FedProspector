@@ -93,6 +93,7 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | UI application | `ui/` (Phase 70 complete) |
 | Master plan | `thesolution/MASTER-PLAN.md` |
 | Phase plans | `thesolution/phases/` |
+| Tech stack | `thesolution/reference/11-TECH-STACK.md` (all runtime + dependency versions) |
 | Reference docs | `thesolution/reference/` (architecture, data quality, API quirks, glossary, vendor API docs) |
 | Credentials | `thesolution/credentials.example.yml` |
 | Reference CSVs | `workdir/converted/local database/` (NAICS, PSC, SBA, FIPS) |
