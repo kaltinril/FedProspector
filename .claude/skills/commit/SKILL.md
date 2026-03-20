@@ -39,7 +39,12 @@ Read the diff output and recent commit history, then draft a message that:
 
 Add relevant files by name. **Never use `git add -A` or `git add .`** — list files explicitly.
 
+**Only stage files related to YOUR work in this conversation.** Other chat windows or agents may be working in the same repo concurrently. If `git status` shows modified files you didn't touch, leave them alone — they belong to another session. **Exception:** if the user explicitly says "commit all", "commit everything", or "all files", stage all changed files (still skipping secrets/data).
+
+**NEVER run `git checkout`, `git restore`, or `git reset` on files you didn't modify.** If you see unexpected changes, they are almost certainly from another chat window or agent working in the same repo. Reverting them destroys someone else's work. Simply don't stage them — that's it.
+
 **Always skip** (do not stage):
+- Files you didn't change in this conversation
 - `data/` directory
 - `.env`, `.env.*` files
 - `credentials.yml`, `credentials.json`, or similar secrets
@@ -70,3 +75,4 @@ Run `git status` after the commit to confirm it succeeded and the working tree i
 - **Pre-commit hook failure**: If the commit fails due to a hook, investigate and fix the issue, then create a **new** commit (never `--amend`, which would modify the previous commit).
 - **Sensitive files in changes**: If you spot `.env`, credentials, or secrets in the diff, warn the user and exclude them from staging.
 - **User provides `-m` argument**: Use their message verbatim as the commit message.
+- **Unrecognized changes in the working tree**: If `git status` or `git diff` shows files you didn't modify in this conversation, another chat window or agent is working in the same repo. Do NOT revert, checkout, or restore these files — just skip them when staging. Only stage what you changed.
