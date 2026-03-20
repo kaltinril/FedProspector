@@ -77,6 +77,22 @@ public class OpportunitiesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Calculate batch probability of win (pWin) for multiple opportunities.
+    /// </summary>
+    [HttpPost("pwin/batch")]
+    public async Task<ActionResult<BatchPWinResponse>> CalculateBatchPWin([FromBody] BatchPWinRequest request)
+    {
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        if (request.NoticeIds.Count > 25)
+            return BadRequest("Batch pWin requests are limited to 25 notice IDs.");
+
+        var result = await _pwinService.CalculateBatchAsync(request, orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Export opportunity search results as CSV.
     /// </summary>
     [HttpGet("export")]

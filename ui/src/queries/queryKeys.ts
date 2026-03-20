@@ -5,6 +5,7 @@ export const queryKeys = {
     detail: (noticeId: string) => ['opportunities', 'detail', noticeId] as const,
     targets: (params: Record<string, unknown>) => ['opportunities', 'targets', params] as const,
     pwin: (noticeId: string) => ['opportunities', 'pwin', noticeId] as const,
+    pwinBatch: (noticeIds: string[]) => ['opportunities', 'pwin', 'batch', ...noticeIds] as const,
     qualification: (noticeId: string) => ['opportunities', 'qualification', noticeId] as const,
     incumbent: (noticeId: string) => ['opportunities', 'incumbent', noticeId] as const,
     recommended: (limit: number) => ['opportunities', 'recommended', limit] as const,

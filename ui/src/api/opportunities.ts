@@ -10,6 +10,7 @@ import type {
   QualificationCheckDto,
   IncumbentAnalysisDto,
   RecommendedOpportunityDto,
+  BatchPWinResponse,
 } from '@/types/api';
 
 export function searchOpportunities(
@@ -48,4 +49,8 @@ export function getIncumbentAnalysis(noticeId: string): Promise<IncumbentAnalysi
 
 export function getRecommendedOpportunities(limit: number = 10): Promise<RecommendedOpportunityDto[]> {
   return apiClient.get('/opportunities/recommended', { params: { limit } }).then((r) => r.data);
+}
+
+export function fetchBatchPWin(noticeIds: string[]): Promise<BatchPWinResponse> {
+  return apiClient.post('/opportunities/pwin/batch', { noticeIds }).then((r) => r.data);
 }

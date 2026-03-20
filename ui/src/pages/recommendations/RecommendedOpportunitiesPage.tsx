@@ -1,33 +1,32 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
+import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data-grid';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
-import CircularProgress from '@mui/material/CircularProgress';
 import FormControl from '@mui/material/FormControl';
-import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import type { SelectChangeEvent } from '@mui/material/Select';
+import Skeleton from '@mui/material/Skeleton';
 import Tooltip from '@mui/material/Tooltip';
-import CalculateOutlinedIcon from '@mui/icons-material/CalculateOutlined';
 
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import PWinGauge from '@/components/shared/PWinGauge';
-import { getRecommendedOpportunities, getPWin } from '@/api/opportunities';
+import { getRecommendedOpportunities } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatCurrency } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateFormatters';
 import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
 import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
-import type { RecommendedOpportunityDto } from '@/types/api';
+import { useBatchPWin } from '@/hooks/useBatchPWin';
+import type { BatchPWinEntry, RecommendedOpportunityDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -104,45 +103,13 @@ function truncate(text: string | null | undefined, maxLen: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// pWin on-demand cell
-// ---------------------------------------------------------------------------
-
-function PWinCell({ noticeId }: { noticeId: string }) {
-  const { data, isFetching, refetch } = useQuery({
-    queryKey: queryKeys.opportunities.pwin(noticeId),
-    queryFn: () => getPWin(noticeId),
-    enabled: false,
-    staleTime: 10 * 60 * 1000,
-  });
-
-  if (isFetching) {
-    return <CircularProgress size={20} />;
-  }
-
-  if (data) {
-    return <PWinGauge score={data.score} category={data.category} size="small" showCategory={false} />;
-  }
-
-  return (
-    <Tooltip title="Calculate pWin" arrow>
-      <IconButton
-        size="small"
-        onClick={(e) => {
-          e.stopPropagation();
-          refetch();
-        }}
-      >
-        <CalculateOutlinedIcon fontSize="small" />
-      </IconButton>
-    </Tooltip>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Columns
 // ---------------------------------------------------------------------------
 
-function buildColumns(): GridColDef<RecommendedOpportunityDto>[] {
+function buildColumns(
+  pwinMap: Map<string, BatchPWinEntry>,
+  pwinLoading: boolean,
+): GridColDef<RecommendedOpportunityDto>[] {
   return [
     {
       field: 'title',
@@ -240,7 +207,16 @@ function buildColumns(): GridColDef<RecommendedOpportunityDto>[] {
       align: 'center',
       headerAlign: 'center',
       sortable: false,
-      renderCell: (params) => <PWinCell noticeId={params.row.noticeId} />,
+      renderCell: (params) => {
+        const entry = pwinMap.get(params.row.noticeId);
+        if (pwinLoading) {
+          return <Skeleton variant="circular" width={40} height={40} />;
+        }
+        if (entry) {
+          return <PWinGauge score={entry.score} category={entry.category} size="small" showCategory={false} />;
+        }
+        return '\u2014';
+      },
     },
     {
       field: 'isRecompete',
@@ -288,6 +264,7 @@ const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
 export default function RecommendedOpportunitiesPage() {
   const navigate = useNavigate();
   const [limit, setLimit] = useState(25);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 25 });
   const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
 
   const { data, isLoading, isError, refetch } = useQuery({
@@ -296,7 +273,17 @@ export default function RecommendedOpportunitiesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const columns = useMemo(() => buildColumns(), []);
+  // Extract noticeIds for the current visible page
+  const currentPageNoticeIds = useMemo(() => {
+    if (!data) return [];
+    const start = paginationModel.page * paginationModel.pageSize;
+    const end = start + paginationModel.pageSize;
+    return data.slice(start, end).map((row) => row.noticeId);
+  }, [data, paginationModel]);
+
+  const { pwinMap, isLoading: pwinLoading } = useBatchPWin(currentPageNoticeIds);
+
+  const columns = useMemo(() => buildColumns(pwinMap, pwinLoading), [pwinMap, pwinLoading]);
 
   const handleLimitChange = useCallback((e: SelectChangeEvent<number>) => {
     setLimit(Number(e.target.value));
@@ -389,6 +376,8 @@ export default function RecommendedOpportunitiesPage() {
           columns={columns}
           rows={data}
           loading={false}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
           onRowClick={handleRowClick}
           getRowId={(row: RecommendedOpportunityDto) => row.noticeId}
           columnVisibilityModel={columnVisibility}

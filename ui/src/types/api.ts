@@ -1132,3 +1132,20 @@ export interface HealthComponentDto {
   description?: string | null;
   data?: Record<string, string | number | boolean | null>;
 }
+
+// ============================================================
+// Batch pWin types (Phase 104B)
+// ============================================================
+
+export interface BatchPWinRequest {
+  noticeIds: string[];
+}
+
+export interface BatchPWinEntry {
+  score: number;
+  category: string;
+}
+
+export interface BatchPWinResponse {
+  results: Record<string, BatchPWinEntry | null>;
+}

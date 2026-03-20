@@ -132,6 +132,34 @@ public class PWinService : IPWinService
         };
     }
 
+    public async Task<BatchPWinResponse> CalculateBatchAsync(BatchPWinRequest request, int orgId)
+    {
+        if (request.NoticeIds.Count > 25)
+            throw new ArgumentException("Batch pWin requests are limited to 25 notice IDs.");
+
+        var results = new Dictionary<string, BatchPWinEntry?>();
+
+        foreach (var noticeId in request.NoticeIds)
+        {
+            try
+            {
+                var result = await CalculateAsync(noticeId, orgId);
+                results[noticeId] = new BatchPWinEntry
+                {
+                    Score = result.Score,
+                    Category = result.Category
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Batch pWin calculation failed for {NoticeId}", noticeId);
+                results[noticeId] = null;
+            }
+        }
+
+        return new BatchPWinResponse { Results = results };
+    }
+
     private static PWinFactorDto ScoreSetAsideMatch(string? setAsideCode, List<string> orgCerts, List<string> suggestions)
     {
         const decimal weight = 0.20m;
