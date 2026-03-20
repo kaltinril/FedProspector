@@ -215,7 +215,7 @@ CREATE TABLE opportunity_attachment (
     content_type       VARCHAR(100),
     file_size_bytes    BIGINT,
     file_path          VARCHAR(500),        -- local storage path
-    extracted_text     LONGTEXT,            -- full text content
+    extracted_text     LONGTEXT,            -- annotated markdown (preserves headings, bold, tables), not flat plain text
     page_count         INT,
     is_scanned         TINYINT DEFAULT 0,   -- 1 if OCR was needed
     ocr_quality        ENUM('good','fair','poor'),
@@ -247,16 +247,40 @@ New module: `fed_prospector/etl/attachment_downloader.py`
 - Stream downloads to disk (`iter_content`) to avoid loading large files into memory
 - CLI: `python main.py download attachments [--notice-id=X] [--batch-size=100] [--max-file-size=50] [--check-changed]`
 
-**Task 3: Text extraction engine**
+**Task 3: Text extraction engine (structure-aware)**
 
 New module: `fed_prospector/etl/attachment_text_extractor.py`
-- Extract text from downloaded files based on content type:
-  - PDF → PyMuPDF (fitz) primary, detect scanned pages (< 50 chars/page)
-  - Scanned PDF → OCRmyPDF + Tesseract
-  - Word (.docx) → python-docx
-  - Excel (.xlsx) → openpyxl (extract cell values, headers)
-  - Plain text → direct read
-- Store extracted text in `opportunity_attachment.extracted_text`
+
+**Why structure-aware extraction matters:** Government solicitations are structurally rich — headings mark sections ("SECTION M - EVALUATION CRITERIA", "SECURITY REQUIREMENTS"), bold text marks key terms ("Active Secret Clearance required"), tables contain evaluation factor weights and labor category matrices, and numbered lists enumerate evaluation factors in ranked order. Preserving this structure in the extracted text makes free Tier 1/2 keyword extraction significantly more accurate with fewer false positives, narrowing the gap with paid AI extraction. A "Secret" match under a "SECURITY REQUIREMENTS" heading is high confidence; the same match in a cover letter is noise.
+
+Output format: **annotated markdown** stored in `opportunity_attachment.extracted_text`. This is human-readable, regex-friendly, and preserves the structural signals that downstream extraction relies on.
+
+Extract text from downloaded files based on content type:
+
+- **PDF → PyMuPDF (fitz)** primary, with structure-aware extraction:
+  - Use `span["size"]` and `span["flags"]` (bold=16, italic=2) per text span to detect formatting
+  - Infer heading hierarchy from font size jumps (e.g., 14pt+ → `##` markdown heading)
+  - Preserve bold spans → `**bold**` markdown markers
+  - Extract tables via PyMuPDF table extraction → markdown tables
+  - Maintain reading order (multi-column detection where possible)
+  - Detect scanned pages (< 50 chars/page) → fall back to OCR
+- **Scanned PDF → OCRmyPDF + Tesseract** — plain text fallback (no structural signals available from OCR output)
+- **Word (.docx) → python-docx** with formatting inspection (not just `paragraph.text`):
+  - Preserve heading hierarchy via `paragraph.style.name` → markdown `#`/`##`/`###`
+  - Detect "fake headings" (Normal style but bold + larger font size) via run font properties → treat as headings
+  - Detect bold runs → wrap in `**bold**` markers
+  - Extract tables via `document.tables` API → markdown tables (eval criteria, CLIN structures, labor cats)
+  - Detect list items via style names (`List Bullet`, `List Number`) → markdown `- ` / `1. `
+  - Iterate `document.element.body` children to maintain correct document order (paragraphs interleaved with tables)
+  - Access `paragraph._element` for edge cases (list numbering from `numPr`, text boxes from `w:txbxContent`)
+- **Excel (.xlsx) → openpyxl** with structure preservation:
+  - Output sheet names as markdown headings
+  - Detect merged cells and header rows (often bold/colored) → markdown table headers
+  - Preserve cell formatting signals (bold headers, colored emphasis cells)
+  - Extract cell values as markdown tables
+- **Plain text → direct read**
+
+- Store extracted annotated markdown in `opportunity_attachment.extracted_text`
 - Track extraction status and quality metrics
 - CLI: `python main.py extract attachment-text [--notice-id=X] [--batch-size=100]`
 
@@ -265,12 +289,17 @@ New module: `fed_prospector/etl/attachment_text_extractor.py`
 **Task 4: Regex intelligence extractor**
 
 New module: `fed_prospector/etl/attachment_intel_extractor.py`
-- Run keyword/regex patterns against extracted text from attachments
+- Run keyword/regex patterns against extracted annotated markdown from attachments
 - **Also run against `opportunity.description_text`** (already cached in DB, free — set `attachment_id = NULL` in intel/source tables)
 - Extract structured intelligence for each category (clearance, eval method, vehicle, recompete)
 - Capture match context (surrounding text) for human review and provenance
 - Write one `opportunity_intel_source` row per match per field (provenance trail)
 - Assign confidence scores based on match count and pattern strength
+
+**Structure-aware matching** — leverage the annotated markdown from Task 3:
+- **Section-aware matching**: keywords found under relevant headings get confidence boost (e.g., "Secret" under a `## SECURITY REQUIREMENTS` heading = high confidence clearance requirement; "Secret" in body text near "Secretary" = needs more context)
+- **Bold-aware matching**: keywords found in `**bold**` markers get confidence boost (government docs often bold key requirements)
+- **Table-aware matching**: evaluation criteria found in markdown table rows can extract factor weights alongside factor names; CLIN tables can extract labor categories with associated requirements
 - UPSERT intel rows using `(notice_id, attachment_id, extraction_method)` unique index
 
 New table: `opportunity_attachment_intel`
