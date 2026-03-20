@@ -289,15 +289,6 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
           </Box>
         ) : (
           <Box>
-            {incumbent.isLikelyIncumbent && !incumbent.hasIncumbent && (
-              <Chip
-                label="Likely Incumbent (estimated)"
-                size="small"
-                color="info"
-                variant="outlined"
-                sx={{ mb: 2 }}
-              />
-            )}
             <KeyFactsGrid
               facts={[
                 { label: 'Incumbent', value: incumbent.incumbentName ?? '--' },
