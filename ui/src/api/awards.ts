@@ -9,6 +9,7 @@ import type {
   BurnRateDto,
   IntelMarketShareDto,
   ExpiringContractDto,
+  SetAsideTrendDto,
 } from '@/types/api';
 
 export function searchAwards(
@@ -40,4 +41,8 @@ export function getIntelMarketShare(naicsCode: string, years: number = 3, limit:
 
 export function getExpiringContracts(params: { monthsAhead?: number; naicsCode?: string; setAsideType?: string; limit?: number; offset?: number }): Promise<ExpiringContractDto[]> {
   return apiClient.get('/awards/expiring', { params }).then((r) => r.data);
+}
+
+export function getSetAsideTrends(naicsCode: string): Promise<SetAsideTrendDto[]> {
+  return apiClient.get(`/awards/set-aside-trends/${encodeURIComponent(naicsCode)}`).then((r) => r.data);
 }

@@ -7,4 +7,6 @@ public interface IMarketIntelService
     Task<MarketShareAnalysisDto> GetMarketShareAsync(string naicsCode, int years = 3, int limit = 10);
     Task<IncumbentAnalysisDto> GetIncumbentAnalysisAsync(string noticeId);
     Task<CompetitiveLandscapeDto?> GetCompetitiveLandscapeAsync(string noticeId);
+    Task<SetAsideShiftDto?> GetSetAsideShiftAsync(string noticeId);
+    Task<List<SetAsideTrendDto>> GetSetAsideTrendsAsync(string naicsCode);
 }

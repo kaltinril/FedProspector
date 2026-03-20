@@ -26,6 +26,9 @@ public class ExpiringContractDto
     // Re-solicitation status
     public string? ResolicitationNoticeId { get; set; }
     public string ResolicitationStatus { get; set; } = "Not Yet Posted";
+    // Set-aside shift (enriched from v_set_aside_shift)
+    public string? PredecessorSetAsideType { get; set; }
+    public bool? ShiftDetected { get; set; }
 }
 
 public class ExpiringContractSearchRequest

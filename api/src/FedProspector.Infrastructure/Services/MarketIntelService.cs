@@ -383,6 +383,51 @@ public class MarketIntelService : IMarketIntelService
         };
     }
 
+    public async Task<SetAsideShiftDto?> GetSetAsideShiftAsync(string noticeId)
+    {
+        var row = await _context.SetAsideShifts
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.NoticeId == noticeId);
+
+        if (row == null)
+            return null;
+
+        return new SetAsideShiftDto
+        {
+            NoticeId = row.NoticeId,
+            SolicitationNumber = row.SolicitationNumber,
+            CurrentSetAsideCode = row.CurrentSetAsideCode,
+            CurrentSetAsideDescription = row.CurrentSetAsideDescription,
+            PredecessorSetAsideType = row.PredecessorSetAsideType,
+            PredecessorVendorName = row.PredecessorVendorName,
+            PredecessorVendorUei = row.PredecessorVendorUei,
+            PredecessorDateSigned = row.PredecessorDateSigned?.ToDateTime(TimeOnly.MinValue),
+            PredecessorValue = row.PredecessorValue,
+            ShiftDetected = row.ShiftDetected
+        };
+    }
+
+    public async Task<List<SetAsideTrendDto>> GetSetAsideTrendsAsync(string naicsCode)
+    {
+        var rows = await _context.SetAsideTrends
+            .AsNoTracking()
+            .Where(t => t.NaicsCode == naicsCode)
+            .OrderBy(t => t.FiscalYear)
+            .ThenByDescending(t => t.ContractCount)
+            .ToListAsync();
+
+        return rows.Select(r => new SetAsideTrendDto
+        {
+            NaicsCode = r.NaicsCode,
+            FiscalYear = r.FiscalYear,
+            SetAsideType = r.SetAsideType,
+            SetAsideCategory = r.SetAsideCategory,
+            ContractCount = r.ContractCount,
+            TotalValue = r.TotalValue,
+            AvgValue = r.AvgValue
+        }).ToList();
+    }
+
     /// <summary>
     /// Extract the top-level agency code from a dot-delimited FullParentPathCode (e.g., "100.7000" -> "100").
     /// </summary>

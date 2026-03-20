@@ -83,6 +83,16 @@ public class AwardsController : ApiControllerBase
         return Ok(result);
     }
 
+    [HttpGet("set-aside-trends/{naicsCode}")]
+    public async Task<ActionResult<List<SetAsideTrendDto>>> GetSetAsideTrends(string naicsCode)
+    {
+        if (string.IsNullOrWhiteSpace(naicsCode))
+            return BadRequest("naicsCode is required");
+
+        var result = await _marketIntelService.GetSetAsideTrendsAsync(naicsCode);
+        return Ok(result);
+    }
+
     [HttpGet("{contractId}/burn-rate")]
     public async Task<IActionResult> GetBurnRate(string contractId)
     {

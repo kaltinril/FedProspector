@@ -123,7 +123,7 @@ public class FedProspectorDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; }
 
     // -----------------------------------------------------------------------
-    // Database Views (5 - keyless, read-only)
+    // Database Views (7 - keyless, read-only)
     // -----------------------------------------------------------------------
 
     public DbSet<TargetOpportunityView> TargetOpportunities { get; set; }
@@ -131,6 +131,8 @@ public class FedProspectorDbContext : DbContext
     public DbSet<ProcurementIntelligenceView> ProcurementIntelligence { get; set; }
     public DbSet<IncumbentProfileView> IncumbentProfiles { get; set; }
     public DbSet<RefPscCodeLatest> RefPscCodeLatest { get; set; }
+    public DbSet<SetAsideShiftView> SetAsideShifts { get; set; }
+    public DbSet<SetAsideTrendView> SetAsideTrends { get; set; }
 
     // -----------------------------------------------------------------------
     // Fluent API Configuration
@@ -365,5 +367,13 @@ public class FedProspectorDbContext : DbContext
         modelBuilder.Entity<RefPscCodeLatest>()
             .HasNoKey()
             .ToView("ref_psc_code_latest");
+
+        modelBuilder.Entity<SetAsideShiftView>()
+            .HasNoKey()
+            .ToView("v_set_aside_shift");
+
+        modelBuilder.Entity<SetAsideTrendView>()
+            .HasNoKey()
+            .ToView("v_set_aside_trend");
     }
 }

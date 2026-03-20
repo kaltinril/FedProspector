@@ -105,6 +105,14 @@ public class ExpiringContractService : IExpiringContractService
                 g => g.Key,
                 g => g.OrderByDescending(o => o.ResponseDeadline).First());
 
+        // 9b. Fetch set-aside shift data for matching opportunities
+        var matchingNoticeIds = matchingOpportunities.Select(o => o.NoticeId).Distinct().ToList();
+        var shiftByNoticeId = matchingNoticeIds.Count > 0
+            ? await _context.SetAsideShifts.AsNoTracking()
+                .Where(s => matchingNoticeIds.Contains(s.NoticeId))
+                .ToDictionaryAsync(s => s.NoticeId)
+            : new Dictionary<string, Core.Models.Views.SetAsideShiftView>();
+
         // 10. Map to DTOs
         var utcNow = DateTime.UtcNow;
         return results.Select(r =>
@@ -140,7 +148,7 @@ public class ExpiringContractService : IExpiringContractService
                     : null
             };
 
-            // Re-solicitation status
+            // Re-solicitation status + set-aside shift
             if (!string.IsNullOrWhiteSpace(c.SolicitationNumber)
                 && opportunityBySolicitation.TryGetValue(c.SolicitationNumber, out var opp))
             {
@@ -148,6 +156,13 @@ public class ExpiringContractService : IExpiringContractService
                 dto.ResolicitationStatus = opp.ResponseDeadline.HasValue && opp.ResponseDeadline > utcNow
                     ? "Solicitation Active"
                     : "Pre-Solicitation Posted";
+
+                // Enrich with set-aside shift data from the linked opportunity
+                if (shiftByNoticeId.TryGetValue(opp.NoticeId, out var shift))
+                {
+                    dto.PredecessorSetAsideType = shift.PredecessorSetAsideType;
+                    dto.ShiftDetected = shift.ShiftDetected;
+                }
             }
 
             return dto;

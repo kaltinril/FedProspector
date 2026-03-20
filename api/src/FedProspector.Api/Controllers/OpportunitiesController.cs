@@ -141,6 +141,16 @@ public class OpportunitiesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get set-aside shift analysis for an opportunity — compares current set-aside to predecessor contract.
+    /// </summary>
+    [HttpGet("{noticeId}/set-aside-shift")]
+    public async Task<IActionResult> GetSetAsideShift(string noticeId)
+    {
+        var result = await _marketIntelService.GetSetAsideShiftAsync(noticeId);
+        return result != null ? Ok(result) : NotFound();
+    }
+
+    /// <summary>
     /// Run qualification checks for an opportunity against the current org's profile.
     /// </summary>
     [HttpGet("{noticeId}/qualification")]

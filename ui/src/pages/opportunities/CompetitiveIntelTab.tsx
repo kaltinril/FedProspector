@@ -1,4 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
+import Alert from '@mui/material/Alert';
+import AlertTitle from '@mui/material/AlertTitle';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
@@ -14,15 +16,69 @@ import Typography from '@mui/material/Typography';
 import { KeyFactsGrid } from '@/components/shared/KeyFactsGrid';
 import VulnerabilitySignals from '@/components/shared/VulnerabilitySignals';
 import MarketShareChart from '@/components/shared/MarketShareChart';
+import SetAsideTrendChart from '@/components/shared/SetAsideTrendChart';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getIncumbentAnalysis, getCompetitiveLandscape } from '@/api/opportunities';
-import { getIntelMarketShare } from '@/api/awards';
+import { getIncumbentAnalysis, getCompetitiveLandscape, getSetAsideShift } from '@/api/opportunities';
+import { getIntelMarketShare, getSetAsideTrends } from '@/api/awards';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateFormatters';
-import type { OpportunityDetail, CompetitiveLandscapeDto, LikelyCompetitorDto } from '@/types/api';
+import type { OpportunityDetail, CompetitiveLandscapeDto, LikelyCompetitorDto, SetAsideShiftDto } from '@/types/api';
+
+// ---------------------------------------------------------------------------
+// Set-Aside Shift Card
+// ---------------------------------------------------------------------------
+
+function SetAsideShiftCard({ shift }: { shift: SetAsideShiftDto }) {
+  // null means no predecessor found
+  if (shift.shiftDetected == null) {
+    return null;
+  }
+
+  const isShifted = shift.shiftDetected === true;
+
+  return (
+    <Alert
+      severity={isShifted ? 'warning' : 'info'}
+      variant="outlined"
+      sx={{ mb: 3 }}
+    >
+      <AlertTitle>
+        {isShifted ? 'Set-Aside Shift Detected' : 'Same Set-Aside as Predecessor'}
+      </AlertTitle>
+      {isShifted ? (
+        <Typography variant="body2">
+          Changed from <strong>{shift.predecessorSetAsideType ?? 'Unknown'}</strong> to{' '}
+          <strong>{shift.currentSetAsideDescription ?? shift.currentSetAsideCode ?? 'Unknown'}</strong>
+        </Typography>
+      ) : (
+        <Typography variant="body2">
+          Continuing as{' '}
+          <strong>
+            {shift.currentSetAsideDescription ?? shift.currentSetAsideCode ?? 'Unknown'}
+          </strong>
+        </Typography>
+      )}
+      {shift.predecessorVendorName && (
+        <Box sx={{ mt: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            Predecessor: {shift.predecessorVendorName}
+            {shift.predecessorVendorUei ? ` (${shift.predecessorVendorUei})` : ''}
+          </Typography>
+          {(shift.predecessorDateSigned || shift.predecessorValue != null) && (
+            <Typography variant="body2" color="text.secondary">
+              {shift.predecessorDateSigned ? `Signed ${formatDate(shift.predecessorDateSigned)}` : ''}
+              {shift.predecessorDateSigned && shift.predecessorValue != null ? ' — ' : ''}
+              {shift.predecessorValue != null ? formatCurrency(shift.predecessorValue) : ''}
+            </Typography>
+          )}
+        </Box>
+      )}
+    </Alert>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Competition Level Card
@@ -117,6 +173,17 @@ function LikelyCompetitorsTable({ competitors }: { competitors: LikelyCompetitor
 // ---------------------------------------------------------------------------
 
 export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail }) {
+  // Set-Aside Shift
+  const {
+    data: shiftData,
+    isLoading: shiftLoading,
+    isError: shiftError,
+  } = useQuery({
+    queryKey: queryKeys.opportunities.setAsideShift(opp.noticeId),
+    queryFn: () => getSetAsideShift(opp.noticeId),
+    staleTime: 5 * 60 * 1000,
+  });
+
   // Competitive Landscape (new — scoped to agency + NAICS + set-aside)
   const {
     data: landscape,
@@ -151,6 +218,18 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
     enabled: !!opp.naicsCode,
   });
 
+  // NAICS Set-Aside Trends
+  const {
+    data: trendData,
+    isLoading: trendLoading,
+    isError: trendError,
+  } = useQuery({
+    queryKey: queryKeys.awards.setAsideTrends(opp.naicsCode ?? ''),
+    queryFn: () => getSetAsideTrends(opp.naicsCode!),
+    staleTime: 10 * 60 * 1000,
+    enabled: !!opp.naicsCode,
+  });
+
   return (
     <Box>
       {/* 1. Competition Level (from competitive landscape endpoint) */}
@@ -169,7 +248,23 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
         <CompetitionLevelCard landscape={landscape} />
       )}
 
-      {/* 2. Incumbent Analysis */}
+      {/* 2. Set-Aside Shift Indicator */}
+      {shiftLoading ? (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <LoadingState message="Checking set-aside shift..." />
+        </Paper>
+      ) : shiftError ? (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <ErrorState
+            title="Set-aside shift unavailable"
+            message="Could not load set-aside shift data for this opportunity."
+          />
+        </Paper>
+      ) : shiftData ? (
+        <SetAsideShiftCard shift={shiftData} />
+      ) : null}
+
+      {/* 3. Incumbent Analysis */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
           Incumbent Analysis
@@ -281,7 +376,7 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
       )}
 
       {/* 4. NAICS-wide Market Context */}
-      <Paper variant="outlined" sx={{ p: 2 }}>
+      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
           NAICS Market Context{opp.naicsCode ? ` — ${opp.naicsCode}` : ''}
         </Typography>
@@ -324,6 +419,33 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
           </Box>
         )}
       </Paper>
+
+      {/* 5. NAICS Set-Aside Trend Chart */}
+      {opp.naicsCode && (
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Typography variant="subtitle2" sx={{ mb: 2 }}>
+            Set-Aside Trends — NAICS {opp.naicsCode}
+          </Typography>
+          {trendLoading ? (
+            <LoadingState message="Loading set-aside trends..." />
+          ) : trendError ? (
+            <ErrorState
+              title="Trend data unavailable"
+              message="Could not load set-aside trend data for this NAICS code."
+            />
+          ) : trendData && trendData.length > 0 ? (
+            <SetAsideTrendChart
+              trends={trendData}
+              title={`Set-Aside Distribution — NAICS ${opp.naicsCode}`}
+            />
+          ) : (
+            <EmptyState
+              title="No trend data"
+              message="No historical set-aside trend data available for this NAICS code."
+            />
+          )}
+        </Paper>
+      )}
     </Box>
   );
 }

@@ -10,6 +10,7 @@ export const queryKeys = {
     incumbent: (noticeId: string) => ['opportunities', 'incumbent', noticeId] as const,
     recommended: (limit: number) => ['opportunities', 'recommended', limit] as const,
     competitiveLandscape: (noticeId: string) => ['opportunities', 'competitiveLandscape', noticeId] as const,
+    setAsideShift: (noticeId: string) => ['opportunities', 'setAsideShift', noticeId] as const,
   },
   awards: {
     all: ['awards'] as const,
@@ -18,6 +19,7 @@ export const queryKeys = {
     burnRate: (contractId: string) => ['awards', 'burnRate', contractId] as const,
     marketShare: (naicsCode: string) => ['awards', 'marketShare', naicsCode] as const,
     expiring: (params: Record<string, unknown>) => ['awards', 'expiring', params] as const,
+    setAsideTrends: (naicsCode: string) => ['awards', 'setAsideTrends', naicsCode] as const,
     loadStatus: (contractId: string) => ['awards', 'load-status', contractId] as const,
   },
   entities: {

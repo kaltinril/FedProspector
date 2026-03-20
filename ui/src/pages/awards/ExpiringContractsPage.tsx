@@ -11,6 +11,8 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import Typography from '@mui/material/Typography';
+import Tooltip from '@mui/material/Tooltip';
+import SwapHorizOutlined from '@mui/icons-material/SwapHorizOutlined';
 import WarningAmberOutlined from '@mui/icons-material/WarningAmberOutlined';
 
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -60,6 +62,28 @@ function resolicitationChip(status: string | null | undefined) {
     return <Chip label="Pre-Solicitation" size="small" color="info" variant="outlined" />;
   }
   return <Chip label={status} size="small" color="success" variant="outlined" />;
+}
+
+function shiftIndicator(row: ExpiringContractDto) {
+  if (row.shiftDetected == null) return null;
+  if (!row.shiftDetected) return null;
+
+  const label = row.predecessorSetAsideType
+    ? `Set-aside shifted from ${row.predecessorSetAsideType}`
+    : 'Set-aside shifted';
+
+  return (
+    <Tooltip title={label} arrow>
+      <Chip
+        icon={<SwapHorizOutlined fontSize="small" />}
+        label="Shifted"
+        size="small"
+        color="warning"
+        variant="filled"
+        sx={{ ml: 0.5 }}
+      />
+    </Tooltip>
+  );
 }
 
 function truncate(text: string | null | undefined, maxLen: number): string {
@@ -212,8 +236,13 @@ function buildColumns(navigate: ReturnType<typeof useNavigate>): GridColDef<Expi
     {
       field: 'resolicitationStatus',
       headerName: 'Re-solicitation',
-      width: 150,
-      renderCell: (params) => resolicitationChip(params.value as string | null | undefined),
+      width: 190,
+      renderCell: (params) => (
+        <Box sx={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+          {resolicitationChip(params.value as string | null | undefined)}
+          {shiftIndicator(params.row)}
+        </Box>
+      ),
       sortable: false,
     },
   ];

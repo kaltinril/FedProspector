@@ -1106,6 +1106,8 @@ export interface ExpiringContractDto {
   percentSpent: number | null;
   resolicitationNoticeId: string | null;
   resolicitationStatus: string;
+  predecessorSetAsideType: string | null;
+  shiftDetected: boolean | null;
 }
 
 // ============================================================
@@ -1171,4 +1173,31 @@ export interface BatchPWinEntry {
 
 export interface BatchPWinResponse {
   results: Record<string, BatchPWinEntry | null>;
+}
+
+// ============================================================
+// Set-Aside Shift types (Phase 109)
+// ============================================================
+
+export interface SetAsideShiftDto {
+  noticeId: string;
+  solicitationNumber: string | null;
+  currentSetAsideCode: string | null;
+  currentSetAsideDescription: string | null;
+  predecessorSetAsideType: string | null;
+  predecessorVendorName: string | null;
+  predecessorVendorUei: string | null;
+  predecessorDateSigned: string | null;
+  predecessorValue: number | null;
+  shiftDetected: boolean | null;
+}
+
+export interface SetAsideTrendDto {
+  naicsCode: string;
+  fiscalYear: number;
+  setAsideType: string | null;
+  setAsideCategory: string | null;
+  contractCount: number;
+  totalValue: number;
+  avgValue: number;
 }
