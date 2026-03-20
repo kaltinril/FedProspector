@@ -131,6 +131,16 @@ public class OpportunitiesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get opportunity-scoped competitive landscape — agency + NAICS scoped market data with fallback.
+    /// </summary>
+    [HttpGet("{noticeId}/competitive-landscape")]
+    public async Task<IActionResult> GetCompetitiveLandscape(string noticeId)
+    {
+        var result = await _marketIntelService.GetCompetitiveLandscapeAsync(noticeId);
+        return result != null ? Ok(result) : NotFound();
+    }
+
+    /// <summary>
     /// Run qualification checks for an opportunity against the current org's profile.
     /// </summary>
     [HttpGet("{noticeId}/qualification")]

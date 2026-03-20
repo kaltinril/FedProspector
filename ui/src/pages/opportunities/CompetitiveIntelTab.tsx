@@ -2,6 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import Paper from '@mui/material/Paper';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 
 import { KeyFactsGrid } from '@/components/shared/KeyFactsGrid';
@@ -10,14 +17,118 @@ import MarketShareChart from '@/components/shared/MarketShareChart';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getIncumbentAnalysis } from '@/api/opportunities';
+import { getIncumbentAnalysis, getCompetitiveLandscape } from '@/api/opportunities';
 import { getIntelMarketShare } from '@/api/awards';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateFormatters';
-import type { OpportunityDetail } from '@/types/api';
+import type { OpportunityDetail, CompetitiveLandscapeDto, LikelyCompetitorDto } from '@/types/api';
+
+// ---------------------------------------------------------------------------
+// Competition Level Card
+// ---------------------------------------------------------------------------
+
+const competitionLevelColors: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
+  Low: 'success',
+  Moderate: 'warning',
+  High: 'error',
+  'Very High': 'error',
+};
+
+function CompetitionLevelCard({ landscape }: { landscape: CompetitiveLandscapeDto }) {
+  const chipColor = competitionLevelColors[landscape.competitionLevel] ?? 'default';
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+      <Typography variant="subtitle2" sx={{ mb: 2 }}>
+        Competition Level
+      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+        <Chip
+          label={landscape.competitionLevel}
+          color={chipColor}
+          sx={{ fontWeight: 600, fontSize: '0.875rem' }}
+        />
+        <Typography variant="body2" color="text.secondary">
+          {landscape.distinctVendorCount} distinct vendors in scope
+        </Typography>
+        {landscape.fallbackScope === 'NAICS' && (
+          <Tooltip title="No agency-scoped data available; showing NAICS-wide competition level">
+            <Chip label="NAICS-wide scope" size="small" variant="outlined" />
+          </Tooltip>
+        )}
+      </Box>
+      <Box sx={{ mt: 2 }}>
+        <KeyFactsGrid
+          facts={[
+            { label: 'Agency Avg Award', value: formatCurrency(landscape.agencyAverageAwardValue) },
+            { label: 'Scoped Avg Award', value: formatCurrency(landscape.averageAwardValue) },
+            { label: 'Total Contracts (Scoped)', value: formatNumber(landscape.totalContracts) },
+            { label: 'Total Value (Scoped)', value: formatCurrency(landscape.totalValue) },
+          ]}
+          columns={2}
+        />
+      </Box>
+    </Paper>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Likely Competitors Table
+// ---------------------------------------------------------------------------
+
+function LikelyCompetitorsTable({ competitors }: { competitors: LikelyCompetitorDto[] }) {
+  if (competitors.length === 0) return null;
+
+  return (
+    <Box sx={{ mt: 2 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1 }}>
+        Likely Competitors
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        Based on recent awards to the same agency in this NAICS code.
+      </Typography>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Vendor</TableCell>
+              <TableCell align="right">Contracts</TableCell>
+              <TableCell align="right">Total Value</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {competitors.map((c) => (
+              <TableRow key={c.ueiSam ?? c.vendorName}>
+                <TableCell>{c.vendorName}</TableCell>
+                <TableCell align="right">{formatNumber(c.contractCount)}</TableCell>
+                <TableCell align="right">{formatCurrency(c.totalValue)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main Tab
+// ---------------------------------------------------------------------------
 
 export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail }) {
+  // Competitive Landscape (new — scoped to agency + NAICS + set-aside)
+  const {
+    data: landscape,
+    isLoading: landscapeLoading,
+    isError: landscapeError,
+  } = useQuery({
+    queryKey: queryKeys.opportunities.competitiveLandscape(opp.noticeId),
+    queryFn: () => getCompetitiveLandscape(opp.noticeId),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Incumbent Analysis
   const {
     data: incumbent,
     isLoading: incumbentLoading,
@@ -28,6 +139,7 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
     staleTime: 5 * 60 * 1000,
   });
 
+  // NAICS-wide market share (existing — kept for context)
   const {
     data: marketShare,
     isLoading: marketLoading,
@@ -41,7 +153,23 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
 
   return (
     <Box>
-      {/* Incumbent Analysis */}
+      {/* 1. Competition Level (from competitive landscape endpoint) */}
+      {landscapeLoading ? (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <LoadingState message="Analyzing competitive landscape..." />
+        </Paper>
+      ) : landscapeError || !landscape ? (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <ErrorState
+            title="Competitive landscape unavailable"
+            message="Could not load scoped competition data for this opportunity."
+          />
+        </Paper>
+      ) : (
+        <CompetitionLevelCard landscape={landscape} />
+      )}
+
+      {/* 2. Incumbent Analysis */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
           Incumbent Analysis
@@ -53,13 +181,28 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
             title="Incumbent analysis unavailable"
             message="Could not load incumbent analysis for this opportunity."
           />
-        ) : !incumbent.hasIncumbent ? (
-          <EmptyState
-            title="No incumbent identified"
-            message="This appears to be a new requirement with no prior contract holder."
-          />
+        ) : !incumbent.hasIncumbent && !incumbent.isLikelyIncumbent ? (
+          <Box>
+            <EmptyState
+              title="No incumbent identified"
+              message="This appears to be a new requirement with no prior contract holder."
+            />
+            {/* Show likely competitors even when no incumbent */}
+            {incumbent.likelyCompetitors && incumbent.likelyCompetitors.length > 0 && (
+              <LikelyCompetitorsTable competitors={incumbent.likelyCompetitors} />
+            )}
+          </Box>
         ) : (
           <Box>
+            {incumbent.isLikelyIncumbent && !incumbent.hasIncumbent && (
+              <Chip
+                label="Likely Incumbent (estimated)"
+                size="small"
+                color="info"
+                variant="outlined"
+                sx={{ mb: 2 }}
+              />
+            )}
             <KeyFactsGrid
               facts={[
                 { label: 'Incumbent', value: incumbent.incumbentName ?? '--' },
@@ -108,14 +251,39 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
                 <VulnerabilitySignals signals={incumbent.vulnerabilitySignals} />
               </Box>
             )}
+
+            {/* Likely competitors when incumbent is estimated */}
+            {incumbent.likelyCompetitors && incumbent.likelyCompetitors.length > 0 && (
+              <LikelyCompetitorsTable competitors={incumbent.likelyCompetitors} />
+            )}
           </Box>
         )}
       </Paper>
 
-      {/* Market Landscape */}
+      {/* 3. Scoped Top Competitors (from competitive landscape endpoint) */}
+      {landscape && landscape.topVendors.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <MarketShareChart
+            vendors={landscape.topVendors.map((v) => ({
+              vendorName: v.vendorName,
+              totalValue: v.totalValue,
+              marketSharePercent: v.marketSharePercent,
+              contractCount: v.contractCount,
+            }))}
+            title="Top Competitors (Scoped)"
+          />
+          {landscape.fallbackScope === 'NAICS' && (
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              Showing NAICS-wide data — agency-scoped results had too few vendors.
+            </Typography>
+          )}
+        </Paper>
+      )}
+
+      {/* 4. NAICS-wide Market Context */}
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
-          Market Landscape{opp.naicsCode ? ` — NAICS ${opp.naicsCode}` : ''}
+          NAICS Market Context{opp.naicsCode ? ` — ${opp.naicsCode}` : ''}
         </Typography>
         {!opp.naicsCode ? (
           <EmptyState

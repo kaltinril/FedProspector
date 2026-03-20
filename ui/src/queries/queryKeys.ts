@@ -9,6 +9,7 @@ export const queryKeys = {
     qualification: (noticeId: string) => ['opportunities', 'qualification', noticeId] as const,
     incumbent: (noticeId: string) => ['opportunities', 'incumbent', noticeId] as const,
     recommended: (limit: number) => ['opportunities', 'recommended', limit] as const,
+    competitiveLandscape: (noticeId: string) => ['opportunities', 'competitiveLandscape', noticeId] as const,
   },
   awards: {
     all: ['awards'] as const,

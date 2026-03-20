@@ -1009,6 +1009,29 @@ export interface IncumbentAnalysisDto {
   totalContractsInNaics: number;
   consecutiveWins: number;
   vulnerabilitySignals: string[];
+  isLikelyIncumbent: boolean;
+  likelyCompetitors: LikelyCompetitorDto[];
+}
+
+export interface LikelyCompetitorDto {
+  vendorName: string;
+  ueiSam: string | null;
+  contractCount: number;
+  totalValue: number;
+}
+
+export interface CompetitiveLandscapeDto {
+  naicsCode: string;
+  agencyCode: string;
+  setAsideCode: string | null;
+  totalContracts: number;
+  totalValue: number;
+  averageAwardValue: number;
+  agencyAverageAwardValue: number;
+  topVendors: VendorShareDto[];
+  competitionLevel: string;
+  distinctVendorCount: number;
+  fallbackScope: string | null;
 }
 
 export interface VendorShareDto {

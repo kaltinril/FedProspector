@@ -45,4 +45,30 @@ public class IncumbentAnalysisDto
     public int ConsecutiveWins { get; set; }
     // Vulnerability assessment
     public List<string> VulnerabilitySignals { get; set; } = new();
+    // Fallback competitors when no exact solicitation match
+    public bool IsLikelyIncumbent { get; set; }
+    public List<LikelyCompetitorDto> LikelyCompetitors { get; set; } = new();
+}
+
+public class LikelyCompetitorDto
+{
+    public string VendorName { get; set; } = "";
+    public string? UeiSam { get; set; }
+    public int ContractCount { get; set; }
+    public decimal TotalValue { get; set; }
+}
+
+public class CompetitiveLandscapeDto
+{
+    public string NaicsCode { get; set; } = "";
+    public string AgencyCode { get; set; } = "";
+    public string? SetAsideCode { get; set; }
+    public int TotalContracts { get; set; }
+    public decimal TotalValue { get; set; }
+    public decimal AverageAwardValue { get; set; }
+    public decimal AgencyAverageAwardValue { get; set; }
+    public List<VendorShareDto> TopVendors { get; set; } = new();
+    public string CompetitionLevel { get; set; } = "";
+    public int DistinctVendorCount { get; set; }
+    public string? FallbackScope { get; set; }
 }

@@ -11,6 +11,7 @@ import type {
   IncumbentAnalysisDto,
   RecommendedOpportunityDto,
   BatchPWinResponse,
+  CompetitiveLandscapeDto,
 } from '@/types/api';
 
 export function searchOpportunities(
@@ -53,4 +54,8 @@ export function getRecommendedOpportunities(limit: number = 10): Promise<Recomme
 
 export function fetchBatchPWin(noticeIds: string[]): Promise<BatchPWinResponse> {
   return apiClient.post('/opportunities/pwin/batch', { noticeIds }).then((r) => r.data);
+}
+
+export function getCompetitiveLandscape(noticeId: string): Promise<CompetitiveLandscapeDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/competitive-landscape`).then((r) => r.data);
 }
