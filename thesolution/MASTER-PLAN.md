@@ -118,8 +118,9 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 102 | Dependency Updates -- Stable/LTS Versions | COMPLETE | [102-DEPENDENCY-UPDATES.md](phases/completed/102-DEPENDENCY-UPDATES.md) |
 | 103 | qScore & pWin Visibility | COMPLETE | [103-QSCORE-PWIN-VISIBILITY.md](phases/completed/103-QSCORE-PWIN-VISIBILITY.md) |
 | 104 | JV Past Performance & Entity Award Loading | COMPLETE | [104-JV-PAST-PERFORMANCE-AWARDS.md](phases/completed/104-JV-PAST-PERFORMANCE-AWARDS.md) |
-| 104B | Batch pWin & Lazy-Load Grid Scores | PLANNED | [104B-BATCH-PWIN-LAZY-LOAD.md](phases/104B-BATCH-PWIN-LAZY-LOAD.md) |
+| 104B | Batch pWin & Lazy-Load Grid Scores | COMPLETE | [104B-BATCH-PWIN-LAZY-LOAD.md](phases/completed/104B-BATCH-PWIN-LAZY-LOAD.md) |
 | 105 | Fix Competitive Intelligence Tab | PLANNED | [105-COMPETITIVE-INTEL-FIX.md](phases/105-COMPETITIVE-INTEL-FIX.md) |
+| 106 | Column Overflow Fix | COMPLETE | [106-COLUMN-OVERFLOW-FIX.md](phases/completed/106-COLUMN-OVERFLOW-FIX.md) |
 | 109 | Set-Aside Shift Analysis | PLANNED | [109-SET-ASIDE-SHIFT-ANALYSIS.md](phases/109-SET-ASIDE-SHIFT-ANALYSIS.md) |
 | 110 | Attachment Intelligence | PLANNED | [110-ATTACHMENT-INTELLIGENCE.md](phases/110-ATTACHMENT-INTELLIGENCE.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |

@@ -1,6 +1,6 @@
 # Phase 104B: Batch pWin Endpoint & Lazy-Load Grid Scores
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** Medium — UX improvement, removes click-to-calculate friction
 **Dependencies:** Phase 104 (JV Past Performance), Phase 103 (qScore & pWin Visibility)
 

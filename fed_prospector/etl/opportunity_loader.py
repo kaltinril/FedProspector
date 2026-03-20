@@ -309,9 +309,14 @@ class OpportunityLoader(StagingMixin):
                                 # Extract column name from "Data too long for column 'X'" errors
                                 err_detail = str(rec_exc)
                                 col_match = re.search(r"column '(\w+)'", err_detail)
-                                if col_match and opp_data:
+                                if col_match:
                                     col_name = col_match.group(1)
-                                    val = opp_data.get(col_name)
+                                    val = opp_data.get(col_name) if opp_data else None
+                                    if val is None and pocs:
+                                        for p in pocs:
+                                            if col_name in p:
+                                                val = p[col_name]
+                                                break
                                     err_detail += f" — len={len(str(val)) if val else 0}, value={val!r}"
                                 self.logger.warning(
                                     "Error processing %s: %s", notice_id, err_detail
@@ -432,12 +437,12 @@ class OpportunityLoader(StagingMixin):
             if not full_name:
                 continue
             pocs.append({
-                "full_name":    full_name,
-                "email":        (poc.get("email") or "").strip() or None,
-                "phone":        (poc.get("phone") or "").strip() or None,
-                "fax":          (poc.get("fax") or "").strip() or None,
-                "title":        (poc.get("title") or "").strip() or None,
-                "officer_type": (poc.get("type") or "").strip() or None,
+                "full_name":    full_name[:500],
+                "email":        ((poc.get("email") or "").strip()[:200]) or None,
+                "phone":        ((poc.get("phone") or "").strip()[:100]) or None,
+                "fax":          ((poc.get("fax") or "").strip()[:100]) or None,
+                "title":        ((poc.get("title") or "").strip()[:200]) or None,
+                "officer_type": ((poc.get("type") or "").strip()[:50]) or None,
             })
 
         return {
