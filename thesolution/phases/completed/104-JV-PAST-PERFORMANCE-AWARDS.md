@@ -1,6 +1,6 @@
 # Phase 104: JV Past Performance & Entity Award Loading
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** High — directly affects qualification pass/fail and pWin scoring
 **Dependencies:** Phase 91 (Entity Linking), Phase 101 (Cert Sync)
 
@@ -178,13 +178,13 @@ This helps the user understand why they pass or fail.
 
 ## Testing Checklist
 
-- [ ] QualificationService uses all linked UEIs for past performance check
-- [ ] JV partner's awards cause past performance to pass
-- [ ] `partner_uei` field stored and returned in entity link DTO
-- [ ] UI shows "Other JV member UEI" field when linking JV
-- [ ] `GetLinkedUeisAsync` returns SELF + JV + partner UEIs
-- [ ] CLI `load awards --for-org` loads awards for all linked UEIs
-- [ ] Award source entity shown on qualification tab
+- [x] QualificationService uses all linked UEIs for past performance check
+- [x] JV partner's awards cause past performance to pass
+- [x] `partner_uei` field stored and returned in entity link DTO
+- [x] UI shows "Other JV member UEI" field when linking JV
+- [x] `GetLinkedUeisAsync` returns SELF + JV + partner UEIs
+- [x] CLI `load awards --for-org` loads awards for all linked UEIs
+- [x] Award source entity shown on qualification tab
 
 ---
 

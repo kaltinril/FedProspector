@@ -215,6 +215,7 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
               category: c.category,
               status: c.status,
               detail: c.detail,
+              sourceUei: c.sourceUei,
             }))}
           />
         )}

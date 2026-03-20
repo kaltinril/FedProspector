@@ -9,6 +9,7 @@ namespace FedProspector.Infrastructure.Services;
 public class QualificationService : IQualificationService
 {
     private readonly FedProspectorDbContext _context;
+    private readonly IOrganizationEntityService _orgEntityService;
     private readonly ILogger<QualificationService> _logger;
 
     /// <summary>
@@ -36,9 +37,10 @@ public class QualificationService : IQualificationService
         "public trust", "clearance required", "classified"
     ];
 
-    public QualificationService(FedProspectorDbContext context, ILogger<QualificationService> logger)
+    public QualificationService(FedProspectorDbContext context, IOrganizationEntityService orgEntityService, ILogger<QualificationService> logger)
     {
         _context = context;
+        _orgEntityService = orgEntityService;
         _logger = logger;
     }
 
@@ -64,8 +66,11 @@ public class QualificationService : IQualificationService
         checks.Add(await CheckNaicsMatchAsync(opp.NaicsCode, orgId));
         checks.Add(await CheckSamRegistrationAsync(org.UeiSam));
 
-        // --- Experience checks ---
-        checks.Add(await CheckPastPerformanceAsync(opp.NaicsCode, orgId, org.UeiSam));
+        // --- Experience checks (aggregate across all linked UEIs) ---
+        var linkedUeis = await _orgEntityService.GetLinkedUeisAsync(orgId);
+        if (!string.IsNullOrEmpty(org.UeiSam) && !linkedUeis.Contains(org.UeiSam))
+            linkedUeis.Add(org.UeiSam);
+        checks.Add(await CheckPastPerformanceAsync(opp.NaicsCode, orgId, linkedUeis));
 
         // --- Compliance checks ---
         checks.Add(await CheckSizeStandardAsync(opp.NaicsCode, orgId));
@@ -232,7 +237,7 @@ public class QualificationService : IQualificationService
         };
     }
 
-    private async Task<QualificationItemDto> CheckPastPerformanceAsync(string? naicsCode, int orgId, string? orgUei)
+    private async Task<QualificationItemDto> CheckPastPerformanceAsync(string? naicsCode, int orgId, List<string> linkedUeis)
     {
         if (string.IsNullOrEmpty(naicsCode))
         {
@@ -250,13 +255,24 @@ public class QualificationService : IQualificationService
             .CountAsync();
 
         var fpdsCount = 0;
-        if (!string.IsNullOrEmpty(orgUei))
+        List<string> fpdsUeis = [];
+        if (linkedUeis.Count > 0)
         {
-            fpdsCount = await _context.FpdsContracts.AsNoTracking()
-                .Where(c => c.VendorUei == orgUei && c.NaicsCode == naicsCode)
+            var fpdsQuery = _context.FpdsContracts.AsNoTracking()
+                .Where(c => linkedUeis.Contains(c.VendorUei!) && c.NaicsCode == naicsCode);
+
+            fpdsCount = await fpdsQuery
                 .Select(c => c.ContractId)
                 .Distinct()
                 .CountAsync();
+
+            if (fpdsCount > 0)
+            {
+                fpdsUeis = await fpdsQuery
+                    .Select(c => c.VendorUei!)
+                    .Distinct()
+                    .ToListAsync();
+            }
         }
 
         var total = ppCount + fpdsCount;
@@ -284,7 +300,8 @@ public class QualificationService : IQualificationService
             Name = "Past Performance",
             Category = "Experience",
             Status = status,
-            Detail = detail
+            Detail = detail,
+            SourceUei = fpdsUeis.Count > 0 ? string.Join(", ", fpdsUeis) : null
         };
     }
 

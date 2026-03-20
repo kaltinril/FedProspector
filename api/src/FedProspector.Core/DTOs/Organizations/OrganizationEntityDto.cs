@@ -4,6 +4,7 @@ public class OrganizationEntityDto
 {
     public int Id { get; set; }
     public string UeiSam { get; set; } = string.Empty;
+    public string? PartnerUei { get; set; }
     public string Relationship { get; set; } = string.Empty;
     public bool IsActive { get; set; }
     public string? Notes { get; set; }
@@ -23,6 +24,7 @@ public class OrganizationEntityDto
 public class LinkEntityRequest
 {
     public string UeiSam { get; set; } = string.Empty;
+    public string? PartnerUei { get; set; }
     public string Relationship { get; set; } = "SELF";
     public string? Notes { get; set; }
 }

@@ -976,6 +976,7 @@ export interface QualificationItemDto {
   category: string;  // "Certification" | "Experience" | "Compliance" | "Logistics"
   status: string;    // "Pass" | "Fail" | "Warning" | "Unknown"
   detail: string;
+  sourceUei?: string | null;
 }
 
 export interface QualificationCheckDto {

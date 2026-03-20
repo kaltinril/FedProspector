@@ -16,6 +16,7 @@ interface QualificationItem {
   category: string;
   status: string;
   detail: string;
+  sourceUei?: string | null;
 }
 
 interface QualificationChecklistProps {
@@ -126,7 +127,14 @@ export function QualificationChecklist({
                 <ListItemIcon sx={{ minWidth: 36 }}>
                   {statusIcon(item.status)}
                 </ListItemIcon>
-                <ListItemText primary={item.name} secondary={item.detail} />
+                <ListItemText
+                  primary={item.name}
+                  secondary={
+                    item.sourceUei
+                      ? `${item.detail} (via UEI: ${item.sourceUei})`
+                      : item.detail
+                  }
+                />
               </ListItem>
             ))}
           </List>

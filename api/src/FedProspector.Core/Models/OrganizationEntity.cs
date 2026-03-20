@@ -17,6 +17,9 @@ public class OrganizationEntity
     [MaxLength(12)]
     public string UeiSam { get; set; } = string.Empty;
 
+    [MaxLength(13)]
+    public string? PartnerUei { get; set; }
+
     [Required]
     [MaxLength(20)]
     public string Relationship { get; set; } = string.Empty;

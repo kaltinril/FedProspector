@@ -197,6 +197,7 @@ CREATE TABLE IF NOT EXISTS organization_entity (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     organization_id INT NOT NULL,
     uei_sam         VARCHAR(12) NOT NULL,
+    partner_uei     VARCHAR(13) NULL,      -- UEI used for JV partnership filings
     relationship    VARCHAR(20) NOT NULL,
     is_active       CHAR(1) NOT NULL DEFAULT 'Y',
     added_by        INT NULL,

@@ -54,6 +54,7 @@ export function OrgEntitiesTab() {
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [selectedEntity, setSelectedEntity] = useState<EntitySearchResult | null>(null);
   const [relationship, setRelationship] = useState('SELF');
+  const [partnerUei, setPartnerUei] = useState('');
   const [notes, setNotes] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -73,6 +74,7 @@ export function OrgEntitiesTab() {
       setMutationError(null);
       setLinkDialogOpen(false);
       setSelectedEntity(null);
+      setPartnerUei('');
       setNotes('');
     },
   });
@@ -138,6 +140,7 @@ export function OrgEntitiesTab() {
     if (!selectedEntity) return;
     linkMutation.mutate({
       ueiSam: selectedEntity.ueiSam,
+      partnerUei: partnerUei || undefined,
       relationship,
       notes: notes || undefined,
     });
@@ -310,6 +313,7 @@ export function OrgEntitiesTab() {
               <TableRow>
                 <TableCell>Entity</TableCell>
                 <TableCell>UEI</TableCell>
+                <TableCell>Partner UEI</TableCell>
                 <TableCell>Relationship</TableCell>
                 <TableCell align="center">NAICS</TableCell>
                 <TableCell align="center">Certs</TableCell>
@@ -334,6 +338,15 @@ export function OrgEntitiesTab() {
                     <Typography variant="body2" fontFamily="monospace">
                       {link.ueiSam}
                     </Typography>
+                  </TableCell>
+                  <TableCell>
+                    {link.partnerUei ? (
+                      <Typography variant="body2" fontFamily="monospace">
+                        {link.partnerUei}
+                      </Typography>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary">-</Typography>
+                    )}
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -391,6 +404,16 @@ export function OrgEntitiesTab() {
               ))}
             </Select>
           </FormControl>
+          <TextField
+            fullWidth
+            size="small"
+            label="Partner UEI (optional)"
+            placeholder="13-character UEI for JV filings"
+            value={partnerUei}
+            onChange={(e) => setPartnerUei(e.target.value.toUpperCase())}
+            inputProps={{ maxLength: 13 }}
+            sx={{ mb: 2 }}
+          />
           <TextField
             fullWidth
             multiline

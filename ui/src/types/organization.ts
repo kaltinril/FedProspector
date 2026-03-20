@@ -143,6 +143,7 @@ export interface NaicsSearchDto {
 export interface OrganizationEntityDto {
   id: number;
   ueiSam: string;
+  partnerUei?: string | null;
   relationship: string;
   isActive: boolean;
   notes?: string | null;
@@ -160,6 +161,7 @@ export interface OrganizationEntityDto {
 /** Link entity request matching C# LinkEntityRequest */
 export interface LinkEntityRequest {
   ueiSam: string;
+  partnerUei?: string | null;
   relationship: string;
   notes?: string | null;
 }

@@ -11,12 +11,187 @@ from config.logging_config import setup_logging
 from config import settings
 
 
+def _load_awards_for_org(org_identifier, api_key_number, max_calls, dry_run):
+    """Load awards for all UEIs linked to an organization."""
+    import logging
+    from datetime import date, timedelta
+
+    from api_clients.sam_awards_client import SAMAwardsClient
+    from db.connection import get_connection
+    from etl.awards_loader import AwardsLoader
+    from etl.load_manager import LoadManager
+
+    logger = logging.getLogger("fed_prospector.cli.awards")
+    today = date.today()
+    date_from = date(today.year - 5, today.month, today.day)
+    staleness_days = 30
+
+    # Resolve org by name or ID
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        if org_identifier.isdigit():
+            cursor.execute(
+                "SELECT organization_id, name, uei_sam FROM organization WHERE organization_id = %s",
+                (int(org_identifier),),
+            )
+        else:
+            cursor.execute(
+                "SELECT organization_id, name, uei_sam FROM organization WHERE name = %s",
+                (org_identifier,),
+            )
+        org = cursor.fetchone()
+        if not org:
+            click.echo(f"ERROR: Organization not found: {org_identifier}")
+            sys.exit(1)
+
+        org_id = org["organization_id"]
+        org_name = org["name"]
+        click.echo(f"\nLoading awards for org: {org_name} (id={org_id})")
+
+        # Gather UEIs from organization_entity
+        ueis = set()
+        if org["uei_sam"]:
+            ueis.add(org["uei_sam"])
+
+        cursor.execute(
+            "SELECT uei_sam FROM organization_entity WHERE organization_id = %s AND is_active = 'Y'",
+            (org_id,),
+        )
+        for row in cursor.fetchall():
+            if row["uei_sam"]:
+                ueis.add(row["uei_sam"])
+
+        # Also try partner_uei if column exists
+        try:
+            cursor.execute(
+                "SELECT partner_uei FROM organization_entity WHERE organization_id = %s AND is_active = 'Y' AND partner_uei IS NOT NULL",
+                (org_id,),
+            )
+            for row in cursor.fetchall():
+                if row["partner_uei"]:
+                    ueis.add(row["partner_uei"])
+        except Exception:
+            logger.debug("partner_uei column not available yet")
+
+        if not ueis:
+            click.echo(f"  No UEIs found for org {org_name}. Link entities first.")
+            return
+
+        click.echo(f"  Found {len(ueis)} UEI(s): {', '.join(sorted(ueis))}")
+
+        # Check staleness per UEI
+        stale_cutoff = today - timedelta(days=staleness_days)
+        fresh_ueis = set()
+        for uei in sorted(ueis):
+            cursor.execute(
+                "SELECT MAX(last_modified_date) AS latest FROM fpds_contract WHERE vendor_uei = %s",
+                (uei,),
+            )
+            row = cursor.fetchone()
+            if row and row["latest"] and row["latest"].date() >= stale_cutoff:
+                fresh_ueis.add(uei)
+
+        stale_ueis = sorted(ueis - fresh_ueis)
+        click.echo(f"  Fresh ({staleness_days}d): {len(fresh_ueis)} — Stale/missing: {len(stale_ueis)}")
+
+        if not stale_ueis:
+            click.echo("  All UEIs have recent data. Nothing to load.")
+            return
+
+        for uei in sorted(fresh_ueis):
+            click.echo(f"    SKIP {uei} (fresh)")
+        for uei in stale_ueis:
+            click.echo(f"    LOAD {uei}")
+
+        if dry_run:
+            click.echo(f"\n  API key: #{api_key_number}")
+            click.echo(f"  Max calls: {max_calls}")
+            click.echo(f"  Date range: {date_from} to {today}")
+            click.echo("\nNo API calls made (dry run).")
+            return
+
+    finally:
+        cursor.close()
+        conn.close()
+
+    # Load awards for each stale UEI
+    client = SAMAwardsClient(api_key_number=api_key_number)
+    loader = AwardsLoader()
+    load_manager = LoadManager()
+
+    load_id = load_manager.start_load(
+        "SAM_AWARDS", "ORG_BULK",
+        parameters={"org_id": org_id, "org_name": org_name, "ueis": stale_ueis},
+    )
+    click.echo(f"\nLoad started (load_id={load_id})")
+
+    t_start = time.time()
+    calls_made = 0
+    cumulative = {
+        "records_read": 0, "records_inserted": 0, "records_updated": 0,
+        "records_unchanged": 0, "records_errored": 0,
+    }
+
+    try:
+        for uei in stale_ueis:
+            if calls_made >= max_calls:
+                click.echo(f"\n  ** Budget exhausted ({max_calls} calls).")
+                break
+
+            click.echo(f"\n  Loading UEI {uei}...")
+            try:
+                awards = client.search_by_awardee(uei, date_from=date_from, date_to=today)
+                calls_made += max(1, (len(awards) + 99) // 100)
+            except RateLimitExceeded as e:
+                click.echo(f"  ** Rate limited: {e}")
+                break
+            except requests.HTTPError as e:
+                click.echo(f"  ** HTTP error for {uei}: {e}")
+                continue
+
+            if not awards:
+                click.echo(f"    No awards found for {uei}.")
+                continue
+
+            stats = loader.load_awards(awards, load_id)
+            for k in cumulative:
+                cumulative[k] += stats.get(k, 0)
+
+            click.echo(
+                f"    {len(awards)} awards: "
+                f"{stats.get('records_inserted', 0)} new, "
+                f"{stats.get('records_updated', 0)} updated, "
+                f"{stats.get('records_unchanged', 0)} unchanged"
+            )
+
+        load_manager.complete_load(load_id, **cumulative)
+        elapsed = time.time() - t_start
+
+        click.echo(f"\nOrg awards load complete ({elapsed:.1f}s)")
+        click.echo(f"  Records read:      {cumulative['records_read']:>10,d}")
+        click.echo(f"  Records inserted:  {cumulative['records_inserted']:>10,d}")
+        click.echo(f"  Records updated:   {cumulative['records_updated']:>10,d}")
+        click.echo(f"  Records unchanged: {cumulative['records_unchanged']:>10,d}")
+        click.echo(f"  Records errored:   {cumulative['records_errored']:>10,d}")
+
+    except KeyboardInterrupt:
+        click.echo("\n\nAborted. Partial progress saved.")
+
+    except Exception as e:
+        load_manager.fail_load(load_id, str(e))
+        logger.exception("Org awards load failed")
+        click.echo(f"\nERROR: {e}")
+        sys.exit(1)
+
+
 @click.command("load-awards")
 @click.option("--naics", default=None, help="NAICS code(s) to search — comma-separated for multiple: 541512,541511,561110")
 @click.option("--set-aside", "set_aside", default=None, help="Set-aside type (WOSB, 8A, etc.)")
 @click.option("--agency", default=None, help="Contracting department CGAC code")
 @click.option("--awardee-uei", default=None, help="Awardee UEI to search")
 @click.option("--piid", default=None, help="Contract PIID to search")
+@click.option("--for-org", "for_org", default=None, help="Load awards for all UEIs linked to an org (name or ID)")
 @click.option("--years-back", default=None, type=int, help="Years of history to load")
 @click.option("--days-back", default=None, type=int, help="Days of history to load (overrides --years-back)")
 @click.option("--fiscal-year", default=None, type=int, help="Specific fiscal year (overrides --years-back)")
@@ -27,7 +202,7 @@ from config import settings
               help="Which SAM API key to use (1 or 2, default: 2)")
 @click.option("--force", "-f", is_flag=True, default=False, help="Skip resume and start fresh")
 @click.option("--dry-run", is_flag=True, default=False, help="Show what would load without making API calls")
-def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
+def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back,
                 days_back, fiscal_year, date_from_str, date_to_str,
                 max_calls, api_key_number, force, dry_run):
     """Load contract awards from SAM.gov Contract Awards API.
@@ -50,7 +225,12 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, years_back,
         python main.py load awards --set-aside WOSB --years-back 3
         python main.py load awards --force                  # skip resume, start fresh
         python main.py load awards --fiscal-year 2025
+        python main.py load awards --for-org "Acme Corp"    # all UEIs for an org
+        python main.py load awards --for-org 1 --dry-run    # preview org load
     """
+    if for_org:
+        _load_awards_for_org(for_org, api_key_number, max_calls, dry_run)
+        return
     logger = setup_logging()
     from datetime import date, timedelta
     from api_clients.sam_awards_client import SAMAwardsClient

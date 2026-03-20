@@ -90,6 +90,7 @@ public class OrganizationEntityService : IOrganizationEntityService
 
             // Reactivate
             existing.IsActive = "Y";
+            existing.PartnerUei = request.PartnerUei;
             existing.Notes = request.Notes;
             existing.AddedBy = userId;
             existing.UpdatedAt = DateTime.UtcNow;
@@ -120,6 +121,7 @@ public class OrganizationEntityService : IOrganizationEntityService
         {
             OrganizationId = orgId,
             UeiSam = request.UeiSam,
+            PartnerUei = request.PartnerUei,
             Relationship = relationship,
             IsActive = "Y",
             AddedBy = userId,
@@ -231,11 +233,17 @@ public class OrganizationEntityService : IOrganizationEntityService
     /// </summary>
     public async Task<List<string>> GetLinkedUeisAsync(int orgId)
     {
-        return await _context.OrganizationEntities
+        var entities = await _context.OrganizationEntities
             .AsNoTracking()
             .Where(oe => oe.OrganizationId == orgId && oe.IsActive == "Y")
-            .Select(oe => oe.UeiSam)
+            .Select(oe => new { oe.UeiSam, oe.PartnerUei })
             .ToListAsync();
+
+        return entities
+            .SelectMany(oe => new[] { oe.UeiSam, oe.PartnerUei })
+            .Where(u => !string.IsNullOrEmpty(u))
+            .Distinct()
+            .ToList()!;
     }
 
     /// <summary>
@@ -477,6 +485,7 @@ public class OrganizationEntityService : IOrganizationEntityService
         {
             Id = link.Id,
             UeiSam = link.UeiSam,
+            PartnerUei = link.PartnerUei,
             Relationship = link.Relationship,
             IsActive = link.IsActive == "Y",
             Notes = link.Notes,

@@ -17,4 +17,5 @@ public class QualificationItemDto
     public string Category { get; set; } = "";  // "Certification", "Experience", "Compliance", "Logistics"
     public string Status { get; set; } = "";     // "Pass", "Fail", "Warning", "Unknown"
     public string Detail { get; set; } = "";
+    public string? SourceUei { get; set; }
 }
