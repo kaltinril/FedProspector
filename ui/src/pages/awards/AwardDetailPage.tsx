@@ -167,10 +167,9 @@ function FinancialsTab({
   if (isLoading) return <LoadingState message="Loading financial data..." />;
   if (isError)
     return (
-      <ErrorState
-        title="Failed to load burn rate"
-        message="Could not retrieve financial data for this award."
-        onRetry={() => refetch()}
+      <EmptyState
+        title="No financial data available"
+        message="This contract does not have USASpending transaction data linked yet."
       />
     );
 

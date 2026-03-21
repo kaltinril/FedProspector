@@ -126,7 +126,7 @@ public class FedProspectorDbContext : DbContext
     public DbSet<Notification> Notifications { get; set; }
 
     // -----------------------------------------------------------------------
-    // Database Views (7 - keyless, read-only)
+    // Database Views (9 - keyless, read-only)
     // -----------------------------------------------------------------------
 
     public DbSet<TargetOpportunityView> TargetOpportunities { get; set; }
@@ -136,6 +136,8 @@ public class FedProspectorDbContext : DbContext
     public DbSet<RefPscCodeLatest> RefPscCodeLatest { get; set; }
     public DbSet<SetAsideShiftView> SetAsideShifts { get; set; }
     public DbSet<SetAsideTrendView> SetAsideTrends { get; set; }
+    public DbSet<MonthlySpendView> MonthlySpends { get; set; }
+    public DbSet<VendorMarketShareView> VendorMarketShares { get; set; }
 
     // -----------------------------------------------------------------------
     // Fluent API Configuration
@@ -390,5 +392,13 @@ public class FedProspectorDbContext : DbContext
         modelBuilder.Entity<SetAsideTrendView>()
             .HasNoKey()
             .ToView("v_set_aside_trend");
+
+        modelBuilder.Entity<MonthlySpendView>()
+            .HasNoKey()
+            .ToView("v_monthly_spend");
+
+        modelBuilder.Entity<VendorMarketShareView>()
+            .HasNoKey()
+            .ToView("v_vendor_market_share");
     }
 }

@@ -2,6 +2,7 @@ using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Awards;
 using FedProspector.Core.Interfaces;
 using FedProspector.Core.Models;
+using FedProspector.Core.Models.Views;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -446,18 +447,16 @@ public class AwardService : IAwardService
 
         if (usaAward == null) return null;
 
-        // Get monthly spend breakdown using raw SQL for GROUP BY with DATE_FORMAT
         var awardId = usaAward.GeneratedUniqueAwardId;
-        var monthlyData = await _context.Database
-            .SqlQueryRaw<MonthlySpendDto>(
-                "SELECT DATE_FORMAT(action_date, '%Y-%m') AS year_month, " +
-                "SUM(federal_action_obligation) AS amount, " +
-                "COUNT(*) AS transaction_count " +
-                "FROM usaspending_transaction " +
-                "WHERE award_id = {0} AND federal_action_obligation IS NOT NULL " +
-                "GROUP BY DATE_FORMAT(action_date, '%Y-%m') " +
-                "ORDER BY year_month",
-                awardId)
+        var monthlyData = await _context.MonthlySpends.AsNoTracking()
+            .Where(m => m.AwardId == awardId)
+            .OrderBy(m => m.YearMonth)
+            .Select(m => new MonthlySpendDto
+            {
+                YearMonth = m.YearMonth,
+                Amount = m.Amount,
+                TransactionCount = m.TransactionCount,
+            })
             .ToListAsync();
 
         if (monthlyData.Count == 0)
@@ -509,20 +508,19 @@ public class AwardService : IAwardService
 
     public async Task<List<MarketShareDto>> GetMarketShareAsync(string naicsCode, int limit = 10)
     {
-        var results = await _context.Database
-            .SqlQueryRaw<MarketShareDto>(
-                "SELECT MAX(vendor_name) AS vendor_name, vendor_uei AS vendor_uei, " +
-                "COUNT(*) AS award_count, " +
-                "SUM(base_and_all_options) AS total_value, " +
-                "AVG(base_and_all_options) AS average_value, " +
-                "MAX(date_signed) AS last_award_date " +
-                "FROM fpds_contract " +
-                "WHERE naics_code = {0} AND vendor_uei IS NOT NULL AND vendor_uei != '' " +
-                "AND modification_number = '0' " +
-                "GROUP BY vendor_uei " +
-                "ORDER BY total_value DESC " +
-                "LIMIT {1}",
-                naicsCode, limit)
+        var results = await _context.VendorMarketShares.AsNoTracking()
+            .Where(m => m.NaicsCode == naicsCode)
+            .OrderByDescending(m => m.TotalValue)
+            .Take(limit)
+            .Select(m => new MarketShareDto
+            {
+                VendorName = m.VendorName,
+                VendorUei = m.VendorUei,
+                AwardCount = m.AwardCount,
+                TotalValue = m.TotalValue ?? 0m,
+                AverageValue = m.AverageValue ?? 0m,
+                LastAwardDate = m.LastAwardDate,
+            })
             .ToListAsync();
 
         return results;
