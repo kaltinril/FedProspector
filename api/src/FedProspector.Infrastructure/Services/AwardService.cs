@@ -520,7 +520,7 @@ public class AwardService : IAwardService
                 "WHERE naics_code = {0} AND vendor_uei IS NOT NULL AND vendor_uei != '' " +
                 "AND modification_number = '0' " +
                 "GROUP BY vendor_uei " +
-                "ORDER BY TotalValue DESC " +
+                "ORDER BY total_value DESC " +
                 "LIMIT {1}",
                 naicsCode, limit)
             .ToListAsync();

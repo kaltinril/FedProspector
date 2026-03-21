@@ -37,15 +37,19 @@ public class RefPscCode
     [MaxLength(1)]
     public string? CategoryType { get; set; }
 
+    [Column("level1_category_code")]
     [MaxLength(10)]
     public string? Level1CategoryCode { get; set; }
 
+    [Column("level1_category")]
     [MaxLength(100)]
     public string? Level1Category { get; set; }
 
+    [Column("level2_category_code")]
     [MaxLength(10)]
     public string? Level2CategoryCode { get; set; }
 
+    [Column("level2_category")]
     [MaxLength(100)]
     public string? Level2Category { get; set; }
 

@@ -16,9 +16,9 @@ SELECT
     GROUP_CONCAT(DISTINCT rbt.category ORDER BY rbt.category SEPARATOR ', ') AS business_type_categories,
     GROUP_CONCAT(DISTINCT CONCAT(esc.sba_type_code, ':', COALESCE(rst.description, ''))
         ORDER BY esc.sba_type_code SEPARATOR '; ') AS sba_certifications,
-    COALESCE(fc_agg.past_contracts, 0) AS past_contracts,
-    fc_agg.total_obligated,
-    fc_agg.most_recent_award
+    COALESCE(MAX(fc_agg.past_contracts), 0) AS past_contracts,
+    MAX(fc_agg.total_obligated) AS total_obligated,
+    MAX(fc_agg.most_recent_award) AS most_recent_award
 FROM entity e
 LEFT JOIN ref_naics_code n ON n.naics_code = e.primary_naics
 LEFT JOIN ref_naics_code sector

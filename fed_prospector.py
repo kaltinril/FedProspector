@@ -344,6 +344,11 @@ ALL_SERVICES = ["db", "api", "ui"]
 
 def cmd_build(service: str):
     targets = ALL_SERVICES if service == "all" else [service]
+    # Stop services in reverse order before building (UI first, then API)
+    stop_targets = [s for s in reversed(targets) if SERVICE_MAP[s]["build"]]
+    for svc in stop_targets:
+        SERVICE_MAP[svc]["stop"]() if svc != "db" else None
+    # Build
     failures = []
     for svc in targets:
         fn = SERVICE_MAP[svc]["build"]
@@ -354,6 +359,10 @@ def cmd_build(service: str):
     if failures:
         print(f"\n  Build failed for: {', '.join(failures)}")
         sys.exit(1)
+    # Start services back up (API first, then UI)
+    for svc in targets:
+        if SERVICE_MAP[svc]["build"] and svc not in failures:
+            SERVICE_MAP[svc]["start"]()
 
 
 def cmd_start(service: str):
