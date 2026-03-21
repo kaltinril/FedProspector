@@ -21,6 +21,7 @@ import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import DescriptionIcon from '@mui/icons-material/Description';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
@@ -349,6 +350,21 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
     },
   });
 
+  const basicAnalysisMutation = useMutation({
+    mutationFn: () => requestAnalysis(noticeId, 'basic'),
+    onSuccess: () => {
+      enqueueSnackbar('Basic analysis requested. Attachments will be downloaded and analyzed.', { variant: 'success' });
+      setTimeout(() => {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.opportunities.documentIntelligence(noticeId),
+        });
+      }, 2000);
+    },
+    onError: () => {
+      enqueueSnackbar('Failed to request analysis', { variant: 'error' });
+    },
+  });
+
   // --- Loading ---
   if (isLoading) {
     return <LoadingState message="Loading document intelligence..." />;
@@ -366,16 +382,16 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
     return (
       <EmptyState
         title="No Document Intelligence Available"
-        message="Attachments must be downloaded and analyzed via the CLI pipeline before intelligence can be extracted."
+        message="No document intelligence available yet. Run the daily pipeline or use the CLI to download and analyze attachments for this opportunity."
         icon={<DescriptionIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />}
         action={
           <Button
             variant="contained"
-            startIcon={analyzeMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <AnalyticsIcon />}
-            disabled={analyzeMutation.isPending}
-            onClick={() => analyzeMutation.mutate()}
+            startIcon={basicAnalysisMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
+            disabled={basicAnalysisMutation.isPending}
+            onClick={() => basicAnalysisMutation.mutate()}
           >
-            {analyzeMutation.isPending ? 'Requesting...' : 'Analyze with AI'}
+            {basicAnalysisMutation.isPending ? 'Requesting...' : 'Run Basic Analysis'}
           </Button>
         }
       />
@@ -392,7 +408,53 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
     );
   }
 
-  // --- Render Data ---
+  // --- State 2: Attachments exist but no intel extracted ---
+  const hasAnyIntelData = intel && (
+    intel.analyzedCount > 0 ||
+    intel.clearanceRequired || intel.clearanceLevel ||
+    intel.evalMethod || intel.vehicleType ||
+    intel.isRecompete || intel.scopeSummary ||
+    intel.periodOfPerformance ||
+    (intel.laborCategories?.length ?? 0) > 0 ||
+    (intel.keyRequirements?.length ?? 0) > 0
+  );
+
+  if (intel && !hasAnyIntelData) {
+    return (
+      <Box>
+        <Paper variant="outlined" sx={{ p: 3, mb: 3, textAlign: 'center' }}>
+          <DescriptionIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
+          <Typography variant="subtitle1" gutterBottom>
+            Attachments Cataloged but Not Yet Analyzed
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            {intel.attachmentCount} attachment{intel.attachmentCount !== 1 ? 's' : ''} found. Run analysis to extract intelligence.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Button
+              variant="contained"
+              startIcon={basicAnalysisMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
+              disabled={basicAnalysisMutation.isPending}
+              onClick={() => basicAnalysisMutation.mutate()}
+            >
+              {basicAnalysisMutation.isPending ? 'Requesting...' : 'Run Basic Analysis'}
+            </Button>
+            <Button
+              variant="outlined"
+              startIcon={analyzeMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <AnalyticsIcon />}
+              disabled={analyzeMutation.isPending}
+              onClick={() => analyzeMutation.mutate()}
+            >
+              {analyzeMutation.isPending ? 'Requesting...' : 'Enhance with AI'}
+            </Button>
+          </Box>
+        </Paper>
+        <AttachmentsTable attachments={intel.attachments ?? []} />
+      </Box>
+    );
+  }
+
+  // --- Render Data (State 3: Intel extracted) ---
   const sources = intel.sources ?? [];
 
   // Build intel card entries
@@ -443,7 +505,11 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
               disabled={analyzeMutation.isPending}
               onClick={() => analyzeMutation.mutate()}
             >
-              {analyzeMutation.isPending ? 'Requesting...' : 'Re-analyze with AI'}
+              {analyzeMutation.isPending
+                ? 'Requesting...'
+                : intel.latestExtractionMethod === 'keyword'
+                  ? 'Enhance with AI'
+                  : 'Re-analyze'}
             </Button>
           </Box>
         </Box>
