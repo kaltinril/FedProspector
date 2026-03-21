@@ -11,6 +11,7 @@ export const queryKeys = {
     recommended: (limit: number) => ['opportunities', 'recommended', limit] as const,
     competitiveLandscape: (noticeId: string) => ['opportunities', 'competitiveLandscape', noticeId] as const,
     setAsideShift: (noticeId: string) => ['opportunities', 'setAsideShift', noticeId] as const,
+    documentIntelligence: (noticeId: string) => ['opportunities', 'documentIntelligence', noticeId] as const,
   },
   awards: {
     all: ['awards'] as const,

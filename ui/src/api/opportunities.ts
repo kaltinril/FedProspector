@@ -13,6 +13,8 @@ import type {
   BatchPWinResponse,
   CompetitiveLandscapeDto,
   SetAsideShiftDto,
+  DocumentIntelligenceDto,
+  LoadRequestStatusDto,
 } from '@/types/api';
 
 export function searchOpportunities(
@@ -63,4 +65,12 @@ export function getCompetitiveLandscape(noticeId: string): Promise<CompetitiveLa
 
 export function getSetAsideShift(noticeId: string): Promise<SetAsideShiftDto> {
   return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/set-aside-shift`).then((r) => r.data);
+}
+
+export function getDocumentIntelligence(noticeId: string): Promise<DocumentIntelligenceDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/document-intelligence`).then((r) => r.data);
+}
+
+export function requestAnalysis(noticeId: string, tier: string = 'haiku'): Promise<LoadRequestStatusDto> {
+  return apiClient.post(`/opportunities/${encodeURIComponent(noticeId)}/analyze?tier=${encodeURIComponent(tier)}`).then((r) => r.data);
 }

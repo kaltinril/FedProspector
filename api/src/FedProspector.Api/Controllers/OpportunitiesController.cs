@@ -1,4 +1,5 @@
 using System.Text;
+using FedProspector.Core.DTOs.Awards;
 using FedProspector.Core.DTOs.Intelligence;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
@@ -18,19 +19,22 @@ public class OpportunitiesController : ApiControllerBase
     private readonly IRecommendedOpportunityService _recommendedService;
     private readonly IMarketIntelService _marketIntelService;
     private readonly IQualificationService _qualificationService;
+    private readonly IAttachmentIntelService _attachmentIntelService;
 
     public OpportunitiesController(
         IOpportunityService service,
         IPWinService pwinService,
         IRecommendedOpportunityService recommendedService,
         IMarketIntelService marketIntelService,
-        IQualificationService qualificationService)
+        IQualificationService qualificationService,
+        IAttachmentIntelService attachmentIntelService)
     {
         _service = service;
         _pwinService = pwinService;
         _recommendedService = recommendedService;
         _marketIntelService = marketIntelService;
         _qualificationService = qualificationService;
+        _attachmentIntelService = attachmentIntelService;
     }
 
     [HttpGet]
@@ -160,6 +164,29 @@ public class OpportunitiesController : ApiControllerBase
         if (orgId == null) return Unauthorized();
 
         var result = await _qualificationService.CheckQualificationAsync(noticeId, orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get document intelligence extracted from opportunity attachments (SOW, RFP, etc.).
+    /// </summary>
+    [HttpGet("{noticeId}/document-intelligence")]
+    public async Task<IActionResult> GetDocumentIntelligence(string noticeId)
+    {
+        var result = await _attachmentIntelService.GetDocumentIntelligenceAsync(noticeId);
+        return result != null ? Ok(result) : NotFound();
+    }
+
+    /// <summary>
+    /// Request analysis of opportunity attachments. Inserts a data_load_request for the Python pipeline.
+    /// </summary>
+    [HttpPost("{noticeId}/analyze")]
+    [EnableRateLimiting("write")]
+    public async Task<ActionResult<LoadRequestStatusDto>> RequestAnalysis(
+        string noticeId, [FromQuery] string tier = "haiku")
+    {
+        var userId = GetCurrentUserId();
+        var result = await _attachmentIntelService.RequestAnalysisAsync(noticeId, tier, userId);
         return Ok(result);
     }
 }

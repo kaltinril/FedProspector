@@ -47,6 +47,7 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import QualificationPWinTab from './QualificationPWinTab';
 import CompetitiveIntelTab from './CompetitiveIntelTab';
+import DocumentIntelligenceTab from './DocumentIntelligenceTab';
 import { getOpportunity, getQualification, getPWin } from '@/api/opportunities';
 import { getBurnRate } from '@/api/awards';
 import { createProspect } from '@/api/prospects';
@@ -917,6 +918,11 @@ export default function OpportunityDetailPage() {
           pWinLoading={pWinLoading}
         />
       ),
+    },
+    {
+      label: 'Document Intel',
+      value: 'documentIntel',
+      content: <DocumentIntelligenceTab noticeId={decodedId} />,
     },
     {
       label: 'Qualification & pWin',

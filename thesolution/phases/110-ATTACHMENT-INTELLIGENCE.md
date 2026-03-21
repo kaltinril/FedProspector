@@ -717,10 +717,59 @@ Tesseract must be installed as a system binary:
 
 ---
 
+## ZIP Archive Handling
+
+### Research Findings
+
+- **233 ZIP attachments** across the opportunity database (0.5% of all 51,279 attachments)
+- **144 opportunities** have at least one ZIP; **25 have ZIPs but NO PDFs** (completely invisible to text extraction without ZIP handling)
+- Sample ZIP (INL W-TPC BPA): 3.97 MB compressed → 4.09 MB uncompressed (1:1 ratio), 17 files (9 .docx, 6 .xlsx, 2 .pdf), no nesting, no encryption
+- Typical content: SOW sections, pricing sheets, templates, wage determinations, past performance questionnaires bundled into a single archive
+
+### Security Controls
+
+All ZIP extraction goes through `fed_prospector/etl/safe_zip.py`:
+
+| Control | Limit | Why |
+|---------|-------|-----|
+| Path traversal prevention | Resolve + `is_relative_to()` check | Zip Slip attack (CWE-22) |
+| ZIP bomb detection | 100:1 max compression ratio | Decompression bomb (CWE-400) |
+| Max total uncompressed size | 500 MB | Disk exhaustion |
+| Max single file size | 100 MB | Memory/disk exhaustion |
+| Max file count | 500 entries | File count bomb |
+| Max nesting depth | 1 level | Recursive nesting bomb (CWE-674) |
+| Symlink filtering | Skip symlink entries | Link following attack (CWE-59) |
+| File type whitelist | .pdf, .docx, .xlsx, .txt, .csv, .html, .rtf, .pptx only | No executables (CWE-434) |
+| Encryption detection | Skip encrypted entries | Can't extract, fail gracefully |
+
+### Integration Approach
+
+**Option A (chosen):** Concatenate all inner file texts into the parent `opportunity_attachment.extracted_text` with section markers:
+```
+## [SOW_Part1.pdf]
+
+{extracted text}
+
+---
+
+## [Pricing_Sheet.xlsx]
+
+{extracted text}
+```
+
+This is simpler than creating separate `opportunity_attachment` rows per inner file and keeps provenance via the section markers. The intel extractor already tracks `char_offset_start`/`char_offset_end` which maps back to the section markers.
+
+### Implementation
+
+- **New module:** `fed_prospector/etl/safe_zip.py` — `extract_zip_safely()` with all safety controls
+- **Modified:** `attachment_text_extractor.py` — add ZIP handler that extracts → dispatches each inner file to existing handlers → concatenates results
+- **No schema changes** — ZIP contents stored in parent attachment's `extracted_text` column
+
+---
+
 ## Out of Scope
 
 - Full-text search across all attachment content (future phase — would need Elasticsearch or similar)
-- ZIP/archive extraction (flag as unsupported, handle in future phase)
 - Original file viewing/preview in UI (store text only in Round 1)
 - Embedding-based semantic search (future phase)
 - Fine-tuned classification models (overkill at current scale)

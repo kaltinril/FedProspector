@@ -19,11 +19,12 @@ public class OpportunitiesControllerTests
     private readonly Mock<IRecommendedOpportunityService> _recommendedServiceMock = new();
     private readonly Mock<IMarketIntelService> _marketIntelServiceMock = new();
     private readonly Mock<IQualificationService> _qualificationServiceMock = new();
+    private readonly Mock<IAttachmentIntelService> _attachmentIntelServiceMock = new();
     private readonly OpportunitiesController _controller;
 
     public OpportunitiesControllerTests()
     {
-        _controller = new OpportunitiesController(_serviceMock.Object, _pwinServiceMock.Object, _recommendedServiceMock.Object, _marketIntelServiceMock.Object, _qualificationServiceMock.Object);
+        _controller = new OpportunitiesController(_serviceMock.Object, _pwinServiceMock.Object, _recommendedServiceMock.Object, _marketIntelServiceMock.Object, _qualificationServiceMock.Object, _attachmentIntelServiceMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

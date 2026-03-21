@@ -1201,3 +1201,57 @@ export interface SetAsideTrendDto {
   totalValue: number;
   avgValue: number;
 }
+
+// ============================================================
+// Document Intelligence types (Phase 110)
+// ============================================================
+
+export interface DocumentIntelligenceDto {
+  noticeId: string;
+  attachmentCount: number;
+  analyzedCount: number;
+  latestExtractionMethod?: string;
+  lastExtractedAt?: string;
+  clearanceRequired?: string;
+  clearanceLevel?: string;
+  clearanceScope?: string;
+  evalMethod?: string;
+  vehicleType?: string;
+  isRecompete?: string;
+  incumbentName?: string;
+  scopeSummary?: string;
+  periodOfPerformance?: string;
+  laborCategories: string[];
+  keyRequirements: string[];
+  overallConfidence: string;
+  sources: IntelSourceDto[];
+  attachments: AttachmentSummaryDto[];
+}
+
+export interface IntelSourceDto {
+  fieldName: string;
+  sourceFilename?: string;
+  pageNumber?: number;
+  matchedText?: string;
+  surroundingContext?: string;
+  extractionMethod: string;
+  confidence: string;
+}
+
+export interface AttachmentSummaryDto {
+  attachmentId: number;
+  filename: string;
+  contentType?: string;
+  fileSizeBytes?: number;
+  pageCount?: number;
+  downloadStatus: string;
+  extractionStatus: string;
+}
+
+export interface LoadRequestStatusDto {
+  requestId?: number | null;
+  requestType?: string | null;
+  status?: string | null;
+  requestedAt?: string | null;
+  errorMessage?: string | null;
+}

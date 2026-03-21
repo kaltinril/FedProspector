@@ -168,6 +168,7 @@ builder.Services.AddScoped<IMarketIntelService, MarketIntelService>();
 builder.Services.AddScoped<IQualificationService, QualificationService>();
 builder.Services.AddScoped<IOrganizationEntityService, OrganizationEntityService>();
 builder.Services.AddScoped<IAutoProspectService, AutoProspectService>();
+builder.Services.AddScoped<IAttachmentIntelService, AttachmentIntelService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

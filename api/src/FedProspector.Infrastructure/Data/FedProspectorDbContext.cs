@@ -66,6 +66,9 @@ public class FedProspectorDbContext : DbContext
     public DbSet<OpportunityRelationship> OpportunityRelationships { get; set; }
     public DbSet<ContractingOfficer> ContractingOfficers { get; set; }
     public DbSet<OpportunityPoc> OpportunityPocs { get; set; }
+    public DbSet<OpportunityAttachment> OpportunityAttachments { get; set; }
+    public DbSet<OpportunityAttachmentIntel> OpportunityAttachmentIntels { get; set; }
+    public DbSet<OpportunityIntelSource> OpportunityIntelSources { get; set; }
 
     // -----------------------------------------------------------------------
     // Federal / Awards Tables (5)
@@ -223,6 +226,18 @@ public class FedProspectorDbContext : DbContext
 
         modelBuilder.Entity<Opportunity>()
             .Property(e => e.ResourceLinks)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<OpportunityAttachmentIntel>()
+            .Property(e => e.LaborCategories)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<OpportunityAttachmentIntel>()
+            .Property(e => e.KeyRequirements)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<OpportunityAttachmentIntel>()
+            .Property(e => e.ConfidenceDetails)
             .HasColumnType("json");
 
         // ----- Y/N Boolean Value Converters -----

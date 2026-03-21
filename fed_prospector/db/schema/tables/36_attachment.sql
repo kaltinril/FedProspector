@@ -1,0 +1,82 @@
+-- ============================================================
+-- 36_attachment.sql — Attachment intelligence tables
+-- Phase 110: Structure-aware text extraction
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS opportunity_attachment (
+    attachment_id      INT AUTO_INCREMENT PRIMARY KEY,
+    notice_id          VARCHAR(100) NOT NULL,
+    url                VARCHAR(500) NOT NULL,
+    filename           VARCHAR(500),
+    content_type       VARCHAR(100),
+    file_size_bytes    BIGINT,
+    file_path          VARCHAR(500),
+    extracted_text     LONGTEXT,
+    page_count         INT,
+    is_scanned         TINYINT DEFAULT 0,
+    ocr_quality        ENUM('good','fair','poor'),
+    download_status    ENUM('pending','downloaded','failed','skipped') DEFAULT 'pending',
+    extraction_status  ENUM('pending','extracted','failed','unsupported') DEFAULT 'pending',
+    content_hash       CHAR(64),
+    text_hash          CHAR(64),
+    downloaded_at      DATETIME,
+    extracted_at       DATETIME,
+    last_load_id       INT,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notice (notice_id),
+    INDEX idx_status (download_status, extraction_status),
+    UNIQUE INDEX idx_url (notice_id, url)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS opportunity_attachment_intel (
+    intel_id              INT AUTO_INCREMENT PRIMARY KEY,
+    notice_id             VARCHAR(100) NOT NULL,
+    attachment_id         INT,
+    extraction_method     ENUM('keyword','heuristic','ai_haiku','ai_sonnet') NOT NULL,
+    source_text_hash      CHAR(64),
+    clearance_required    CHAR(1),
+    clearance_level       VARCHAR(50),
+    clearance_scope       VARCHAR(50),
+    clearance_details     TEXT,
+    eval_method           VARCHAR(50),
+    eval_details          TEXT,
+    vehicle_type          VARCHAR(100),
+    vehicle_details       TEXT,
+    is_recompete          CHAR(1),
+    incumbent_name        VARCHAR(200),
+    recompete_details     TEXT,
+    scope_summary         TEXT,
+    period_of_performance VARCHAR(200),
+    labor_categories      JSON,
+    key_requirements      JSON,
+    overall_confidence    ENUM('high','medium','low') NOT NULL,
+    confidence_details    JSON,
+    last_load_id          INT,
+    extracted_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_notice (notice_id),
+    INDEX idx_clearance (clearance_required, clearance_level),
+    INDEX idx_eval (eval_method),
+    INDEX idx_vehicle (vehicle_type),
+    INDEX idx_recompete (is_recompete),
+    UNIQUE INDEX idx_upsert (notice_id, attachment_id, extraction_method)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS opportunity_intel_source (
+    source_id             INT AUTO_INCREMENT PRIMARY KEY,
+    intel_id              INT NOT NULL,
+    field_name            VARCHAR(50) NOT NULL,
+    attachment_id         INT,
+    source_filename       VARCHAR(500),
+    page_number           INT,
+    char_offset_start     INT,
+    char_offset_end       INT,
+    matched_text          VARCHAR(500),
+    surrounding_context   TEXT,
+    pattern_name          VARCHAR(100),
+    extraction_method     ENUM('keyword','heuristic','ai_haiku','ai_sonnet') NOT NULL,
+    confidence            ENUM('high','medium','low') NOT NULL,
+    created_at            DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_intel (intel_id),
+    INDEX idx_attachment (attachment_id),
+    INDEX idx_field (field_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

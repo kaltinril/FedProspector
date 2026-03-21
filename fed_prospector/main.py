@@ -1,12 +1,14 @@
 """Federal Contract Prospecting System - CLI
 
-Commands are organized into 7 top-level groups:
+Commands are organized into 10 top-level groups:
 
     setup     Build the database, seed reference data, verify prerequisites
     load      Download and load data from government APIs
+    download  Download attachments and files from government APIs
+    extract   Extract text and intelligence from downloaded attachments
     search    Search opportunities, entities, awards, agencies, subawards, and exclusions
     prospect  Manage the bid pipeline (prospects, searches, users, dashboard)
-    analyze   Burn rate, teaming partner discovery, exclusion scanning
+    analyze   Burn rate, teaming partner discovery, exclusion scanning, attachment AI
     update    Update/enrich existing data (metadata backfill)
     admin     System administration (orgs, users, invitations)
     health    System health checks, ETL history, maintenance
@@ -35,6 +37,8 @@ Modules:
     cli/setup.py          verify-setup
     cli/schedule_setup.py setup-schedule
     cli/update.py         link-metadata, fetch-descriptions, build-relationships
+    cli/attachments.py    download-attachments, extract-attachment-text,
+                          extract-attachment-intel, analyze-attachments
     cli/demand.py         process-requests
 """
 
@@ -53,7 +57,8 @@ def cli():
 
     Gathers federal contract data from government APIs into a local MySQL
     database for WOSB/8(a) contract discovery. Commands are organized into
-    8 groups: setup, load, search, prospect, analyze, update, admin, health.
+    10 groups: setup, load, download, extract, search, prospect, analyze,
+    update, admin, health.
 
     Run 'python main.py GROUP --help' to list commands in a group.
     """
@@ -107,6 +112,18 @@ def update():
 
 
 @cli.group()
+def download():
+    """Download attachments and files from government APIs."""
+    pass
+
+
+@cli.group()
+def extract():
+    """Extract text and intelligence from downloaded attachments."""
+    pass
+
+
+@cli.group()
 def demand():
     """On-demand data loading commands."""
     pass
@@ -145,6 +162,10 @@ from cli.admin import (
 from cli.load_batch import load_daily, load_weekly, load_monthly
 from cli.demand import process_requests
 from cli.update import enrich_link_metadata, fetch_descriptions, build_relationships
+from cli.attachments import (
+    download_attachments, extract_attachment_text,
+    extract_attachment_intel, analyze_attachments,
+)
 from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
 from cli.setup import verify_setup
@@ -218,6 +239,7 @@ prospect.add_command(auto_generate, name="auto-generate")
 analyze.add_command(burn_rate, name="burn-rate")
 analyze.add_command(teaming_partners, name="teaming")
 analyze.add_command(check_prospects, name="scan-exclusions")
+analyze.add_command(analyze_attachments, name="attachments")
 
 # ---------------------------------------------------------------------------
 # admin group commands
@@ -245,6 +267,19 @@ demand.add_command(process_requests, name="process-requests")
 update.add_command(enrich_link_metadata, name="link-metadata")
 update.add_command(fetch_descriptions, name="fetch-descriptions")
 update.add_command(build_relationships, name="build-relationships")
+
+# ---------------------------------------------------------------------------
+# download group commands
+# ---------------------------------------------------------------------------
+
+download.add_command(download_attachments, name="attachments")
+
+# ---------------------------------------------------------------------------
+# extract group commands
+# ---------------------------------------------------------------------------
+
+extract.add_command(extract_attachment_text, name="attachment-text")
+extract.add_command(extract_attachment_intel, name="attachment-intel")
 
 # ---------------------------------------------------------------------------
 # health group commands
