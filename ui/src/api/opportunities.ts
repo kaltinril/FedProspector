@@ -55,8 +55,31 @@ export function getRecommendedOpportunities(limit: number = 10): Promise<Recomme
   return apiClient.get('/opportunities/recommended', { params: { limit } }).then((r) => r.data);
 }
 
-export function fetchBatchPWin(noticeIds: string[]): Promise<BatchPWinResponse> {
-  return apiClient.post('/opportunities/pwin/batch', { noticeIds }).then((r) => r.data);
+const BATCH_PWIN_CHUNK_SIZE = 25;
+
+export async function fetchBatchPWin(noticeIds: string[]): Promise<BatchPWinResponse> {
+  if (noticeIds.length <= BATCH_PWIN_CHUNK_SIZE) {
+    return apiClient.post('/opportunities/pwin/batch', { noticeIds }).then((r) => r.data);
+  }
+
+  // Split into chunks and fetch in parallel
+  const chunks: string[][] = [];
+  for (let i = 0; i < noticeIds.length; i += BATCH_PWIN_CHUNK_SIZE) {
+    chunks.push(noticeIds.slice(i, i + BATCH_PWIN_CHUNK_SIZE));
+  }
+
+  const responses = await Promise.all(
+    chunks.map((chunk) =>
+      apiClient.post('/opportunities/pwin/batch', { noticeIds: chunk }).then((r) => r.data as BatchPWinResponse),
+    ),
+  );
+
+  // Merge all results into a single response
+  const merged: BatchPWinResponse = { results: {} };
+  for (const resp of responses) {
+    Object.assign(merged.results, resp.results);
+  }
+  return merged;
 }
 
 export function getCompetitiveLandscape(noticeId: string): Promise<CompetitiveLandscapeDto> {

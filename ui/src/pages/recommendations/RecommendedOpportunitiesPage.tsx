@@ -210,10 +210,10 @@ function buildColumns(
       renderCell: (params) => {
         const entry = pwinMap.get(params.row.noticeId);
         if (pwinLoading) {
-          return <Skeleton variant="circular" width={40} height={40} />;
+          return <Skeleton variant="rounded" width={48} height={24} />;
         }
         if (entry) {
-          return <PWinGauge score={entry.score} category={entry.category} size="small" showCategory={false} />;
+          return <PWinGauge score={entry.score} category={entry.category} variant="chip" />;
         }
         return '\u2014';
       },

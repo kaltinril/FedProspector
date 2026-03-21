@@ -89,8 +89,8 @@ public class OpportunitiesController : ApiControllerBase
         var orgId = await ResolveOrganizationIdAsync();
         if (orgId == null) return Unauthorized();
 
-        if (request.NoticeIds.Count > 25)
-            return BadRequest("Batch pWin requests are limited to 25 notice IDs.");
+        if (request.NoticeIds.Count > 200)
+            return BadRequest("Batch pWin requests are limited to 200 notice IDs.");
 
         var result = await _pwinService.CalculateBatchAsync(request, orgId.Value);
         return Ok(result);

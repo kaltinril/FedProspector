@@ -9,6 +9,8 @@ interface PWinGaugeProps {
   category: string;
   size?: 'small' | 'medium' | 'large';
   showCategory?: boolean;
+  /** 'gauge' (default) renders the circular progress ring; 'chip' renders a compact MUI Chip suitable for grid rows. */
+  variant?: 'gauge' | 'chip';
 }
 
 const SIZE_MAP = {
@@ -33,15 +35,32 @@ function useGaugeColor(category: string) {
   }
 }
 
+function chipColor(score: number): 'success' | 'warning' | 'error' {
+  if (score >= 60) return 'success';
+  if (score >= 40) return 'warning';
+  return 'error';
+}
+
 export default function PWinGauge({
   score,
   category,
   size = 'medium',
   showCategory = true,
+  variant = 'gauge',
 }: PWinGaugeProps) {
   const theme = useTheme();
   const gaugeColor = useGaugeColor(category);
   const { gauge: gaugeSize, text: textVariant } = SIZE_MAP[size];
+
+  if (variant === 'chip') {
+    return (
+      <Chip
+        label={`${Math.round(score)}%`}
+        size="small"
+        color={chipColor(score)}
+      />
+    );
+  }
 
   return (
     <Box
