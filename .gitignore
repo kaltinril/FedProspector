@@ -33,8 +33,10 @@ fed_prospector/build/
 
 # Data files (large downloads, bulk extracts)
 /data/
+fed_prospector/data/attachments/*
 fed_prospector/data/downloads/*
 fed_prospector/data/logs/*
+!fed_prospector/data/attachments/.gitkeep
 !fed_prospector/data/downloads/.gitkeep
 !fed_prospector/data/logs/.gitkeep
 
