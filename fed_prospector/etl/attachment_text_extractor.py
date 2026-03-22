@@ -31,6 +31,11 @@ try:
 except Exception:
     pass  # Older PyMuPDF versions may not have this
 
+# Suppress openpyxl warnings about unsupported Excel features
+# (data validation, print areas, etc.) — text extraction still works.
+import warnings
+warnings.filterwarnings("ignore", module="openpyxl")
+
 # Content type / extension mappings
 PDF_TYPES = {"application/pdf"}
 WORD_TYPES = {
@@ -78,13 +83,14 @@ class AttachmentTextExtractor:
     # Public API
     # ------------------------------------------------------------------
 
-    def extract_text(self, notice_id=None, batch_size=100, force=False):
+    def extract_text(self, notice_id=None, batch_size=100, force=False, workers=4):
         """Extract text from pending downloaded attachments.
 
         Args:
             notice_id: If set, only process attachments for this notice.
             batch_size: Max attachments to process per run.
             force: If True, re-extract even if already extracted.
+            workers: Number of concurrent file extraction threads (default 4).
 
         Returns:
             dict with keys: processed, extracted, failed, unsupported, skipped
@@ -107,28 +113,22 @@ class AttachmentTextExtractor:
             rows = self._fetch_pending(notice_id, batch_size, force)
             logger.info("Found %d attachments to extract", len(rows))
 
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from threading import Lock
             from tqdm import tqdm
 
-            pbar = tqdm(
-                rows,
-                desc="Extracting",
-                unit="file",
-                bar_format="{desc}: {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
-            )
-            for row in pbar:
-                stats["processed"] += 1
-                notice_id = row.get("notice_id") or "?"
-                filename = row.get("filename") or "unknown"
-                pbar.set_description(f"{notice_id} | {filename}")
+            stats_lock = Lock()
+
+            def _process_row(row):
+                """Extract one attachment, return result type."""
                 try:
-                    self._extract_one_with_timeout(row, load_id, timeout=120)
-                    stats["extracted"] += 1
+                    self._extract_one(row, load_id)
+                    return "extracted", row, None
                 except _UnsupportedType:
-                    stats["unsupported"] += 1
+                    return "unsupported", row, None
                 except _SkippedAttachment:
-                    stats["skipped"] += 1
+                    return "skipped", row, None
                 except Exception as e:
-                    stats["failed"] += 1
                     self._mark_failed(row["attachment_id"], load_id, str(e))
                     self.load_manager.log_record_error(
                         load_id,
@@ -142,9 +142,44 @@ class AttachmentTextExtractor:
                         row.get("filename"),
                         e,
                     )
-                pbar.set_postfix_str(
-                    f"ok={stats['extracted']} fail={stats['failed']} unsup={stats['unsupported']}"
-                )
+                    return "failed", row, e
+
+            pbar = tqdm(
+                total=len(rows),
+                desc="Extracting",
+                unit="file",
+                bar_format="{desc}: {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+            )
+
+            actual_workers = min(workers, len(rows))
+            with ThreadPoolExecutor(max_workers=actual_workers) as executor:
+                futures = {
+                    executor.submit(_process_row, row): row
+                    for row in rows
+                }
+                for future in as_completed(futures):
+                    row = futures[future]
+                    notice_id_val = row.get("notice_id") or "?"
+                    filename = row.get("filename") or "unknown"
+
+                    result_type, _, _ = future.result()
+
+                    with stats_lock:
+                        stats["processed"] += 1
+                        if result_type == "extracted":
+                            stats["extracted"] += 1
+                        elif result_type == "unsupported":
+                            stats["unsupported"] += 1
+                        elif result_type == "skipped":
+                            stats["skipped"] += 1
+                        else:
+                            stats["failed"] += 1
+
+                        pbar.set_postfix_str(
+                            f"ok={stats['extracted']} fail={stats['failed']} unsup={stats['unsupported']} | {notice_id_val} | {filename}"
+                        )
+                        pbar.update(1)
+
             pbar.close()
 
             self.load_manager.complete_load(

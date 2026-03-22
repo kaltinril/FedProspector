@@ -74,7 +74,9 @@ def download_attachments(notice_id, batch_size, max_file_size, missing_only,
               help="Number of attachments to process per batch")
 @click.option("--force", is_flag=True, default=False,
               help="Re-extract text even if already extracted")
-def extract_attachment_text(notice_id, batch_size, force):
+@click.option("--workers", type=int, default=10, show_default=True,
+              help="Number of concurrent extraction threads")
+def extract_attachment_text(notice_id, batch_size, force, workers):
     """Extract text content from downloaded attachments.
 
     Parses PDF, DOCX, and other document formats to extract raw text
@@ -100,6 +102,7 @@ def extract_attachment_text(notice_id, batch_size, force):
         notice_id=notice_id,
         batch_size=batch_size,
         force=force,
+        workers=workers,
     )
 
     click.echo(
@@ -182,6 +185,139 @@ def analyze_attachments(notice_id, batch_size, model, force):
     """
     setup_logging()
     click.echo("AI analysis not yet implemented (Phase 110 Round 3)")
+
+
+@click.command("pipeline-status")
+def attachment_pipeline_status():
+    """Show attachment intelligence pipeline status.
+
+    Displays counts for each stage: downloads, text extraction,
+    intel extraction, and file cleanup eligibility.
+
+    Examples:
+        python main.py health pipeline-status
+    """
+    setup_logging()
+
+    from db.connection import get_connection
+    import json
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Downloads
+    cursor.execute("""
+        SELECT download_status, COUNT(*)
+        FROM opportunity_attachment
+        GROUP BY download_status
+        ORDER BY FIELD(download_status, 'downloaded', 'pending', 'failed', 'skipped')
+    """)
+    dl_rows = cursor.fetchall()
+    dl_total = sum(r[1] for r in dl_rows)
+
+    click.echo("=" * 55)
+    click.echo("  Attachment Intelligence Pipeline Status")
+    click.echo("=" * 55)
+    click.echo()
+    click.echo(f"  STAGE 1: Download ({dl_total:,} total)")
+    for status, cnt in dl_rows:
+        click.echo(f"    {status:<14} {cnt:>8,}")
+
+    # Text extraction (of downloaded)
+    cursor.execute("""
+        SELECT extraction_status, COUNT(*)
+        FROM opportunity_attachment
+        WHERE download_status = 'downloaded'
+        GROUP BY extraction_status
+        ORDER BY FIELD(extraction_status, 'extracted', 'pending', 'failed', 'unsupported')
+    """)
+    ext_rows = cursor.fetchall()
+    ext_total = sum(r[1] for r in ext_rows)
+
+    click.echo()
+    click.echo(f"  STAGE 2: Text Extraction ({ext_total:,} downloaded)")
+    for status, cnt in ext_rows:
+        click.echo(f"    {status:<14} {cnt:>8,}")
+
+    # Intel extraction
+    cursor.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM opportunity_attachment WHERE extraction_status = 'extracted') as eligible,
+            (SELECT COUNT(DISTINCT attachment_id) FROM opportunity_attachment_intel
+             WHERE extraction_method IN ('keyword', 'heuristic')) as keyword_done,
+            (SELECT COUNT(DISTINCT attachment_id) FROM opportunity_attachment_intel
+             WHERE extraction_method IN ('ai_haiku', 'ai_sonnet')) as ai_done
+    """)
+    row = cursor.fetchone()
+    eligible, keyword_done, ai_done = row
+
+    click.echo()
+    click.echo(f"  STAGE 3: Keyword Intel ({eligible:,} eligible)")
+    click.echo(f"    completed       {keyword_done:>8,}")
+    click.echo(f"    remaining       {eligible - keyword_done:>8,}")
+
+    click.echo()
+    click.echo(f"  STAGE 4: AI Analysis")
+    click.echo(f"    completed       {ai_done:>8,}")
+    click.echo(f"    remaining       {eligible - ai_done:>8,}")
+
+    # Cleanup eligibility
+    cursor.execute("""
+        SELECT COUNT(*) FROM opportunity_attachment oa
+        WHERE oa.download_status = 'downloaded'
+          AND oa.extraction_status = 'extracted'
+          AND oa.file_path IS NOT NULL
+          AND EXISTS (
+              SELECT 1 FROM opportunity_attachment_intel oai
+              WHERE oai.attachment_id = oa.attachment_id
+                AND oai.extraction_method IN ('keyword', 'heuristic')
+          )
+          AND EXISTS (
+              SELECT 1 FROM opportunity_attachment_intel oai
+              WHERE oai.attachment_id = oa.attachment_id
+                AND oai.extraction_method IN ('ai_haiku', 'ai_sonnet')
+          )
+    """)
+    cleanup_eligible = cursor.fetchone()[0]
+
+    # Disk usage
+    cursor.execute("""
+        SELECT COALESCE(SUM(file_size_bytes), 0)
+        FROM opportunity_attachment
+        WHERE file_path IS NOT NULL AND download_status = 'downloaded'
+    """)
+    disk_bytes = cursor.fetchone()[0]
+
+    # Filenames
+    cursor.execute("""
+        SELECT
+            SUM(CASE WHEN filename IS NOT NULL
+                      AND filename NOT LIKE 'Attachment%%'
+                      AND filename NOT LIKE 'attachment%%'
+                THEN 1 ELSE 0 END) as real_names,
+            SUM(CASE WHEN filename IS NULL
+                      OR filename LIKE 'Attachment%%'
+                      OR filename LIKE 'attachment%%'
+                THEN 1 ELSE 0 END) as generic_names
+        FROM opportunity_attachment
+    """)
+    real_names, generic_names = cursor.fetchone()
+
+    click.echo()
+    click.echo(f"  STAGE 5: File Cleanup")
+    click.echo(f"    eligible        {cleanup_eligible:>8,}")
+    click.echo(f"    disk usage      {disk_bytes / (1024*1024*1024):>7.1f} GB")
+
+    click.echo()
+    click.echo(f"  Filenames")
+    click.echo(f"    real names      {real_names:>8,}")
+    click.echo(f"    generic/missing {generic_names:>8,}")
+
+    click.echo()
+    click.echo("=" * 55)
+
+    cursor.close()
+    conn.close()
 
 
 @click.command("attachment-files")

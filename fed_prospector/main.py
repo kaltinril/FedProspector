@@ -172,7 +172,7 @@ from cli.update import enrich_link_metadata, fetch_descriptions, build_relations
 from cli.attachments import (
     download_attachments, extract_attachment_text,
     extract_attachment_intel, analyze_attachments,
-    cleanup_attachment_files,
+    cleanup_attachment_files, attachment_pipeline_status,
 )
 from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
@@ -308,6 +308,7 @@ health.add_command(maintain_db, name="maintain-db")
 health.add_command(run_job, name="run-job")
 health.add_command(run_all_searches, name="run-all-searches")
 health.add_command(check_schema, name="check-schema")
+health.add_command(attachment_pipeline_status, name="pipeline-status")
 
 
 if __name__ == "__main__":
