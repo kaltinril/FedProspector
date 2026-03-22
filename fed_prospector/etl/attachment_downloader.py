@@ -30,7 +30,7 @@ logger = logging.getLogger("fed_prospector.etl.attachment_downloader")
 _ALLOWED_REDIRECT_PATTERN = re.compile(r"^https://[a-z0-9._-]+\.amazonaws\.com/")
 
 # Default download directory (relative to fed_prospector/)
-_DEFAULT_ATTACHMENT_DIR = Path(__file__).resolve().parent.parent / "data" / "attachments"
+_DEFAULT_ATTACHMENT_DIR = Path(os.environ.get("ATTACHMENT_DIR", r"E:\fedprospector\attachments"))
 
 # Request timeout (seconds) for the download stream
 _REQUEST_TIMEOUT = 60
@@ -65,7 +65,9 @@ class AttachmentDownloader:
         max_file_size_mb=50,
         missing_only=True,
         check_changed=False,
-        delay=0.5,
+        delay=0.1,
+        active_only=False,
+        workers=5,
     ):
         """Download attachments for opportunities with resource_links.
 
@@ -77,6 +79,9 @@ class AttachmentDownloader:
             check_changed: If True, re-download and compare content_hash;
                            skip if unchanged.
             delay: Seconds to wait between downloads (rate limiting).
+            active_only: If True, only process opportunities whose
+                         response_deadline is in the future (or NULL).
+            workers: Number of concurrent download threads (default 5).
 
         Returns:
             dict with keys: downloaded, skipped, failed, total_urls
@@ -94,38 +99,67 @@ class AttachmentDownloader:
                 "max_file_size_mb": max_file_size_mb,
                 "missing_only": missing_only,
                 "check_changed": check_changed,
+                "active_only": active_only,
             },
         )
 
         try:
-            urls_to_download = self._query_urls(notice_id, batch_size, missing_only)
+            urls_to_download = self._query_urls(notice_id, batch_size, missing_only, active_only)
             stats["total_urls"] = len(urls_to_download)
             logger.info("Found %d attachment URLs to process (load_id=%d)",
                         len(urls_to_download), load_id)
 
-            for i, (opp_notice_id, url) in enumerate(urls_to_download):
+            from concurrent.futures import ThreadPoolExecutor, as_completed
+            from threading import Lock
+            from tqdm import tqdm
+
+            stats_lock = Lock()
+
+            def _download_one(opp_notice_id, url):
+                """Download a single file and return the result."""
+                if delay > 0:
+                    time.sleep(delay)
                 try:
                     result = self._download_single(
                         opp_notice_id, url, max_file_size_bytes,
                         check_changed, load_id,
                     )
-                    if result == "downloaded":
-                        stats["downloaded"] += 1
-                    elif result == "skipped":
-                        stats["skipped"] += 1
-                    else:
-                        stats["failed"] += 1
+                    return result
                 except Exception:
                     logger.exception("Unexpected error downloading %s for %s",
                                      url, opp_notice_id)
                     self._upsert_attachment_row(
                         opp_notice_id, url, download_status="failed", load_id=load_id,
                     )
-                    stats["failed"] += 1
+                    return "error"
 
-                # Rate limiting
-                if delay > 0 and i < len(urls_to_download) - 1:
-                    time.sleep(delay)
+            pbar = tqdm(
+                total=len(urls_to_download),
+                desc="Downloading",
+                unit="file",
+                bar_format="{desc}: {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+            )
+
+            with ThreadPoolExecutor(max_workers=workers) as executor:
+                futures = {
+                    executor.submit(_download_one, opp_id, url): (opp_id, url)
+                    for opp_id, url in urls_to_download
+                }
+                for future in as_completed(futures):
+                    result = future.result()
+                    with stats_lock:
+                        if result == "downloaded":
+                            stats["downloaded"] += 1
+                        elif result == "skipped":
+                            stats["skipped"] += 1
+                        else:
+                            stats["failed"] += 1
+                        pbar.update(1)
+                        pbar.set_postfix_str(
+                            f"ok={stats['downloaded']} skip={stats['skipped']} fail={stats['failed']}"
+                        )
+
+            pbar.close()
 
             self.load_manager.complete_load(
                 load_id,
@@ -150,26 +184,57 @@ class AttachmentDownloader:
     # Internal methods
     # =================================================================
 
-    def _query_urls(self, notice_id, batch_size, missing_only):
+    def _query_urls(self, notice_id, batch_size, missing_only, active_only=False):
         """Query opportunity table for resource_links URLs to download.
+
+        Args:
+            notice_id: If provided, only query this opportunity.
+            batch_size: Max opportunities to query.
+            missing_only: Filter out already-downloaded URLs.
+            active_only: If True, only include opportunities with future
+                         response_deadline (or NULL deadline).
 
         Returns:
             list of (notice_id, url) tuples
         """
+        active_filter = (
+            " AND (o.response_deadline >= NOW() OR o.response_deadline IS NULL)"
+            if active_only else ""
+        )
+
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
             if notice_id:
                 cursor.execute(
-                    "SELECT notice_id, resource_links FROM opportunity "
-                    "WHERE notice_id = %s AND resource_links IS NOT NULL",
+                    "SELECT o.notice_id, o.resource_links FROM opportunity o "
+                    "WHERE o.notice_id = %s AND o.resource_links IS NOT NULL"
+                    + active_filter,
                     (notice_id,),
                 )
             else:
+                # When missing_only, exclude opps where ALL URLs are already
+                # in opportunity_attachment so LIMIT finds opps with actual
+                # work to do instead of re-fetching already-processed ones.
+                missing_filter = ""
+                if missing_only:
+                    missing_filter = (
+                        " AND o.notice_id NOT IN ("
+                        "  SELECT DISTINCT oa.notice_id FROM opportunity_attachment oa"
+                        "  WHERE oa.download_status IN ('downloaded', 'skipped')"
+                        "  GROUP BY oa.notice_id"
+                        "  HAVING COUNT(*) >= ("
+                        "    SELECT JSON_LENGTH(o2.resource_links)"
+                        "    FROM opportunity o2 WHERE o2.notice_id = oa.notice_id"
+                        "  )"
+                        ")"
+                    )
                 cursor.execute(
-                    "SELECT notice_id, resource_links FROM opportunity "
-                    "WHERE resource_links IS NOT NULL "
-                    "LIMIT %s",
+                    "SELECT o.notice_id, o.resource_links FROM opportunity o "
+                    "WHERE o.resource_links IS NOT NULL"
+                    + active_filter
+                    + missing_filter
+                    + " LIMIT %s",
                     (batch_size,),
                 )
             rows = cursor.fetchall()

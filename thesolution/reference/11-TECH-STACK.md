@@ -1,6 +1,6 @@
 # Tech Stack Reference
 
-Last updated: 2026-03-19
+Last updated: 2026-03-21
 
 ---
 
@@ -30,6 +30,20 @@ Last updated: 2026-03-19
 | ijson | 3.5.0 | Streaming JSON parser |
 | bcrypt | 5.0.0 | Password hashing |
 | pytest | 9.0.2 | Test framework |
+| pymupdf | 1.27.2.2 | PDF text extraction (structure-aware) |
+| python-docx | 1.2.0 | Word .docx text extraction |
+| openpyxl | 3.1.5 | Excel .xlsx text extraction |
+| python-pptx | 1.0.2 | PowerPoint .pptx text extraction |
+| xlrd | 2.0.2 | Legacy Excel .xls text extraction |
+| striprtf | 0.0.29 | Rich Text Format extraction |
+| odfpy | 1.4.1 | OpenDocument .odt text extraction |
+| olefile | 0.47 | OLE2 file inspection (IRM/DRM detection) |
+
+### System Dependencies
+
+| Tool | Version | Purpose |
+|------|---------|---------|
+| LibreOffice | 25.8.5.2 | Legacy .doc → .docx conversion (headless mode) |
 
 ---
 

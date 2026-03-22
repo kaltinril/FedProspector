@@ -97,3 +97,4 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | Reference docs | `thesolution/reference/` (architecture, data quality, API quirks, glossary, vendor API docs) |
 | Credentials | `thesolution/credentials.example.yml` |
 | Reference CSVs | `workdir/converted/local database/` (NAICS, PSC, SBA, FIPS) |
+| Attachment files | `E:\fedprospector\attachments\` (env var: `ATTACHMENT_DIR`) |

@@ -108,13 +108,32 @@ downloaded → text extracted → keyword intel → AI analyzed → [cleanup eli
   3. Has keyword/heuristic intel record in `opportunity_attachment_intel`
   4. Has AI analysis record (`extraction_method IN ('ai_haiku', 'ai_sonnet')`) — Phase 110C
 - **Behavior:**
-  - Deletes the physical file from `data/attachments/{notice_id}/`
+  - Deletes the physical file from `ATTACHMENT_DIR/{notice_id}/` (default `E:\fedprospector\attachments\`)
   - Sets `file_path = NULL` in `opportunity_attachment` to indicate file removed
   - Preserves all DB data: `extracted_text`, `text_hash`, `content_hash`, intel records
   - `--dry-run` shows what would be deleted with total size reclaimed
   - Cleans up empty `{notice_id}/` directories after file removal
 - **Rationale:** Extracted text is stored in DB (`extracted_text` LONGTEXT column). Original files only needed for re-extraction. Saves ~90% disk space.
 - **Note:** Until Phase 110C (AI analysis) is implemented, no files will be eligible for cleanup — this is intentional. The gate ensures files are never deleted before the full pipeline runs.
+
+### Task 7: MuPDF Warning Suppression
+
+- Suppress non-fatal MuPDF stderr warnings about malformed PDF structure trees (common in government PDFs)
+- Module-level call to `fitz.TOOLS.mupdf_display_errors(False)` at import time
+- Text extraction succeeds despite these warnings — they are cosmetic noise
+
+### Task 8: Magic Byte File Type Detection
+
+- **Problem:** Some attachments have incorrect file extensions (e.g., a PDF saved as `.docx`)
+- **Solution:** Fall back to magic byte signature detection when extension-based handler fails
+- **Signatures detected:**
+  - `%PDF` → PDF
+  - `PK\x03\x04` → ZIP-based (docx/pptx/xlsx/odt — distinguished by examining ZIP directory entries)
+  - `\xD0\xCF\x11\xE0` → OLE2 (legacy .doc/.xls)
+  - `{\rtf` → Rich Text Format
+- **Behavior:** Two fallback paths:
+  1. If extension/content-type gives no handler, try magic bytes before marking unsupported
+  2. If extension-based handler throws an exception, detect real type via magic bytes and retry
 
 ---
 
@@ -134,6 +153,12 @@ downloaded → text extracted → keyword intel → AI analyzed → [cleanup eli
 - [ ] Cleanup with --dry-run shows files and size without deleting
 - [ ] After cleanup, file_path is NULL but extracted_text and intel records remain
 - [ ] Empty notice_id directories are removed after cleanup
+- [ ] MuPDF warnings suppressed (no stderr noise from malformed PDFs)
+- [ ] Magic bytes detect PDF saved with wrong extension
+- [ ] Magic bytes detect DOCX/PPTX/XLSX/ODT via ZIP directory inspection
+- [ ] Magic bytes detect OLE2 (.doc/.xls) format
+- [ ] Magic bytes detect RTF format
+- [ ] Handler retry works when extension-based handler fails but magic bytes succeed
 
 ---
 
@@ -147,3 +172,5 @@ downloaded → text extracted → keyword intel → AI analyzed → [cleanup eli
 | 4 | RTF extraction | Low | striprtf |
 | 5 | OpenDocument .odt extraction | Low-Medium | odfpy |
 | 6 | Post-analysis file cleanup | Low | download + extraction + intel complete |
+| 7 | MuPDF warning suppression | Low | pymupdf |
+| 8 | Magic byte file type detection | Medium | Built-in (zipfile) |

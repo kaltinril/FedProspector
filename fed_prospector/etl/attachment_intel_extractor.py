@@ -204,7 +204,15 @@ class AttachmentIntelExtractor:
             notice_ids = self._fetch_eligible_notices(notice_id, batch_size, method, force)
             logger.info("Found %d notices to extract intel from (load_id=%d)", len(notice_ids), load_id)
 
-            for nid in notice_ids:
+            from tqdm import tqdm
+
+            pbar = tqdm(
+                notice_ids,
+                desc="Intel extraction",
+                unit="notice",
+                bar_format="{desc}: {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+            )
+            for nid in pbar:
                 try:
                     result = self._process_notice(nid, method, load_id)
                     stats["notices_processed"] += 1
@@ -221,6 +229,10 @@ class AttachmentIntelExtractor:
                         error_message=str(e),
                     )
                     logger.error("Intel extraction failed for %s: %s", nid, e)
+                pbar.set_postfix_str(
+                    f"intel={stats['intel_rows_upserted']} opps={stats['opportunities_updated']}"
+                )
+            pbar.close()
 
             self.load_manager.complete_load(
                 load_id,

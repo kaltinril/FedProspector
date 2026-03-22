@@ -19,9 +19,17 @@ from pathlib import Path
 from db.connection import get_connection
 from etl.load_manager import LoadManager
 
-_DEFAULT_ATTACHMENT_DIR = Path(__file__).resolve().parent.parent / "data" / "attachments"
+_DEFAULT_ATTACHMENT_DIR = Path(os.environ.get("ATTACHMENT_DIR", r"E:\fedprospector\attachments"))
 
 logger = logging.getLogger("fed_prospector.etl.attachment_text_extractor")
+
+# Suppress noisy MuPDF warnings about malformed PDF structure trees.
+# These are non-fatal — text extraction succeeds despite them.
+try:
+    import pymupdf as fitz
+    fitz.TOOLS.mupdf_display_errors(False)
+except Exception:
+    pass  # Older PyMuPDF versions may not have this
 
 # Content type / extension mappings
 PDF_TYPES = {"application/pdf"}
@@ -99,7 +107,15 @@ class AttachmentTextExtractor:
             rows = self._fetch_pending(notice_id, batch_size, force)
             logger.info("Found %d attachments to extract", len(rows))
 
-            for row in rows:
+            from tqdm import tqdm
+
+            pbar = tqdm(
+                rows,
+                desc="Extracting",
+                unit="file",
+                bar_format="{desc}: {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+            )
+            for row in pbar:
                 stats["processed"] += 1
                 try:
                     self._extract_one(row, load_id)
@@ -123,6 +139,10 @@ class AttachmentTextExtractor:
                         row.get("filename"),
                         e,
                     )
+                pbar.set_postfix_str(
+                    f"ok={stats['extracted']} fail={stats['failed']} unsup={stats['unsupported']}"
+                )
+            pbar.close()
 
             self.load_manager.complete_load(
                 load_id,
@@ -201,10 +221,32 @@ class AttachmentTextExtractor:
         handler = self._resolve_handler(content_type, ext)
 
         if handler is None:
+            # Try magic byte detection as fallback
+            handler = self._detect_type_by_magic(file_path)
+            if handler:
+                logger.warning(
+                    "Extension/content-type unrecognized for %s (ext=%s, type=%s), "
+                    "but magic bytes indicate %s",
+                    filename, ext, content_type, handler.__name__,
+                )
+
+        if handler is None:
             self._mark_unsupported(attachment_id, load_id)
             raise _UnsupportedType(f"Unsupported: content_type={content_type}, ext={ext}")
 
-        text, page_count, is_scanned = handler(file_path)
+        try:
+            text, page_count, is_scanned = handler(file_path)
+        except Exception as first_err:
+            # If handler failed, try magic byte detection in case extension was wrong
+            magic_handler = self._detect_type_by_magic(file_path)
+            if magic_handler and magic_handler != handler:
+                logger.warning(
+                    "Handler %s failed for %s, retrying with magic-detected %s: %s",
+                    handler.__name__, filename, magic_handler.__name__, first_err,
+                )
+                text, page_count, is_scanned = magic_handler(file_path)
+            else:
+                raise
 
         if not text or not text.strip():
             # Empty extraction — mark as scanned/image-only
@@ -243,6 +285,77 @@ class AttachmentTextExtractor:
         if content_type in TEXT_TYPES or ext in TEXT_EXTENSIONS:
             return self._extract_plain_text
         return None
+
+    def _detect_type_by_magic(self, file_path):
+        """Detect file type from magic bytes, ignoring extension/content_type.
+
+        Returns handler function or None.
+        """
+        try:
+            with open(file_path, "rb") as f:
+                header = f.read(8)
+        except Exception:
+            return None
+
+        if header.startswith(b"%PDF"):
+            return self._extract_pdf
+
+        if header.startswith(b"PK\x03\x04"):
+            # ZIP-based format -- try to distinguish by examining ZIP contents
+            import zipfile
+            try:
+                with zipfile.ZipFile(file_path, "r") as zf:
+                    names = zf.namelist()
+                    if any(n.startswith("word/") for n in names):
+                        return self._extract_docx
+                    if any(n.startswith("ppt/") for n in names):
+                        return self._extract_pptx
+                    if any(n.startswith("xl/") for n in names):
+                        return self._extract_xlsx
+                    if "content.xml" in names:
+                        return self._extract_odt
+            except zipfile.BadZipFile:
+                return None
+            return None
+
+        if header.startswith(b"\xd0\xcf\x11\xe0"):
+            # OLE2 -- could be .doc or .xls. Try doc first (more common in solicitations)
+            return self._extract_doc
+
+        if header.startswith(b"{\\rtf"):
+            return self._extract_rtf
+
+        return None
+
+    @staticmethod
+    def _check_ole2_encryption(file_path):
+        """Raise early if an OLE2 file is IRM/DRM-encrypted.
+
+        Checks for EncryptedPackage or DataSpaces streams that indicate
+        Microsoft Information Rights Management protection.
+        """
+        try:
+            with open(file_path, "rb") as f:
+                header = f.read(8)
+            if not header.startswith(b"\xd0\xcf\x11\xe0"):
+                return  # Not OLE2, skip check
+
+            import olefile
+            if not olefile.isOleFile(file_path):
+                return
+            ole = olefile.OleFileIO(file_path)
+            try:
+                streams = {"/".join(s) for s in ole.listdir()}
+                if "EncryptedPackage" in streams or "\x06DataSpaces" in streams:
+                    raise RuntimeError(
+                        "File is IRM/DRM-protected (Microsoft Information Rights Management)"
+                    )
+            finally:
+                ole.close()
+        except RuntimeError:
+            raise
+        except Exception:
+            pass  # If olefile isn't installed or parsing fails, let LibreOffice try
 
     # ------------------------------------------------------------------
     # PDF extraction (PyMuPDF / fitz)
@@ -538,35 +651,71 @@ class AttachmentTextExtractor:
         return "\n".join(parts), 0, False
 
     # ------------------------------------------------------------------
-    # Legacy Word extraction (antiword)
+    # Legacy Word extraction (.doc → .docx via LibreOffice)
     # ------------------------------------------------------------------
 
     def _extract_doc(self, file_path):
-        """Extract text from legacy .doc files using antiword.
+        """Extract text from legacy .doc by converting to .docx via LibreOffice.
 
-        Falls back to marking as unsupported if antiword is not installed.
+        Converts the .doc to a temporary .docx, then delegates to _extract_docx
+        for full structure-aware extraction (headings, bold, tables).
+
         Returns:
-            (text, page_count=0, is_scanned=False)
+            (markdown_text, page_count=0, is_scanned=False)
         """
         import shutil
         import subprocess
+        import tempfile
 
-        antiword = shutil.which("antiword")
-        if not antiword:
+        soffice = shutil.which("soffice")
+        if not soffice:
+            # Check common install path on Windows
+            win_path = r"C:\Program Files\LibreOffice\program\soffice.exe"
+            if Path(win_path).is_file():
+                soffice = win_path
+
+        if not soffice:
             logger.warning(
-                "antiword not installed — .doc extraction unavailable. "
-                "Install antiword to enable legacy Word support."
+                "LibreOffice not installed — .doc extraction unavailable. "
+                "Install LibreOffice to enable legacy Word support."
             )
-            raise _UnsupportedType("antiword not installed for .doc extraction")
+            raise _UnsupportedType("LibreOffice not installed for .doc extraction")
 
-        result = subprocess.run(
-            [antiword, "-m", "UTF-8", file_path],
-            capture_output=True, text=True, timeout=30,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"antiword failed: {result.stderr.strip()}")
+        # Detect IRM/DRM-protected files before wasting time on LibreOffice
+        self._check_ole2_encryption(file_path)
 
-        return result.stdout, 0, False
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # LibreOffice refuses to convert OLE2 files with a .docx extension.
+            # Copy to a .doc temp file to ensure correct handling.
+            input_path = file_path
+            if not file_path.lower().endswith(".doc"):
+                tmp_input = os.path.join(tmpdir, "input.doc")
+                shutil.copy2(file_path, tmp_input)
+                input_path = tmp_input
+
+            # Clean environment to prevent Python venv from interfering
+            # with LibreOffice's bundled Python
+            env = {k: v for k, v in os.environ.items()
+                   if k not in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV")}
+
+            result = subprocess.run(
+                [soffice, "--headless", "--convert-to", "docx",
+                 "--outdir", tmpdir, input_path],
+                capture_output=True, text=True, timeout=60, env=env,
+            )
+            if result.returncode != 0:
+                raise RuntimeError(f"LibreOffice conversion failed: {result.stderr.strip()}")
+
+            # Find the converted .docx file
+            docx_files = list(Path(tmpdir).glob("*.docx"))
+            if not docx_files:
+                # Check for IRM/DRM protected files
+                stderr = result.stderr or ""
+                if "source file could not be loaded" in stderr.lower():
+                    raise RuntimeError("File could not be loaded (possibly IRM/DRM protected)")
+                raise RuntimeError("LibreOffice produced no .docx output")
+
+            return self._extract_docx(str(docx_files[0]))
 
     # ------------------------------------------------------------------
     # PowerPoint extraction (python-pptx)

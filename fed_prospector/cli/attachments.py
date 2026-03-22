@@ -16,10 +16,14 @@ from config.logging_config import setup_logging
               help="Only download attachments not yet stored locally")
 @click.option("--check-changed", is_flag=True, default=False,
               help="Re-download if remote file has changed (hash check)")
-@click.option("--delay", type=float, default=0.5, show_default=True,
+@click.option("--delay", type=float, default=0.1, show_default=True,
               help="Delay in seconds between API requests")
+@click.option("--active-only", is_flag=True, default=False,
+              help="Only download for opportunities with future response deadlines")
+@click.option("--workers", type=int, default=5, show_default=True,
+              help="Number of concurrent download threads")
 def download_attachments(notice_id, batch_size, max_file_size, missing_only,
-                         check_changed, delay):
+                         check_changed, delay, active_only, workers):
     """Download opportunity attachments from SAM.gov.
 
     Fetches attachment files (PDFs, DOCXs, etc.) for opportunities that
@@ -35,13 +39,14 @@ def download_attachments(notice_id, batch_size, max_file_size, missing_only,
     from etl.attachment_downloader import AttachmentDownloader
 
     downloader = AttachmentDownloader()
+    active_msg = ", active_only=True" if active_only else ""
     logger.info(
-        "Starting attachment download (batch_size=%d, max_file_size=%dMB, delay=%.1fs)",
-        batch_size, max_file_size, delay,
+        "Starting attachment download (batch_size=%d, max_file_size=%dMB, delay=%.1fs%s)",
+        batch_size, max_file_size, delay, active_msg,
     )
     click.echo(
         f"Downloading attachments (batch_size={batch_size}, "
-        f"max_file_size={max_file_size}MB)..."
+        f"max_file_size={max_file_size}MB{active_msg})..."
     )
 
     stats = downloader.download_attachments(
@@ -51,6 +56,8 @@ def download_attachments(notice_id, batch_size, max_file_size, missing_only,
         missing_only=missing_only,
         check_changed=check_changed,
         delay=delay,
+        active_only=active_only,
+        workers=workers,
     )
 
     click.echo(
