@@ -122,7 +122,35 @@ downloaded → text extracted → keyword intel → AI analyzed → [cleanup eli
 - Module-level call to `fitz.TOOLS.mupdf_display_errors(False)` at import time
 - Text extraction succeeds despite these warnings — they are cosmetic noise
 
-### Task 8: Magic Byte File Type Detection
+### Task 8: PDF Table Detection Performance
+
+- **Problem:** PyMuPDF's `find_tables()` is a C extension call that averages ~0.4s/page on text docs but 1-2s/page on CAD/drawing content. On a 584-page technical spec it took 240+ seconds. On a 43-page drawing set it took 70 seconds. The C extension cannot be cancelled once started — Python thread timeouts only control when the caller gives up, but the underlying C code keeps running.
+- **Solution:** Page-count-based threshold:
+  - **≤30 pages:** `find_tables()` runs with 10s per-page timeout (full table detection for solicitation docs with pricing/eval tables)
+  - **>30 pages:** `find_tables()` skipped entirely (text content still fully extracted via `get_text("dict")`)
+- **Rationale:** Short solicitation docs (5-20 pages) are where tables matter most (pricing schedules, eval criteria, wage determinations). Large technical specs and drawing sets don't have tables that are useful for intel extraction. Text within table cells is still captured by `get_text()` — only the markdown table formatting is lost.
+- **5-30 page PDFs:** Processed in parallel (4 workers, each opens its own doc handle for thread safety)
+- **Performance results:**
+  - 584-page spec: hung indefinitely → **5.7s**
+  - 43-page drawings: 70s → **1.6s**
+  - 38-page solicitation: 4.3s → **0.2s**
+  - 7-page wage determination: 0.3s → **0.3s** (unchanged, tables still detected)
+
+### Task 9: IRM/DRM Protection Detection
+
+- **Problem:** Some government attachments are IRM-protected (Microsoft Information Rights Management). These are OLE2 files with encrypted content that LibreOffice and python-docx cannot read. Without early detection, LibreOffice hangs or silently fails.
+- **Solution:** Check OLE2 files for `EncryptedPackage` and `DataSpaces` streams using `olefile` before attempting extraction. Fails fast with a clear error message.
+- **Library:** `olefile==0.47` (pure Python, lightweight)
+
+### Task 10: .doc Extraction via LibreOffice
+
+- **Problem:** Legacy `.doc` (Word 97-2003) format has no good pure Python extraction library. `antiword` requires a system binary.
+- **Solution:** Convert `.doc → .docx` via LibreOffice headless mode (`soffice --headless --convert-to docx`), then pass to existing `_extract_docx` handler for full structure-aware extraction.
+- **Dependency:** LibreOffice 25.8+ installed at `C:\Program Files\LibreOffice\program\soffice.exe`
+- **Edge case:** OLE2 files with `.docx` extension (mislabeled) — copied to temp file with `.doc` extension before conversion, as LibreOffice refuses to convert OLE2 content with a `.docx` extension.
+- **Environment:** Python env vars (`PYTHONPATH`, `PYTHONHOME`, `VIRTUAL_ENV`) stripped from subprocess to prevent conflict with LibreOffice's bundled Python.
+
+### Task 11: Magic Byte File Type Detection
 
 - **Problem:** Some attachments have incorrect file extensions (e.g., a PDF saved as `.docx`)
 - **Solution:** Fall back to magic byte signature detection when extension-based handler fails
@@ -139,7 +167,7 @@ downloaded → text extracted → keyword intel → AI analyzed → [cleanup eli
 
 ## Testing Checklist
 
-- [ ] .doc file extracts text (if antiword installed) or is marked unsupported with helpful message
+- [ ] .doc file extracts text via LibreOffice conversion
 - [ ] .pptx file extracts slide text with slide number headings
 - [ ] .pptx speaker notes are included in extraction
 - [ ] .pptx tables are extracted as markdown tables
@@ -159,6 +187,11 @@ downloaded → text extracted → keyword intel → AI analyzed → [cleanup eli
 - [ ] Magic bytes detect OLE2 (.doc/.xls) format
 - [ ] Magic bytes detect RTF format
 - [ ] Handler retry works when extension-based handler fails but magic bytes succeed
+- [ ] IRM/DRM-protected files detected early via OLE2 stream inspection
+- [ ] .doc files with .docx extension handled (copy to .doc, convert via LibreOffice)
+- [ ] PDFs ≤30 pages extract tables; >30 pages skip find_tables()
+- [ ] Large PDFs (>4 pages) processed with parallel page workers
+- [ ] Per-file 120s timeout prevents batch from hanging
 
 ---
 
@@ -166,11 +199,14 @@ downloaded → text extracted → keyword intel → AI analyzed → [cleanup eli
 
 | # | Task | Complexity | Depends On |
 |---|------|-----------|------------|
-| 1 | Legacy Word .doc extraction | Low-Medium | antiword binary |
+| 1 | Legacy Word .doc extraction | Low-Medium | LibreOffice headless |
 | 2 | PowerPoint .pptx extraction | Medium | python-pptx |
 | 3 | Legacy Excel .xls extraction | Low | xlrd |
 | 4 | RTF extraction | Low | striprtf |
 | 5 | OpenDocument .odt extraction | Low-Medium | odfpy |
 | 6 | Post-analysis file cleanup | Low | download + extraction + intel complete |
 | 7 | MuPDF warning suppression | Low | pymupdf |
-| 8 | Magic byte file type detection | Medium | Built-in (zipfile) |
+| 8 | PDF table detection performance | Medium | pymupdf find_tables() |
+| 9 | IRM/DRM protection detection | Low | olefile |
+| 10 | .doc extraction via LibreOffice | Medium | LibreOffice 25.8+ |
+| 11 | Magic byte file type detection | Medium | Built-in (zipfile) |

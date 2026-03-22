@@ -117,8 +117,11 @@ class AttachmentTextExtractor:
             )
             for row in pbar:
                 stats["processed"] += 1
+                notice_id = row.get("notice_id") or "?"
+                filename = row.get("filename") or "unknown"
+                pbar.set_description(f"{notice_id} | {filename}")
                 try:
-                    self._extract_one(row, load_id)
+                    self._extract_one_with_timeout(row, load_id, timeout=120)
                     stats["extracted"] += 1
                 except _UnsupportedType:
                     stats["unsupported"] += 1
@@ -169,6 +172,23 @@ class AttachmentTextExtractor:
     # ------------------------------------------------------------------
     # Internal: query and dispatch
     # ------------------------------------------------------------------
+
+    def _extract_one_with_timeout(self, row, load_id, timeout=120):
+        """Run _extract_one in a thread with a timeout.
+
+        Prevents a single slow file (e.g., complex PDFs with thousands of
+        table regions) from blocking the entire batch indefinitely.
+        """
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(self._extract_one, row, load_id)
+            try:
+                future.result(timeout=timeout)
+            except FutureTimeout:
+                raise RuntimeError(
+                    f"Extraction timed out after {timeout}s for {row.get('filename')}"
+                )
 
     def _fetch_pending(self, notice_id, batch_size, force):
         """Fetch attachments eligible for extraction."""
@@ -364,6 +384,9 @@ class AttachmentTextExtractor:
     def _extract_pdf(self, file_path):
         """Extract text from PDF with structure-aware Markdown formatting.
 
+        Pages are processed in parallel (each thread opens its own doc handle)
+        to speed up table detection on large PDFs.
+
         Returns:
             (markdown_text, page_count, is_scanned)
         """
@@ -376,24 +399,41 @@ class AttachmentTextExtractor:
                 raise RuntimeError(f"Password-protected PDF: {e}") from e
             raise
 
-        pages = []
+        page_count = len(doc)
+        doc.close()
+
+        # Table detection strategy by page count:
+        #   ≤30 pages:  find_tables with 10s timeout (full detection)
+        #   >30 pages:  skip find_tables (C extension can't be cancelled,
+        #               and even sub-second pages add up on large docs)
+        # Text content is always fully extracted regardless.
+        if page_count <= 30:
+            table_timeout = 10
+        else:
+            table_timeout = 0  # 0 = skip
+
+        if page_count <= 4:
+            # Small PDFs — process serially (thread overhead not worth it)
+            return self._extract_pdf_pages(file_path, range(page_count), table_timeout=table_timeout)
+
+        # Large PDFs — process pages in parallel
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        results = [None] * page_count
         is_scanned = False
 
-        try:
-            for page_num, page in enumerate(doc, 1):
-                # Extract tables first (if PyMuPDF supports find_tables)
+        def _process_page(page_idx):
+            """Process a single page in its own doc handle."""
+            page_doc = fitz.open(file_path)
+            try:
+                page = page_doc[page_idx]
+                page_num = page_idx + 1
+
                 table_rects = []
                 table_md = ""
-                if hasattr(page, "find_tables"):
-                    try:
-                        tables = page.find_tables()
-                        for table in tables:
-                            table_rects.append(table.bbox)
-                            table_md += self._pdf_table_to_markdown(table) + "\n\n"
-                    except Exception:
-                        pass  # Table extraction is best-effort
+                if table_timeout > 0 and hasattr(page, "find_tables"):
+                    table_rects, table_md = self._find_tables_with_timeout(page, timeout=table_timeout)
 
-                # Get text blocks with formatting info
                 try:
                     blocks = page.get_text("dict", sort=True)["blocks"]
                 except Exception:
@@ -401,11 +441,56 @@ class AttachmentTextExtractor:
 
                 page_text = self._process_pdf_blocks(blocks, table_rects)
 
-                # Append tables after text blocks
                 if table_md:
                     page_text = page_text.rstrip() + "\n\n" + table_md
 
-                # Detect scanned page
+                if len(page_text.strip()) < SCANNED_THRESHOLD:
+                    page_text = f"[Page {page_num}: scanned/image-only — OCR not available]\n"
+                    return page_idx, page_text, True
+
+                return page_idx, page_text, False
+            finally:
+                page_doc.close()
+
+        workers = min(4, page_count)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(_process_page, i): i for i in range(page_count)}
+            for future in as_completed(futures):
+                idx, text, scanned = future.result()
+                results[idx] = text
+                if scanned:
+                    is_scanned = True
+
+        return "\n\n---\n\n".join(results), page_count, is_scanned
+
+    def _extract_pdf_pages(self, file_path, page_range, table_timeout=10):
+        """Serial PDF extraction for small documents."""
+        import pymupdf as fitz
+
+        doc = fitz.open(file_path)
+        pages = []
+        is_scanned = False
+
+        try:
+            for page_idx in page_range:
+                page = doc[page_idx]
+                page_num = page_idx + 1
+
+                table_rects = []
+                table_md = ""
+                if table_timeout > 0 and hasattr(page, "find_tables"):
+                    table_rects, table_md = self._find_tables_with_timeout(page, timeout=table_timeout)
+
+                try:
+                    blocks = page.get_text("dict", sort=True)["blocks"]
+                except Exception:
+                    blocks = []
+
+                page_text = self._process_pdf_blocks(blocks, table_rects)
+
+                if table_md:
+                    page_text = page_text.rstrip() + "\n\n" + table_md
+
                 if len(page_text.strip()) < SCANNED_THRESHOLD:
                     is_scanned = True
                     page_text = f"[Page {page_num}: scanned/image-only — OCR not available]\n"
@@ -415,6 +500,33 @@ class AttachmentTextExtractor:
             doc.close()
 
         return "\n\n---\n\n".join(pages), len(pages), is_scanned
+
+    def _find_tables_with_timeout(self, page, timeout=10):
+        """Run find_tables() with a per-page timeout.
+
+        Returns:
+            (table_rects, table_md) — or ([], "") if timeout/error.
+        """
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+
+        def _do_find():
+            tables = page.find_tables()
+            rects = []
+            md_parts = []
+            for table in tables:
+                rects.append(table.bbox)
+                md_parts.append(self._pdf_table_to_markdown(table))
+            return rects, "\n\n".join(md_parts)
+
+        with ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(_do_find)
+            try:
+                return future.result(timeout=timeout)
+            except FutureTimeout:
+                logger.debug("find_tables() timed out after %ds, skipping tables for this page", timeout)
+                return [], ""
+            except Exception:
+                return [], ""
 
     def _process_pdf_blocks(self, blocks, table_rects=None):
         """Convert PDF dict blocks to Markdown text.
