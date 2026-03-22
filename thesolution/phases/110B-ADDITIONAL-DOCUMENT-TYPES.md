@@ -93,6 +93,29 @@ odfpy>=1.4.0             # OpenDocument .odt extraction
 
 For .doc files: `antiword` system binary (Windows: download from web; Linux: `apt install antiword`)
 
+### Task 6: Post-Analysis File Cleanup
+
+Files progress through a 4-stage pipeline (state machine). Cleanup is only allowed after the final stage:
+
+```
+downloaded → text extracted → keyword intel → AI analyzed → [cleanup eligible]
+```
+
+- **Command:** `python main.py cleanup attachment-files [--notice-id=X] [--dry-run] [--batch-size=1000]`
+- **Safety:** Only deletes files that completed ALL 4 pipeline stages:
+  1. `download_status = 'downloaded'` (file on disk)
+  2. `extraction_status = 'extracted'` (text stored in DB)
+  3. Has keyword/heuristic intel record in `opportunity_attachment_intel`
+  4. Has AI analysis record (`extraction_method IN ('ai_haiku', 'ai_sonnet')`) — Phase 110C
+- **Behavior:**
+  - Deletes the physical file from `data/attachments/{notice_id}/`
+  - Sets `file_path = NULL` in `opportunity_attachment` to indicate file removed
+  - Preserves all DB data: `extracted_text`, `text_hash`, `content_hash`, intel records
+  - `--dry-run` shows what would be deleted with total size reclaimed
+  - Cleans up empty `{notice_id}/` directories after file removal
+- **Rationale:** Extracted text is stored in DB (`extracted_text` LONGTEXT column). Original files only needed for re-extraction. Saves ~90% disk space.
+- **Note:** Until Phase 110C (AI analysis) is implemented, no files will be eligible for cleanup — this is intentional. The gate ensures files are never deleted before the full pipeline runs.
+
 ---
 
 ## Testing Checklist
@@ -107,6 +130,10 @@ For .doc files: `antiword` system binary (Windows: download from web; Linux: `ap
 - [ ] All 5 types update extraction_status correctly
 - [ ] Hash tracking works (text_hash computed for all new types)
 - [ ] Corrupted/password-protected files fail gracefully
+- [ ] Cleanup only targets fully-analyzed files (all 4 pipeline stages complete, including AI)
+- [ ] Cleanup with --dry-run shows files and size without deleting
+- [ ] After cleanup, file_path is NULL but extracted_text and intel records remain
+- [ ] Empty notice_id directories are removed after cleanup
 
 ---
 
@@ -119,3 +146,4 @@ For .doc files: `antiword` system binary (Windows: download from web; Linux: `ap
 | 3 | Legacy Excel .xls extraction | Low | xlrd |
 | 4 | RTF extraction | Low | striprtf |
 | 5 | OpenDocument .odt extraction | Low-Medium | odfpy |
+| 6 | Post-analysis file cleanup | Low | download + extraction + intel complete |

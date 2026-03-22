@@ -175,3 +175,58 @@ def analyze_attachments(notice_id, batch_size, model, force):
     """
     setup_logging()
     click.echo("AI analysis not yet implemented (Phase 110 Round 3)")
+
+
+@click.command("attachment-files")
+@click.option("--notice-id", type=str, default=None,
+              help="Only clean up files for this notice ID")
+@click.option("--batch-size", type=int, default=1000, show_default=True,
+              help="Maximum number of files to process")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Show what would be deleted without actually deleting")
+def cleanup_attachment_files(notice_id, batch_size, dry_run):
+    """Remove attachment files that completed the full analysis pipeline.
+
+    Only deletes files that passed through ALL 4 stages:
+
+      1. Downloaded (file on disk)
+      2. Text extracted (text stored in DB)
+      3. Keyword/heuristic intel extracted
+      4. AI analysis complete (Claude Haiku/Sonnet)
+
+    All extracted data remains in the database — only the original
+    files are removed. Use --dry-run first to preview.
+
+    Examples:
+        python main.py cleanup attachment-files --dry-run
+        python main.py cleanup attachment-files
+        python main.py cleanup attachment-files --notice-id abc123
+    """
+    logger = setup_logging()
+
+    from etl.attachment_cleanup import AttachmentFileCleanup
+
+    cleanup = AttachmentFileCleanup()
+
+    if dry_run:
+        click.echo("DRY RUN — no files will be deleted")
+
+    click.echo(f"Scanning for fully-analyzed attachment files (batch_size={batch_size})...")
+
+    stats = cleanup.cleanup_files(
+        notice_id=notice_id,
+        batch_size=batch_size,
+        dry_run=dry_run,
+    )
+
+    size_mb = stats["bytes_reclaimed"] / (1024 * 1024)
+    verb = "Would delete" if dry_run else "Deleted"
+    parts = [
+        f"Done. {verb} {stats['deleted']} of {stats['eligible']} eligible files "
+        f"({size_mb:.1f} MB {'reclaimable' if dry_run else 'reclaimed'})",
+    ]
+    if stats.get("already_missing"):
+        parts.append(f"{stats['already_missing']} already missing from disk")
+    if stats["failed"]:
+        parts.append(f"{stats['failed']} failed")
+    click.echo(", ".join(parts))

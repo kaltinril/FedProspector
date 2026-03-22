@@ -1,6 +1,6 @@
 """Federal Contract Prospecting System - CLI
 
-Commands are organized into 10 top-level groups:
+Commands are organized into 11 top-level groups:
 
     setup     Build the database, seed reference data, verify prerequisites
     load      Download and load data from government APIs
@@ -11,6 +11,7 @@ Commands are organized into 10 top-level groups:
     analyze   Burn rate, teaming partner discovery, exclusion scanning, attachment AI
     update    Update/enrich existing data (metadata backfill)
     admin     System administration (orgs, users, invitations)
+    cleanup   Clean up local data and files
     health    System health checks, ETL history, maintenance
 
 Run 'python main.py GROUP --help' to list commands in a group.
@@ -57,8 +58,8 @@ def cli():
 
     Gathers federal contract data from government APIs into a local MySQL
     database for WOSB/8(a) contract discovery. Commands are organized into
-    10 groups: setup, load, download, extract, search, prospect, analyze,
-    update, admin, health.
+    11 groups: setup, load, download, extract, search, prospect, analyze,
+    update, admin, cleanup, health.
 
     Run 'python main.py GROUP --help' to list commands in a group.
     """
@@ -130,6 +131,12 @@ def demand():
 
 
 @cli.group()
+def cleanup():
+    """Clean up local data and files."""
+    pass
+
+
+@cli.group()
 def health():
     """System health checks, ETL history, job execution, and maintenance."""
     pass
@@ -165,6 +172,7 @@ from cli.update import enrich_link_metadata, fetch_descriptions, build_relations
 from cli.attachments import (
     download_attachments, extract_attachment_text,
     extract_attachment_intel, analyze_attachments,
+    cleanup_attachment_files,
 )
 from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
@@ -280,6 +288,12 @@ download.add_command(download_attachments, name="attachments")
 
 extract.add_command(extract_attachment_text, name="attachment-text")
 extract.add_command(extract_attachment_intel, name="attachment-intel")
+
+# ---------------------------------------------------------------------------
+# cleanup group commands
+# ---------------------------------------------------------------------------
+
+cleanup.add_command(cleanup_attachment_files, name="attachment-files")
 
 # ---------------------------------------------------------------------------
 # health group commands

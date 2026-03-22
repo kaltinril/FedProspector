@@ -34,10 +34,16 @@ EXCEL_TYPES = {
     "application/vnd.ms-excel",
 }
 TEXT_TYPES = {"text/plain", "text/csv", "text/html"}
+PPTX_TYPES = {"application/vnd.openxmlformats-officedocument.presentationml.presentation"}
+RTF_TYPES = {"application/rtf", "text/rtf"}
+ODT_TYPES = {"application/vnd.oasis.opendocument.text"}
 
 PDF_EXTENSIONS = {".pdf"}
 WORD_EXTENSIONS = {".docx", ".doc"}
 EXCEL_EXTENSIONS = {".xlsx", ".xls"}
+PPTX_EXTENSIONS = {".pptx"}
+RTF_EXTENSIONS = {".rtf"}
+ODT_EXTENSIONS = {".odt"}
 TEXT_EXTENSIONS = {".txt", ".csv", ".html", ".htm"}
 
 # PyMuPDF font flag bitmask for bold
@@ -220,16 +226,20 @@ class AttachmentTextExtractor:
         """Return the appropriate extraction function, or None if unsupported."""
         if content_type in PDF_TYPES or ext in PDF_EXTENSIONS:
             return self._extract_pdf
+        if content_type in PPTX_TYPES or ext in PPTX_EXTENSIONS:
+            return self._extract_pptx
         if content_type in WORD_TYPES or ext in WORD_EXTENSIONS:
-            if ext == ".doc":
-                # Legacy .doc format not supported by python-docx
-                return None
+            if ext == ".doc" or (content_type == "application/msword" and ext != ".docx"):
+                return self._extract_doc
             return self._extract_docx
         if content_type in EXCEL_TYPES or ext in EXCEL_EXTENSIONS:
-            if ext == ".xls":
-                # Legacy .xls format not supported by openpyxl
-                return None
+            if ext == ".xls" or (content_type == "application/vnd.ms-excel" and ext != ".xlsx"):
+                return self._extract_xls
             return self._extract_xlsx
+        if content_type in RTF_TYPES or ext in RTF_EXTENSIONS:
+            return self._extract_rtf
+        if content_type in ODT_TYPES or ext in ODT_EXTENSIONS:
+            return self._extract_odt
         if content_type in TEXT_TYPES or ext in TEXT_EXTENSIONS:
             return self._extract_plain_text
         return None
@@ -526,6 +536,234 @@ class AttachmentTextExtractor:
 
         wb.close()
         return "\n".join(parts), 0, False
+
+    # ------------------------------------------------------------------
+    # Legacy Word extraction (antiword)
+    # ------------------------------------------------------------------
+
+    def _extract_doc(self, file_path):
+        """Extract text from legacy .doc files using antiword.
+
+        Falls back to marking as unsupported if antiword is not installed.
+        Returns:
+            (text, page_count=0, is_scanned=False)
+        """
+        import shutil
+        import subprocess
+
+        antiword = shutil.which("antiword")
+        if not antiword:
+            logger.warning(
+                "antiword not installed — .doc extraction unavailable. "
+                "Install antiword to enable legacy Word support."
+            )
+            raise _UnsupportedType("antiword not installed for .doc extraction")
+
+        result = subprocess.run(
+            [antiword, "-m", "UTF-8", file_path],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"antiword failed: {result.stderr.strip()}")
+
+        return result.stdout, 0, False
+
+    # ------------------------------------------------------------------
+    # PowerPoint extraction (python-pptx)
+    # ------------------------------------------------------------------
+
+    def _extract_pptx(self, file_path):
+        """Extract text from .pptx with slide headings, tables, and speaker notes.
+
+        Returns:
+            (markdown_text, page_count=slide_count, is_scanned=False)
+        """
+        from pptx import Presentation
+
+        prs = Presentation(file_path)
+        parts = []
+
+        for slide_num, slide in enumerate(prs.slides, 1):
+            slide_parts = [f"\n## Slide {slide_num}\n"]
+
+            for shape in slide.shapes:
+                if shape.has_table:
+                    slide_parts.append(self._pptx_table_to_md(shape.table))
+                elif shape.has_text_frame:
+                    for para in shape.text_frame.paragraphs:
+                        text = para.text.strip()
+                        if text:
+                            slide_parts.append(text)
+
+            # Speaker notes
+            if slide.has_notes_slide and slide.notes_slide.notes_text_frame:
+                notes_text = slide.notes_slide.notes_text_frame.text.strip()
+                if notes_text:
+                    slide_parts.append(f"\n> **Notes:** {notes_text}\n")
+
+            parts.append("\n".join(slide_parts))
+
+        return "\n\n".join(parts), len(prs.slides), False
+
+    def _pptx_table_to_md(self, table):
+        """Convert a python-pptx Table to Markdown."""
+        rows = list(table.rows)
+        if not rows:
+            return ""
+
+        col_count = len(table.columns)
+        md_rows = []
+
+        for i, row in enumerate(rows):
+            cells = [self._cell_str(cell.text) for cell in list(row.cells)[:col_count]]
+            md_rows.append("| " + " | ".join(cells) + " |")
+            if i == 0:
+                md_rows.append("| " + " | ".join("---" for _ in range(col_count)) + " |")
+
+        return "\n".join(md_rows)
+
+    # ------------------------------------------------------------------
+    # Legacy Excel extraction (xlrd)
+    # ------------------------------------------------------------------
+
+    def _extract_xls(self, file_path):
+        """Extract text from legacy .xls files using xlrd.
+
+        Returns:
+            (markdown_text, page_count=0, is_scanned=False)
+        """
+        import xlrd
+
+        wb = xlrd.open_workbook(file_path)
+        parts = []
+
+        for sheet in wb.sheets():
+            if sheet.nrows == 0:
+                continue
+
+            # Skip sheets where all cells are empty
+            has_data = False
+            for row_idx in range(sheet.nrows):
+                if any(sheet.cell_value(row_idx, col_idx) for col_idx in range(sheet.ncols)):
+                    has_data = True
+                    break
+            if not has_data:
+                continue
+
+            parts.append(f"\n## {sheet.name}\n")
+
+            # Collect non-empty rows
+            data_rows = []
+            for row_idx in range(sheet.nrows):
+                row = [sheet.cell_value(row_idx, col_idx) for col_idx in range(sheet.ncols)]
+                if any(c is not None and c != "" for c in row):
+                    data_rows.append(row)
+
+            if not data_rows:
+                continue
+
+            col_count = len(data_rows[0])
+
+            # First row as header
+            header = data_rows[0]
+            parts.append("| " + " | ".join(self._cell_str(c) for c in header) + " |")
+            parts.append("| " + " | ".join("---" for _ in range(col_count)) + " |")
+
+            for row in data_rows[1:]:
+                cells = list(row) + [""] * max(0, col_count - len(row))
+                parts.append("| " + " | ".join(self._cell_str(c) for c in cells[:col_count]) + " |")
+
+        return "\n".join(parts), 0, False
+
+    # ------------------------------------------------------------------
+    # RTF extraction (striprtf)
+    # ------------------------------------------------------------------
+
+    def _extract_rtf(self, file_path):
+        """Extract text from .rtf files using striprtf.
+
+        Returns:
+            (text, page_count=0, is_scanned=False)
+        """
+        from striprtf.striprtf import rtf_to_text
+
+        with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+            rtf_content = f.read()
+
+        text = rtf_to_text(rtf_content)
+        return text, 0, False
+
+    # ------------------------------------------------------------------
+    # ODT extraction (odfpy)
+    # ------------------------------------------------------------------
+
+    def _extract_odt(self, file_path):
+        """Extract text from .odt files using odfpy.
+
+        Returns:
+            (markdown_text, page_count=0, is_scanned=False)
+        """
+        from odf.opendocument import load
+        from odf.text import H, P
+        from odf.table import Table, TableRow, TableCell
+        from odf import teletype
+
+        doc = load(file_path)
+        parts = []
+
+        for element in doc.text.childNodes:
+            tag = element.qname[1] if hasattr(element, 'qname') else ""
+
+            if tag == "h":
+                # Heading — detect outline level
+                level = element.getAttribute("outlinelevel") or "2"
+                try:
+                    level = int(level)
+                except (ValueError, TypeError):
+                    level = 2
+                prefix = "#" * min(level, 4)
+                text = teletype.extractText(element).strip()
+                if text:
+                    parts.append(f"\n{prefix} {text}\n")
+
+            elif tag == "p":
+                text = teletype.extractText(element).strip()
+                if text:
+                    parts.append(text)
+
+            elif tag == "table":
+                md = self._odt_table_to_md(element)
+                if md:
+                    parts.append(md)
+
+        return "\n".join(parts), 0, False
+
+    def _odt_table_to_md(self, table_element):
+        """Convert an ODF table element to Markdown."""
+        from odf.table import TableRow, TableCell
+        from odf import teletype
+
+        rows = []
+        for row_el in table_element.getElementsByType(TableRow):
+            cells = []
+            for cell_el in row_el.getElementsByType(TableCell):
+                cells.append(self._cell_str(teletype.extractText(cell_el)))
+            if cells:
+                rows.append(cells)
+
+        if not rows:
+            return ""
+
+        col_count = len(rows[0])
+        md_rows = []
+
+        for i, row in enumerate(rows):
+            cells = list(row) + [""] * max(0, col_count - len(row))
+            md_rows.append("| " + " | ".join(cells[:col_count]) + " |")
+            if i == 0:
+                md_rows.append("| " + " | ".join("---" for _ in range(col_count)) + " |")
+
+        return "\n".join(md_rows)
 
     # ------------------------------------------------------------------
     # Plain text extraction
