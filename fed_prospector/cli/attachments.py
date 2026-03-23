@@ -98,12 +98,20 @@ def extract_attachment_text(notice_id, batch_size, force, workers):
     )
     click.echo(f"Extracting text from attachments (batch_size={batch_size})...")
 
-    stats = extractor.extract_text(
-        notice_id=notice_id,
-        batch_size=batch_size,
-        force=force,
-        workers=workers,
-    )
+    try:
+        stats = extractor.extract_text(
+            notice_id=notice_id,
+            batch_size=batch_size,
+            force=force,
+            workers=workers,
+        )
+    except Exception as e:
+        import threading
+        logger.error(
+            "Extraction crashed: %s (active threads: %d)",
+            e, threading.active_count(),
+        )
+        raise
 
     click.echo(
         f"Done. Extracted {stats.get('extracted', 0)} attachments, "

@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS opportunity_attachment (
     downloaded_at      DATETIME,
     extracted_at       DATETIME,
     last_load_id       INT,
+    extraction_retry_count INT DEFAULT 0,
     created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_notice (notice_id),
     INDEX idx_status (download_status, extraction_status),
