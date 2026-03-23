@@ -421,7 +421,7 @@ def _extract_docx(file_path):
 
 def _docx_paragraph_to_md(para):
     """Convert a python-docx Paragraph to Markdown."""
-    style_name = (para.style.name or "").lower()
+    style_name = (para.style.name or "").lower() if para.style else ""
 
     # Build text with bold markers
     text_parts = []
@@ -1099,6 +1099,8 @@ class AttachmentTextExtractor:
         conn = self.db_connection or get_connection()
         cursor = conn.cursor()
         try:
+            # Strip null bytes — MySQL rejects them in TEXT columns
+            clean_text = text.replace("\x00", "") if text else text
             cursor.execute(
                 "UPDATE opportunity_attachment SET "
                 "extracted_text = %s, text_hash = %s, page_count = %s, "
@@ -1106,7 +1108,7 @@ class AttachmentTextExtractor:
                 "extracted_at = %s, last_load_id = %s "
                 "WHERE attachment_id = %s",
                 (
-                    text,
+                    clean_text,
                     text_hash,
                     page_count if page_count else None,
                     1 if is_scanned else 0,
