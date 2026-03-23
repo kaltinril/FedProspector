@@ -1,0 +1,3833 @@
+openapi: "3.1.0"
+info:
+  title: FedProspect API
+  version: "1.0.0"
+  description: >
+    Federal contract prospecting platform API. Provides endpoints for searching
+    federal opportunities, awards, entities, managing prospects, proposals,
+    saved searches, organization profiles, and administrative functions.
+
+servers:
+  - url: https://localhost:5001/api
+    description: Local development server
+
+tags:
+  - name: Auth
+    description: Authentication, registration, and user profile management
+  - name: Dashboard
+    description: Prospect pipeline dashboard
+  - name: Opportunities
+    description: Federal opportunity search, intelligence, and analysis
+  - name: Awards
+    description: Federal contract award search, market share, and expiring contracts
+  - name: Entities
+    description: SAM.gov entity search, competitor profiles, and exclusion checks
+  - name: Prospects
+    description: Prospect pipeline management (create, status, notes, team, scoring)
+  - name: Proposals
+    description: Proposal tracking, documents, and milestones
+  - name: SavedSearches
+    description: Saved search management and execution
+  - name: Subawards
+    description: Subaward data and teaming partner search
+  - name: Organization
+    description: Organization settings, profile, NAICS, certifications, past performance, and entity linking
+  - name: Notifications
+    description: User notification management
+  - name: Reference
+    description: Reference data lookups (NAICS, certifications)
+  - name: Admin
+    description: System administration (ETL status, user management, organizations)
+  - name: Health
+    description: System health checks
+
+security:
+  - cookieAuth: []
+
+paths:
+  # ---------------------------------------------------------------------------
+  # Health
+  # ---------------------------------------------------------------------------
+  /health:
+    get:
+      tags: [Health]
+      summary: System health check
+      description: Returns overall system health including database connectivity and ETL data freshness.
+      security: []
+      operationId: getHealth
+      responses:
+        "200":
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [Healthy, Degraded, Unhealthy]
+                  database:
+                    $ref: "#/components/schemas/HealthComponent"
+                  etlFreshness:
+                    $ref: "#/components/schemas/HealthComponent"
+
+  # ---------------------------------------------------------------------------
+  # Auth
+  # ---------------------------------------------------------------------------
+  /v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in
+      description: Authenticate a user and return a JWT token. Sets httpOnly cookies for browser clients.
+      security: []
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Missing email or password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+
+  /v1/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Log out
+      description: Revoke the current session token and clear auth cookies.
+      security: []
+      operationId: logout
+      responses:
+        "200":
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      description: Register a new user account using an invite code.
+      security: []
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "429":
+          description: Too many registration attempts
+
+  /v1/auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Refresh access token
+      description: Refresh access token using the refresh_token httpOnly cookie.
+      security: []
+      operationId: refreshToken
+      responses:
+        "200":
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: No or invalid refresh token
+
+  /v1/auth/change-password:
+    post:
+      tags: [Auth]
+      summary: Change password
+      description: Change the current user's password. Revokes all active sessions.
+      operationId: changePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "400":
+          description: Invalid current password or weak new password
+        "401":
+          description: Not authenticated
+        "404":
+          description: User not found
+
+  /v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      description: Get the authenticated user's profile information.
+      operationId: getProfile
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileDto"
+        "401":
+          description: Not authenticated
+        "404":
+          description: User not found
+    patch:
+      tags: [Auth]
+      summary: Update current user profile
+      description: Update the current user's display name and/or email.
+      operationId: updateProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfileDto"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: User not found
+
+  # ---------------------------------------------------------------------------
+  # Dashboard
+  # ---------------------------------------------------------------------------
+  /v1/dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get prospect pipeline dashboard
+      description: Returns status counts, due items, and workload for the current organization.
+      operationId: getDashboard
+      responses:
+        "200":
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardDto"
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Opportunities
+  # ---------------------------------------------------------------------------
+  /v1/opportunities:
+    get:
+      tags: [Opportunities]
+      summary: Search opportunities
+      description: Search federal opportunities with filters and pagination.
+      operationId: searchOpportunities
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: naics
+          in: query
+          schema:
+            type: string
+        - name: setAside
+          in: query
+          schema:
+            type: string
+        - name: solicitation
+          in: query
+          schema:
+            type: string
+        - name: daysOut
+          in: query
+          schema:
+            type: integer
+        - name: openOnly
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Paged list of opportunities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedOpportunitySearchResponse"
+        "401":
+          description: Not authenticated
+
+  /v1/opportunities/targets:
+    get:
+      tags: [Opportunities]
+      summary: Get target opportunities
+      description: Search target opportunities filtered by value range, NAICS sector, and other criteria.
+      operationId: getTargetOpportunities
+      parameters:
+        - name: minValue
+          in: query
+          schema:
+            type: number
+            format: decimal
+        - name: maxValue
+          in: query
+          schema:
+            type: number
+            format: decimal
+        - name: naicsSector
+          in: query
+          schema:
+            type: string
+        - name: setAside
+          in: query
+          schema:
+            type: string
+        - name: naics
+          in: query
+          schema:
+            type: string
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Paged list of target opportunities
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/opportunities/export:
+    get:
+      tags: [Opportunities]
+      summary: Export opportunities as CSV
+      description: Export opportunity search results as a CSV file. Accepts the same parameters as the search endpoint.
+      operationId: exportOpportunitiesCsv
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+        - name: naics
+          in: query
+          schema:
+            type: string
+        - name: setAside
+          in: query
+          schema:
+            type: string
+        - name: solicitation
+          in: query
+          schema:
+            type: string
+        - name: daysOut
+          in: query
+          schema:
+            type: integer
+        - name: openOnly
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: CSV file download
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Not authenticated
+
+  /v1/opportunities/recommended:
+    get:
+      tags: [Opportunities]
+      summary: Get recommended opportunities
+      description: Get opportunities scored and ranked for the current organization's profile.
+      operationId: getRecommendedOpportunities
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        "200":
+          description: List of recommended opportunities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecommendedOpportunityDto"
+        "401":
+          description: Not authenticated
+
+  /v1/opportunities/pwin/batch:
+    post:
+      tags: [Opportunities]
+      summary: Calculate batch pWin
+      description: Calculate probability of win for multiple opportunities in one request (max 200).
+      operationId: calculateBatchPWin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchPWinRequest"
+      responses:
+        "200":
+          description: Batch pWin results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchPWinResponse"
+        "400":
+          description: Too many notice IDs (max 200)
+        "401":
+          description: Not authenticated
+
+  /v1/opportunities/{noticeId}:
+    get:
+      tags: [Opportunities]
+      summary: Get opportunity detail
+      description: Get full detail for a single opportunity by notice ID.
+      operationId: getOpportunityDetail
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Opportunity detail
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Opportunity not found
+
+  /v1/opportunities/{noticeId}/pwin:
+    get:
+      tags: [Opportunities]
+      summary: Calculate pWin
+      description: Calculate probability of win for an opportunity against the current organization's profile.
+      operationId: calculatePWin
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: pWin result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PWinResultDto"
+        "401":
+          description: Not authenticated
+
+  /v1/opportunities/{noticeId}/incumbent:
+    get:
+      tags: [Opportunities]
+      summary: Get incumbent analysis
+      description: Identifies current contract holder and vulnerability signals for an opportunity.
+      operationId: getIncumbentAnalysis
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Incumbent analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IncumbentAnalysisDto"
+        "401":
+          description: Not authenticated
+
+  /v1/opportunities/{noticeId}/competitive-landscape:
+    get:
+      tags: [Opportunities]
+      summary: Get competitive landscape
+      description: Get agency + NAICS scoped market data with fallback for an opportunity.
+      operationId: getCompetitiveLandscape
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Competitive landscape data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompetitiveLandscapeDto"
+        "401":
+          description: Not authenticated
+        "404":
+          description: No competitive data available
+
+  /v1/opportunities/{noticeId}/set-aside-shift:
+    get:
+      tags: [Opportunities]
+      summary: Get set-aside shift analysis
+      description: Compares current set-aside to predecessor contract for an opportunity.
+      operationId: getSetAsideShift
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Set-aside shift data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetAsideShiftDto"
+        "401":
+          description: Not authenticated
+        "404":
+          description: No predecessor data available
+
+  /v1/opportunities/{noticeId}/qualification:
+    get:
+      tags: [Opportunities]
+      summary: Run qualification checks
+      description: Run qualification checks for an opportunity against the current organization's profile.
+      operationId: checkQualification
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Qualification check results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QualificationCheckDto"
+        "401":
+          description: Not authenticated
+
+  /v1/opportunities/{noticeId}/document-intelligence:
+    get:
+      tags: [Opportunities]
+      summary: Get document intelligence
+      description: Get intelligence extracted from opportunity attachments (SOW, RFP, etc.).
+      operationId: getDocumentIntelligence
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Document intelligence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentIntelligenceDto"
+        "401":
+          description: Not authenticated
+        "404":
+          description: No document intelligence available
+
+  /v1/opportunities/{noticeId}/analyze:
+    post:
+      tags: [Opportunities]
+      summary: Request attachment analysis
+      description: Request AI analysis of opportunity attachments. Inserts a data_load_request for the Python pipeline.
+      operationId: requestAnalysis
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tier
+          in: query
+          schema:
+            type: string
+            default: haiku
+            enum: [haiku, sonnet]
+      responses:
+        "200":
+          description: Load request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoadRequestStatusDto"
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Awards
+  # ---------------------------------------------------------------------------
+  /v1/awards:
+    get:
+      tags: [Awards]
+      summary: Search awards
+      description: Search federal contract awards with filters and pagination.
+      operationId: searchAwards
+      parameters:
+        - name: piid
+          in: query
+          schema:
+            type: string
+        - name: solicitation
+          in: query
+          schema:
+            type: string
+        - name: naics
+          in: query
+          schema:
+            type: string
+        - name: agency
+          in: query
+          schema:
+            type: string
+        - name: vendorUei
+          in: query
+          schema:
+            type: string
+        - name: vendorName
+          in: query
+          schema:
+            type: string
+        - name: setAside
+          in: query
+          schema:
+            type: string
+        - name: minValue
+          in: query
+          schema:
+            type: number
+            format: decimal
+        - name: maxValue
+          in: query
+          schema:
+            type: number
+            format: decimal
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Paged list of awards
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/awards/market-share:
+    get:
+      tags: [Awards]
+      summary: Get market share analysis
+      description: Get market share analysis for a NAICS code showing top vendors.
+      operationId: getMarketShare
+      parameters:
+        - name: naicsCode
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: years
+          in: query
+          schema:
+            type: integer
+            default: 3
+            minimum: 1
+            maximum: 10
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Market share analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MarketShareAnalysisDto"
+        "400":
+          description: naicsCode is required
+        "401":
+          description: Not authenticated
+
+  /v1/awards/expiring:
+    get:
+      tags: [Awards]
+      summary: Get expiring contracts
+      description: Get contracts nearing completion date, enriched with incumbent health and re-solicitation data.
+      operationId: getExpiringContracts
+      parameters:
+        - name: monthsAhead
+          in: query
+          schema:
+            type: integer
+            default: 12
+            minimum: 1
+            maximum: 24
+        - name: naicsCode
+          in: query
+          schema:
+            type: string
+        - name: setAsideType
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+            maximum: 10000
+      responses:
+        "200":
+          description: List of expiring contracts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExpiringContractDto"
+        "401":
+          description: Not authenticated
+
+  /v1/awards/set-aside-trends/{naicsCode}:
+    get:
+      tags: [Awards]
+      summary: Get set-aside trends
+      description: Get set-aside trends by fiscal year for a NAICS code.
+      operationId: getSetAsideTrends
+      parameters:
+        - name: naicsCode
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Set-aside trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SetAsideTrendDto"
+        "400":
+          description: naicsCode is required
+        "401":
+          description: Not authenticated
+
+  /v1/awards/{contractId}:
+    get:
+      tags: [Awards]
+      summary: Get award detail
+      description: Get full detail for a contract award.
+      operationId: getAwardDetail
+      parameters:
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Award detail
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/awards/{contractId}/burn-rate:
+    get:
+      tags: [Awards]
+      summary: Get contract burn rate
+      description: Get spending burn rate analysis for a contract.
+      operationId: getBurnRate
+      parameters:
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Burn rate data
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Contract not found
+
+  /v1/awards/{contractId}/load:
+    post:
+      tags: [Awards]
+      summary: Request data load for a contract
+      description: Request detailed data loading for a contract from external sources.
+      operationId: requestAwardLoad
+      parameters:
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestLoadDto"
+      responses:
+        "200":
+          description: Load request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoadRequestStatusDto"
+        "401":
+          description: Not authenticated
+
+  /v1/awards/{contractId}/load-status:
+    get:
+      tags: [Awards]
+      summary: Get load request status
+      description: Get the status of a data load request for a contract.
+      operationId: getAwardLoadStatus
+      parameters:
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Load request status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoadRequestStatusDto"
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Entities
+  # ---------------------------------------------------------------------------
+  /v1/entities:
+    get:
+      tags: [Entities]
+      summary: Search entities
+      description: Search SAM.gov registered entities with filters and pagination.
+      operationId: searchEntities
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: uei
+          in: query
+          schema:
+            type: string
+        - name: naics
+          in: query
+          schema:
+            type: string
+        - name: state
+          in: query
+          schema:
+            type: string
+        - name: businessType
+          in: query
+          schema:
+            type: string
+        - name: sbaCertification
+          in: query
+          schema:
+            type: string
+        - name: registrationStatus
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Paged list of entities
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/entities/{uei}:
+    get:
+      tags: [Entities]
+      summary: Get entity detail
+      description: Get full detail for an entity by UEI.
+      operationId: getEntityDetail
+      parameters:
+        - name: uei
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Entity detail
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Entity not found
+
+  /v1/entities/{uei}/competitor-profile:
+    get:
+      tags: [Entities]
+      summary: Get competitor profile
+      description: Get a competitor profile for an entity including contract history and certifications.
+      operationId: getCompetitorProfile
+      parameters:
+        - name: uei
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Competitor profile
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Entity not found
+
+  /v1/entities/{uei}/exclusion-check:
+    get:
+      tags: [Entities]
+      summary: Check entity exclusions
+      description: Check if an entity has any active SAM.gov exclusions.
+      operationId: checkExclusion
+      parameters:
+        - name: uei
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exclusion check result
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Prospects
+  # ---------------------------------------------------------------------------
+  /v1/prospects:
+    post:
+      tags: [Prospects]
+      summary: Create a prospect
+      description: Create a new prospect from an opportunity.
+      operationId: createProspect
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProspectRequest"
+      responses:
+        "201":
+          description: Prospect created
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Validation error (e.g., duplicate prospect)
+        "401":
+          description: Not authenticated
+    get:
+      tags: [Prospects]
+      summary: Search prospects
+      description: Search prospects with filters and pagination.
+      operationId: searchProspects
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: assignedTo
+          in: query
+          schema:
+            type: integer
+        - name: captureManagerId
+          in: query
+          schema:
+            type: integer
+        - name: priority
+          in: query
+          schema:
+            type: string
+        - name: naics
+          in: query
+          schema:
+            type: string
+        - name: setAside
+          in: query
+          schema:
+            type: string
+        - name: openOnly
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Paged list of prospects
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/prospects/auto-generate:
+    post:
+      tags: [Prospects]
+      summary: Auto-generate prospects
+      description: Generate auto-prospects from saved searches with auto_prospect_enabled. Requires OrgAdmin role.
+      operationId: autoGenerateProspects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutoProspectRequest"
+      responses:
+        "200":
+          description: Auto-prospect generation results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AutoProspectResult"
+        "401":
+          description: Not authenticated
+
+  /v1/prospects/{id}:
+    get:
+      tags: [Prospects]
+      summary: Get prospect detail
+      description: Get full prospect detail including opportunity, notes, team, proposal, and score.
+      operationId: getProspectDetail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Prospect detail
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Prospect not found
+
+  /v1/prospects/{id}/status:
+    patch:
+      tags: [Prospects]
+      summary: Update prospect status
+      description: Update a prospect's status following the defined status flow.
+      operationId: updateProspectStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProspectStatusRequest"
+      responses:
+        "200":
+          description: Updated prospect
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid status transition
+        "401":
+          description: Not authenticated
+        "404":
+          description: Prospect not found
+
+  /v1/prospects/{id}/reassign:
+    patch:
+      tags: [Prospects]
+      summary: Reassign prospect
+      description: Reassign a prospect to a different user.
+      operationId: reassignProspect
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReassignProspectRequest"
+      responses:
+        "200":
+          description: Reassigned prospect
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Prospect not found
+
+  /v1/prospects/{id}/notes:
+    post:
+      tags: [Prospects]
+      summary: Add a note
+      description: Add a note to a prospect.
+      operationId: addProspectNote
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProspectNoteRequest"
+      responses:
+        "201":
+          description: Note created
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Prospect not found
+
+  /v1/prospects/{id}/team-members:
+    post:
+      tags: [Prospects]
+      summary: Add team member
+      description: Add a team member to a prospect.
+      operationId: addTeamMember
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTeamMemberRequest"
+      responses:
+        "201":
+          description: Team member added
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Prospect not found
+
+  /v1/prospects/{id}/team-members/{memberId}:
+    delete:
+      tags: [Prospects]
+      summary: Remove team member
+      description: Remove a team member from a prospect.
+      operationId: removeTeamMember
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: memberId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Team member removed
+        "401":
+          description: Not authenticated
+        "404":
+          description: Prospect or team member not found
+
+  /v1/prospects/{id}/recalculate-score:
+    post:
+      tags: [Prospects]
+      summary: Recalculate Go/No-Go score
+      description: Recalculate the Go/No-Go score for a prospect.
+      operationId: recalculateScore
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated score
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Prospect not found
+
+  # ---------------------------------------------------------------------------
+  # Proposals
+  # ---------------------------------------------------------------------------
+  /v1/proposals:
+    get:
+      tags: [Proposals]
+      summary: List proposals
+      description: List/search proposals with pagination (org-wide, cross-prospect views).
+      operationId: listProposals
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: prospectId
+          in: query
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Paged list of proposals
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+    post:
+      tags: [Proposals]
+      summary: Create a proposal
+      description: Create a new proposal linked to a prospect.
+      operationId: createProposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProposalRequest"
+      responses:
+        "201":
+          description: Proposal created
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/proposals/{id}:
+    patch:
+      tags: [Proposals]
+      summary: Update a proposal
+      description: Update a proposal's status, estimated value, win probability, or lessons learned.
+      operationId: updateProposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProposalRequest"
+      responses:
+        "200":
+          description: Updated proposal
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Proposal not found
+        "409":
+          description: Conflict (concurrent update)
+
+  /v1/proposals/{id}/documents:
+    post:
+      tags: [Proposals]
+      summary: Add a document
+      description: Add a document record to a proposal.
+      operationId: addProposalDocument
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddProposalDocumentRequest"
+      responses:
+        "201":
+          description: Document added
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Proposal not found
+
+  /v1/proposals/{id}/milestones:
+    get:
+      tags: [Proposals]
+      summary: List milestones
+      description: List milestones for a proposal.
+      operationId: getProposalMilestones
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of milestones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Proposal not found
+    post:
+      tags: [Proposals]
+      summary: Create a milestone
+      description: Create a milestone for a proposal.
+      operationId: createProposalMilestone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMilestoneRequest"
+      responses:
+        "201":
+          description: Milestone created
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Proposal not found
+
+  /v1/proposals/{id}/milestones/{milestoneId}:
+    patch:
+      tags: [Proposals]
+      summary: Update a milestone
+      description: Update a milestone within a proposal.
+      operationId: updateProposalMilestone
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: milestoneId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMilestoneRequest"
+      responses:
+        "200":
+          description: Updated milestone
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Proposal or milestone not found
+
+  # ---------------------------------------------------------------------------
+  # Saved Searches
+  # ---------------------------------------------------------------------------
+  /v1/saved-searches:
+    get:
+      tags: [SavedSearches]
+      summary: List saved searches
+      description: List all active saved searches for the current user.
+      operationId: listSavedSearches
+      responses:
+        "200":
+          description: List of saved searches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+    post:
+      tags: [SavedSearches]
+      summary: Create a saved search
+      description: Create a new saved search.
+      operationId: createSavedSearch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSavedSearchRequest"
+      responses:
+        "201":
+          description: Saved search created
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/saved-searches/{id}:
+    get:
+      tags: [SavedSearches]
+      summary: Get a saved search
+      description: Get a saved search by ID.
+      operationId: getSavedSearch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saved search detail
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Saved search not found
+    patch:
+      tags: [SavedSearches]
+      summary: Update a saved search
+      description: Update a saved search's name, description, filters, or notification settings.
+      operationId: updateSavedSearch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSavedSearchRequest"
+      responses:
+        "200":
+          description: Updated saved search
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Saved search not found
+    delete:
+      tags: [SavedSearches]
+      summary: Delete a saved search
+      description: Soft-delete a saved search (sets IsActive to N).
+      operationId: deleteSavedSearch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Saved search deleted
+        "401":
+          description: Not authenticated
+        "404":
+          description: Saved search not found
+
+  /v1/saved-searches/{id}/run:
+    post:
+      tags: [SavedSearches]
+      summary: Execute a saved search
+      description: Execute a saved search and return matching opportunities.
+      operationId: runSavedSearch
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: Saved search not found
+
+  # ---------------------------------------------------------------------------
+  # Subawards
+  # ---------------------------------------------------------------------------
+  /v1/subawards/teaming-partners:
+    get:
+      tags: [Subawards]
+      summary: Search teaming partners
+      description: Search for teaming partners based on subaward history.
+      operationId: getTeamingPartners
+      parameters:
+        - name: naics
+          in: query
+          schema:
+            type: string
+        - name: minSubawards
+          in: query
+          schema:
+            type: integer
+            default: 2
+        - name: primeUei
+          in: query
+          schema:
+            type: string
+        - name: subUei
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Teaming partner results
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/subawards/by-prime/{primePiid}:
+    get:
+      tags: [Subawards]
+      summary: Get subawards by prime contract
+      description: Get subawards for a specific prime contract.
+      operationId: getSubawardsByPrime
+      parameters:
+        - name: primePiid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Subaward list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Organization
+  # ---------------------------------------------------------------------------
+  /v1/org:
+    get:
+      tags: [Organization]
+      summary: Get organization
+      description: Get the current user's organization details.
+      operationId: getOrganization
+      responses:
+        "200":
+          description: Organization details
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+    patch:
+      tags: [Organization]
+      summary: Update organization
+      description: Update the current user's organization name. Requires OrgAdmin role.
+      operationId: updateOrganization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationRequest"
+      responses:
+        "200":
+          description: Updated organization
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/org/members:
+    get:
+      tags: [Organization]
+      summary: List organization members
+      description: List members of the current user's organization.
+      operationId: getOrgMembers
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+
+  /v1/org/invites:
+    post:
+      tags: [Organization]
+      summary: Create an invite
+      description: Create an invite for the current user's organization. Requires OrgAdmin role.
+      operationId: createInvite
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateInviteRequest"
+      responses:
+        "201":
+          description: Invite created
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+    get:
+      tags: [Organization]
+      summary: List pending invites
+      description: List pending invites for the current user's organization. Requires OrgAdmin role.
+      operationId: getPendingInvites
+      responses:
+        "200":
+          description: List of pending invites
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+
+  /v1/org/invites/{id}:
+    delete:
+      tags: [Organization]
+      summary: Revoke an invite
+      description: Revoke a pending invite. Requires OrgAdmin role.
+      operationId: revokeInvite
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Invite revoked
+        "401":
+          description: Not authenticated
+
+  /v1/org/profile:
+    get:
+      tags: [Organization]
+      summary: Get company profile
+      description: Get the current organization's company profile.
+      operationId: getOrgProfile
+      responses:
+        "200":
+          description: Company profile
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+    put:
+      tags: [Organization]
+      summary: Update company profile
+      description: Update the current organization's company profile. Requires OrgAdmin role.
+      operationId: updateOrgProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrgProfileRequest"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/org/naics:
+    get:
+      tags: [Organization]
+      summary: Get organization NAICS codes
+      description: Get the organization's NAICS codes.
+      operationId: getOrgNaics
+      responses:
+        "200":
+          description: List of NAICS codes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgNaicsDto"
+        "401":
+          description: Not authenticated
+    put:
+      tags: [Organization]
+      summary: Set organization NAICS codes
+      description: Bulk replace the organization's NAICS codes. Requires OrgAdmin role.
+      operationId: setOrgNaics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrgNaicsDto"
+      responses:
+        "200":
+          description: Updated NAICS codes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgNaicsDto"
+        "401":
+          description: Not authenticated
+
+  /v1/org/certifications:
+    get:
+      tags: [Organization]
+      summary: Get organization certifications
+      description: Get the organization's certifications.
+      operationId: getOrgCertifications
+      responses:
+        "200":
+          description: List of certifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgCertificationDto"
+        "401":
+          description: Not authenticated
+    put:
+      tags: [Organization]
+      summary: Set organization certifications
+      description: Bulk replace the organization's certifications. Requires OrgAdmin role.
+      operationId: setOrgCertifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: "#/components/schemas/OrgCertificationDto"
+      responses:
+        "200":
+          description: Updated certifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrgCertificationDto"
+        "401":
+          description: Not authenticated
+
+  /v1/org/past-performance:
+    get:
+      tags: [Organization]
+      summary: Get past performance records
+      description: Get the organization's past performance records.
+      operationId: getOrgPastPerformance
+      responses:
+        "200":
+          description: List of past performance records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+    post:
+      tags: [Organization]
+      summary: Add past performance
+      description: Add a past performance record. Requires OrgAdmin role.
+      operationId: addPastPerformance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePastPerformanceRequest"
+      responses:
+        "201":
+          description: Past performance created
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/org/past-performance/{id}:
+    delete:
+      tags: [Organization]
+      summary: Delete past performance
+      description: Delete a past performance record. Requires OrgAdmin role.
+      operationId: deletePastPerformance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Past performance deleted
+        "401":
+          description: Not authenticated
+        "404":
+          description: Record not found
+
+  /v1/org/entities:
+    get:
+      tags: [Organization]
+      summary: Get linked entities
+      description: Get all linked entities for the current organization.
+      operationId: getLinkedEntities
+      responses:
+        "200":
+          description: List of linked entities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationEntityDto"
+        "401":
+          description: Not authenticated
+    post:
+      tags: [Organization]
+      summary: Link an entity
+      description: Link an entity to the current organization. Requires OrgAdmin role.
+      operationId: linkEntity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LinkEntityRequest"
+      responses:
+        "201":
+          description: Entity linked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrganizationEntityDto"
+        "400":
+          description: Validation error
+        "401":
+          description: Not authenticated
+        "404":
+          description: Entity not found in SAM.gov data
+
+  /v1/org/entities/{linkId}:
+    delete:
+      tags: [Organization]
+      summary: Deactivate entity link
+      description: Deactivate an entity link. Requires OrgAdmin role.
+      operationId: deactivateEntityLink
+      parameters:
+        - name: linkId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Link deactivated
+        "401":
+          description: Not authenticated
+        "404":
+          description: Link not found
+
+  /v1/org/entities/refresh-self:
+    post:
+      tags: [Organization]
+      summary: Refresh from SELF entity
+      description: Refresh organization profile from the linked SELF entity. Requires OrgAdmin role.
+      operationId: refreshFromSelfEntity
+      responses:
+        "200":
+          description: Refresh result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshSelfEntityResponse"
+        "400":
+          description: No SELF entity linked
+        "401":
+          description: Not authenticated
+
+  /v1/org/entities/resync-certs:
+    post:
+      tags: [Organization]
+      summary: Re-sync certifications from linked entities
+      description: Re-sync certifications from all linked entities for the current organization.
+      operationId: resyncCerts
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          description: Not authenticated
+
+  /v1/org/entities/aggregate-naics:
+    get:
+      tags: [Organization]
+      summary: Get aggregate NAICS
+      description: Get aggregate NAICS codes across all linked entities and manual entries.
+      operationId: getAggregateNaics
+      responses:
+        "200":
+          description: Aggregate NAICS list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Notifications
+  # ---------------------------------------------------------------------------
+  /v1/notifications:
+    get:
+      tags: [Notifications]
+      summary: List notifications
+      description: List notifications for the current user with optional filters.
+      operationId: listNotifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema:
+            type: boolean
+            default: true
+        - name: type
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Paged list of notifications
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get unread count
+      description: Get unread notification count for the current user (lightweight endpoint for UI bell badge).
+      operationId: getUnreadCount
+      responses:
+        "200":
+          description: Unread count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  unreadCount:
+                    type: integer
+        "401":
+          description: Not authenticated
+
+  /v1/notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark as read
+      description: Mark a single notification as read.
+      operationId: markNotificationAsRead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          description: Not authenticated
+        "404":
+          description: Notification not found
+
+  /v1/notifications/mark-all-read:
+    post:
+      tags: [Notifications]
+      summary: Mark all as read
+      description: Mark all notifications as read for the current user.
+      operationId: markAllNotificationsAsRead
+      responses:
+        "200":
+          description: All notifications marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Reference
+  # ---------------------------------------------------------------------------
+  /v1/reference/naics:
+    get:
+      tags: [Reference]
+      summary: Search NAICS codes
+      description: Search NAICS codes by code or description. Returns up to 50 results.
+      operationId: searchNaics
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (minimum 2 characters)
+          schema:
+            type: string
+            minLength: 2
+      responses:
+        "200":
+          description: NAICS search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+
+  /v1/reference/naics/{code}:
+    get:
+      tags: [Reference]
+      summary: Get NAICS detail
+      description: Get NAICS code detail including SBA size standard information.
+      operationId: getNaicsDetail
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: NAICS detail
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "404":
+          description: NAICS code not found
+
+  /v1/reference/certifications:
+    get:
+      tags: [Reference]
+      summary: Get certification types
+      description: Get the list of available certification types.
+      operationId: getCertificationTypes
+      responses:
+        "200":
+          description: Certification type list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Admin
+  # ---------------------------------------------------------------------------
+  /v1/admin/etl-status:
+    get:
+      tags: [Admin]
+      summary: Get ETL pipeline status
+      description: Get ETL pipeline status, API usage, and recent errors. System Admin only.
+      operationId: getEtlStatus
+      responses:
+        "200":
+          description: ETL status
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized (requires System Admin)
+
+  /v1/admin/load-history:
+    get:
+      tags: [Admin]
+      summary: Get ETL load history
+      description: Get paginated ETL load history with optional filters. System Admin only.
+      operationId: getLoadHistory
+      parameters:
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 25
+      responses:
+        "200":
+          description: Load history
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized (requires System Admin)
+
+  /v1/admin/health-snapshots:
+    get:
+      tags: [Admin]
+      summary: Get health check snapshots
+      description: Get health check snapshots. System Admin only.
+      operationId: getHealthSnapshots
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Health snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized (requires System Admin)
+
+  /v1/admin/api-keys:
+    get:
+      tags: [Admin]
+      summary: Get API key usage
+      description: Get API key usage status from rate limit tracking. System Admin only.
+      operationId: getApiKeys
+      responses:
+        "200":
+          description: API key status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized (requires System Admin)
+
+  /v1/admin/jobs:
+    get:
+      tags: [Admin]
+      summary: Get ETL job status
+      description: Get ETL job definitions with last-run status. System Admin only.
+      operationId: getJobs
+      responses:
+        "200":
+          description: Job status list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized (requires System Admin)
+
+  /v1/admin/users:
+    get:
+      tags: [Admin]
+      summary: List organization users
+      description: List users in the admin's organization. Admin only.
+      operationId: getAdminUsers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            default: 25
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/admin/users/{id}:
+    patch:
+      tags: [Admin]
+      summary: Update a user
+      description: Update a user's role, admin status, or active status. Admin only.
+      operationId: updateAdminUser
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/admin/users/{id}/reset-password:
+    post:
+      tags: [Admin]
+      summary: Reset user password
+      description: Force-reset a user's password and revoke all sessions. Admin only.
+      operationId: resetUserPassword
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Password reset result
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+
+  /v1/admin/organizations:
+    get:
+      tags: [Admin]
+      summary: List all organizations
+      description: List all organizations. System Admin only.
+      operationId: listOrganizations
+      responses:
+        "200":
+          description: Organization list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized (requires System Admin)
+    post:
+      tags: [Admin]
+      summary: Create an organization
+      description: Create a new organization. System Admin only.
+      operationId: createOrganization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
+      responses:
+        "201":
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized (requires System Admin)
+        "409":
+          description: Organization name or slug already exists
+
+  /v1/admin/organizations/{id}/owner:
+    post:
+      tags: [Admin]
+      summary: Create organization owner
+      description: Create the initial owner user for an organization. System Admin only.
+      operationId: createOrganizationOwner
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOwnerRequest"
+      responses:
+        "201":
+          description: Owner created
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Not authenticated
+        "403":
+          description: Not authorized (requires System Admin)
+        "409":
+          description: Owner already exists
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: httpOnly JWT cookie set by the login endpoint
+
+  parameters:
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    pageSize:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        default: 25
+        minimum: 1
+        maximum: 100
+    sortBy:
+      name: sortBy
+      in: query
+      schema:
+        type: string
+    sortDescending:
+      name: sortDescending
+      in: query
+      schema:
+        type: boolean
+        default: false
+
+  schemas:
+    # ------ Auth ------
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+
+    RegisterRequest:
+      type: object
+      required: [username, email, password, displayName]
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        displayName:
+          type: string
+        inviteCode:
+          type: string
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        displayName:
+          type: string
+        email:
+          type: string
+          format: email
+        currentPassword:
+          type: string
+          format: password
+          description: Required when changing email address
+
+    AuthResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        error:
+          type: string
+
+    LoginResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        userId:
+          type: integer
+        userName:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        forcePasswordChange:
+          type: boolean
+
+    UserProfileDto:
+      type: object
+      properties:
+        userId:
+          type: integer
+        username:
+          type: string
+        displayName:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+        isOrgAdmin:
+          type: boolean
+        isSystemAdmin:
+          type: boolean
+        lastLoginAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        forcePasswordChange:
+          type: boolean
+
+    # ------ Common ------
+    ApiErrorResponse:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+        message:
+          type: string
+        detail:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        traceId:
+          type: string
+
+    PagedResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: {}
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        hasPreviousPage:
+          type: boolean
+        hasNextPage:
+          type: boolean
+
+    PagedOpportunitySearchResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalCount:
+          type: integer
+        totalPages:
+          type: integer
+        hasPreviousPage:
+          type: boolean
+        hasNextPage:
+          type: boolean
+
+    HealthComponent:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [Healthy, Degraded, Unhealthy]
+        description:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+
+    # ------ Dashboard ------
+    DashboardDto:
+      type: object
+      properties:
+        statusCounts:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                type: string
+              count:
+                type: integer
+        outcomeCounts:
+          type: array
+          items:
+            type: object
+            properties:
+              outcome:
+                type: string
+              count:
+                type: integer
+        dueOpportunities:
+          type: array
+          items:
+            type: object
+        assigneeWorkloads:
+          type: array
+          items:
+            type: object
+        savedSearchSummaries:
+          type: array
+          items:
+            type: object
+
+    # ------ Intelligence ------
+    PWinResultDto:
+      type: object
+      properties:
+        prospectId:
+          type: integer
+        noticeId:
+          type: string
+        score:
+          type: number
+          format: decimal
+        category:
+          type: string
+        factors:
+          type: array
+          items:
+            $ref: "#/components/schemas/PWinFactorDto"
+        suggestions:
+          type: array
+          items:
+            type: string
+
+    PWinFactorDto:
+      type: object
+      properties:
+        name:
+          type: string
+        score:
+          type: number
+          format: decimal
+        weight:
+          type: number
+          format: decimal
+        weightedScore:
+          type: number
+          format: decimal
+        detail:
+          type: string
+
+    BatchPWinRequest:
+      type: object
+      required: [noticeIds]
+      properties:
+        noticeIds:
+          type: array
+          items:
+            type: string
+          maxItems: 200
+
+    BatchPWinResponse:
+      type: object
+      properties:
+        results:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              score:
+                type: number
+                format: decimal
+              category:
+                type: string
+
+    RecommendedOpportunityDto:
+      type: object
+      properties:
+        noticeId:
+          type: string
+        title:
+          type: string
+        solicitationNumber:
+          type: string
+        departmentName:
+          type: string
+        subTier:
+          type: string
+        setAsideCode:
+          type: string
+        setAsideDescription:
+          type: string
+        naicsCode:
+          type: string
+        naicsDescription:
+          type: string
+        classificationCode:
+          type: string
+        noticeType:
+          type: string
+        awardAmount:
+          type: number
+          format: decimal
+        postedDate:
+          type: string
+          format: date-time
+        responseDeadline:
+          type: string
+          format: date-time
+        daysRemaining:
+          type: integer
+        popState:
+          type: string
+        popCity:
+          type: string
+        popCountry:
+          type: string
+        qScore:
+          type: number
+          format: decimal
+        qScoreCategory:
+          type: string
+        qScoreFactors:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              points:
+                type: number
+                format: decimal
+              maxPoints:
+                type: number
+                format: decimal
+        isRecompete:
+          type: boolean
+        incumbentName:
+          type: string
+
+    IncumbentAnalysisDto:
+      type: object
+      properties:
+        noticeId:
+          type: string
+        hasIncumbent:
+          type: boolean
+        incumbentUei:
+          type: string
+        incumbentName:
+          type: string
+        contractId:
+          type: string
+        contractValue:
+          type: number
+          format: decimal
+        dollarsObligated:
+          type: number
+          format: decimal
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+        monthsRemaining:
+          type: integer
+        monthlyBurnRate:
+          type: number
+          format: decimal
+        percentSpent:
+          type: number
+          format: decimal
+        registrationStatus:
+          type: string
+        registrationExpiration:
+          type: string
+          format: date-time
+        isExcluded:
+          type: boolean
+        exclusionType:
+          type: string
+        totalContractsInNaics:
+          type: integer
+        consecutiveWins:
+          type: integer
+        vulnerabilitySignals:
+          type: array
+          items:
+            type: string
+        isLikelyIncumbent:
+          type: boolean
+        likelyCompetitors:
+          type: array
+          items:
+            type: object
+            properties:
+              vendorName:
+                type: string
+              ueiSam:
+                type: string
+              contractCount:
+                type: integer
+              totalValue:
+                type: number
+                format: decimal
+
+    CompetitiveLandscapeDto:
+      type: object
+      properties:
+        naicsCode:
+          type: string
+        agencyCode:
+          type: string
+        setAsideCode:
+          type: string
+        totalContracts:
+          type: integer
+        totalValue:
+          type: number
+          format: decimal
+        averageAwardValue:
+          type: number
+          format: decimal
+        agencyAverageAwardValue:
+          type: number
+          format: decimal
+        topVendors:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorShareDto"
+        competitionLevel:
+          type: string
+        distinctVendorCount:
+          type: integer
+        fallbackScope:
+          type: string
+
+    MarketShareAnalysisDto:
+      type: object
+      properties:
+        naicsCode:
+          type: string
+        naicsDescription:
+          type: string
+        yearsAnalyzed:
+          type: integer
+        totalContracts:
+          type: integer
+        totalValue:
+          type: number
+          format: decimal
+        averageAwardValue:
+          type: number
+          format: decimal
+        topVendors:
+          type: array
+          items:
+            $ref: "#/components/schemas/VendorShareDto"
+
+    VendorShareDto:
+      type: object
+      properties:
+        vendorUei:
+          type: string
+        vendorName:
+          type: string
+        contractCount:
+          type: integer
+        totalValue:
+          type: number
+          format: decimal
+        marketSharePercent:
+          type: number
+          format: decimal
+
+    SetAsideShiftDto:
+      type: object
+      properties:
+        noticeId:
+          type: string
+        solicitationNumber:
+          type: string
+        currentSetAsideCode:
+          type: string
+        currentSetAsideDescription:
+          type: string
+        predecessorSetAsideType:
+          type: string
+        predecessorVendorName:
+          type: string
+        predecessorVendorUei:
+          type: string
+        predecessorDateSigned:
+          type: string
+          format: date-time
+        predecessorValue:
+          type: number
+          format: decimal
+        shiftDetected:
+          type: boolean
+
+    SetAsideTrendDto:
+      type: object
+      properties:
+        naicsCode:
+          type: string
+        fiscalYear:
+          type: integer
+        setAsideType:
+          type: string
+        setAsideCategory:
+          type: string
+        contractCount:
+          type: integer
+        totalValue:
+          type: number
+          format: decimal
+        avgValue:
+          type: number
+          format: decimal
+
+    ExpiringContractDto:
+      type: object
+      properties:
+        piid:
+          type: string
+        description:
+          type: string
+        naicsCode:
+          type: string
+        setAsideType:
+          type: string
+        vendorUei:
+          type: string
+        vendorName:
+          type: string
+        agencyName:
+          type: string
+        officeName:
+          type: string
+        contractValue:
+          type: number
+          format: decimal
+        dollarsObligated:
+          type: number
+          format: decimal
+        completionDate:
+          type: string
+          format: date-time
+        dateSigned:
+          type: string
+          format: date-time
+        monthsRemaining:
+          type: integer
+        registrationStatus:
+          type: string
+        registrationExpiration:
+          type: string
+          format: date-time
+        isExcluded:
+          type: boolean
+        exclusionType:
+          type: string
+        monthlyBurnRate:
+          type: number
+          format: decimal
+        percentSpent:
+          type: number
+          format: decimal
+        resolicitationNoticeId:
+          type: string
+        resolicitationStatus:
+          type: string
+        predecessorSetAsideType:
+          type: string
+        shiftDetected:
+          type: boolean
+
+    QualificationCheckDto:
+      type: object
+      properties:
+        noticeId:
+          type: string
+        passCount:
+          type: integer
+        failCount:
+          type: integer
+        warningCount:
+          type: integer
+        totalChecks:
+          type: integer
+        overallStatus:
+          type: string
+          enum: [Qualified, Partially Qualified, Not Qualified]
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              category:
+                type: string
+                enum: [Certification, Experience, Compliance, Logistics]
+              status:
+                type: string
+                enum: [Pass, Fail, Warning, Unknown]
+              detail:
+                type: string
+              sourceUei:
+                type: string
+
+    DocumentIntelligenceDto:
+      type: object
+      properties:
+        noticeId:
+          type: string
+        attachmentCount:
+          type: integer
+        analyzedCount:
+          type: integer
+        latestExtractionMethod:
+          type: string
+        lastExtractedAt:
+          type: string
+          format: date-time
+        clearanceRequired:
+          type: string
+        clearanceLevel:
+          type: string
+        clearanceScope:
+          type: string
+        evalMethod:
+          type: string
+        vehicleType:
+          type: string
+        isRecompete:
+          type: string
+        incumbentName:
+          type: string
+        scopeSummary:
+          type: string
+        periodOfPerformance:
+          type: string
+        laborCategories:
+          type: array
+          items:
+            type: string
+        keyRequirements:
+          type: array
+          items:
+            type: string
+        overallConfidence:
+          type: string
+          enum: [low, medium, high]
+        sources:
+          type: array
+          items:
+            type: object
+            properties:
+              fieldName:
+                type: string
+              sourceFilename:
+                type: string
+              pageNumber:
+                type: integer
+              matchedText:
+                type: string
+              surroundingContext:
+                type: string
+              extractionMethod:
+                type: string
+              confidence:
+                type: string
+        attachments:
+          type: array
+          items:
+            type: object
+            properties:
+              attachmentId:
+                type: integer
+              filename:
+                type: string
+              contentType:
+                type: string
+              fileSizeBytes:
+                type: integer
+                format: int64
+              pageCount:
+                type: integer
+              downloadStatus:
+                type: string
+              extractionStatus:
+                type: string
+
+    LoadRequestStatusDto:
+      type: object
+      properties:
+        requestId:
+          type: integer
+        requestType:
+          type: string
+        status:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        errorMessage:
+          type: string
+
+    RequestLoadDto:
+      type: object
+      properties:
+        tier:
+          type: string
+          default: usaspending
+          enum: [usaspending, fpds]
+
+    # ------ Prospects ------
+    CreateProspectRequest:
+      type: object
+      required: [noticeId]
+      properties:
+        noticeId:
+          type: string
+        assignedTo:
+          type: integer
+        captureManagerId:
+          type: integer
+        priority:
+          type: string
+          default: MEDIUM
+        notes:
+          type: string
+
+    UpdateProspectStatusRequest:
+      type: object
+      required: [newStatus]
+      properties:
+        newStatus:
+          type: string
+        notes:
+          type: string
+
+    ReassignProspectRequest:
+      type: object
+      required: [newAssignedTo]
+      properties:
+        newAssignedTo:
+          type: integer
+        notes:
+          type: string
+
+    CreateProspectNoteRequest:
+      type: object
+      required: [noteType, noteText]
+      properties:
+        noteType:
+          type: string
+        noteText:
+          type: string
+
+    AddTeamMemberRequest:
+      type: object
+      required: [role]
+      properties:
+        ueiSam:
+          type: string
+        role:
+          type: string
+        notes:
+          type: string
+        proposedHourlyRate:
+          type: number
+          format: decimal
+        commitmentPct:
+          type: number
+          format: decimal
+
+    AutoProspectRequest:
+      type: object
+      properties:
+        organizationId:
+          type: integer
+
+    AutoProspectResult:
+      type: object
+      properties:
+        evaluated:
+          type: integer
+        created:
+          type: integer
+        skipped:
+          type: integer
+        errors:
+          type: array
+          items:
+            type: string
+        searchResults:
+          type: array
+          items:
+            type: object
+            properties:
+              searchId:
+                type: integer
+              searchName:
+                type: string
+              candidates:
+                type: integer
+              created:
+                type: integer
+
+    # ------ Proposals ------
+    CreateProposalRequest:
+      type: object
+      required: [prospectId]
+      properties:
+        prospectId:
+          type: integer
+        submissionDeadline:
+          type: string
+          format: date-time
+        estimatedValue:
+          type: number
+          format: decimal
+
+    UpdateProposalRequest:
+      type: object
+      properties:
+        status:
+          type: string
+        estimatedValue:
+          type: number
+          format: decimal
+        winProbabilityPct:
+          type: number
+          format: decimal
+        lessonsLearned:
+          type: string
+
+    AddProposalDocumentRequest:
+      type: object
+      required: [fileName, documentType]
+      properties:
+        fileName:
+          type: string
+        documentType:
+          type: string
+        fileSizeBytes:
+          type: integer
+          format: int64
+        notes:
+          type: string
+
+    CreateMilestoneRequest:
+      type: object
+      required: [title, dueDate]
+      properties:
+        title:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+        assignedTo:
+          type: integer
+
+    UpdateMilestoneRequest:
+      type: object
+      properties:
+        completedDate:
+          type: string
+          format: date
+        status:
+          type: string
+        notes:
+          type: string
+
+    # ------ Saved Searches ------
+    CreateSavedSearchRequest:
+      type: object
+      required: [searchName, filterCriteria]
+      properties:
+        searchName:
+          type: string
+        description:
+          type: string
+        filterCriteria:
+          $ref: "#/components/schemas/SavedSearchFilterCriteria"
+        notificationEnabled:
+          type: boolean
+
+    UpdateSavedSearchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        filterCriteria:
+          $ref: "#/components/schemas/SavedSearchFilterCriteria"
+        notificationsEnabled:
+          type: boolean
+
+    SavedSearchFilterCriteria:
+      type: object
+      properties:
+        setAsideCodes:
+          type: array
+          items:
+            type: string
+        naicsCodes:
+          type: array
+          items:
+            type: string
+        states:
+          type: array
+          items:
+            type: string
+        minAwardAmount:
+          type: number
+          format: decimal
+        maxAwardAmount:
+          type: number
+          format: decimal
+        openOnly:
+          type: boolean
+          default: true
+        types:
+          type: array
+          items:
+            type: string
+        daysBack:
+          type: integer
+
+    # ------ Organization ------
+    UpdateOrganizationRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    CreateInviteRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        orgRole:
+          type: string
+          default: member
+
+    UpdateOrgProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 200
+        legalName:
+          type: string
+          maxLength: 300
+        dbaName:
+          type: string
+          maxLength: 300
+        ueiSam:
+          type: string
+          maxLength: 13
+        cageCode:
+          type: string
+          maxLength: 5
+        ein:
+          type: string
+          maxLength: 10
+        addressLine1:
+          type: string
+          maxLength: 200
+        addressLine2:
+          type: string
+          maxLength: 200
+        city:
+          type: string
+          maxLength: 100
+        stateCode:
+          type: string
+          maxLength: 2
+        zipCode:
+          type: string
+          maxLength: 10
+        countryCode:
+          type: string
+          maxLength: 3
+        phone:
+          type: string
+          maxLength: 20
+        website:
+          type: string
+          maxLength: 500
+        employeeCount:
+          type: integer
+        annualRevenue:
+          type: number
+          format: decimal
+        fiscalYearEndMonth:
+          type: integer
+          minimum: 1
+          maximum: 12
+        entityStructure:
+          type: string
+          maxLength: 50
+        profileCompleted:
+          type: boolean
+
+    OrgNaicsDto:
+      type: object
+      required: [naicsCode]
+      properties:
+        id:
+          type: integer
+        naicsCode:
+          type: string
+          maxLength: 11
+        isPrimary:
+          type: boolean
+        sizeStandardMet:
+          type: boolean
+
+    OrgCertificationDto:
+      type: object
+      required: [certificationType]
+      properties:
+        id:
+          type: integer
+        certificationType:
+          type: string
+          maxLength: 50
+        certifyingAgency:
+          type: string
+          maxLength: 100
+        certificationNumber:
+          type: string
+          maxLength: 100
+        expirationDate:
+          type: string
+          format: date-time
+        isActive:
+          type: boolean
+          default: true
+        source:
+          type: string
+
+    CreatePastPerformanceRequest:
+      type: object
+      properties:
+        contractNumber:
+          type: string
+          maxLength: 50
+        agencyName:
+          type: string
+          maxLength: 200
+        description:
+          type: string
+        naicsCode:
+          type: string
+          maxLength: 11
+        contractValue:
+          type: number
+          format: decimal
+        periodStart:
+          type: string
+          format: date-time
+        periodEnd:
+          type: string
+          format: date-time
+
+    OrganizationEntityDto:
+      type: object
+      properties:
+        id:
+          type: integer
+        ueiSam:
+          type: string
+        partnerUei:
+          type: string
+        relationship:
+          type: string
+        isActive:
+          type: boolean
+        notes:
+          type: string
+        addedByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        legalBusinessName:
+          type: string
+        dbaName:
+          type: string
+        cageCode:
+          type: string
+        registrationStatus:
+          type: string
+        primaryNaics:
+          type: string
+        naicsCount:
+          type: integer
+        certificationCount:
+          type: integer
+
+    LinkEntityRequest:
+      type: object
+      required: [ueiSam]
+      properties:
+        ueiSam:
+          type: string
+        partnerUei:
+          type: string
+        relationship:
+          type: string
+          default: SELF
+        notes:
+          type: string
+
+    RefreshSelfEntityResponse:
+      type: object
+      properties:
+        naicsCopied:
+          type: integer
+        certificationsCopied:
+          type: integer
+        profileUpdated:
+          type: boolean
+        message:
+          type: string
+
+    # ------ Admin ------
+    CreateOrganizationRequest:
+      type: object
+      required: [name, slug]
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+
+    CreateOwnerRequest:
+      type: object
+      required: [email, password, displayName]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        displayName:
+          type: string
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        role:
+          type: string
+        isOrgAdmin:
+          type: boolean
+        isActive:
+          type: boolean
