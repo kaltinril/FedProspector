@@ -99,7 +99,8 @@ public class AttachmentIntelService : IAttachmentIntelService
                 FileSizeBytes = a.FileSizeBytes,
                 PageCount = a.PageCount,
                 DownloadStatus = a.DownloadStatus,
-                ExtractionStatus = a.ExtractionStatus
+                ExtractionStatus = a.ExtractionStatus,
+                SkipReason = a.SkipReason
             }).ToList()
         };
 

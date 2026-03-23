@@ -1246,6 +1246,7 @@ export interface AttachmentSummaryDto {
   pageCount?: number;
   downloadStatus: string;
   extractionStatus: string;
+  skipReason?: string;
 }
 
 export interface LoadRequestStatusDto {

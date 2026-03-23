@@ -38,6 +38,12 @@ _REQUEST_TIMEOUT = 60
 # Stream chunk size
 _CHUNK_SIZE = 8192
 
+# HTTP status codes that indicate the file is permanently gone — no point retrying
+_PERMANENT_HTTP_CODES = {400, 403, 404, 410}
+
+# Max retries for transient failures (5xx, timeouts) before auto-skipping
+_MAX_DOWNLOAD_RETRIES = 3
+
 
 class AttachmentDownloader:
     """Download SAM.gov opportunity attachments and track in opportunity_attachment."""
@@ -276,7 +282,7 @@ class AttachmentDownloader:
                 flat_params.extend([nid, u])
             cursor.execute(
                 f"SELECT notice_id, url FROM opportunity_attachment "
-                f"WHERE download_status = 'downloaded' "
+                f"WHERE download_status IN ('downloaded', 'skipped') "
                 f"AND (notice_id, url) IN ({placeholders})",
                 flat_params,
             )
@@ -311,9 +317,7 @@ class AttachmentDownloader:
             )
         except requests.RequestException as exc:
             logger.warning("Request failed for %s: %s", url, exc)
-            self._upsert_attachment_row(
-                notice_id, url, download_status="failed", load_id=load_id,
-            )
+            self._mark_transient_failure(notice_id, url, load_id, "network_error")
             return "failed"
 
         # Handle 303 redirect (SAM.gov -> S3)
@@ -347,20 +351,27 @@ class AttachmentDownloader:
                 )
             except requests.RequestException as exc:
                 logger.warning("Redirect download failed for %s: %s", url, exc)
-                self._upsert_attachment_row(
-                    notice_id, url, download_status="failed", load_id=load_id,
-                )
+                self._mark_transient_failure(notice_id, url, load_id, "network_error")
                 return "failed"
         else:
             filename = self._extract_filename(resp, url)
 
         if resp.status_code != 200:
-            logger.warning("HTTP %d for %s", resp.status_code, url)
             resp.close()
-            self._upsert_attachment_row(
-                notice_id, url, download_status="failed", load_id=load_id,
-            )
-            return "failed"
+            if resp.status_code in _PERMANENT_HTTP_CODES:
+                reason = f"http_{resp.status_code}"
+                logger.warning("Permanent HTTP %d for %s — marking skipped (%s)",
+                               resp.status_code, url, reason)
+                self._upsert_attachment_row(
+                    notice_id, url, download_status="skipped",
+                    skip_reason=reason, load_id=load_id,
+                )
+                return "skipped"
+            else:
+                logger.warning("HTTP %d for %s", resp.status_code, url)
+                self._mark_transient_failure(notice_id, url, load_id,
+                                             f"http_{resp.status_code}")
+                return "failed"
 
         # Validate Content-Type (reject HTML error pages)
         content_type = resp.headers.get("Content-Type", "")
@@ -420,9 +431,7 @@ class AttachmentDownloader:
         except Exception:
             logger.exception("Error writing file for %s", url)
             dest_path.unlink(missing_ok=True)
-            self._upsert_attachment_row(
-                notice_id, url, download_status="failed", load_id=load_id,
-            )
+            self._mark_transient_failure(notice_id, url, load_id, "write_error")
             return "failed"
         finally:
             resp.close()
@@ -519,6 +528,7 @@ class AttachmentDownloader:
         content_hash=None,
         downloaded_at=None,
         load_id=None,
+        skip_reason=None,
     ):
         """INSERT or UPDATE an opportunity_attachment row."""
         conn = get_connection()
@@ -527,8 +537,8 @@ class AttachmentDownloader:
             cursor.execute(
                 "INSERT INTO opportunity_attachment "
                 "(notice_id, url, filename, content_type, file_size_bytes, "
-                " file_path, download_status, content_hash, downloaded_at, last_load_id) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                " file_path, download_status, content_hash, downloaded_at, last_load_id, skip_reason) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON DUPLICATE KEY UPDATE "
                 "filename = COALESCE(VALUES(filename), filename), "
                 "content_type = COALESCE(VALUES(content_type), content_type), "
@@ -537,12 +547,52 @@ class AttachmentDownloader:
                 "download_status = VALUES(download_status), "
                 "content_hash = COALESCE(VALUES(content_hash), content_hash), "
                 "downloaded_at = COALESCE(VALUES(downloaded_at), downloaded_at), "
-                "last_load_id = VALUES(last_load_id)",
+                "last_load_id = VALUES(last_load_id), "
+                "download_retry_count = CASE WHEN VALUES(download_status) = 'downloaded' THEN 0 ELSE download_retry_count END, "
+                "skip_reason = VALUES(skip_reason)",
                 (
                     notice_id, url[:500], filename, content_type, file_size_bytes,
                     file_path, download_status, content_hash, downloaded_at, load_id,
+                    skip_reason,
                 ),
             )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _mark_transient_failure(self, notice_id, url, load_id, reason):
+        """Increment retry count; auto-skip if max retries exceeded."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            # Ensure row exists
+            cursor.execute(
+                "INSERT INTO opportunity_attachment (notice_id, url, download_status, last_load_id) "
+                "VALUES (%s, %s, 'failed', %s) "
+                "ON DUPLICATE KEY UPDATE "
+                "download_retry_count = download_retry_count + 1, "
+                "last_load_id = VALUES(last_load_id)",
+                (notice_id, url[:500], load_id),
+            )
+            # Check if we've exceeded max retries
+            cursor.execute(
+                "SELECT download_retry_count FROM opportunity_attachment "
+                "WHERE notice_id = %s AND url = %s",
+                (notice_id, url[:500]),
+            )
+            row = cursor.fetchone()
+            retry_count = row[0] if row else 0
+            if retry_count >= _MAX_DOWNLOAD_RETRIES:
+                logger.warning(
+                    "Max retries (%d) reached for %s — marking skipped (reason: %s)",
+                    _MAX_DOWNLOAD_RETRIES, url, reason,
+                )
+                cursor.execute(
+                    "UPDATE opportunity_attachment SET download_status = 'skipped', "
+                    "skip_reason = %s WHERE notice_id = %s AND url = %s",
+                    (f"max_retries_{reason}", notice_id, url[:500]),
+                )
             conn.commit()
         finally:
             cursor.close()

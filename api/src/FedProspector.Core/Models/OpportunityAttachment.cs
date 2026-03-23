@@ -56,4 +56,9 @@ public class OpportunityAttachment
     public int? LastLoadId { get; set; }
 
     public DateTime? CreatedAt { get; set; }
+
+    public int DownloadRetryCount { get; set; }
+
+    [MaxLength(100)]
+    public string? SkipReason { get; set; }
 }

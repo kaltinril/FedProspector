@@ -43,4 +43,5 @@ public class AttachmentSummaryDto
     public int? PageCount { get; set; }
     public string DownloadStatus { get; set; } = "";
     public string ExtractionStatus { get; set; } = "";
+    public string? SkipReason { get; set; }
 }

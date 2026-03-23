@@ -17,6 +17,7 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
@@ -232,6 +233,7 @@ const DOWNLOAD_STATUS_COLOR: Record<string, 'success' | 'warning' | 'error' | 'd
   downloaded: 'success',
   pending: 'warning',
   failed: 'error',
+  skipped: 'default',
 };
 
 const EXTRACTION_STATUS_COLOR: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
@@ -267,39 +269,57 @@ function AttachmentsTable({ attachments }: { attachments: AttachmentSummaryDto[]
             </TableRow>
           </TableHead>
           <TableBody>
-            {attachments.map((att) => (
-              <TableRow key={att.attachmentId}>
-                <TableCell>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <DescriptionIcon fontSize="small" color="action" />
-                    <Typography variant="body2" sx={{ wordBreak: 'break-word' }}>
-                      {att.filename}
+            {attachments.map((att) => {
+              const isGone = att.downloadStatus === 'skipped' && !!att.skipReason;
+              const skipLabel = att.skipReason
+                ? att.skipReason.replace(/_/g, ' ').replace(/^http /, 'HTTP ').replace(/^max retries /, 'Max retries: ')
+                : undefined;
+
+              return (
+                <TableRow key={att.attachmentId} sx={isGone ? { opacity: 0.45 } : undefined}>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <DescriptionIcon fontSize="small" color={isGone ? 'disabled' : 'action'} />
+                      <Typography variant="body2" sx={{ wordBreak: 'break-word' }} color={isGone ? 'text.disabled' : 'text.primary'}>
+                        {att.filename}
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color="text.secondary">
+                      {att.contentType ?? '--'}
                     </Typography>
-                  </Box>
-                </TableCell>
-                <TableCell>
-                  <Typography variant="body2" color="text.secondary">
-                    {att.contentType ?? '--'}
-                  </Typography>
-                </TableCell>
-                <TableCell align="right">{formatFileSize(att.fileSizeBytes)}</TableCell>
-                <TableCell align="right">{att.pageCount ?? '--'}</TableCell>
-                <TableCell>
-                  <Chip
-                    label={att.downloadStatus}
-                    size="small"
-                    color={DOWNLOAD_STATUS_COLOR[att.downloadStatus.toLowerCase()] ?? 'default'}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Chip
-                    label={att.extractionStatus}
-                    size="small"
-                    color={EXTRACTION_STATUS_COLOR[att.extractionStatus.toLowerCase()] ?? 'default'}
-                  />
-                </TableCell>
-              </TableRow>
-            ))}
+                  </TableCell>
+                  <TableCell align="right">{formatFileSize(att.fileSizeBytes)}</TableCell>
+                  <TableCell align="right">{att.pageCount ?? '--'}</TableCell>
+                  <TableCell>
+                    {isGone ? (
+                      <Tooltip title={skipLabel ?? 'Removed upstream'} arrow>
+                        <Chip
+                          label="removed"
+                          size="small"
+                          color="default"
+                          variant="outlined"
+                        />
+                      </Tooltip>
+                    ) : (
+                      <Chip
+                        label={att.downloadStatus}
+                        size="small"
+                        color={DOWNLOAD_STATUS_COLOR[att.downloadStatus.toLowerCase()] ?? 'default'}
+                      />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={att.extractionStatus}
+                      size="small"
+                      color={EXTRACTION_STATUS_COLOR[att.extractionStatus.toLowerCase()] ?? 'default'}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </TableContainer>
