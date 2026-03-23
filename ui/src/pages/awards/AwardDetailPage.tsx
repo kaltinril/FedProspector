@@ -156,7 +156,6 @@ function FinancialsTab({
     data: burnRate,
     isLoading,
     isError,
-    refetch,
   } = useQuery({
     queryKey: queryKeys.awards.burnRate(contractId),
     queryFn: () => getBurnRate(contractId),
