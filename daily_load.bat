@@ -36,7 +36,7 @@ python ./fed_prospector/main.py download attachments --missing-only --active-onl
 echo.
 
 echo [8/10] Extracting text from downloaded attachments ...
-python ./fed_prospector/main.py extract attachment-text --batch-size 5000
+python ./fed_prospector/main.py extract attachment-text --batch-size 5000  --workers 10
 echo.
 
 echo [9/10] Extracting intelligence from attachment text ...
