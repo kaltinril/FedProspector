@@ -123,10 +123,12 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 106 | Column Overflow Fix | COMPLETE | [106-COLUMN-OVERFLOW-FIX.md](phases/completed/106-COLUMN-OVERFLOW-FIX.md) |
 | 109 | Set-Aside Shift Analysis | COMPLETE | [109-SET-ASIDE-SHIFT-ANALYSIS.md](phases/completed/109-SET-ASIDE-SHIFT-ANALYSIS.md) |
 | 110 | Attachment Intelligence | COMPLETE | [110-ATTACHMENT-INTELLIGENCE.md](phases/completed/110-ATTACHMENT-INTELLIGENCE.md) |
-| 110B | Additional Document Type Extraction | PLANNED | [110B-ADDITIONAL-DOCUMENT-TYPES.md](phases/110B-ADDITIONAL-DOCUMENT-TYPES.md) |
+| 110B | Additional Document Type Extraction | COMPLETE | [110B-ADDITIONAL-DOCUMENT-TYPES.md](phases/completed/110B-ADDITIONAL-DOCUMENT-TYPES.md) |
 | 110C | AI Document Analysis & Opportunity Column Backfill | PLANNED | [110C-AI-ANALYSIS-BACKFILL.md](phases/110C-AI-ANALYSIS-BACKFILL.md) |
+| 110D | Incumbent Name Extraction Improvements | PLANNED | [110D-INCUMBENT-EXTRACTION-IMPROVEMENTS.md](phases/110D-INCUMBENT-EXTRACTION-IMPROVEMENTS.md) |
 | 111 | Manual Testing Issues | COMPLETE | [111-MANUAL-TESTING-ISSUES.md](phases/completed/111-MANUAL-TESTING-ISSUES.md) |
 | 115 | Project Documentation Suite | PLANNED | [115-PROJECT-DOCUMENTATION.md](phases/115-PROJECT-DOCUMENTATION.md) |
+| 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |

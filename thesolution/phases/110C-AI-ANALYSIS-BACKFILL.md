@@ -17,7 +17,8 @@ Two remaining items from Phase 110 that were deferred to ship the keyword extrac
 After keyword intel extraction runs, backfill the reserved columns on the `opportunity` table from the best-available intel in `opportunity_attachment_intel`:
 
 - `security_clearance_required` <- from `clearance_required`
-- `incumbent_uei` / `incumbent_name` <- from recompete analysis
+- `incumbent_name` <- from recompete analysis (already done in Phase 110)
+- `incumbent_uei` <- **moved to Phase 110D** (resolved via entity table lookup, not document extraction — UEIs don't appear in solicitation documents)
 - `contract_vehicle_type` <- from vehicle detection
 
 This makes intel available in existing opportunity queries and grid columns without joining to the intel tables. Should run as a post-extraction step (add to keyword extractor or as a separate CLI command).

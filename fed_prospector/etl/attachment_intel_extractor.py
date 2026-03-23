@@ -15,6 +15,7 @@ import hashlib
 import json
 import logging
 import re
+from collections import Counter
 from datetime import datetime
 
 from db.connection import get_connection
@@ -120,7 +121,119 @@ _INCUMBENT_FALSE_POSITIVES = frozenset({
     "under", "over", "above", "below", "detail", "details", "provide",
     "ensure", "submit", "include", "includes", "required", "responsible",
     "expected", "proposed", "able", "also", "only", "such", "other",
+    # Gov-doc words (Phase 110D)
+    "question", "response", "tasked", "performing", "providing", "currently",
+    "unknown", "tbd", "n/a", "na", "none", "section", "paragraph",
+    "reference", "see", "per", "how", "what", "when", "where", "who",
+    "which", "why",
 })
+
+# Broader set of common English words used for the all-words check.
+# If EVERY word in a candidate name is in this set, it cannot be a company name.
+# Covers verbs, nouns, adjectives, adverbs, prepositions common in gov documents.
+_COMMON_ENGLISH_WORDS = _INCUMBENT_FALSE_POSITIVES | frozenset({
+    # Additional verbs
+    "accept", "accomplish", "achieve", "acquire", "address", "administer",
+    "apply", "approve", "arrange", "assess", "assign", "assist", "assume",
+    "attain", "authorize", "award", "begin", "brief", "build", "carry",
+    "certify", "change", "check", "close", "collect", "combine", "come",
+    "communicate", "compare", "complete", "comply", "conduct", "configure",
+    "confirm", "consider", "construct", "consult", "contain", "continue",
+    "contract", "contribute", "control", "coordinate", "correct", "create",
+    "define", "deliver", "demonstrate", "deploy", "describe", "design",
+    "determine", "develop", "direct", "discuss", "distribute", "document",
+    "draft", "drive", "edit", "employ", "enable", "enforce", "engage",
+    "enhance", "enter", "establish", "evaluate", "examine", "exceed",
+    "execute", "exercise", "exhibit", "expand", "facilitate", "file",
+    "fill", "find", "follow", "form", "fulfill", "function", "fund",
+    "furnish", "gather", "generate", "get", "give", "go", "govern",
+    "grant", "guide", "handle", "help", "hold", "host", "identify",
+    "implement", "improve", "incorporate", "increase", "indicate",
+    "inform", "initiate", "inspect", "install", "integrate", "intend",
+    "interface", "interpret", "introduce", "investigate", "issue", "justify",
+    "keep", "know", "lead", "learn", "leave", "let", "level", "limit",
+    "list", "locate", "look", "maintain", "make", "manage", "maximize",
+    "measure", "meet", "minimize", "modify", "monitor", "move", "need",
+    "note", "notify", "obtain", "occur", "offer", "open", "operate",
+    "order", "organize", "outline", "own", "participate", "pay", "perform",
+    "permit", "place", "plan", "post", "practice", "prepare", "present",
+    "prevent", "prioritize", "process", "procure", "produce", "program",
+    "prohibit", "promote", "protect", "prove", "publish", "purchase",
+    "put", "qualify", "range", "rate", "reach", "read", "receive",
+    "recognize", "recommend", "record", "reduce", "relate", "release",
+    "remain", "remove", "replace", "report", "represent", "request",
+    "require", "research", "resolve", "respond", "restore", "result",
+    "retain", "return", "review", "revise", "run", "satisfy", "save",
+    "schedule", "secure", "seek", "select", "send", "separate", "serve",
+    "set", "show", "sign", "specify", "staff", "start", "state", "stop",
+    "store", "study", "support", "take", "teach", "tell", "terminate",
+    "test", "track", "train", "transfer", "transmit", "treat", "turn",
+    "understand", "update", "use", "utilize", "validate", "verify",
+    "view", "work", "write",
+    # Additional nouns common in gov documents
+    "access", "account", "action", "activity", "addition", "agency",
+    "agreement", "amount", "analysis", "annual", "application", "approach",
+    "approval", "area", "assessment", "assistance", "basis", "benefit",
+    "budget", "capability", "capacity", "case", "category", "center",
+    "change", "clause", "code", "command", "comment", "committee",
+    "company", "compliance", "component", "condition", "conference",
+    "contractor", "cost", "country", "course", "coverage", "criteria",
+    "data", "date", "day", "decision", "deliverable", "delivery",
+    "department", "description", "development", "direction", "director",
+    "division", "document", "duty", "effort", "element", "employee",
+    "end", "entity", "entry", "environment", "equipment", "estimate",
+    "event", "evidence", "example", "exception", "experience", "extent",
+    "facility", "fact", "failure", "feature", "federal", "field",
+    "final", "firm", "fiscal", "force", "format", "frequency",
+    "full", "future", "general", "goal", "government", "group",
+    "guidance", "headquarters", "hour", "impact", "individual",
+    "information", "inspection", "instruction", "interest", "interim",
+    "item", "job", "key", "labor", "language", "law", "level",
+    "line", "location", "loss", "major", "management", "manner",
+    "material", "matter", "means", "method", "military", "minimum",
+    "mission", "month", "name", "national", "nature", "number",
+    "objective", "office", "official", "operation", "option",
+    "organization", "output", "oversight", "part", "party", "past",
+    "payment", "people", "percent", "performance", "period", "person",
+    "personnel", "phase", "point", "policy", "position", "possible",
+    "potential", "primary", "prior", "priority", "problem", "procedure",
+    "product", "project", "property", "proposal", "provision", "public",
+    "purpose", "quality", "quantity", "question", "reason", "record",
+    "region", "regulation", "related", "relationship", "report",
+    "requirement", "resource", "response", "responsibility", "result",
+    "risk", "role", "rule", "safety", "scope", "security", "service",
+    "site", "situation", "size", "solution", "source", "space",
+    "special", "standard", "statement", "status", "step", "strategy",
+    "structure", "subject", "summary", "supply", "system", "task",
+    "team", "technical", "technology", "term", "time", "title",
+    "total", "training", "travel", "type", "unit", "value", "vendor",
+    "volume", "week", "work", "year",
+    # Additional adjectives / adverbs
+    "additional", "adequate", "appropriate", "associated", "available",
+    "basic", "best", "certain", "clear", "common", "consistent",
+    "critical", "current", "direct", "effective", "entire", "equal",
+    "essential", "existing", "first", "following", "former", "good",
+    "great", "high", "important", "initial", "large", "last", "late",
+    "least", "likely", "limited", "local", "long", "low", "main",
+    "maximum", "minor", "more", "most", "multiple", "necessary", "new",
+    "next", "normal", "official", "original", "overall", "own", "particular",
+    "permanent", "physical", "possible", "present", "previous", "primary",
+    "proper", "reasonable", "recent", "regular", "relevant", "second",
+    "significant", "similar", "single", "small", "specific", "sufficient",
+    "third", "timely", "total", "various", "written",
+    # Prepositions / conjunctions / misc
+    "according", "across", "against", "along", "among", "around",
+    "as", "at", "because", "both", "by", "either", "else", "even",
+    "except", "further", "however", "in", "instead", "neither", "nor",
+    "now", "of", "off", "on", "once", "otherwise", "out", "rather",
+    "since", "so", "still", "than", "then", "therefore", "though",
+    "thus", "to", "too", "toward", "towards", "unless", "until",
+    "up", "very", "well", "whereas", "whether", "while", "within",
+    "without", "would", "could", "might", "yet",
+})
+
+# Regex to detect Q&A format: name followed by (number)
+_QA_PAREN_NUMBER = re.compile(r"\s*\(\d")
 
 # Confidence ranking for comparisons
 _CONF_RANK = {"high": 3, "medium": 2, "low": 1}
@@ -214,7 +327,7 @@ class AttachmentIntelExtractor:
             )
             for nid in pbar:
                 try:
-                    result = self._process_notice(nid, method, load_id)
+                    result = self._process_notice(nid, method, load_id, force=force)
                     stats["notices_processed"] += 1
                     stats["intel_rows_upserted"] += result["intel_upserted"]
                     stats["source_rows_inserted"] += result["sources_inserted"]
@@ -312,12 +425,17 @@ class AttachmentIntelExtractor:
     # Internal: process one notice
     # ------------------------------------------------------------------
 
-    def _process_notice(self, notice_id, method, load_id):
+    def _process_notice(self, notice_id, method, load_id, force=False):
         """Process all text sources for a single notice.
 
         Returns dict: {intel_upserted, sources_inserted, opportunity_updated}
         """
         result = {"intel_upserted": 0, "sources_inserted": 0, "opportunity_updated": False}
+
+        # Task 4 (Phase 110D): When force=True, clean up stale consolidated
+        # intel rows (attachment_id IS NULL) before re-extraction.
+        if force:
+            self._cleanup_stale_intel_rows(notice_id)
 
         # Gather text sources: (attachment_id, filename, text)
         sources = self._gather_text_sources(notice_id)
@@ -380,9 +498,14 @@ class AttachmentIntelExtractor:
             )
             result["sources_inserted"] += source_count
 
-        # Update reserved opportunity columns with best intel
+        # Update reserved opportunity columns with best intel (clearance, vehicle_type)
         updated = self._update_opportunity_columns(notice_id, intel)
         result["opportunity_updated"] = updated
+
+        # Task 3 (Phase 110D): Cross-attachment incumbent resolution.
+        # Resolve incumbent_name across all intel rows for this notice,
+        # then attempt UEI lookup (Task 5).
+        self._resolve_incumbent_for_opportunity(notice_id, load_id)
 
         return result
 
@@ -553,6 +676,12 @@ class AttachmentIntelExtractor:
         Only returns a name when an explicit linking pattern is found
         (e.g. "incumbent is Acme Corp", "current contractor: SAIC").
         Returns None rather than guessing when no clear pattern matches.
+
+        Filters (Phase 110D):
+        1. Basic false-positive word check (existing)
+        2. Reject names followed by (number) -- Q&A format indicator
+        3. All-words common-English check -- rejects "must detail", "shall provide"
+        4. Single-word name skepticism -- requires acronym pattern or digits
         """
         # Look at text from match through next 300 chars
         context = text[match_start:min(len(text), match_end + 300)]
@@ -572,6 +701,34 @@ class AttachmentIntelExtractor:
                 first_word = name.split()[0].lower() if name.split() else ""
                 if first_word in _INCUMBENT_FALSE_POSITIVES:
                     continue
+
+                # --- Phase 110D filters ---
+
+                # Filter: Reject names followed by (number) -- Q&A format
+                # e.g. "incumbent: Question(1) Will the Government..."
+                after_name_start = m.end()
+                after_text = text[match_start + after_name_start:match_start + after_name_start + 10] if match_start + after_name_start < len(text) else ""
+                if _QA_PAREN_NUMBER.match(after_text):
+                    continue
+
+                # Filter: All-words common-English check
+                # If every word in the name is a common English word, reject it.
+                # Catches "Must Detail", "Shall Provide", etc.
+                words = name.split()
+                if words and all(w.lower() in _COMMON_ENGLISH_WORDS for w in words):
+                    continue
+
+                # Filter: Government org indicator
+                # If the word immediately after the name is "staff", "personnel",
+                # "employees", etc., it's a government agency, not a contractor.
+                # e.g. "currently performed by BOP staff" — BOP = Bureau of Prisons
+                _GOV_ORG_SUFFIXES = {"staff", "personnel", "employees", "office",
+                                     "agency", "department", "officials", "team"}
+                post_name_text = context[m.end():m.end() + 20].strip().lower()
+                post_first_word = post_name_text.split()[0].rstrip(".,;:!?)") if post_name_text.split() else ""
+                if post_first_word in _GOV_ORG_SUFFIXES:
+                    continue
+
                 return name
         return None
 
@@ -622,8 +779,29 @@ class AttachmentIntelExtractor:
             elif category == "recompete":
                 intel["recompete_details"].append(f"{info['pattern_name']}: {info['matched_text']}")
             elif category == "incumbent_name":
-                if value and (not intel["incumbent_name"] or conf_rank > _CONF_RANK.get("medium", 0)):
-                    intel["incumbent_name"] = value
+                # Collect for occurrence-based consolidation (Phase 110D)
+                pass  # handled below after loop
+
+        # --- Occurrence-based incumbent name consolidation (Phase 110D) ---
+        # Count occurrences and track max confidence per name.
+        incumbent_counts = Counter()
+        incumbent_max_conf = {}  # name -> max confidence rank
+        for category, info in matches:
+            if category == "incumbent_name" and info.get("value"):
+                name = info["value"]
+                incumbent_counts[name] += 1
+                conf_rank = _CONF_RANK.get(info["confidence"], 0)
+                if conf_rank > incumbent_max_conf.get(name, 0):
+                    incumbent_max_conf[name] = conf_rank
+
+        if incumbent_counts:
+            # Pick name with highest count; break ties by highest confidence
+            best_name = max(
+                incumbent_counts,
+                key=lambda n: (incumbent_counts[n], incumbent_max_conf.get(n, 0)),
+            )
+            intel["incumbent_name"] = best_name
+            intel["incumbent_name_count"] = incumbent_counts[best_name]
 
         # Apply best values
         if "clearance_level" in best:
@@ -652,6 +830,14 @@ class AttachmentIntelExtractor:
             if value:
                 intel["is_recompete"] = value
             intel["confidence_details"]["recompete"] = _rank_to_conf(rank)
+
+        # Store incumbent name occurrence count for transparency (Phase 110D)
+        if intel.get("incumbent_name_count"):
+            intel["confidence_details"]["incumbent_name_count"] = intel["incumbent_name_count"]
+            if intel["incumbent_name"] and incumbent_max_conf:
+                intel["confidence_details"]["incumbent_name"] = _rank_to_conf(
+                    incumbent_max_conf.get(intel["incumbent_name"], 0)
+                )
 
         # Overall confidence
         all_ranks = [r for r, _, _ in best.values()]
@@ -814,6 +1000,198 @@ class AttachmentIntelExtractor:
             cursor.close()
             conn.close()
 
+    # ------------------------------------------------------------------
+    # Cross-attachment incumbent resolution (Task 3, Phase 110D)
+    # ------------------------------------------------------------------
+
+    # Document-type weights for tie-breaking incumbent name conflicts.
+    # Higher weight = more authoritative source for incumbent information.
+    _FILENAME_WEIGHTS = [
+        (re.compile(r"(?:SOW|PWS|statement.of.work)", re.IGNORECASE), 3),
+        (re.compile(r"(?:J&A|J\s*&\s*A|justification)", re.IGNORECASE), 2),
+        (re.compile(r"(?:RFP|solicitation)", re.IGNORECASE), 2),
+        (re.compile(r"(?:Q&A|Q\s*&\s*A|question)", re.IGNORECASE), 1),
+    ]
+
+    def _resolve_incumbent_for_opportunity(self, notice_id, load_id):
+        """Resolve incumbent name across all attachment intel rows for a notice.
+
+        Queries all opportunity_attachment_intel rows for the notice_id where
+        incumbent_name IS NOT NULL. If all agree, uses that name. If they
+        disagree, picks the name with the highest occurrence count. Ties are
+        broken by document-type weighting based on filename heuristics.
+
+        After resolving the name, attempts UEI lookup via _resolve_incumbent_uei().
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT i.incumbent_name, a.filename "
+                "FROM opportunity_attachment_intel i "
+                "LEFT JOIN opportunity_attachment a ON i.attachment_id = a.attachment_id "
+                "WHERE i.notice_id = %s AND i.incumbent_name IS NOT NULL",
+                (notice_id,),
+            )
+            rows = cursor.fetchall()
+
+            if not rows:
+                return
+
+            # Group names case-insensitively
+            # names_dict: normalized_lower_name -> {original_name, count, weighted_score}
+            names_dict = {}
+            for row in rows:
+                name = row["incumbent_name"]
+                name_lower = name.strip().lower()
+                filename = row.get("filename") or ""
+
+                # Compute document-type weight for this row
+                weight = 1  # default weight
+                for pattern, w in self._FILENAME_WEIGHTS:
+                    if pattern.search(filename):
+                        weight = w
+                        break
+
+                if name_lower not in names_dict:
+                    names_dict[name_lower] = {
+                        "original": name,
+                        "count": 0,
+                        "weighted_score": 0,
+                    }
+                names_dict[name_lower]["count"] += 1
+                names_dict[name_lower]["weighted_score"] += weight
+
+            # If all rows agree (only one unique name), use it directly
+            if len(names_dict) == 1:
+                winning_name = next(iter(names_dict.values()))["original"]
+            else:
+                # Multiple different names -- log a warning
+                logger.warning(
+                    "Incumbent name conflict for %s: %s",
+                    notice_id,
+                    {k: v["count"] for k, v in names_dict.items()},
+                )
+
+                # Pick by highest occurrence count, then by weighted score for ties
+                sorted_names = sorted(
+                    names_dict.values(),
+                    key=lambda v: (v["count"], v["weighted_score"]),
+                    reverse=True,
+                )
+                winning_name = sorted_names[0]["original"]
+
+            # Update opportunity.incumbent_name with the resolved winner
+            update_cursor = conn.cursor()
+            try:
+                update_cursor.execute(
+                    "UPDATE opportunity SET incumbent_name = %s WHERE notice_id = %s",
+                    (winning_name[:200], notice_id),
+                )
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                update_cursor.close()
+
+            logger.debug(
+                "Resolved incumbent for %s: %s", notice_id, winning_name
+            )
+
+            # Attempt UEI resolution (Task 5)
+            self._resolve_incumbent_uei(notice_id, winning_name)
+
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Incumbent UEI resolution via entity table (Task 5, Phase 110D)
+    # ------------------------------------------------------------------
+
+    def _resolve_incumbent_uei(self, notice_id, incumbent_name):
+        """Look up the incumbent's UEI in the entity table by name match.
+
+        Uses a LIKE query against entity.legal_business_name. Sets
+        opportunity.incumbent_uei only when exactly one entity matches.
+        Multiple matches are logged as ambiguous and left NULL.
+
+        Returns the UEI string or None.
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT uei_sam, legal_business_name FROM entity "
+                "WHERE legal_business_name LIKE %s",
+                (f"%{incumbent_name}%",),
+            )
+            matches = cursor.fetchall()
+
+            if len(matches) == 1:
+                uei = matches[0]["uei_sam"]
+                update_cursor = conn.cursor()
+                try:
+                    update_cursor.execute(
+                        "UPDATE opportunity SET incumbent_uei = %s WHERE notice_id = %s",
+                        (uei, notice_id),
+                    )
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+                    raise
+                finally:
+                    update_cursor.close()
+                logger.debug(
+                    "Resolved incumbent UEI for %s: %s (%s)",
+                    notice_id, uei, matches[0]["legal_business_name"],
+                )
+                return uei
+            elif len(matches) > 1:
+                logger.info(
+                    "Ambiguous UEI lookup for %s incumbent '%s': %d entity matches",
+                    notice_id, incumbent_name, len(matches),
+                )
+                return None
+            else:
+                return None
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Stale intel cleanup for force mode (Task 4, Phase 110D)
+    # ------------------------------------------------------------------
+
+    def _cleanup_stale_intel_rows(self, notice_id):
+        """Delete stale intel rows with attachment_id=NULL for a notice.
+
+        When --force is used, old consolidated intel rows (attachment_id IS NULL)
+        from previous runs may persist. This removes them before re-extraction
+        so they don't interfere with fresh results.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "DELETE FROM opportunity_attachment_intel "
+                "WHERE notice_id = %s AND attachment_id IS NULL",
+                (notice_id,),
+            )
+            deleted = cursor.rowcount
+            conn.commit()
+            if deleted > 0:
+                logger.debug(
+                    "Cleaned up %d stale intel rows for %s", deleted, notice_id
+                )
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
     def _update_opportunity_columns(self, notice_id, intel):
         """Update reserved opportunity columns with best intel values.
 
@@ -826,9 +1204,9 @@ class AttachmentIntelExtractor:
             updates.append("security_clearance_required = %s")
             params.append(intel["clearance_required"])
 
-        if intel.get("incumbent_name"):
-            updates.append("incumbent_name = %s")
-            params.append(intel["incumbent_name"][:200])
+        # NOTE: incumbent_name is NOT set here. It is resolved across all
+        # attachments by _resolve_incumbent_for_opportunity() after all
+        # per-attachment processing completes (Task 3, Phase 110D).
 
         if intel.get("vehicle_type"):
             updates.append("contract_vehicle_type = LEFT(%s, 50)")
