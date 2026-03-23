@@ -1053,8 +1053,8 @@ export default function OpportunityDetailPage() {
         )}
         {opp.active != null && (
           <Chip
-            label={opp.active === 'Yes' ? 'Active' : 'Inactive'}
-            color={opp.active === 'Yes' ? 'success' : 'default'}
+            label={opp.active === 'Y' ? 'Active' : 'Inactive'}
+            color={opp.active === 'Y' ? 'success' : 'default'}
             size="small"
           />
         )}
