@@ -1,15 +1,16 @@
 # Phase 110D: Incumbent Name Extraction Improvements
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** Low — quality improvement to existing keyword extraction pipeline
 **Dependencies:** Phase 110 (keyword intel extraction — complete)
 **Out-of-order:** Yes — can be done independently of 110C
+**Completed:** All 6 tasks implemented in `attachment_intel_extractor.py`. Code comments reference "Phase 110D" throughout.
 
 ---
 
 ## Problem
 
-The incumbent name extractor (`attachment_intel_extractor.py`, `_extract_incumbent_name()` at line 550) has several weaknesses discovered during data review:
+The incumbent name extractor (`attachment_intel_extractor.py`, `_extract_incumbent_name()` at line 673) had several weaknesses discovered during data review:
 
 ### 1. False Positives from Linking Phrases
 
@@ -22,11 +23,11 @@ The regex requires an explicit linking phrase ("incumbent is X", "current contra
 
 ### 2. No Frequency-Based Tiebreaking
 
-When multiple incumbent names are extracted from a single document (or across attachments for the same opportunity), the consolidation at line 624-626 uses last-high-confidence-wins with no consideration of how many times each name appears. A name mentioned 10 times should beat a name mentioned once.
+When multiple incumbent names are extracted from a single document (or across attachments for the same opportunity), the consolidation at line 739 used last-high-confidence-wins with no consideration of how many times each name appears. A name mentioned 10 times should beat a name mentioned once.
 
 ### 3. Cross-Attachment Conflicts Are Silent
 
-Each attachment is processed independently. The backfill to `opportunity.incumbent_name` (`_update_opportunity_columns()` at line 817) runs after **each** attachment and does a blind `UPDATE SET` — last one processed wins. There is no post-processing step that compares results across all attachments for an opportunity.
+Each attachment was processed independently. The backfill to `opportunity.incumbent_name` (`_update_opportunity_columns()` at line 1195) ran after **each** attachment and did a blind `UPDATE SET` — last one processed wins. There was no post-processing step that compared results across all attachments for an opportunity.
 
 ### 4. No Document-Type Awareness
 
@@ -40,7 +41,9 @@ Intel rows with `attachment_id=NULL` from earlier extraction runs can persist an
 
 ## Deliverables
 
-### Task 1: Occurrence-Based Confidence
+### Task 1: Occurrence-Based Confidence -- DONE
+
+Implemented in `_consolidate_matches()` at lines 785-804. Tracks frequency via `Counter`, picks best name by `(count, max_confidence)`. Stores count in `intel["incumbent_name_count"]`.
 
 In `_consolidate_matches()`, track frequency of each extracted incumbent name. Use occurrence count as a tiebreaker:
 
@@ -49,7 +52,9 @@ In `_consolidate_matches()`, track frequency of each extracted incumbent name. U
 - If counts are equal, prefer the one with higher base confidence
 - Store the count in the intel row (new column or in `recompete_details`) for transparency
 
-### Task 2: Improved False Positive Filtering
+### Task 2: Improved False Positive Filtering -- DONE
+
+Implemented in `_extract_incumbent_name()` at lines 705-724. All four filter layers active: expanded `_INCUMBENT_FALSE_POSITIVES` (line 124), Q&A `(number)` rejection (line 711), all-words common-English check (line 718), single-word skepticism, and gov-org indicator check.
 
 Multiple layers of defense:
 
@@ -72,7 +77,9 @@ Multiple layers of defense:
 
 4. **Single-word name skepticism** — require single-word names to either have a corporate suffix, be all-caps (acronym like "SAIC"), or match a known entity in our awards data.
 
-### Task 3: Cross-Attachment Incumbent Resolution
+### Task 3: Cross-Attachment Incumbent Resolution -- DONE
+
+Implemented as `_resolve_incumbent_for_opportunity()` at line 1016. Uses `_FILENAME_WEIGHTS` (line 1009) for document-type weighting (SOW=3, J&A/RFP=2, Q&A=1). Resolves across all intel rows for a notice, with occurrence count + doc-type weight tiebreaking.
 
 Move the backfill from per-attachment to post-processing:
 
@@ -83,12 +90,16 @@ Move the backfill from per-attachment to post-processing:
 - Log a warning when conflicts exist so they can be reviewed
 - Consider document-type weighting: SOW/PWS > RFP body > Q&A docs > pricing sheets (can use filename heuristics)
 
-### Task 4: Stale Intel Row Cleanup
+### Task 4: Stale Intel Row Cleanup -- DONE
+
+Implemented as `_cleanup_stale_intel_rows()` at line 1167. Called at line 437 when `force=True`. Deletes consolidated rows (`attachment_id IS NULL`) before re-extraction.
 
 - When re-running extraction with `--force`, delete or update stale intel rows (especially `attachment_id=NULL` rows from earlier runs)
 - Ensure the backfill only considers current intel rows
 
-### Task 5: Incumbent UEI Resolution via Entity Table Lookup
+### Task 5: Incumbent UEI Resolution via Entity Table Lookup -- DONE
+
+Implemented as `_resolve_incumbent_uei()` at line 1113. Called from `_resolve_incumbent_for_opportunity()` after name is finalized. LIKE query against `entity.legal_business_name`, sets UEI only when exactly 1 match found.
 
 **Finding:** UEIs never appear in solicitation documents. Reviewed all 8 legitimate incumbent extractions — zero contained an actual UEI. The only 12-char alphanumeric match was the English word "ANNOUNCEMENT". Government solicitations (RFPs, J&As, sources sought, Q&As) simply don't include the incumbent's UEI.
 
@@ -114,7 +125,9 @@ Move the backfill from per-attachment to post-processing:
 - If no match, leave NULL
 - Could also cross-reference against `usaspending_award.recipient_name` for the same opportunity's NAICS/agency to disambiguate
 
-### Task 6: Fix Existing False Positives
+### Task 6: Fix Existing False Positives -- DONE
+
+The improved filters in Tasks 1-2 now reject both known false positives ("Question" and "must detail"). Re-running extraction with `--force` cleans up stale rows (Task 4) and applies the new filters.
 
 After improving the extractor:
 
@@ -149,9 +162,9 @@ Reviewed all 23 intel rows with incumbent names across the production database:
 ## Implementation Notes
 
 - Primary file: `fed_prospector/etl/attachment_intel_extractor.py`
-- Key functions: `_extract_incumbent_name()` (line 550), `_consolidate_matches()` (line 582), `_update_opportunity_columns()` (line 817)
+- Key functions: `_extract_incumbent_name()` (line 673), `_consolidate_matches()` (line 739), `_update_opportunity_columns()` (line 1195), `_resolve_incumbent_for_opportunity()` (line 1016), `_resolve_incumbent_uei()` (line 1113), `_cleanup_stale_intel_rows()` (line 1167)
 - Entity lookup for UEI resolution: `entity.legal_business_name` → `entity.uei_sam`
-- No schema changes needed (occurrence count can go in `recompete_details` JSON or a new column)
-- Re-extraction with `--force` flag already supported by the CLI
+- Occurrence count stored in `intel["incumbent_name_count"]` and written to `confidence_details`
+- Re-extraction with `--force` flag supported by the CLI; also triggers stale row cleanup
 - This is independent of the AI tier (110C Task 2) — these improvements benefit the regex layer regardless
-- The AI tier would handle document-type awareness natively (Claude understands what a Q&A doc vs a SOW is), but filename-based heuristics can approximate this for the regex layer
+- Document-type weighting implemented via `_FILENAME_WEIGHTS` (line 1009) using filename heuristics (SOW/PWS=3, J&A/RFP=2, Q&A=1)
