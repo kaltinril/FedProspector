@@ -1256,3 +1256,15 @@ export interface LoadRequestStatusDto {
   requestedAt?: string | null;
   errorMessage?: string | null;
 }
+
+export interface AnalysisEstimateDto {
+  noticeId: string;
+  attachmentCount: number;
+  totalChars: number;
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  estimatedCostUsd: number;
+  model: string;
+  alreadyAnalyzed: number;
+  remainingToAnalyze: number;
+}

@@ -7,4 +7,5 @@ public interface IAttachmentIntelService
 {
     Task<DocumentIntelligenceDto?> GetDocumentIntelligenceAsync(string noticeId);
     Task<LoadRequestStatusDto> RequestAnalysisAsync(string noticeId, string tier, int? userId);
+    Task<AnalysisEstimateDto> GetAnalysisEstimateAsync(string noticeId, string model = "haiku");
 }

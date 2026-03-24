@@ -367,6 +367,110 @@ public class AdminService : IAdminService
         return result.OrderBy(j => j.SourceSystem).ThenBy(j => j.LoadType).ToList();
     }
 
+    public async Task<AiUsageSummaryDto> GetAiUsageSummaryAsync(int days)
+    {
+        days = days < 1 ? 30 : days;
+
+        var connection = _context.Database.GetDbConnection();
+        await _context.Database.OpenConnectionAsync();
+
+        try
+        {
+            var result = new AiUsageSummaryDto { Period = $"Last {days} days" };
+
+            // Summary
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT
+                        COUNT(*) as total_requests,
+                        COUNT(DISTINCT attachment_id) as total_documents,
+                        COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+                        COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+                        COALESCE(SUM(cost_usd), 0) as total_cost_usd
+                    FROM ai_usage_log
+                    WHERE created_at >= DATE_SUB(NOW(), INTERVAL @days DAY)";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@days";
+                p.Value = days;
+                cmd.Parameters.Add(p);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    result.TotalRequests = Convert.ToInt32(reader["total_requests"]);
+                    result.TotalDocuments = Convert.ToInt32(reader["total_documents"]);
+                    result.TotalInputTokens = Convert.ToInt64(reader["total_input_tokens"]);
+                    result.TotalOutputTokens = Convert.ToInt64(reader["total_output_tokens"]);
+                    result.TotalCostUsd = Convert.ToDecimal(reader["total_cost_usd"]);
+                }
+            }
+
+            // By model
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT model, COUNT(*) as requests,
+                        COALESCE(SUM(cost_usd), 0) as cost_usd
+                    FROM ai_usage_log
+                    WHERE created_at >= DATE_SUB(NOW(), INTERVAL @days DAY)
+                    GROUP BY model ORDER BY cost_usd DESC";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@days";
+                p.Value = days;
+                cmd.Parameters.Add(p);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    result.ByModel.Add(new ModelUsageDto
+                    {
+                        Model = reader.IsDBNull(reader.GetOrdinal("model"))
+                            ? "unknown"
+                            : reader.GetString(reader.GetOrdinal("model")),
+                        Requests = Convert.ToInt32(reader["requests"]),
+                        CostUsd = Convert.ToDecimal(reader["cost_usd"])
+                    });
+                }
+            }
+
+            // By day (last 7)
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = @"
+                    SELECT DATE(created_at) as day, COUNT(*) as requests,
+                        COALESCE(SUM(cost_usd), 0) as cost_usd
+                    FROM ai_usage_log
+                    WHERE created_at >= DATE_SUB(NOW(), INTERVAL @days DAY)
+                    GROUP BY DATE(created_at) ORDER BY day DESC
+                    LIMIT 7";
+                var p = cmd.CreateParameter();
+                p.ParameterName = "@days";
+                p.Value = days;
+                cmd.Parameters.Add(p);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                while (await reader.ReadAsync())
+                {
+                    result.ByDay.Add(new DailyUsageDto
+                    {
+                        Date = reader.GetDateTime(reader.GetOrdinal("day")).ToString("yyyy-MM-dd"),
+                        Requests = Convert.ToInt32(reader["requests"]),
+                        CostUsd = Convert.ToDecimal(reader["cost_usd"])
+                    });
+                }
+            }
+
+            return result;
+        }
+        catch (Exception ex) when (ex.Message.Contains("ai_usage_log", StringComparison.OrdinalIgnoreCase)
+                                   || ex.Message.Contains("doesn't exist", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("ai_usage_log table does not exist: {Message}", ex.Message);
+            return new AiUsageSummaryDto { Period = $"Last {days} days (table not found)" };
+        }
+    }
+
     private async Task<List<EtlSourceStatusDto>> GetSourceStatusesAsync()
     {
         // Get latest successful load per source (two-step to avoid untranslatable LINQ)

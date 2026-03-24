@@ -34,6 +34,19 @@ public class IntelSourceDto
     public string Confidence { get; set; } = "";
 }
 
+public class AnalysisEstimateDto
+{
+    public string NoticeId { get; set; } = string.Empty;
+    public int AttachmentCount { get; set; }
+    public int TotalChars { get; set; }
+    public int EstimatedInputTokens { get; set; }
+    public int EstimatedOutputTokens { get; set; }
+    public decimal EstimatedCostUsd { get; set; }
+    public string Model { get; set; } = "haiku";
+    public int AlreadyAnalyzed { get; set; }
+    public int RemainingToAnalyze { get; set; }
+}
+
 public class AttachmentSummaryDto
 {
     public int AttachmentId { get; set; }

@@ -1,6 +1,6 @@
 """Federal Contract Prospecting System - CLI
 
-Commands are organized into 12 top-level groups:
+Commands are organized into 13 top-level groups:
 
     setup     Build the database, seed reference data, verify prerequisites
     load      Download and load data from government APIs
@@ -8,7 +8,7 @@ Commands are organized into 12 top-level groups:
     extract   Extract text and intelligence from downloaded attachments
     search    Search opportunities, entities, awards, agencies, subawards, and exclusions
     prospect  Manage the bid pipeline (prospects, searches, users, dashboard)
-    analyze   Burn rate, teaming partner discovery, exclusion scanning, attachment AI
+    analyze   Burn rate, teaming partner discovery, exclusion scanning
     update    Update/enrich existing data (metadata backfill)
     admin     System administration (orgs, users, invitations)
     cleanup   Clean up local data and files
@@ -31,7 +31,7 @@ Modules:
     cli/exclusions.py     load-exclusions, check-exclusion, check-prospects
     cli/spending.py       load-transactions, burn-rate
     cli/bulk_spending.py  usaspending-bulk
-    cli/health.py         check-health, load-history, catchup-datasets, run-job, maintain-app-data, maintain-db, run-all-searches
+    cli/health.py         check-health, load-history, catchup-datasets, run-job, maintain-app-data, maintain-db, run-all-searches, ai-usage
     cli/subaward.py       load-subawards, search-subawards, teaming-partners
     cli/admin.py          create-sysadmin, create-org, list-orgs, invite-user,
                           list-org-members, disable-user, enable-user, reset-password
@@ -40,7 +40,7 @@ Modules:
     cli/schedule_setup.py setup-schedule
     cli/update.py         link-metadata, fetch-descriptions, build-relationships
     cli/attachments.py    download-attachments, extract-attachment-text,
-                          extract-attachment-intel, analyze-attachments
+                          extract-attachment-intel, extract-attachment-ai
     cli/backfill.py       backfill-opportunity-intel
     cli/demand.py         process-requests
 """
@@ -60,8 +60,8 @@ def cli():
 
     Gathers federal contract data from government APIs into a local MySQL
     database for WOSB/8(a) contract discovery. Commands are organized into
-    12 groups: setup, load, download, extract, search, prospect, analyze,
-    update, admin, cleanup, backfill, health.
+    13 groups: setup, load, download, extract, search, prospect, analyze,
+    update, admin, cleanup, backfill, demand, health.
 
     Run 'python main.py GROUP --help' to list commands in a group.
     """
@@ -168,7 +168,7 @@ from cli.awards import load_awards, search_awards, replay_awards
 from cli.fedhier import load_hierarchy, load_offices, search_agencies
 from cli.exclusions import load_exclusions, check_exclusion, check_prospects
 from cli.spending import load_transactions, burn_rate
-from cli.health import check_health, load_history, catchup_datasets, run_job, maintain_app_data, maintain_db, run_all_searches
+from cli.health import check_health, load_history, catchup_datasets, run_job, maintain_app_data, maintain_db, run_all_searches, ai_usage
 from cli.subaward import load_subawards, search_subawards, teaming_partners
 from cli.admin import (
     create_sysadmin, create_org, list_orgs, invite_user,
@@ -256,7 +256,6 @@ prospect.add_command(auto_generate, name="auto-generate")
 analyze.add_command(burn_rate, name="burn-rate")
 analyze.add_command(teaming_partners, name="teaming")
 analyze.add_command(check_prospects, name="scan-exclusions")
-analyze.add_command(analyze_attachments, name="attachments")
 
 # ---------------------------------------------------------------------------
 # admin group commands
@@ -297,6 +296,7 @@ download.add_command(download_attachments, name="attachments")
 
 extract.add_command(extract_attachment_text, name="attachment-text")
 extract.add_command(extract_attachment_intel, name="attachment-intel")
+extract.add_command(analyze_attachments, name="attachment-ai")
 
 # ---------------------------------------------------------------------------
 # cleanup group commands
@@ -324,6 +324,7 @@ health.add_command(run_job, name="run-job")
 health.add_command(run_all_searches, name="run-all-searches")
 health.add_command(check_schema, name="check-schema")
 health.add_command(attachment_pipeline_status, name="pipeline-status")
+health.add_command(ai_usage, name="ai-usage")
 
 
 if __name__ == "__main__":

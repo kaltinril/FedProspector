@@ -305,7 +305,7 @@ class DemandLoader:
 
         from etl.attachment_ai_analyzer import AttachmentAIAnalyzer
 
-        analyzer = AttachmentAIAnalyzer(model="haiku")
+        analyzer = AttachmentAIAnalyzer(model="haiku", requested_by=req.get("requested_by"))
         stats = analyzer.analyze_notice(notice_id)
 
         summary = {

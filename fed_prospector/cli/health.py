@@ -1,7 +1,7 @@
 """CLI commands for system health, monitoring, and maintenance (Phase 6).
 
 Commands: check-health, load-history, catchup-datasets, run-job,
-          maintain-app-data, maintain-db, run-all-searches
+          maintain-app-data, maintain-db, run-all-searches, ai-usage
 """
 
 import sys
@@ -652,6 +652,106 @@ def maintain_db(optimize, skip_analyze, purge_binlog_days, tables, sizes, dry_ru
         conn.close()
 
     click.echo(f"\n{prefix}Engine maintenance complete.")
+
+
+@click.command("ai-usage")
+@click.option("--days", default=30, type=int, help="Number of days to look back (default: 30)")
+def ai_usage(days):
+    """Show AI analysis cost and token usage summary.
+
+    Queries the ai_usage_log table for spending visibility on Claude API usage
+    for attachment analysis.
+
+    Examples:
+        python main.py health ai-usage
+        python main.py health ai-usage --days 7
+        python main.py health ai-usage --days 90
+    """
+    setup_logging()
+    from db.connection import get_cursor
+
+    try:
+        # Summary
+        with get_cursor(dictionary=True) as cursor:
+            cursor.execute(
+                "SELECT "
+                "  COUNT(*) as total_requests, "
+                "  COUNT(DISTINCT attachment_id) as total_documents, "
+                "  COALESCE(SUM(input_tokens), 0) as total_input_tokens, "
+                "  COALESCE(SUM(output_tokens), 0) as total_output_tokens, "
+                "  COALESCE(SUM(cost_usd), 0) as total_cost_usd "
+                "FROM ai_usage_log "
+                "WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY)",
+                (days,),
+            )
+            summary = cursor.fetchone()
+
+        # By model
+        with get_cursor(dictionary=True) as cursor:
+            cursor.execute(
+                "SELECT model, COUNT(*) as requests, "
+                "  COALESCE(SUM(cost_usd), 0) as cost_usd "
+                "FROM ai_usage_log "
+                "WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY) "
+                "GROUP BY model ORDER BY cost_usd DESC",
+                (days,),
+            )
+            by_model = cursor.fetchall()
+
+        # By day (last 7 days within the period)
+        with get_cursor(dictionary=True) as cursor:
+            cursor.execute(
+                "SELECT DATE(created_at) as day, COUNT(*) as requests, "
+                "  COALESCE(SUM(cost_usd), 0) as cost_usd "
+                "FROM ai_usage_log "
+                "WHERE created_at >= DATE_SUB(NOW(), INTERVAL %s DAY) "
+                "GROUP BY DATE(created_at) ORDER BY day DESC "
+                "LIMIT 7",
+                (days,),
+            )
+            by_day = cursor.fetchall()
+
+        # Format output
+        click.echo(f"\nAI Analysis Usage - Last {days} Days")
+        click.echo("=" * 40)
+        click.echo(f"  Total cost:       ${summary['total_cost_usd']:.2f}")
+        click.echo(f"  Total requests:   {summary['total_requests']:,d}")
+        click.echo(f"  Total documents:  {summary['total_documents']:,d}")
+        click.echo(f"  Input tokens:     {int(summary['total_input_tokens']):,d}")
+        click.echo(f"  Output tokens:    {int(summary['total_output_tokens']):,d}")
+
+        if by_model:
+            click.echo(f"\nBy Model:")
+            for row in by_model:
+                model_name = row["model"] or "unknown"
+                click.echo(
+                    f"  {model_name:20s} ${row['cost_usd']:.2f}  "
+                    f"({row['requests']:,d} requests)"
+                )
+
+        if by_day:
+            click.echo(f"\nBy Day (last 7):")
+            for row in by_day:
+                day_str = str(row["day"])
+                click.echo(
+                    f"  {day_str}  ${row['cost_usd']:.2f}  "
+                    f"({row['requests']:,d} requests)"
+                )
+
+        if summary["total_requests"] == 0:
+            click.echo("\n  No AI usage recorded in this period.")
+
+    except Exception as e:
+        err_msg = str(e)
+        if "ai_usage_log" in err_msg.lower() or "doesn't exist" in err_msg.lower():
+            click.echo(
+                "ERROR: ai_usage_log table does not exist.\n"
+                "Run 'python main.py setup build' to create it, or run the "
+                "Phase 110C schema migration."
+            )
+        else:
+            click.echo(f"ERROR: {e}")
+        sys.exit(1)
 
 
 @click.command("run-all-searches")

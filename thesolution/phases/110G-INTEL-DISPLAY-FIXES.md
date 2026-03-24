@@ -8,7 +8,22 @@
 
 ## Summary
 
-When AI analysis runs on an opportunity, it breaks the Document Intelligence tab in three ways: keyword results disappear, confidence badges show "unknown", and AI results have no source provenance. This phase fixes all three issues so keyword and AI results coexist and both display correctly.
+The Document Intelligence tab should give users a simple two-level experience:
+
+**Level 1 — The Answer:** One clear, high-level value per category (Security Clearance: Y / TS/SCI, Eval Method: Best Value, etc.). This is the aggregated best answer across all attachments and all extraction methods (keyword + AI). The user glances at this and knows the key facts.
+
+**Level 2 — The Evidence:** Drill into any answer to see WHERE it came from and HOW it was determined. Each source shows: which attachment, which extraction method (Keyword vs AI), and the supporting detail. **Keyword sources are the gold standard here** — they show the exact matched text, page number, and character offset in the original document. This is the single most valuable feature of the intel tab: the user can verify any answer without re-reading the full document. AI sources supplement this with explanation paragraphs that interpret what the matches mean. Both must always be visible; AI must NEVER hide or replace keyword sources.
+
+### Current Problems
+
+The tab is broken in seven ways that prevent this experience from working:
+1. AI results replace keyword results instead of coexisting
+2. Confidence badges show "unknown" instead of actual values
+3. AI results have no source provenance (no "View Sources")
+4. Attachments not clickable — user can't open the original document on SAM.gov
+5. Cross-attachment aggregation picks wrong values (e.g., shows clearance "N" from one doc while 5 others say "Y")
+6. AI's rich explanation text (clearance_details, eval_details, etc.) is not displayed anywhere
+7. No per-attachment drill-down to see what each document contributed
 
 ---
 
@@ -283,35 +298,125 @@ This requires `_save_intel()` to return the `intel_id` so it can be passed to `_
 
 ---
 
+## Problem 4: Attachments Not Clickable
+
+### Root Cause
+
+The attachment list at the bottom of the Document Intelligence tab shows filenames but they are not clickable. Users cannot open the original document to verify intel or read the full solicitation.
+
+### Fix
+
+Make each attachment filename a link to the document on SAM.gov. The `opportunity_attachment` table already stores `url` (the SAM.gov download URL, e.g., `https://sam.gov/api/prod/opps/v3/opportunities/resources/files/.../download`). Render filenames as `<a href={url} target="_blank">` links. If `url` is null, show the filename as plain text (not clickable). The URL is already populated for all attachments.
+
+No need to build a document viewer — just link to SAM.gov where the user can download/read it directly.
+
+---
+
+## Problem 5: Cross-Attachment Aggregation is Broken
+
+### Root Cause
+
+When multiple attachments have AI intel, the UI displays a single merged view — but the merge logic is naive. It picks one attachment's value per field without domain-specific rules.
+
+**Real example (notice 63d402fe...):**
+- Security Clearance shows **"N"** — picked up from attachment 21076 (Q&A doc that said "not currently a requirement")
+- But **5 other attachments** say "Y" with TS/SCI, Top Secret, or Secret
+- The correct answer is "Y" / "TS/SCI" — the highest clearance level from any document
+
+Similarly:
+- Period of Performance shows "Not specified in Q&A document" — a doc-specific note that makes no sense as an aggregated value
+- Incumbent name shows a long string from one Q&A answer rather than a clean name
+
+### Fix
+
+Implement domain-specific aggregation rules when merging intel across attachments:
+
+| Field | Rule |
+|-------|------|
+| `clearance_required` | "Y" wins over "N" wins over null |
+| `clearance_level` | Highest level wins: TS/SCI > Top Secret > Secret > Confidential > Public Trust > null |
+| `eval_method` | Most specific wins; prefer concrete (LPTA, Best Value) over null |
+| `vehicle_type` | Most specific wins; prefer named vehicle over generic "IDIQ" |
+| `is_recompete` | "Y" wins over "N" wins over null (any evidence of recompete = recompete) |
+| `incumbent_name` | Prefer shortest non-null value (likely the clean name, not a sentence) |
+| `scope_summary` | Prefer longest non-null value from highest-confidence attachment |
+| `period_of_performance` | Prefer values that contain actual durations, not "not specified" |
+
+This aggregation should happen in the C# service when building the `DocumentIntelligenceDto`, not in the UI.
+
+---
+
+## Problem 6: Detail Text Fields Not Displayed
+
+### Root Cause
+
+AI extracts rich explanation fields (`clearance_details`, `eval_details`, `vehicle_details`, `recompete_details`) that provide the actual useful analysis — e.g., "TS FCL required at proposal submission, both JV partners need it, SCI on Day 1." These fields exist in the database but are not included in the DTO or shown in the UI.
+
+The keyword extractor dumps raw pattern matches into these fields (e.g., "clearance_ts_sci: TS/SCI; clearance_ts_sci: TS/SCI" repeated 7 times), which was never useful to display. But the AI versions are concise, human-readable explanations that are the most valuable part of the analysis.
+
+### Fix
+
+1. Add `clearance_details`, `eval_details`, `vehicle_details`, `recompete_details` to `DocumentIntelligenceDto`
+2. Only populate from AI intel records (keyword detail fields are raw pattern dumps, not user-facing)
+3. Display as expandable text beneath each intel card in the UI — e.g., clicking the "Security Clearance: Y / TS/SCI" card expands to show the AI's explanation
+4. This complements Problem 3's source provenance — sources show "where" the info came from, details show "what it means"
+
+---
+
+## Problem 7: No Per-Attachment Drill-Down
+
+### Root Cause
+
+The UI shows one merged view across all attachments. Users cannot see what each individual document contributed to the analysis. For a 12-attachment solicitation like SOFGSD, different documents contain different information (SOW has scope, Section M has eval criteria, Section L has proposal instructions, LCATs doc has labor categories).
+
+### Fix
+
+Add an expandable per-attachment section below the merged summary:
+- Collapsible list of attachments that had AI analysis
+- Each shows: filename, confidence level, and the key fields that attachment contributed
+- Clicking expands to show that attachment's full AI analysis
+- This lets users trace any merged field back to its source document
+
+This is lower priority than Problems 4-5 but significantly improves transparency.
+
+---
+
 ## Code Touchpoints
 
 ### Modified files
 
 | File | What to do |
 |------|------------|
-| `api/src/FedProspector.Infrastructure/Services/AttachmentIntelService.cs` | Return sources from ALL methods, add overall_confidence and confidence_details to DTO |
-| `api/src/FedProspector.Core/DTOs/Intelligence/AttachmentIntelDtos.cs` | Add OverallConfidence, ConfidenceDetails, AvailableMethods to DTO |
-| `ui/src/pages/opportunities/DocumentIntelligenceTab.tsx` | Use intel-level confidence instead of source-level, show sources from all methods |
+| `api/src/FedProspector.Infrastructure/Services/AttachmentIntelService.cs` | Cross-attachment aggregation with domain rules (P5), return sources from ALL methods (P1), add overall_confidence/confidence_details/detail fields to DTO (P2, P6), include attachment URLs (P4) |
+| `api/src/FedProspector.Core/DTOs/Intelligence/AttachmentIntelDtos.cs` | Add OverallConfidence, ConfidenceDetails, AvailableMethods, detail text fields, per-attachment breakdown to DTO (P2, P6, P7) |
+| `ui/src/pages/opportunities/DocumentIntelligenceTab.tsx` | Use intel-level confidence (P2), clickable attachment links (P4), show detail text fields as expandable content (P6), show sources from all methods (P1), per-attachment drill-down (P7) |
 | `ui/src/types/api.ts` | Update DocumentIntelligenceDto type |
-| `fed_prospector/etl/attachment_ai_analyzer.py` | Write source rows to opportunity_intel_source after AI analysis |
+| `fed_prospector/etl/attachment_ai_analyzer.py` | Write source rows to opportunity_intel_source after AI analysis (P3) |
 
 ---
 
 ## Implementation Order
 
-1. **Problem 3 first** (Python: AI writes source rows) — can be done independently, immediately improves AI results
-2. **Problem 2 next** (confidence fix) — DTO + UI change, quick fix
-3. **Problem 1 last** (merged sources from all methods) — largest change, touches backend query + DTO + UI display
+1. **Problem 5 first** (cross-attachment aggregation) — fixes the most visible bug (wrong clearance value). Backend-only change.
+2. **Problem 3 next** (AI writes source rows) — Python-only, independent, immediately improves AI results
+3. **Problem 2 next** (confidence fix) — DTO + UI change, quick fix
+4. **Problem 4 next** (clickable attachments) — quick UI win, link filenames to SAM.gov URLs
+5. **Problem 6 next** (detail text fields) — DTO + UI, high value — shows the AI explanations that justify the cost
+6. **Problem 1 next** (merged sources from all methods) — backend query + DTO + UI display
+7. **Problem 7 last** (per-attachment drill-down) — optional/lower priority, largest UI change
 
 ---
 
 ## Testing
 
-After implementation, verify with the test opportunity `53753e7b3c214d2d948b246c2e04aea5`:
+After implementation, verify with test opportunity `63d402fe5ab14912ac95ac72ae5f639a` (SOFGSD, 12 attachments, both keyword and AI intel):
 
-1. Before AI: keyword results show with confidence badges and "View Sources"
-2. After AI: both keyword AND AI results visible, confidence badges correct
-3. Keyword sources still show exact document locations
-4. AI sources show explanation text
-5. Re-analyze button still works
-6. Header shows both extraction methods
+1. Security Clearance should show "Y" / "TS/SCI" (not "N" from one Q&A doc)
+2. Confidence badges show actual values (high/medium/low), not "unknown"
+3. Detail text visible — clicking clearance card shows "TS FCL required at proposal submission..."
+4. Keyword sources still show exact document locations ("View Sources") — **do not lose this**
+5. AI sources show explanation text
+6. Attachment filenames are clickable links that open the SAM.gov download URL
+7. Re-analyze button still works
+8. Header shows both extraction methods
+9. Optional: per-attachment view shows what each of the 12 docs contributed

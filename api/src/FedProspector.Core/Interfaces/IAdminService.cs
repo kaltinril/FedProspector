@@ -13,4 +13,5 @@ public interface IAdminService
     Task<List<HealthSnapshotDto>> GetHealthSnapshotsAsync(int days);
     Task<List<ApiKeyStatusDto>> GetApiKeyStatusAsync();
     Task<List<JobStatusDto>> GetJobStatusAsync();
+    Task<AiUsageSummaryDto> GetAiUsageSummaryAsync(int days);
 }

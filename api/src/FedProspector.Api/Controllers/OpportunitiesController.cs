@@ -178,6 +178,17 @@ public class OpportunitiesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get a cost estimate for AI analysis of opportunity attachments.
+    /// </summary>
+    [HttpGet("{noticeId}/analyze/estimate")]
+    public async Task<ActionResult<AnalysisEstimateDto>> GetAnalysisEstimate(
+        string noticeId, [FromQuery] string model = "haiku")
+    {
+        var estimate = await _attachmentIntelService.GetAnalysisEstimateAsync(noticeId, model);
+        return Ok(estimate);
+    }
+
+    /// <summary>
     /// Request analysis of opportunity attachments. Inserts a data_load_request for the Python pipeline.
     /// </summary>
     [HttpPost("{noticeId}/analyze")]

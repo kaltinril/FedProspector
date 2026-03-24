@@ -85,6 +85,17 @@ public class AdminController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get AI analysis usage summary (cost, tokens, requests). System Admin only.
+    /// </summary>
+    [HttpGet("ai-usage")]
+    [Authorize(Policy = "SystemAdmin")]
+    public async Task<IActionResult> GetAiUsage([FromQuery] int days = 30)
+    {
+        var result = await _service.GetAiUsageSummaryAsync(days);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// List users in the admin's organization. Admin only.
     /// </summary>
     [HttpGet("users")]

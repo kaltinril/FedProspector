@@ -13,6 +13,7 @@ import json
 import hashlib
 import logging
 import os
+import re
 from datetime import datetime
 
 from db.connection import get_connection
@@ -26,7 +27,16 @@ MODELS = {
     "opus": "claude-opus-4-6",
 }
 
+# Per-million-token pricing by model family
+MODEL_PRICING = {
+    "haiku": {"input": 1.00, "output": 5.00, "cache_read": 0.10, "cache_write": 1.25},
+    "sonnet": {"input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_write": 3.75},
+    "opus": {"input": 15.00, "output": 75.00, "cache_read": 1.50, "cache_write": 18.75},
+}
+
 SYSTEM_PROMPT = """You are an expert federal contracting analyst. Analyze the following government solicitation document and extract structured intelligence.
+
+Respond with ONLY a valid JSON object — no markdown, no explanation, no text before or after the JSON.
 
 Return a JSON object with these fields:
 
@@ -34,9 +44,9 @@ Return a JSON object with these fields:
     "clearance_required": "Y" or "N" or null (if unclear),
     "clearance_level": "TS/SCI" | "Top Secret" | "Secret" | "Confidential" | "Public Trust" | null,
     "clearance_scope": "all_personnel" | "key_personnel" | "some_positions" | null,
-    "clearance_details": "Brief explanation of clearance requirements or null",
+    "clearance_details": "Brief explanation of clearance requirements, or null",
     "eval_method": "LPTA" | "Best Value" | "Trade-Off" | null,
-    "eval_details": "Evaluation factors with weights/priority, e.g. 'Technical (30%), Past Performance (25%), Cost (25%), SB Plan (20%)' or null",
+    "eval_details": "Evaluation factors with weights/priority, e.g. 'Technical (30%), Past Performance (25%), Cost (25%), SB Plan (20%)', or null",
     "vehicle_type": "IDIQ" | "BPA" | "GSA Schedule" | "OASIS" | "OASIS+" | "SEWP" | "CIO-SP3" | "CIO-SP4" | "Alliant" | "VETS 2" | "8(a) STARS" | "GWAC" | "Standalone" | null,
     "vehicle_details": "Contract vehicle details, SIN numbers, pricing structure (FFP/CPFF/T&M), or null",
     "is_recompete": "Y" or "N" or null (if unclear),
@@ -53,6 +63,13 @@ Return a JSON object with these fields:
         "vehicle": "high" | "medium" | "low",
         "recompete": "high" | "medium" | "low",
         "scope": "high" | "medium" | "low"
+    },
+    "citations": {
+        "clearance": "short verbatim quote (10-20 words) copied exactly from the document, or null",
+        "evaluation": "short verbatim quote (10-20 words) copied exactly from the document, or null",
+        "vehicle": "short verbatim quote (10-20 words) copied exactly from the document, or null",
+        "recompete": "short verbatim quote (10-20 words) copied exactly from the document, or null",
+        "scope": "short verbatim quote (10-20 words) copied exactly from the document, or null"
     }
 }
 
@@ -127,12 +144,35 @@ SCOPE SUMMARY:
 - Focus on specifics, not boilerplate. "Provide IT help desk support for 500 users at Fort Bragg"
   is better than "Provide services in accordance with the PWS."
 
+CITATIONS — prove your findings:
+- For each non-null finding (clearance, evaluation, vehicle, recompete, scope), include a short
+  VERBATIM quote from the document in the "citations" object.
+- The quote MUST be copied EXACTLY character-for-character from the source text. Do not paraphrase,
+  reword, fix typos, or change capitalization. We will search for this exact string in the document.
+- Keep quotes to 10-20 words — just enough to uniquely identify the passage.
+- Pick the single most decisive sentence fragment for each finding.
+- If a field is null, its citation should also be null.
+- Example: "clearance": "must possess a minimum Top Secret Facility Clearance (TS FCL)"
+
+RESPONSE LENGTH LIMITS — keep the JSON compact to avoid truncation:
+- "clearance_details": max 2 sentences. State what's required, not every paragraph reference.
+- "eval_details": max 1-2 sentences. List factors and weights concisely.
+- "vehicle_details": max 1 sentence.
+- "recompete_details": max 1-2 sentences.
+- "scope_summary": max 2-3 sentences.
+- "period_of_performance": max 1 sentence, e.g. "1 year base + 4 option years". Do NOT elaborate.
+- "labor_categories": max 15 entries. If more exist, include the most senior/critical ones.
+- "key_requirements": max 10 items. Prioritize true dealbreakers.
+
 GENERAL:
 - The user is a small business owner deciding whether to spend 80+ hours writing a proposal.
   Extract everything that helps them quickly assess: Can we do this? Can we win? Is it worth it?
 - Only extract information explicitly stated in the document. Do not infer or guess.
 - For fields where the document provides no information, use null (or empty list for arrays).
-- Set confidence to "low" for fields where the evidence is ambiguous.
+- Confidence levels measure how clearly the document states the information:
+  "high" = document explicitly states the value (e.g., "Top Secret clearance required")
+  "medium" = value is implied or partially stated (e.g., references DD Form 254 but doesn't name a level)
+  "low" = value is inferred from context or ambiguous (e.g., mentions "secure facility" but unclear if clearance needed)
 - Pay attention to negation and context — a document mentioning "Secret" in the phrase
   "no Secret clearance required" means clearance_required = "N", not "Y".
 - Return ONLY valid JSON, no markdown formatting or explanation."""
@@ -141,10 +181,11 @@ GENERAL:
 class AttachmentAIAnalyzer:
     """Analyzes attachment text using Claude AI for structured intelligence extraction."""
 
-    def __init__(self, model="haiku", dry_run=False):
+    def __init__(self, model="haiku", dry_run=False, requested_by=None):
         self.model_key = model
         self.model_id = MODELS.get(model, MODELS["haiku"])
         self.dry_run = dry_run
+        self.requested_by = requested_by
         self.extraction_method = f"ai_dry_run" if dry_run else f"ai_{model}"
         self._client = None
 
@@ -199,7 +240,7 @@ class AttachmentAIAnalyzer:
                         result.get("overall_confidence", "unknown"),
                     )
                 else:
-                    stats["skipped"] += 1
+                    stats["failed"] += 1
             except Exception as e:
                 stats["failed"] += 1
                 logger.error(
@@ -314,10 +355,13 @@ class AttachmentAIAnalyzer:
         # Real API call
         response = self.client.messages.create(
             model=self.model_id,
-            max_tokens=2000,
+            max_tokens=4096,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_message}],
         )
+
+        # Log token usage and cost
+        self._log_usage(doc["notice_id"], doc["attachment_id"], response.usage)
 
         # Parse JSON from response
         response_text = response.content[0].text.strip()
@@ -328,6 +372,12 @@ class AttachmentAIAnalyzer:
             # Remove first and last lines (``` markers)
             lines = [l for l in lines if not l.strip().startswith("```")]
             response_text = "\n".join(lines)
+
+        # Extract JSON object if model added extra text before/after
+        brace_start = response_text.find("{")
+        brace_end = response_text.rfind("}")
+        if brace_start != -1 and brace_end != -1:
+            response_text = response_text[brace_start:brace_end + 1]
 
         try:
             result = json.loads(response_text)
@@ -346,8 +396,134 @@ class AttachmentAIAnalyzer:
 
         return result
 
+    def _calculate_cost(self, model_key, input_tokens, output_tokens,
+                        cache_read_tokens=0, cache_write_tokens=0):
+        """Calculate USD cost from token counts using per-million-token pricing."""
+        pricing = MODEL_PRICING.get(model_key, MODEL_PRICING["haiku"])
+        cost = (
+            input_tokens * pricing["input"] / 1_000_000
+            + output_tokens * pricing["output"] / 1_000_000
+            + cache_read_tokens * pricing["cache_read"] / 1_000_000
+            + cache_write_tokens * pricing["cache_write"] / 1_000_000
+        )
+        return round(cost, 6)
+
+    def _log_usage(self, notice_id, attachment_id, response_usage):
+        """Log AI API usage to ai_usage_log table."""
+        input_tokens = response_usage.input_tokens
+        output_tokens = response_usage.output_tokens
+        cache_read = getattr(response_usage, 'cache_read_input_tokens', 0) or 0
+        cache_write = getattr(response_usage, 'cache_creation_input_tokens', 0) or 0
+        cost = self._calculate_cost(
+            self.model_key, input_tokens, output_tokens, cache_read, cache_write
+        )
+
+        conn = None
+        cursor = None
+        try:
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO ai_usage_log
+                (notice_id, attachment_id, model, input_tokens, output_tokens,
+                 cache_read_tokens, cache_write_tokens, cost_usd, requested_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (notice_id, attachment_id, self.model_key, input_tokens, output_tokens,
+                  cache_read, cache_write, cost, self.requested_by))
+            conn.commit()
+            logger.debug(
+                "Logged AI usage: %s attachment_id=%s model=%s in=%d out=%d cost=$%.6f",
+                notice_id, attachment_id, self.model_key,
+                input_tokens, output_tokens, cost,
+            )
+        except Exception as e:
+            logger.warning("Failed to log AI usage: %s", e)
+        finally:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+
+    def _resolve_citations(self, doc, result):
+        """Resolve verbatim citation quotes to character offsets in the source text.
+
+        Returns a dict like {"clearance": 5313, "evaluation": null, ...}
+        where each value is the char offset where the quote was found, or null.
+        """
+        citations = result.get("citations")
+        if not citations or not isinstance(citations, dict):
+            return None
+
+        text = doc.get("extracted_text", "")
+        if not text:
+            return None
+
+        # Pre-compute normalized versions for fallback matching
+        text_lower = text.lower()
+        text_ws_norm = re.sub(r"\s+", " ", text)
+        text_ws_norm_lower = text_ws_norm.lower()
+
+        offsets = {}
+        for field, quote in citations.items():
+            if not quote or not isinstance(quote, str):
+                offsets[field] = None
+                continue
+
+            # 1. Exact match
+            pos = text.find(quote)
+            if pos >= 0:
+                offsets[field] = pos
+                logger.debug("Citation exact match for %s at offset %d", field, pos)
+                continue
+
+            # 2. Case-insensitive
+            pos = text_lower.find(quote.lower())
+            if pos >= 0:
+                offsets[field] = pos
+                logger.debug("Citation case-insensitive match for %s at offset %d", field, pos)
+                continue
+
+            # 3. Whitespace-normalized (handles newlines/tabs in extracted text)
+            quote_ws = re.sub(r"\s+", " ", quote)
+            pos = text_ws_norm.find(quote_ws)
+            if pos >= 0:
+                offsets[field] = pos
+                logger.debug("Citation whitespace-normalized match for %s at offset %d", field, pos)
+                continue
+
+            pos = text_ws_norm_lower.find(quote_ws.lower())
+            if pos >= 0:
+                offsets[field] = pos
+                logger.debug("Citation ws-norm+case-insensitive match for %s at offset %d", field, pos)
+                continue
+
+            # 4. Partial match on first 40 chars (Claude sometimes adds to the end)
+            if len(quote) > 40:
+                short = quote[:40]
+                pos = text.find(short)
+                if pos >= 0:
+                    offsets[field] = pos
+                    logger.debug("Citation partial-40 match for %s at offset %d", field, pos)
+                    continue
+                pos = text_lower.find(short.lower())
+                if pos >= 0:
+                    offsets[field] = pos
+                    logger.debug("Citation partial-40 case-insensitive match for %s at offset %d", field, pos)
+                    continue
+
+            offsets[field] = None
+            logger.debug("Citation NOT found for %s: %s", field, quote[:60])
+
+        # Only return if at least one offset was found
+        if any(v is not None for v in offsets.values()):
+            return offsets
+        return None
+
     def _save_intel(self, doc, result):
         """Upsert AI analysis results into opportunity_attachment_intel."""
+        # Resolve citation quotes to character offsets before saving
+        citation_offsets = self._resolve_citations(doc, result)
+
         conn = get_connection()
         cursor = conn.cursor()
         try:
@@ -358,8 +534,8 @@ class AttachmentAIAnalyzer:
                 " eval_method, eval_details, vehicle_type, vehicle_details, "
                 " is_recompete, incumbent_name, recompete_details, "
                 " scope_summary, period_of_performance, labor_categories, key_requirements, "
-                " overall_confidence, confidence_details, extracted_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                " overall_confidence, confidence_details, citation_offsets, extracted_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON DUPLICATE KEY UPDATE "
                 "source_text_hash = VALUES(source_text_hash), "
                 "clearance_required = VALUES(clearance_required), "
@@ -379,6 +555,7 @@ class AttachmentAIAnalyzer:
                 "key_requirements = VALUES(key_requirements), "
                 "overall_confidence = VALUES(overall_confidence), "
                 "confidence_details = VALUES(confidence_details), "
+                "citation_offsets = VALUES(citation_offsets), "
                 "extracted_at = VALUES(extracted_at)",
                 (
                     doc["notice_id"],
@@ -394,14 +571,15 @@ class AttachmentAIAnalyzer:
                     result.get("vehicle_type"),
                     result.get("vehicle_details"),
                     result.get("is_recompete"),
-                    result.get("incumbent_name"),
+                    (result.get("incumbent_name") or "")[:200] or None,
                     result.get("recompete_details"),
                     result.get("scope_summary"),
-                    result.get("period_of_performance"),
+                    (result.get("period_of_performance") or "")[:200] or None,
                     json.dumps(result.get("labor_categories")) if result.get("labor_categories") else None,
                     json.dumps(result.get("key_requirements")) if result.get("key_requirements") else None,
                     result.get("overall_confidence", "low"),
                     json.dumps(result.get("confidence_details")) if result.get("confidence_details") else None,
+                    json.dumps(citation_offsets) if citation_offsets else None,
                     datetime.now(),
                 ),
             )

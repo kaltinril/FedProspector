@@ -15,6 +15,7 @@ import type {
   SetAsideShiftDto,
   DocumentIntelligenceDto,
   LoadRequestStatusDto,
+  AnalysisEstimateDto,
 } from '@/types/api';
 
 export function searchOpportunities(
@@ -96,4 +97,8 @@ export function getDocumentIntelligence(noticeId: string): Promise<DocumentIntel
 
 export function requestAnalysis(noticeId: string, tier: string = 'haiku'): Promise<LoadRequestStatusDto> {
   return apiClient.post(`/opportunities/${encodeURIComponent(noticeId)}/analyze?tier=${encodeURIComponent(tier)}`).then((r) => r.data);
+}
+
+export function getAnalysisEstimate(noticeId: string, model: string = 'haiku'): Promise<AnalysisEstimateDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/analyze/estimate`, { params: { model } }).then((r) => r.data);
 }

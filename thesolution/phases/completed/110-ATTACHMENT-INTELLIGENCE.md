@@ -398,7 +398,7 @@ New module: `fed_prospector/etl/attachment_ai_analyzer.py`
 - Process batch results and merge with keyword-extracted intel
 - AI results override keyword results when confidence is higher
 - Track API usage and costs in `etl_load_log`
-- CLI: `python main.py analyze attachments [--notice-id=X] [--batch-size=50] [--model=haiku] [--force]`
+- CLI: `python main.py extract attachment-ai [--notice-id=X] [--batch-size=50] [--model=haiku] [--force]`
 
 **Task 7: On-demand deep analysis endpoint**
 
@@ -620,7 +620,7 @@ Scheduled process that runs periodically (daily or on-demand):
 python main.py download attachments --missing-only --batch-size=200
 python main.py extract attachment-text --pending-only --batch-size=200
 python main.py extract attachment-intel --pending-only --method=keyword
-python main.py analyze attachments --low-confidence-only --model=haiku
+python main.py extract attachment-ai --low-confidence-only --model=haiku
 ```
 
 **When:** After opportunity load completes, as a separate enrichment step.

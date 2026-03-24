@@ -192,10 +192,10 @@ def analyze_attachments(notice_id, batch_size, model, force, dry_run):
     Use --dry-run to test the full pipeline without an API key.
 
     Examples:
-        python main.py analyze attachments
-        python main.py analyze attachments --model sonnet
-        python main.py analyze attachments --notice-id abc123
-        python main.py analyze attachments --dry-run
+        python main.py extract attachment-ai
+        python main.py extract attachment-ai --model sonnet
+        python main.py extract attachment-ai --notice-id abc123
+        python main.py extract attachment-ai --dry-run
     """
     logger = setup_logging()
 

@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS opportunity_attachment_intel (
     key_requirements      JSON,
     overall_confidence    ENUM('high','medium','low') NOT NULL,
     confidence_details    JSON,
+    citation_offsets      JSON,
     last_load_id          INT,
     extracted_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_notice (notice_id),

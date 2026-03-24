@@ -1,6 +1,6 @@
 # Phase 110E: AI Analysis Cost Controls & Usage Tracking
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** High — required before enabling AI analysis for users
 **Dependencies:** Phase 110C (AI analyzer module — complete)
 
@@ -190,3 +190,16 @@ Prints a summary table of AI analysis spending to the console.
 - Task 3 (visibility) can be a fast follow since it just reads the usage log
 - No Anthropic API endpoint exists for checking remaining credits (open feature request), so we track spend ourselves
 - Cost estimates are approximate — actual cost may vary due to prompt caching, tokenizer differences
+- Token estimation uses chars/4 as a conservative approximation (typical English prose: 1 token ≈ 3-4 chars)
+- UI-triggered analysis uses on-demand (single-message) API at standard pricing; CLI batch uses same API currently (no Batch API discount yet)
+- The analyzer truncates text at 100K chars per document — cost estimate must cap per-doc text at the same limit
+- `response.usage` is available on every Anthropic response but currently discarded — Task 2 captures it
+- Admin usage endpoint: add to existing `AdminController` (no new admin page needed for MVP)
+- CLI command location: add `ai-usage` subcommand under existing `health` group in `cli/health.py`
+
+## Completion Notes
+
+- **Task 1 (Cost Estimation & Confirmation)**: New endpoint `GET /opportunities/{noticeId}/analyze/estimate` returns token/cost estimates before analysis. UI shows a confirmation dialog with estimated cost when the user clicks "Enhance with AI", preventing accidental spending.
+- **Task 2 (Usage Tracking)**: New `ai_usage_log` table (DDL: `75_ai_usage.sql`) records every AI API call with token counts and calculated cost. `MODEL_PRICING` constants added to the analyzer. `_log_usage()` method in `attachment_ai_analyzer.py` inserts a row after each successful API call. `requested_by` user ID flows through from `demand_loader` for UI-triggered analysis.
+- **Task 3 (Spending Visibility)**: CLI command `python main.py health ai-usage [--days=30]` prints a summary table of AI spending. C# endpoint `GET /api/v1/admin/ai-usage?days=30` returns `AiUsageSummaryDto` with totals, per-model breakdown, and daily breakdown.
+- **CLI rename**: `analyze attachments` command renamed to `extract attachment-ai` for consistency with the existing `extract attachment-text` and `extract attachment-intel` commands.

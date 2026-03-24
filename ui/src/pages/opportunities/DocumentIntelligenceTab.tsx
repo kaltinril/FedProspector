@@ -2,14 +2,18 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import Collapse from '@mui/material/Collapse';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
-import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
 import Paper from '@mui/material/Paper';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -27,9 +31,9 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getDocumentIntelligence, requestAnalysis } from '@/api/opportunities';
+import { getDocumentIntelligence, getAnalysisEstimate, requestAnalysis } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
-import type { IntelSourceDto, AttachmentSummaryDto } from '@/types/api';
+import type { IntelSourceDto, AttachmentSummaryDto, AnalysisEstimateDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -56,6 +60,10 @@ function formatFileSize(bytes: number | undefined | null): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatTokens(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : `${n}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -385,9 +393,103 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
     },
   });
 
+  // --- AI Analysis Confirmation Dialog ---
+  const [estimateDialogOpen, setEstimateDialogOpen] = useState(false);
+  const [estimate, setEstimate] = useState<AnalysisEstimateDto | null>(null);
+  const [estimateLoading, setEstimateLoading] = useState(false);
+  const [estimateError, setEstimateError] = useState(false);
+
+  const handleEnhanceWithAI = async () => {
+    setEstimateLoading(true);
+    setEstimateError(false);
+    setEstimate(null);
+    try {
+      const result = await getAnalysisEstimate(noticeId);
+      setEstimate(result);
+      setEstimateDialogOpen(true);
+    } catch {
+      setEstimateError(true);
+      setEstimateDialogOpen(true);
+    } finally {
+      setEstimateLoading(false);
+    }
+  };
+
+  const handleConfirmAnalyze = () => {
+    setEstimateDialogOpen(false);
+    setEstimate(null);
+    analyzeMutation.mutate();
+  };
+
+  const handleCancelDialog = () => {
+    setEstimateDialogOpen(false);
+    setEstimate(null);
+    setEstimateError(false);
+  };
+
+  // --- Confirmation Dialog ---
+  const estimateDialog = (
+    <Dialog open={estimateDialogOpen} onClose={handleCancelDialog} maxWidth="sm" fullWidth>
+      <DialogTitle>Analyze Documents with AI?</DialogTitle>
+      <DialogContent>
+        {estimateError ? (
+          <Typography color="text.secondary">
+            Unable to estimate cost. Proceed anyway?
+          </Typography>
+        ) : estimate && estimate.remainingToAnalyze === 0 ? (
+          <>
+            <Typography gutterBottom>
+              All {estimate.attachmentCount} document{estimate.attachmentCount !== 1 ? 's' : ''} already have AI analysis. Re-analyze?
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Model: Claude {estimate.model}
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>
+              Estimated cost: ${estimate.estimatedCostUsd.toFixed(4)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              ~{formatTokens(estimate.estimatedInputTokens)} input tokens, ~{formatTokens(estimate.estimatedOutputTokens)} output tokens
+            </Typography>
+          </>
+        ) : estimate ? (
+          <>
+            <Typography gutterBottom>
+              {estimate.remainingToAnalyze} document{estimate.remainingToAnalyze !== 1 ? 's' : ''} to analyze
+              {estimate.alreadyAnalyzed > 0 && (
+                <Typography component="span" color="text.secondary">
+                  {' '}({estimate.alreadyAnalyzed} already analyzed)
+                </Typography>
+              )}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Model: Claude {estimate.model}
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>
+              Estimated cost: ${estimate.estimatedCostUsd.toFixed(4)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              ~{formatTokens(estimate.estimatedInputTokens)} input tokens, ~{formatTokens(estimate.estimatedOutputTokens)} output tokens
+            </Typography>
+          </>
+        ) : null}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleCancelDialog}>Cancel</Button>
+        <Button variant="contained" onClick={handleConfirmAnalyze}>
+          Analyze
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+
   // --- Loading ---
   if (isLoading) {
-    return <LoadingState message="Loading document intelligence..." />;
+    return (
+      <>
+        <LoadingState message="Loading document intelligence..." />
+        {estimateDialog}
+      </>
+    );
   }
 
   // --- 404 / No data ---
@@ -400,31 +502,37 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
 
   if (is404 || (!isError && !intel)) {
     return (
-      <EmptyState
-        title="No Document Intelligence Available"
-        message="No document intelligence available yet. Run the daily pipeline or use the CLI to download and analyze attachments for this opportunity."
-        icon={<DescriptionIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />}
-        action={
-          <Button
-            variant="contained"
-            startIcon={basicAnalysisMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
-            disabled={basicAnalysisMutation.isPending}
-            onClick={() => basicAnalysisMutation.mutate()}
-          >
-            {basicAnalysisMutation.isPending ? 'Requesting...' : 'Run Basic Analysis'}
-          </Button>
-        }
-      />
+      <>
+        <EmptyState
+          title="No Document Intelligence Available"
+          message="No document intelligence available yet. Run the daily pipeline or use the CLI to download and analyze attachments for this opportunity."
+          icon={<DescriptionIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />}
+          action={
+            <Button
+              variant="contained"
+              startIcon={basicAnalysisMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
+              disabled={basicAnalysisMutation.isPending}
+              onClick={() => basicAnalysisMutation.mutate()}
+            >
+              {basicAnalysisMutation.isPending ? 'Requesting...' : 'Run Basic Analysis'}
+            </Button>
+          }
+        />
+        {estimateDialog}
+      </>
     );
   }
 
   // --- Error ---
   if (isError) {
     return (
-      <ErrorState
-        title="Failed to load document intelligence"
-        message="An error occurred while loading document intelligence for this opportunity."
-      />
+      <>
+        <ErrorState
+          title="Failed to load document intelligence"
+          message="An error occurred while loading document intelligence for this opportunity."
+        />
+        {estimateDialog}
+      </>
     );
   }
 
@@ -461,15 +569,16 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             </Button>
             <Button
               variant="outlined"
-              startIcon={analyzeMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <AnalyticsIcon />}
-              disabled={analyzeMutation.isPending}
-              onClick={() => analyzeMutation.mutate()}
+              startIcon={estimateLoading || analyzeMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <AnalyticsIcon />}
+              disabled={estimateLoading || analyzeMutation.isPending}
+              onClick={handleEnhanceWithAI}
             >
-              {analyzeMutation.isPending ? 'Requesting...' : 'Enhance with AI'}
+              {estimateLoading ? 'Estimating...' : analyzeMutation.isPending ? 'Requesting...' : 'Enhance with AI'}
             </Button>
           </Box>
         </Paper>
         <AttachmentsTable attachments={intel.attachments ?? []} />
+        {estimateDialog}
       </Box>
     );
   }
@@ -521,15 +630,17 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             <Button
               variant="outlined"
               size="small"
-              startIcon={analyzeMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
-              disabled={analyzeMutation.isPending}
-              onClick={() => analyzeMutation.mutate()}
+              startIcon={estimateLoading || analyzeMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
+              disabled={estimateLoading || analyzeMutation.isPending}
+              onClick={handleEnhanceWithAI}
             >
-              {analyzeMutation.isPending
-                ? 'Requesting...'
-                : intel.latestExtractionMethod === 'keyword'
-                  ? 'Enhance with AI'
-                  : 'Re-analyze'}
+              {estimateLoading
+                ? 'Estimating...'
+                : analyzeMutation.isPending
+                  ? 'Requesting...'
+                  : intel.latestExtractionMethod === 'keyword'
+                    ? 'Enhance with AI'
+                    : 'Re-analyze'}
             </Button>
           </Box>
         </Box>
@@ -568,6 +679,7 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
 
       {/* Attachments Table */}
       <AttachmentsTable attachments={intel.attachments ?? []} />
+      {estimateDialog}
     </Box>
   );
 }

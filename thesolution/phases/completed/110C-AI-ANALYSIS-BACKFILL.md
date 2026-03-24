@@ -71,7 +71,7 @@ Same fields as keyword extraction, but with higher accuracy:
 
 ## Task 3: CLI Integration (Daily Batch)
 
-CLI command: `python main.py analyze attachments [--notice-id=X] [--batch-size=50] [--model=haiku] [--force] [--dry-run]`
+CLI command: `python main.py extract attachment-ai [--notice-id=X] [--batch-size=50] [--model=haiku] [--force] [--dry-run]`
 
 This is for daily batch processing — run as part of the regular data loading pipeline. Analyzes all documents that have extracted text but no AI intel yet.
 
@@ -133,7 +133,7 @@ The request poller (`demand process-requests --watch`) and scheduling (daily bat
 - **Phase 110X** — Scheduled & Automated Analysis (cron-style recurring jobs)
 - **Phase 110Y** — Request Poller Service (add poller to `fed_prospector.py start/stop`)
 
-For now, AI analysis is triggered via CLI (`analyze attachments`) or by manually running `demand process-requests` to pick up UI button requests.
+For now, AI analysis is triggered via CLI (`extract attachment-ai`) or by manually running `demand process-requests` to pick up UI button requests.
 
 ---
 

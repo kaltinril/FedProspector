@@ -14,7 +14,7 @@ Add scheduled/automated execution of AI document analysis and other recurring pi
 
 ## Scope
 
-- Schedule daily AI analysis batch (`analyze attachments`) after daily opportunity/attachment loads complete
+- Schedule daily AI analysis batch (`extract attachment-ai`) after daily opportunity/attachment loads complete
 - Schedule column backfill (`backfill opportunity-intel`) after analysis
 - Schedule attachment cleanup after analysis
 - Potentially schedule other recurring tasks (data quality checks, etc.)

@@ -551,7 +551,7 @@ def ch4_cli_reference(doc):
         ("analyze burn-rate", "Calculate contract burn rate from USASpending transaction data"),
         ("analyze teaming", "Discover potential teaming partners from subaward data"),
         ("analyze scan-exclusions", "Scan prospects for excluded entities"),
-        ("analyze attachments", "Analyze attachment content using Claude AI (Phase 110C)"),
+        ("extract attachment-ai", "Analyze attachment content using Claude AI (Phase 110C)"),
     ]
     for cmd, desc in cmds:
         p = doc.add_paragraph()

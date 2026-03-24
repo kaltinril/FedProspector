@@ -349,6 +349,25 @@ Implemented as `_check_and_rebuild_indexes()` in `USASpendingBulkLoader`. Runs o
 | TEST-6 | CLI: `demand` process-requests no tests |
 | TEST-9 | Pre-existing test failure: `test_all_valid_note_types_accepted[STATUS_CHANGE]` |
 
+### 500O: ZIP Attachment Extraction (from Phase 110)
+
+**Original phase**: 110 (Attachment Intelligence)
+**Deferred because**: Only 103 ZIP files (0.4% of attachments). Phase 110 spec'd the implementation but it was never built.
+
+**Problem**: ZIP attachments are marked `unsupported` and skipped. Their contents (PDFs, Word docs, spreadsheets inside the ZIP) are never extracted or analyzed. 25 opportunities have ZIPs as their only attachments — completely invisible to both keyword and AI analysis.
+
+**Planned implementation** (from Phase 110 doc):
+1. New module: `fed_prospector/etl/safe_zip.py` — `extract_zip_safely()` with safety controls (zip bomb detection, path traversal prevention, max file count/size)
+2. Modify `attachment_text_extractor.py` — add ZIP handler that extracts to temp dir, dispatches each inner file to existing handlers (PDF, DOCX, XLSX), concatenates results
+3. Store concatenated text in parent attachment's `extracted_text` column (no schema changes)
+4. Mark parent attachment as `extracted` on success
+
+**Safety controls needed**: Max decompressed size (500MB), max file count (100), no nested ZIPs, path traversal check (zip slip), temp dir cleanup.
+
+**Estimated effort**: ~1 day
+
+---
+
 #### Cross-Cutting
 
 | # | Issue |

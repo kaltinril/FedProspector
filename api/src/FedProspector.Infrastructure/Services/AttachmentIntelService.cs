@@ -153,6 +153,69 @@ public class AttachmentIntelService : IAttachmentIntelService
         };
     }
 
+    public async Task<AnalysisEstimateDto> GetAnalysisEstimateAsync(string noticeId, string model = "haiku")
+    {
+        const int maxCharsPerDoc = 100_000;
+        const int systemPromptTokensPerDoc = 800;
+        const int maxOutputTokensPerDoc = 2000;
+
+        // Get all complete attachments for this notice
+        var attachments = await _context.OpportunityAttachments.AsNoTracking()
+            .Where(a => a.NoticeId == noticeId && a.ExtractionStatus == "extracted")
+            .Select(a => new
+            {
+                a.AttachmentId,
+                TextLength = a.ExtractedText != null ? a.ExtractedText.Length : 0
+            })
+            .ToListAsync();
+
+        // Get attachment IDs that already have AI analysis (excluding dry runs)
+        var analyzedAttachmentIds = await _context.OpportunityAttachmentIntels.AsNoTracking()
+            .Where(i => i.NoticeId == noticeId
+                && i.AttachmentId != null
+                && i.ExtractionMethod != null
+                && i.ExtractionMethod.StartsWith("ai_")
+                && i.ExtractionMethod != "ai_dry_run")
+            .Select(i => i.AttachmentId!.Value)
+            .Distinct()
+            .ToListAsync();
+
+        var analyzedSet = new HashSet<int>(analyzedAttachmentIds);
+        var totalAttachments = attachments.Count;
+        var alreadyAnalyzed = attachments.Count(a => analyzedSet.Contains(a.AttachmentId));
+        var remaining = totalAttachments - alreadyAnalyzed;
+
+        var totalChars = attachments
+            .Where(a => !analyzedSet.Contains(a.AttachmentId))
+            .Sum(a => Math.Min(a.TextLength, maxCharsPerDoc));
+
+        var estimatedInputTokens = totalChars / 4 + systemPromptTokensPerDoc * remaining;
+        var estimatedOutputTokens = maxOutputTokensPerDoc * remaining;
+
+        // Pricing per million tokens
+        var (inputPricePerMillion, outputPricePerMillion) = model.ToLowerInvariant() switch
+        {
+            "sonnet" => (3.00m, 15.00m),
+            _ => (1.00m, 5.00m)  // haiku default
+        };
+
+        var estimatedCost = estimatedInputTokens / 1_000_000m * inputPricePerMillion
+                          + estimatedOutputTokens / 1_000_000m * outputPricePerMillion;
+
+        return new AnalysisEstimateDto
+        {
+            NoticeId = noticeId,
+            AttachmentCount = totalAttachments,
+            TotalChars = totalChars,
+            EstimatedInputTokens = estimatedInputTokens,
+            EstimatedOutputTokens = estimatedOutputTokens,
+            EstimatedCostUsd = Math.Round(estimatedCost, 6),
+            Model = model.ToLowerInvariant() == "sonnet" ? "sonnet" : "haiku",
+            AlreadyAnalyzed = alreadyAnalyzed,
+            RemainingToAnalyze = remaining
+        };
+    }
+
     private static List<string> DeserializeJsonList(string? json)
     {
         if (string.IsNullOrWhiteSpace(json))
