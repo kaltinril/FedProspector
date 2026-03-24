@@ -119,7 +119,7 @@ sources = await _context.OpportunityIntelSources.AsNoTracking()
     .ToListAsync();
 ```
 
-3. Populate `AvailableMethods` from the distinct extraction methods found.
+3. Populate `AvailableMethods` from the distinct extraction methods found. Use machine-readable values matching the DB enum: `["keyword", "ai_haiku", "ai_sonnet"]`. The UI already has label mapping logic for these values.
 
 #### UI Changes
 
@@ -253,6 +253,10 @@ def _save_ai_sources(self, doc, intel_id, result):
             "eval_method": result.get("eval_details"),
             "vehicle_type": result.get("vehicle_details"),
             "is_recompete": result.get("recompete_details"),
+            "pricing_structure": result.get("pricing_details"),
+            "place_of_performance": result.get("pop_details"),
+            "scope_summary": result.get("scope_summary"),
+            "period_of_performance": result.get("period_of_performance"),
         }
 
         confidence_details = result.get("confidence_details") or {}
@@ -261,6 +265,10 @@ def _save_ai_sources(self, doc, intel_id, result):
             "eval_method": confidence_details.get("evaluation", "medium"),
             "vehicle_type": confidence_details.get("vehicle", "medium"),
             "is_recompete": confidence_details.get("recompete", "medium"),
+            "pricing_structure": confidence_details.get("pricing", "medium"),
+            "place_of_performance": confidence_details.get("place_of_performance", "medium"),
+            "scope_summary": confidence_details.get("scope", "medium"),
+            "period_of_performance": confidence_details.get("period", "medium"),
         }
 
         rows_inserted = 0
@@ -310,6 +318,23 @@ Make each attachment filename a link to the document on SAM.gov. The `opportunit
 
 No need to build a document viewer — just link to SAM.gov where the user can download/read it directly.
 
+#### DTO Changes
+
+Add `Url` to `AttachmentSummaryDto`:
+
+```csharp
+public class AttachmentSummaryDto
+{
+    // ... existing fields ...
+    public string? Url { get; set; }  // NEW — SAM.gov download URL
+}
+```
+
+Map from entity in `AttachmentIntelService`:
+```csharp
+Url = a.Url,
+```
+
 ---
 
 ## Problem 5: Cross-Attachment Aggregation is Broken
@@ -341,8 +366,17 @@ Implement domain-specific aggregation rules when merging intel across attachment
 | `incumbent_name` | Prefer shortest non-null value (likely the clean name, not a sentence) |
 | `scope_summary` | Prefer longest non-null value from highest-confidence attachment |
 | `period_of_performance` | Prefer values that contain actual durations, not "not specified" |
+| `pricing_structure` | Most specific wins; prefer named structure (FFP, T&M) over null |
+| `place_of_performance` | Prefer most detailed non-null value |
+| detail text fields (`clearance_details`, `eval_details`, `vehicle_details`, `recompete_details`) | Take from the same attachment whose primary field value won the aggregation. If that attachment has no detail text, take the longest non-null detail text from any attachment. Only populate from AI intel records — keyword detail fields are raw pattern dumps. |
 
 This aggregation should happen in the C# service when building the `DocumentIntelligenceDto`, not in the UI.
+
+### Aggregation Edge Cases
+
+- **clearance_required + clearance_level**: First aggregate `clearance_required` (Y > N > null). If any attachment says "Y", the merged value is "Y". Then aggregate `clearance_level` across ALL attachments that said "Y" only — ignore level values from attachments that said "N" or null.
+- **"Not specified" values**: Treat strings like "Not specified", "N/A", "not specified in Q&A document", "none", "not applicable" as null equivalents during aggregation. Strip these before comparing.
+- **Empty vs null**: Treat empty strings as null during aggregation.
 
 ---
 

@@ -1211,6 +1211,7 @@ export interface DocumentIntelligenceDto {
   attachmentCount: number;
   analyzedCount: number;
   latestExtractionMethod?: string;
+  availableMethods: string[];
   lastExtractedAt?: string;
   clearanceRequired?: string;
   clearanceLevel?: string;
@@ -1224,8 +1225,16 @@ export interface DocumentIntelligenceDto {
   laborCategories: string[];
   keyRequirements: string[];
   overallConfidence: string;
+  confidenceDetails?: Record<string, string>;
+  clearanceDetails?: string;
+  evalDetails?: string;
+  vehicleDetails?: string;
+  recompeteDetails?: string;
+  pricingDetails?: string;
+  popDetails?: string;
   sources: IntelSourceDto[];
   attachments: AttachmentSummaryDto[];
+  perAttachmentIntel?: AttachmentIntelBreakdownDto[];
 }
 
 export interface IntelSourceDto {
@@ -1247,6 +1256,22 @@ export interface AttachmentSummaryDto {
   downloadStatus: string;
   extractionStatus: string;
   skipReason?: string;
+  url?: string;
+}
+
+export interface AttachmentIntelBreakdownDto {
+  attachmentId: number;
+  filename: string;
+  extractionMethod: string;
+  confidence?: string;
+  clearanceRequired?: string;
+  clearanceLevel?: string;
+  evalMethod?: string;
+  vehicleType?: string;
+  isRecompete?: string;
+  incumbentName?: string;
+  pricingStructure?: string;
+  placeOfPerformance?: string;
 }
 
 export interface LoadRequestStatusDto {

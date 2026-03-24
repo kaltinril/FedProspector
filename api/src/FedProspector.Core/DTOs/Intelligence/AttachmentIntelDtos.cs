@@ -16,11 +16,22 @@ public class DocumentIntelligenceDto
     public string? IncumbentName { get; set; }
     public string? ScopeSummary { get; set; }
     public string? PeriodOfPerformance { get; set; }
+    public string? PricingStructure { get; set; }
+    public string? PlaceOfPerformance { get; set; }
     public List<string> LaborCategories { get; set; } = new();
     public List<string> KeyRequirements { get; set; } = new();
     public string OverallConfidence { get; set; } = "low";
+    public List<string> AvailableMethods { get; set; } = new();
+    public Dictionary<string, string>? ConfidenceDetails { get; set; }
+    public string? ClearanceDetails { get; set; }
+    public string? EvalDetails { get; set; }
+    public string? VehicleDetails { get; set; }
+    public string? RecompeteDetails { get; set; }
+    public string? PricingDetails { get; set; }
+    public string? PopDetails { get; set; }
     public List<IntelSourceDto> Sources { get; set; } = new();
     public List<AttachmentSummaryDto> Attachments { get; set; } = new();
+    public List<AttachmentIntelBreakdownDto>? PerAttachmentIntel { get; set; }
 }
 
 public class IntelSourceDto
@@ -51,10 +62,27 @@ public class AttachmentSummaryDto
 {
     public int AttachmentId { get; set; }
     public string Filename { get; set; } = "";
+    public string? Url { get; set; }
     public string? ContentType { get; set; }
     public long? FileSizeBytes { get; set; }
     public int? PageCount { get; set; }
     public string DownloadStatus { get; set; } = "";
     public string ExtractionStatus { get; set; } = "";
     public string? SkipReason { get; set; }
+}
+
+public class AttachmentIntelBreakdownDto
+{
+    public int AttachmentId { get; set; }
+    public string Filename { get; set; } = "";
+    public string ExtractionMethod { get; set; } = "";
+    public string? Confidence { get; set; }
+    public string? ClearanceRequired { get; set; }
+    public string? ClearanceLevel { get; set; }
+    public string? EvalMethod { get; set; }
+    public string? VehicleType { get; set; }
+    public string? IsRecompete { get; set; }
+    public string? IncumbentName { get; set; }
+    public string? PricingStructure { get; set; }
+    public string? PlaceOfPerformance { get; set; }
 }

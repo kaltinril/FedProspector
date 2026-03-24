@@ -54,6 +54,12 @@ public class OpportunityAttachmentIntel
     [Column(TypeName = "text")]
     public string? RecompeteDetails { get; set; }
 
+    [MaxLength(50)]
+    public string? PricingStructure { get; set; }
+
+    [MaxLength(200)]
+    public string? PlaceOfPerformance { get; set; }
+
     [Column(TypeName = "text")]
     public string? ScopeSummary { get; set; }
 

@@ -249,7 +249,11 @@ class AttachmentAIAnalyzer:
             try:
                 result = self._analyze_document(doc)
                 if result:
-                    self._save_intel(doc, result)
+                    intel_id = self._save_intel(doc, result)
+                    self._save_ai_sources(
+                        intel_id, doc["attachment_id"],
+                        doc.get("filename"), result,
+                    )
                     stats["analyzed"] += 1
                     logger.info(
                         "Analyzed %s attachment_id=%s (%s confidence)",
@@ -618,7 +622,11 @@ class AttachmentAIAnalyzer:
         return None
 
     def _save_intel(self, doc, result):
-        """Upsert AI analysis results into opportunity_attachment_intel."""
+        """Upsert AI analysis results into opportunity_attachment_intel.
+
+        Returns:
+            int: The intel_id of the inserted or updated row.
+        """
         # Resolve citation quotes to character offsets before saving
         citation_offsets = self._resolve_citations(doc, result)
 
@@ -691,11 +699,121 @@ class AttachmentAIAnalyzer:
                     datetime.now(),
                 ),
             )
+
+            # Retrieve the intel_id — lastrowid is 0 on UPDATE, so use SELECT as fallback
+            intel_id = cursor.lastrowid
+            if not intel_id:
+                cursor.execute(
+                    "SELECT intel_id FROM opportunity_attachment_intel "
+                    "WHERE notice_id = %s AND attachment_id = %s AND extraction_method = %s",
+                    (doc["notice_id"], doc["attachment_id"], self.extraction_method),
+                )
+                row = cursor.fetchone()
+                intel_id = row[0] if row else None
+
             conn.commit()
             logger.debug(
-                "Saved AI intel for %s attachment_id=%s (method=%s)",
-                doc["notice_id"], doc["attachment_id"], self.extraction_method,
+                "Saved AI intel for %s attachment_id=%s (method=%s, intel_id=%s)",
+                doc["notice_id"], doc["attachment_id"], self.extraction_method, intel_id,
             )
+            return intel_id
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _save_ai_sources(self, intel_id, attachment_id, filename, result):
+        """Write explanation-based source rows for AI analysis results.
+
+        Creates one opportunity_intel_source row per non-null detail field
+        extracted by AI, enabling "View Sources" in the UI for AI results.
+
+        Args:
+            intel_id: The intel_id from opportunity_attachment_intel.
+            attachment_id: The attachment that was analyzed.
+            filename: The attachment filename.
+            result: The parsed AI analysis result dict.
+        """
+        if not intel_id:
+            logger.warning("Cannot save AI sources: no intel_id provided")
+            return 0
+
+        # Map intel fields to their AI explanation/detail text
+        field_details = {
+            "clearance_level": result.get("clearance_details"),
+            "eval_method": result.get("eval_details"),
+            "vehicle_type": result.get("vehicle_details"),
+            "is_recompete": result.get("recompete_details"),
+            "pricing_structure": result.get("pricing_details"),
+            "place_of_performance": result.get("pop_details"),
+            "scope_summary": result.get("scope_summary"),
+            "period_of_performance": result.get("period_of_performance"),
+        }
+
+        # Map intel fields to per-field confidence from AI response
+        confidence_details = result.get("confidence_details") or {}
+        confidence_map = {
+            "clearance_level": confidence_details.get("clearance", "medium"),
+            "eval_method": confidence_details.get("evaluation", "medium"),
+            "vehicle_type": confidence_details.get("vehicle", "medium"),
+            "is_recompete": confidence_details.get("recompete", "medium"),
+            "pricing_structure": confidence_details.get("pricing", "medium"),
+            "place_of_performance": confidence_details.get("place_of_performance", "medium"),
+            "scope_summary": confidence_details.get("scope", "medium"),
+            "period_of_performance": confidence_details.get("period", "medium"),
+        }
+
+        # Filter to only non-null detail fields
+        source_rows = [
+            (field_name, detail_text)
+            for field_name, detail_text in field_details.items()
+            if detail_text
+        ]
+
+        if not source_rows:
+            logger.debug("No AI source rows to write for intel_id=%s", intel_id)
+            return 0
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            # Delete existing AI source rows for this intel_id (idempotent re-runs)
+            cursor.execute(
+                "DELETE FROM opportunity_intel_source WHERE intel_id = %s",
+                (intel_id,),
+            )
+
+            rows_inserted = 0
+            for field_name, detail_text in source_rows:
+                # Validate confidence value against allowed ENUM values
+                confidence = confidence_map.get(field_name, "medium")
+                if confidence not in ("high", "medium", "low"):
+                    confidence = "medium"
+
+                cursor.execute(
+                    "INSERT INTO opportunity_intel_source "
+                    "(intel_id, field_name, attachment_id, source_filename, "
+                    " matched_text, extraction_method, confidence) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                    (
+                        intel_id,
+                        field_name,
+                        attachment_id,
+                        filename,
+                        detail_text[:500],
+                        self.extraction_method,
+                        confidence,
+                    ),
+                )
+                rows_inserted += 1
+
+            conn.commit()
+            logger.info(
+                "Wrote %d AI source rows for intel_id=%s", rows_inserted, intel_id,
+            )
+            return rows_inserted
         except Exception:
             conn.rollback()
             raise

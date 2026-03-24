@@ -14,6 +14,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
 import IconButton from '@mui/material/IconButton';
+import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
@@ -33,7 +34,13 @@ import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { getDocumentIntelligence, getAnalysisEstimate, requestAnalysis } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
-import type { IntelSourceDto, AttachmentSummaryDto, AnalysisEstimateDto } from '@/types/api';
+import type {
+  DocumentIntelligenceDto,
+  IntelSourceDto,
+  AttachmentSummaryDto,
+  AttachmentIntelBreakdownDto,
+  AnalysisEstimateDto,
+} from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -55,6 +62,30 @@ const METHOD_LABELS: Record<string, string> = {
   ai_sonnet: 'AI (Sonnet)',
 };
 
+/** Map from fieldName (DB column) to the confidenceDetails key */
+const FIELD_CONFIDENCE_KEY: Record<string, string> = {
+  clearance_level: 'clearance',
+  eval_method: 'evaluation',
+  vehicle_type: 'vehicle',
+  is_recompete: 'recompete',
+  scope_summary: 'scope',
+  period_of_performance: 'period',
+  pricing_structure: 'pricing',
+  place_of_performance: 'place_of_performance',
+  labor_categories: 'labor',
+  key_requirements: 'requirements',
+};
+
+/** Map from fieldName to the detail text property on DocumentIntelligenceDto */
+const FIELD_DETAIL_KEY: Record<string, keyof DocumentIntelligenceDto> = {
+  clearance_level: 'clearanceDetails',
+  eval_method: 'evalDetails',
+  vehicle_type: 'vehicleDetails',
+  is_recompete: 'recompeteDetails',
+  pricing_structure: 'pricingDetails',
+  place_of_performance: 'popDetails',
+};
+
 function formatFileSize(bytes: number | undefined | null): string {
   if (bytes == null) return '--';
   if (bytes < 1024) return `${bytes} B`;
@@ -67,7 +98,64 @@ function formatTokens(n: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Intel Card (one extracted field with provenance)
+// Source Item — renders a single source row with method badge
+// ---------------------------------------------------------------------------
+
+function SourceItem({ src }: { src: IntelSourceDto }) {
+  const isAI = src.extractionMethod?.startsWith('ai_');
+  return (
+    <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+        <Chip
+          label={METHOD_LABELS[src.extractionMethod] ?? src.extractionMethod}
+          size="small"
+          variant="outlined"
+          sx={{ fontSize: '0.6rem', height: 18 }}
+        />
+        {src.confidence && (
+          <Chip
+            label={src.confidence}
+            size="small"
+            color={getConfidenceColor(src.confidence)}
+            sx={{ fontSize: '0.6rem', height: 18 }}
+          />
+        )}
+      </Box>
+      {src.sourceFilename && (
+        <Typography variant="caption" color="text.secondary" display="block">
+          {src.sourceFilename}
+          {src.pageNumber != null ? `, p.${src.pageNumber}` : ''}
+        </Typography>
+      )}
+      {src.matchedText && (
+        <Typography
+          variant="body2"
+          sx={{
+            mt: 0.5,
+            fontFamily: isAI ? 'inherit' : 'monospace',
+            fontSize: isAI ? '0.8rem' : '0.75rem',
+            fontStyle: isAI ? 'italic' : 'normal',
+          }}
+        >
+          {!isAI && src.surroundingContext ? (
+            <>
+              {src.surroundingContext.split(src.matchedText)[0]}
+              <Box component="mark" sx={{ bgcolor: 'warning.light', px: 0.25 }}>
+                {src.matchedText}
+              </Box>
+              {src.surroundingContext.split(src.matchedText).slice(1).join(src.matchedText)}
+            </>
+          ) : (
+            src.matchedText
+          )}
+        </Typography>
+      )}
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Intel Card (one extracted field with provenance + detail text)
 // ---------------------------------------------------------------------------
 
 interface IntelCardProps {
@@ -75,16 +163,28 @@ interface IntelCardProps {
   fieldName: string;
   value: string | null | undefined;
   sources: IntelSourceDto[];
+  intel: DocumentIntelligenceDto;
 }
 
-function IntelCard({ label, fieldName, value, sources }: IntelCardProps) {
-  const [expanded, setExpanded] = useState(false);
+function IntelCard({ label, fieldName, value, sources, intel }: IntelCardProps) {
+  const [sourcesExpanded, setSourcesExpanded] = useState(false);
+  const [detailExpanded, setDetailExpanded] = useState(false);
   if (!value) return null;
 
   const fieldSources = sources.filter((s) => s.fieldName === fieldName);
-  const topSource = fieldSources[0];
-  const confidence = topSource?.confidence ?? 'unknown';
-  const method = topSource?.extractionMethod ?? '';
+
+  // Use per-field confidence from confidenceDetails, falling back to overallConfidence
+  const confidenceKey = FIELD_CONFIDENCE_KEY[fieldName];
+  const confidence = (confidenceKey && intel.confidenceDetails?.[confidenceKey])
+    ?? intel.overallConfidence
+    ?? 'unknown';
+
+  // Get distinct methods from sources for this field
+  const fieldMethods = [...new Set(fieldSources.map((s) => s.extractionMethod).filter(Boolean))];
+
+  // Detail text from AI analysis
+  const detailKey = FIELD_DETAIL_KEY[fieldName];
+  const detailText = detailKey ? (intel[detailKey] as string | undefined) : undefined;
 
   return (
     <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -94,14 +194,15 @@ function IntelCard({ label, fieldName, value, sources }: IntelCardProps) {
             {label}
           </Typography>
           <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-            {method && (
+            {fieldMethods.map((m) => (
               <Chip
-                label={METHOD_LABELS[method] ?? method}
+                key={m}
+                label={METHOD_LABELS[m] ?? m}
                 size="small"
                 variant="outlined"
                 sx={{ fontSize: '0.65rem', height: 20 }}
               />
-            )}
+            ))}
             <Chip
               label={confidence}
               size="small"
@@ -115,45 +216,47 @@ function IntelCard({ label, fieldName, value, sources }: IntelCardProps) {
         </Typography>
       </CardContent>
 
+      {/* AI Analysis detail text (expandable) */}
+      {detailText && (
+        <Box sx={{ px: 2, pb: 0.5 }}>
+          <Box
+            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+            onClick={() => setDetailExpanded((prev) => !prev)}
+          >
+            <Typography variant="caption" color="text.secondary">
+              AI Analysis
+            </Typography>
+            <IconButton size="small" sx={{ ml: 'auto', transform: detailExpanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
+              <ExpandMoreIcon fontSize="small" />
+            </IconButton>
+          </Box>
+          <Collapse in={detailExpanded}>
+            <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, mb: 1 }}>
+              <Typography variant="body2" color="text.primary" sx={{ whiteSpace: 'pre-wrap' }}>
+                {detailText}
+              </Typography>
+            </Box>
+          </Collapse>
+        </Box>
+      )}
+
       {/* Source provenance (expandable) */}
       {fieldSources.length > 0 && (
         <Box sx={{ px: 2, pb: 1 }}>
           <Box
             sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            onClick={() => setExpanded((prev) => !prev)}
+            onClick={() => setSourcesExpanded((prev) => !prev)}
           >
             <Typography variant="caption" color="text.secondary">
               View Sources ({fieldSources.length})
             </Typography>
-            <IconButton size="small" sx={{ ml: 'auto', transform: expanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
+            <IconButton size="small" sx={{ ml: 'auto', transform: sourcesExpanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
               <ExpandMoreIcon fontSize="small" />
             </IconButton>
           </Box>
-          <Collapse in={expanded}>
+          <Collapse in={sourcesExpanded}>
             {fieldSources.map((src, idx) => (
-              <Box key={idx} sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
-                {src.sourceFilename && (
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {src.sourceFilename}
-                    {src.pageNumber != null ? `, p.${src.pageNumber}` : ''}
-                  </Typography>
-                )}
-                {src.matchedText && (
-                  <Typography variant="body2" sx={{ mt: 0.5, fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                    {src.surroundingContext ? (
-                      <>
-                        {src.surroundingContext.split(src.matchedText)[0]}
-                        <Box component="mark" sx={{ bgcolor: 'warning.light', px: 0.25 }}>
-                          {src.matchedText}
-                        </Box>
-                        {src.surroundingContext.split(src.matchedText).slice(1).join(src.matchedText)}
-                      </>
-                    ) : (
-                      src.matchedText
-                    )}
-                  </Typography>
-                )}
-              </Box>
+              <SourceItem key={idx} src={src} />
             ))}
           </Collapse>
         </Box>
@@ -171,22 +274,33 @@ interface ListCardProps {
   fieldName: string;
   items: string[];
   sources: IntelSourceDto[];
+  intel: DocumentIntelligenceDto;
 }
 
-function ListCard({ label, fieldName, items, sources }: ListCardProps) {
+const LIST_CARD_COLLAPSED_LIMIT = 5;
+
+function ListCard({ label, fieldName, items, sources, intel }: ListCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   if (items.length === 0) return null;
 
   const fieldSources = sources.filter((s) => s.fieldName === fieldName);
-  const topSource = fieldSources[0];
-  const confidence = topSource?.confidence ?? 'unknown';
+
+  // Use per-field confidence from confidenceDetails, falling back to overallConfidence
+  const confidenceKey = FIELD_CONFIDENCE_KEY[fieldName];
+  const confidence = (confidenceKey && intel.confidenceDetails?.[confidenceKey])
+    ?? intel.overallConfidence
+    ?? 'unknown';
+
+  const needsCollapse = items.length > LIST_CARD_COLLAPSED_LIMIT;
+  const visibleItems = needsCollapse && !showAll ? items.slice(0, LIST_CARD_COLLAPSED_LIMIT) : items;
 
   return (
     <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardContent sx={{ flexGrow: 1, pb: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
           <Typography variant="caption" color="text.secondary">
-            {label}
+            {label} ({items.length})
           </Typography>
           <Chip
             label={confidence}
@@ -196,10 +310,19 @@ function ListCard({ label, fieldName, items, sources }: ListCardProps) {
           />
         </Box>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-          {items.map((item, idx) => (
+          {visibleItems.map((item, idx) => (
             <Chip key={idx} label={item} size="small" variant="outlined" />
           ))}
         </Box>
+        {needsCollapse && (
+          <Button
+            size="small"
+            onClick={() => setShowAll((prev) => !prev)}
+            sx={{ mt: 1, textTransform: 'none', fontSize: '0.75rem' }}
+          >
+            {showAll ? 'Show fewer' : `Show all ${items.length} items`}
+          </Button>
+        )}
       </CardContent>
 
       {fieldSources.length > 0 && (
@@ -217,19 +340,97 @@ function ListCard({ label, fieldName, items, sources }: ListCardProps) {
           </Box>
           <Collapse in={expanded}>
             {fieldSources.map((src, idx) => (
-              <Box key={idx} sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
-                {src.sourceFilename && (
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {src.sourceFilename}
-                    {src.pageNumber != null ? `, p.${src.pageNumber}` : ''}
-                  </Typography>
-                )}
-              </Box>
+              <SourceItem key={idx} src={src} />
             ))}
           </Collapse>
         </Box>
       )}
     </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Per-Attachment Breakdown Section
+// ---------------------------------------------------------------------------
+
+function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[] }) {
+  const [expanded, setExpanded] = useState(false);
+  if (items.length === 0) return null;
+
+  // Collect non-null field labels for a breakdown item
+  const getFieldChips = (item: AttachmentIntelBreakdownDto) => {
+    const chips: { label: string; value: string }[] = [];
+    if (item.clearanceRequired) chips.push({ label: 'Clearance', value: item.clearanceRequired + (item.clearanceLevel ? ` / ${item.clearanceLevel}` : '') });
+    if (item.evalMethod) chips.push({ label: 'Eval', value: item.evalMethod });
+    if (item.vehicleType) chips.push({ label: 'Vehicle', value: item.vehicleType });
+    if (item.isRecompete) chips.push({ label: 'Recompete', value: item.isRecompete });
+    if (item.incumbentName) chips.push({ label: 'Incumbent', value: item.incumbentName });
+    if (item.pricingStructure) chips.push({ label: 'Pricing', value: item.pricingStructure });
+    if (item.placeOfPerformance) chips.push({ label: 'PoP', value: item.placeOfPerformance });
+    return chips;
+  };
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+      <Box
+        sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+        onClick={() => setExpanded((prev) => !prev)}
+      >
+        <Typography variant="subtitle2">
+          Per-Attachment Breakdown ({items.length} attachment{items.length !== 1 ? 's' : ''})
+        </Typography>
+        <IconButton size="small" sx={{ ml: 'auto', transform: expanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
+          <ExpandMoreIcon fontSize="small" />
+        </IconButton>
+      </Box>
+      <Collapse in={expanded}>
+        <Box sx={{ mt: 2 }}>
+          {items.map((item) => {
+            const chips = getFieldChips(item);
+            return (
+              <Box
+                key={item.attachmentId}
+                sx={{ p: 1.5, mb: 1, bgcolor: 'action.hover', borderRadius: 1 }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: chips.length > 0 ? 1 : 0 }}>
+                  <DescriptionIcon fontSize="small" color="action" />
+                  <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                    {item.filename}
+                  </Typography>
+                  <Chip
+                    label={METHOD_LABELS[item.extractionMethod] ?? item.extractionMethod}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.6rem', height: 18 }}
+                  />
+                  {item.confidence && (
+                    <Chip
+                      label={item.confidence}
+                      size="small"
+                      color={getConfidenceColor(item.confidence)}
+                      sx={{ fontSize: '0.6rem', height: 18 }}
+                    />
+                  )}
+                </Box>
+                {chips.length > 0 && (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, ml: 4 }}>
+                    {chips.map((c) => (
+                      <Chip
+                        key={c.label}
+                        label={`${c.label}: ${c.value}`}
+                        size="small"
+                        variant="outlined"
+                        sx={{ fontSize: '0.7rem' }}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+      </Collapse>
+    </Paper>
   );
 }
 
@@ -253,7 +454,7 @@ const EXTRACTION_STATUS_COLOR: Record<string, 'success' | 'warning' | 'error' | 
 };
 
 // ---------------------------------------------------------------------------
-// Attachments Table
+// Attachments Table — with clickable filenames (Problem 4)
 // ---------------------------------------------------------------------------
 
 function AttachmentsTable({ attachments }: { attachments: AttachmentSummaryDto[] }) {
@@ -288,9 +489,21 @@ function AttachmentsTable({ attachments }: { attachments: AttachmentSummaryDto[]
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <DescriptionIcon fontSize="small" color={isGone ? 'disabled' : 'action'} />
-                      <Typography variant="body2" sx={{ wordBreak: 'break-word' }} color={isGone ? 'text.disabled' : 'text.primary'}>
-                        {att.filename}
-                      </Typography>
+                      {att.url && !isGone ? (
+                        <Link
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener"
+                          variant="body2"
+                          sx={{ wordBreak: 'break-word' }}
+                        >
+                          {att.filename}
+                        </Link>
+                      ) : (
+                        <Typography variant="body2" sx={{ wordBreak: 'break-word' }} color={isGone ? 'text.disabled' : 'text.primary'}>
+                          {att.filename}
+                        </Typography>
+                      )}
                     </Box>
                   </TableCell>
                   <TableCell>
@@ -585,6 +798,7 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
 
   // --- Render Data (State 3: Intel extracted) ---
   const sources = intel.sources ?? [];
+  const availableMethods = intel.availableMethods ?? [];
 
   // Build intel card entries
   type IntelField = { label: string; fieldName: string; value: string | null | undefined };
@@ -619,13 +833,23 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
           <Typography variant="body2" color="text.secondary">
             {intel.analyzedCount} of {intel.attachmentCount} attachment{intel.attachmentCount !== 1 ? 's' : ''} analyzed
           </Typography>
-          {intel.latestExtractionMethod && (
+          {/* Show chips for all available extraction methods */}
+          {availableMethods.length > 0 ? (
+            availableMethods.map((m) => (
+              <Chip
+                key={m}
+                label={METHOD_LABELS[m] ?? m}
+                size="small"
+                variant="outlined"
+              />
+            ))
+          ) : intel.latestExtractionMethod ? (
             <Chip
               label={METHOD_LABELS[intel.latestExtractionMethod] ?? intel.latestExtractionMethod}
               size="small"
               variant="outlined"
             />
-          )}
+          ) : null}
           <Box sx={{ ml: 'auto' }}>
             <Button
               variant="outlined"
@@ -653,18 +877,18 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             (field) =>
               field.value && (
                 <Grid key={field.label} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <IntelCard label={field.label} fieldName={field.fieldName} value={field.value} sources={sources} />
+                  <IntelCard label={field.label} fieldName={field.fieldName} value={field.value} sources={sources} intel={intel} />
                 </Grid>
               ),
           )}
           {intel.laborCategories.length > 0 && (
             <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <ListCard label="Labor Categories" fieldName="labor_categories" items={intel.laborCategories} sources={sources} />
+              <ListCard label="Labor Categories" fieldName="labor_categories" items={intel.laborCategories} sources={sources} intel={intel} />
             </Grid>
           )}
           {intel.keyRequirements.length > 0 && (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-              <ListCard label="Key Requirements" fieldName="key_requirements" items={intel.keyRequirements} sources={sources} />
+            <Grid size={{ xs: 12 }}>
+              <ListCard label="Key Requirements" fieldName="key_requirements" items={intel.keyRequirements} sources={sources} intel={intel} />
             </Grid>
           )}
         </Grid>
@@ -675,6 +899,11 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             message="Attachments have been cataloged but no intelligence fields were extracted yet. Try analyzing with AI."
           />
         </Paper>
+      )}
+
+      {/* Per-Attachment Breakdown (Problem 7) */}
+      {intel.perAttachmentIntel && intel.perAttachmentIntel.length > 0 && (
+        <PerAttachmentBreakdown items={intel.perAttachmentIntel} />
       )}
 
       {/* Attachments Table */}
