@@ -1,6 +1,6 @@
 """Federal Contract Prospecting System - CLI
 
-Commands are organized into 11 top-level groups:
+Commands are organized into 12 top-level groups:
 
     setup     Build the database, seed reference data, verify prerequisites
     load      Download and load data from government APIs
@@ -12,6 +12,7 @@ Commands are organized into 11 top-level groups:
     update    Update/enrich existing data (metadata backfill)
     admin     System administration (orgs, users, invitations)
     cleanup   Clean up local data and files
+    backfill  Backfill opportunity columns from extracted intelligence
     health    System health checks, ETL history, maintenance
 
 Run 'python main.py GROUP --help' to list commands in a group.
@@ -40,6 +41,7 @@ Modules:
     cli/update.py         link-metadata, fetch-descriptions, build-relationships
     cli/attachments.py    download-attachments, extract-attachment-text,
                           extract-attachment-intel, analyze-attachments
+    cli/backfill.py       backfill-opportunity-intel
     cli/demand.py         process-requests
 """
 
@@ -58,8 +60,8 @@ def cli():
 
     Gathers federal contract data from government APIs into a local MySQL
     database for WOSB/8(a) contract discovery. Commands are organized into
-    11 groups: setup, load, download, extract, search, prospect, analyze,
-    update, admin, cleanup, health.
+    12 groups: setup, load, download, extract, search, prospect, analyze,
+    update, admin, cleanup, backfill, health.
 
     Run 'python main.py GROUP --help' to list commands in a group.
     """
@@ -137,6 +139,12 @@ def cleanup():
 
 
 @cli.group()
+def backfill():
+    """Backfill opportunity columns from extracted intelligence."""
+    pass
+
+
+@cli.group()
 def health():
     """System health checks, ETL history, job execution, and maintenance."""
     pass
@@ -178,6 +186,7 @@ from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
 from cli.setup import verify_setup
 from cli.schedule_setup import setup_schedule
+from cli.backfill import backfill_opportunity_intel
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +303,12 @@ extract.add_command(extract_attachment_intel, name="attachment-intel")
 # ---------------------------------------------------------------------------
 
 cleanup.add_command(cleanup_attachment_files, name="attachment-files")
+
+# ---------------------------------------------------------------------------
+# backfill group commands
+# ---------------------------------------------------------------------------
+
+backfill.add_command(backfill_opportunity_intel, name="opportunity-intel")
 
 # ---------------------------------------------------------------------------
 # health group commands

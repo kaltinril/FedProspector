@@ -130,8 +130,8 @@ No changes needed to cleanup — it already checks for AI extraction_method valu
 ## Request Poller & Scheduling
 
 The request poller (`demand process-requests --watch`) and scheduling (daily batch runs, automation) are out of scope for this phase. See:
-- **Phase 110E** — Scheduled & Automated Analysis (cron-style recurring jobs)
-- **Phase 110F** — Request Poller Service (add poller to `fed_prospector.py start/stop`)
+- **Phase 110X** — Scheduled & Automated Analysis (cron-style recurring jobs)
+- **Phase 110Y** — Request Poller Service (add poller to `fed_prospector.py start/stop`)
 
 For now, AI analysis is triggered via CLI (`analyze attachments`) or by manually running `demand process-requests` to pick up UI button requests.
 

@@ -1,4 +1,4 @@
-# Phase 110E: Scheduled & Automated Analysis
+# Phase 110X: Scheduled & Automated Analysis
 
 **Status:** PLANNED
 **Priority:** Low — manual CLI commands work fine for now

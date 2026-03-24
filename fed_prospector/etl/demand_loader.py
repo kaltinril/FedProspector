@@ -5,8 +5,9 @@ by fetching data from external APIs (USASpending, SAM.gov) and loading
 into the local database.
 
 Request types:
-    USASPENDING_AWARD - Fetch award + transactions from USASpending.gov
-    FPDS_AWARD        - Fetch FPDS contract data from SAM.gov Awards API
+    USASPENDING_AWARD   - Fetch award + transactions from USASpending.gov
+    FPDS_AWARD          - Fetch FPDS contract data from SAM.gov Awards API
+    ATTACHMENT_ANALYSIS - Run Claude AI analysis on attachment documents
 """
 
 import json
@@ -70,6 +71,8 @@ class DemandLoader:
             self._process_usaspending(req)
         elif request_type == "FPDS_AWARD":
             self._process_fpds(req)
+        elif request_type == "ATTACHMENT_ANALYSIS":
+            self._process_attachment_analysis(req)
         else:
             raise ValueError(f"Unknown request_type: {request_type}")
 
@@ -281,6 +284,46 @@ class DemandLoader:
         logger.info(
             "Request %d completed: %d FPDS records for PIID '%s'",
             request_id, summary["awards_loaded"], piid,
+        )
+
+    # ------------------------------------------------------------------
+    # Attachment AI analysis
+    # ------------------------------------------------------------------
+
+    def _process_attachment_analysis(self, req):
+        """Run AI analysis on attachments for a specific opportunity.
+
+        Triggered by the UI "Enhance with AI" button via
+        POST /opportunities/{noticeId}/analyze.
+        """
+        request_id = req["request_id"]
+        notice_id = req["lookup_key"]
+
+        self._set_status(request_id, "PROCESSING", started_at=datetime.now())
+
+        logger.info("Request %d: running AI analysis for notice '%s'", request_id, notice_id)
+
+        from etl.attachment_ai_analyzer import AttachmentAIAnalyzer
+
+        analyzer = AttachmentAIAnalyzer(model="haiku")
+        stats = analyzer.analyze_notice(notice_id)
+
+        summary = {
+            "processed": stats["processed"],
+            "analyzed": stats["analyzed"],
+            "skipped": stats["skipped"],
+            "failed": stats["failed"],
+        }
+
+        self._set_status(
+            request_id, "COMPLETED",
+            completed_at=datetime.now(),
+            result_summary=summary,
+        )
+
+        logger.info(
+            "Request %d completed: analyzed %d documents for notice '%s'",
+            request_id, summary["analyzed"], notice_id,
         )
 
     # ------------------------------------------------------------------

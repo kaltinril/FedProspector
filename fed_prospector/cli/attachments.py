@@ -180,19 +180,57 @@ def extract_attachment_intel(notice_id, batch_size, method, force):
               help="Claude model to use for analysis")
 @click.option("--force", is_flag=True, default=False,
               help="Re-analyze even if already analyzed")
-def analyze_attachments(notice_id, batch_size, model, force):
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Run full pipeline without calling the API (no ANTHROPIC_API_KEY needed)")
+def analyze_attachments(notice_id, batch_size, model, force, dry_run):
     """Analyze attachment content using Claude AI.
 
-    Uses Claude to perform deep analysis of attachment text, extracting
-    nuanced requirements and competitive intelligence. (Phase 110 Round 3)
+    Sends extracted document text to Claude for structured analysis,
+    extracting clearance requirements, evaluation criteria, contract
+    vehicle info, incumbent details, and more.
+
+    Use --dry-run to test the full pipeline without an API key.
 
     Examples:
         python main.py analyze attachments
         python main.py analyze attachments --model sonnet
         python main.py analyze attachments --notice-id abc123
+        python main.py analyze attachments --dry-run
     """
-    setup_logging()
-    click.echo("AI analysis not yet implemented (Phase 110 Round 3)")
+    logger = setup_logging()
+
+    from etl.attachment_ai_analyzer import AttachmentAIAnalyzer
+
+    if dry_run:
+        click.echo("DRY RUN — no API calls will be made, mock results will be saved with method 'ai_dry_run'")
+
+    analyzer = AttachmentAIAnalyzer(model=model, dry_run=dry_run)
+
+    logger.info(
+        "Starting AI analysis (model=%s, batch_size=%d, force=%s, dry_run=%s)",
+        model, batch_size, force, dry_run,
+    )
+    click.echo(
+        f"Analyzing attachments with Claude {model} "
+        f"(batch_size={batch_size}{', dry_run' if dry_run else ''})..."
+    )
+
+    try:
+        stats = analyzer.analyze(
+            notice_id=notice_id,
+            batch_size=batch_size,
+            force=force,
+        )
+    except RuntimeError as e:
+        # Missing API key
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+    click.echo(
+        f"Done. Analyzed {stats['analyzed']} documents, "
+        f"skipped {stats['skipped']}, "
+        f"failed {stats['failed']}"
+    )
 
 
 @click.command("pipeline-status")

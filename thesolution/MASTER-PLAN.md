@@ -126,8 +126,11 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 110B | Additional Document Type Extraction | COMPLETE | [110B-ADDITIONAL-DOCUMENT-TYPES.md](phases/completed/110B-ADDITIONAL-DOCUMENT-TYPES.md) |
 | 110C | AI Document Analysis & Opportunity Column Backfill | IN PROGRESS | [110C-AI-ANALYSIS-BACKFILL.md](phases/110C-AI-ANALYSIS-BACKFILL.md) |
 | 110D | Incumbent Name Extraction Improvements | COMPLETE | [110D-INCUMBENT-EXTRACTION-IMPROVEMENTS.md](phases/completed/110D-INCUMBENT-EXTRACTION-IMPROVEMENTS.md) |
-| 110E | Scheduled & Automated Analysis | PLANNED | [110E-SCHEDULED-ANALYSIS.md](phases/110E-SCHEDULED-ANALYSIS.md) |
-| 110F | Request Poller Service | PLANNED | [110F-REQUEST-POLLER-SERVICE.md](phases/110F-REQUEST-POLLER-SERVICE.md) |
+| 110E | AI Analysis Cost Controls & Usage Tracking | PLANNED | [110E-AI-COST-CONTROLS.md](phases/110E-AI-COST-CONTROLS.md) |
+| 110F | Intelligence Extraction Expansion | PLANNED | [110F-INTEL-EXPANSION.md](phases/110F-INTEL-EXPANSION.md) |
+| 110G | Document Intelligence Display Fixes | PLANNED | [110G-INTEL-DISPLAY-FIXES.md](phases/110G-INTEL-DISPLAY-FIXES.md) |
+| 110X | Scheduled & Automated Analysis | PLANNED | [110X-SCHEDULED-ANALYSIS.md](phases/110X-SCHEDULED-ANALYSIS.md) |
+| 110Y | Request Poller Service | PLANNED | [110Y-REQUEST-POLLER-SERVICE.md](phases/110Y-REQUEST-POLLER-SERVICE.md) |
 | 111 | Manual Testing Issues | COMPLETE | [111-MANUAL-TESTING-ISSUES.md](phases/completed/111-MANUAL-TESTING-ISSUES.md) |
 | 115 | Project Documentation Suite | PLANNED | [115-PROJECT-DOCUMENTATION.md](phases/115-PROJECT-DOCUMENTATION.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |

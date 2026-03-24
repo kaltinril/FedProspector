@@ -15,3 +15,4 @@ xlrd==2.0.2
 striprtf==0.0.29
 odfpy==1.4.1
 olefile==0.47
+anthropic
