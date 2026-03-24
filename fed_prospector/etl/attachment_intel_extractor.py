@@ -33,6 +33,12 @@ _HEADING_KEYWORDS = {
     "eval_method": {"evaluation", "criteria", "factor", "scoring", "selection"},
     "vehicle_type": {"vehicle", "contract type", "ordering", "schedule", "gwac"},
     "recompete": {"incumbent", "background", "current contract", "transition"},
+    "pricing_structure": {"pricing", "price", "cost", "contract type", "compensation"},
+    "compliance_certs": {"certification", "compliance", "qualifications", "requirements"},
+    "bonding_insurance": {"bonding", "insurance", "surety", "liability"},
+    "subcontracting_oci": {"subcontracting", "small business", "conflict of interest", "oci"},
+    "place_of_performance": {"place of performance", "location", "work site", "telework"},
+    "set_aside_type": {"set-aside", "set aside", "small business", "socioeconomic"},
 }
 
 # Raw pattern definitions — compiled at module load
@@ -67,6 +73,55 @@ _RAW_PATTERNS = {
         {"pattern": r"\b(?:new\s+requirement|new\s+start)\b", "value": "N", "confidence": "medium", "name": "recompete_new"},
         {"pattern": r"\b(?:bridge\s+contract|bridge\s+extension|successor\s+contract)\b", "value": "Y", "confidence": "high", "name": "recompete_bridge"},
         {"pattern": r"\b(?:transition\s+plan|transition\s+period)\b", "value": "Y", "confidence": "medium", "name": "recompete_transition"},
+    ],
+    "pricing_structure": [
+        {"pattern": r"\b(?:Firm[- ]Fixed[- ]Price|FFP)\b", "value": "FFP", "confidence": "high", "name": "pricing_ffp"},
+        {"pattern": r"\b(?:Cost[- ]Plus[- ]Fixed[- ]Fee|CPFF)\b", "value": "CPFF", "confidence": "high", "name": "pricing_cpff"},
+        {"pattern": r"\b(?:Cost[- ]Plus[- ]Award[- ]Fee|CPAF)\b", "value": "CPAF", "confidence": "high", "name": "pricing_cpaf"},
+        {"pattern": r"\b(?:Cost[- ]Plus[- ]Incentive[- ]Fee|CPIF)\b", "value": "CPIF", "confidence": "high", "name": "pricing_cpif"},
+        {"pattern": r"\b(?:Time[- ]and[- ]Materials?|T&M|T & M)\b", "value": "T&M", "confidence": "high", "name": "pricing_tm"},
+        {"pattern": r"\b(?:Labor[- ]Hour|LH)\b", "value": "LH", "confidence": "high", "name": "pricing_lh"},
+    ],
+    "compliance_certs": [
+        {"pattern": r"\bCMMI\s*(?:Level|Lvl|ML|-)?\s*[2-5]\b", "value": None, "confidence": "high", "name": "cert_cmmi"},
+        {"pattern": r"\bFedRAMP\b", "value": "FedRAMP", "confidence": "high", "name": "cert_fedramp"},
+        {"pattern": r"\bISO\s*27001\b", "value": "ISO 27001", "confidence": "high", "name": "cert_iso27001"},
+        {"pattern": r"\bISO\s*9001\b", "value": "ISO 9001", "confidence": "high", "name": "cert_iso9001"},
+        {"pattern": r"\bSOC\s*2(?:\s*Type\s*(?:I{1,2}|1|2))?\b", "value": "SOC 2", "confidence": "high", "name": "cert_soc2"},
+        {"pattern": r"\b(?:PMP|Project\s+Management\s+Professional)\b", "value": "PMP", "confidence": "medium", "name": "cert_pmp"},
+        {"pattern": r"\bITIL\b", "value": "ITIL", "confidence": "medium", "name": "cert_itil"},
+        {"pattern": r"\bCISSP\b", "value": "CISSP", "confidence": "high", "name": "cert_cissp"},
+        {"pattern": r"\bCompTIA\s+(?:Security\+|Network\+|A\+|CASP)(?=\s|$|[,;.])", "value": None, "confidence": "medium", "name": "cert_comptia"},
+    ],
+    "bonding_insurance": [
+        {"pattern": r"\b(?:performance\s+bond)\b", "value": "Performance Bond", "confidence": "high", "name": "bond_performance"},
+        {"pattern": r"\b(?:bid\s+bond)\b", "value": "Bid Bond", "confidence": "high", "name": "bond_bid"},
+        {"pattern": r"\b(?:payment\s+bond)\b", "value": "Payment Bond", "confidence": "high", "name": "bond_payment"},
+        {"pattern": r"\b(?:professional\s+liability|errors\s+and\s+omissions|E&O)\b", "value": "Professional Liability", "confidence": "high", "name": "insurance_professional"},
+        {"pattern": r"\b(?:general\s+liability)\b", "value": "General Liability", "confidence": "medium", "name": "insurance_general"},
+        {"pattern": r"\b(?:workers.?\s*compensation)\b", "value": "Workers Compensation", "confidence": "medium", "name": "insurance_workers_comp"},
+    ],
+    "subcontracting_oci": [
+        {"pattern": r"\bFAR\s+52\.219-9\b", "value": "SB Subcontracting Plan Required", "confidence": "high", "name": "sub_far_clause"},
+        {"pattern": r"\b(?:small\s+business\s+)?subcontracting\s+(?:plan|goals?)\b", "value": "SB Subcontracting Plan Required", "confidence": "medium", "name": "sub_plan"},
+        {"pattern": r"\b(?:organizational\s+conflict\s+of\s+interest|OCI)\b", "value": "OCI Restriction", "confidence": "high", "name": "oci_restriction"},
+        {"pattern": r"\bFAR\s+(?:9\.5|3\.104)\b", "value": "OCI Restriction", "confidence": "high", "name": "oci_far_clause"},
+    ],
+    "place_of_performance": [
+        {"pattern": r"\b(?:on[- ]site|onsite)\b", "value": "On-Site", "confidence": "medium", "name": "pop_onsite"},
+        {"pattern": r"\b(?:remote\s+work|telework|work\s+from\s+home)\b", "value": "Remote", "confidence": "medium", "name": "pop_remote"},
+        {"pattern": r"\bhybrid\b", "value": "Hybrid", "confidence": "low", "name": "pop_hybrid"},
+        {"pattern": r"\b(?:contractor\s+facilit(?:y|ies))\b", "value": "Contractor Facility", "confidence": "medium", "name": "pop_contractor"},
+        {"pattern": r"\b(?:government\s+facilit(?:y|ies)|government\s+site)\b", "value": "Government Facility", "confidence": "medium", "name": "pop_government"},
+        {"pattern": r"\bCONUS\b", "value": "CONUS", "confidence": "high", "name": "pop_conus"},
+        {"pattern": r"\bOCONUS\b", "value": "OCONUS", "confidence": "high", "name": "pop_oconus"},
+    ],
+    "set_aside_type": [
+        {"pattern": r"\b(?:WOSB|Women[- ]Owned\s+Small\s+Business)\b", "value": "WOSB", "confidence": "high", "name": "setaside_wosb"},
+        {"pattern": r"\b(?:EDWOSB|Economically\s+Disadvantaged\s+Women[- ]Owned)\b", "value": "EDWOSB", "confidence": "high", "name": "setaside_edwosb"},
+        {"pattern": r"\b8\(a\)\b", "value": "8(a)", "confidence": "high", "name": "setaside_8a"},
+        {"pattern": r"\b(?:SDVOSB|Service[- ]Disabled\s+Veteran[- ]Owned)\b", "value": "SDVOSB", "confidence": "high", "name": "setaside_sdvosb"},
+        {"pattern": r"\bHUBZone\b", "value": "HUBZone", "confidence": "high", "name": "setaside_hubzone"},
     ],
 }
 
@@ -753,6 +808,9 @@ class AttachmentIntelExtractor:
             "is_recompete": None,
             "incumbent_name": None,
             "recompete_details": [],
+            "pricing_structure": None,
+            "place_of_performance": None,
+            "key_requirements": [],
             "overall_confidence": "low",
             "confidence_details": {},
         }
@@ -781,6 +839,28 @@ class AttachmentIntelExtractor:
             elif category == "incumbent_name":
                 # Collect for occurrence-based consolidation (Phase 110D)
                 pass  # handled below after loop
+            # --- Phase 110F: JSON array categories ---
+            elif category == "compliance_certs":
+                tag_value = value if value else info["matched_text"]
+                tagged = f"[CERT] {tag_value}"
+                if tagged not in intel["key_requirements"]:
+                    intel["key_requirements"].append(tagged)
+            elif category == "bonding_insurance":
+                tag_value = value if value else info["matched_text"]
+                tagged = f"[BOND] {tag_value}"
+                if tagged not in intel["key_requirements"]:
+                    intel["key_requirements"].append(tagged)
+            elif category == "subcontracting_oci":
+                tag_value = value if value else info["matched_text"]
+                tag_prefix = "[OCI]" if "oci" in info["pattern_name"] else "[SUB]"
+                tagged = f"{tag_prefix} {tag_value}"
+                if tagged not in intel["key_requirements"]:
+                    intel["key_requirements"].append(tagged)
+            elif category == "set_aside_type":
+                tag_value = value if value else info["matched_text"]
+                tagged = f"[SET-ASIDE] {tag_value}"
+                if tagged not in intel["key_requirements"]:
+                    intel["key_requirements"].append(tagged)
 
         # --- Occurrence-based incumbent name consolidation (Phase 110D) ---
         # Count occurrences and track max confidence per name.
@@ -831,6 +911,25 @@ class AttachmentIntelExtractor:
                 intel["is_recompete"] = value
             intel["confidence_details"]["recompete"] = _rank_to_conf(rank)
 
+        # --- Phase 110F: direct column categories ---
+        if "pricing_structure" in best:
+            rank, value, _ = best["pricing_structure"]
+            if value:
+                intel["pricing_structure"] = value
+            intel["confidence_details"]["pricing_structure"] = _rank_to_conf(rank)
+
+        if "place_of_performance" in best:
+            rank, value, _ = best["place_of_performance"]
+            if value:
+                intel["place_of_performance"] = value
+            intel["confidence_details"]["place_of_performance"] = _rank_to_conf(rank)
+
+        # Track confidence for JSON array categories
+        for json_cat in ("compliance_certs", "bonding_insurance", "subcontracting_oci", "set_aside_type"):
+            if json_cat in best:
+                rank, _, _ = best[json_cat]
+                intel["confidence_details"][json_cat] = _rank_to_conf(rank)
+
         # Store incumbent name occurrence count for transparency (Phase 110D)
         if intel.get("incumbent_name_count"):
             intel["confidence_details"]["incumbent_name_count"] = intel["incumbent_name_count"]
@@ -853,6 +952,9 @@ class AttachmentIntelExtractor:
         intel["eval_details"] = "; ".join(intel["eval_details"]) if intel["eval_details"] else None
         intel["vehicle_details"] = "; ".join(intel["vehicle_details"]) if intel["vehicle_details"] else None
         intel["recompete_details"] = "; ".join(intel["recompete_details"]) if intel["recompete_details"] else None
+
+        # Convert key_requirements list to JSON (or None if empty)
+        intel["key_requirements"] = intel["key_requirements"] if intel["key_requirements"] else None
 
         return intel
 
@@ -879,8 +981,9 @@ class AttachmentIntelExtractor:
                 " clearance_required, clearance_level, clearance_scope, clearance_details, "
                 " eval_method, eval_details, vehicle_type, vehicle_details, "
                 " is_recompete, incumbent_name, recompete_details, "
+                " pricing_structure, place_of_performance, key_requirements, "
                 " overall_confidence, confidence_details, last_load_id, extracted_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON DUPLICATE KEY UPDATE "
                 "source_text_hash = VALUES(source_text_hash), "
                 "clearance_required = VALUES(clearance_required), "
@@ -894,6 +997,9 @@ class AttachmentIntelExtractor:
                 "is_recompete = VALUES(is_recompete), "
                 "incumbent_name = VALUES(incumbent_name), "
                 "recompete_details = VALUES(recompete_details), "
+                "pricing_structure = VALUES(pricing_structure), "
+                "place_of_performance = VALUES(place_of_performance), "
+                "key_requirements = VALUES(key_requirements), "
                 "overall_confidence = VALUES(overall_confidence), "
                 "confidence_details = VALUES(confidence_details), "
                 "last_load_id = VALUES(last_load_id), "
@@ -914,6 +1020,9 @@ class AttachmentIntelExtractor:
                     intel["is_recompete"],
                     intel["incumbent_name"],
                     intel["recompete_details"],
+                    intel["pricing_structure"],
+                    intel["place_of_performance"],
+                    json.dumps(intel["key_requirements"]) if intel["key_requirements"] else None,
                     intel["overall_confidence"],
                     json.dumps(intel["confidence_details"]) if intel["confidence_details"] else None,
                     load_id,
@@ -1211,6 +1320,14 @@ class AttachmentIntelExtractor:
         if intel.get("vehicle_type"):
             updates.append("contract_vehicle_type = LEFT(%s, 50)")
             params.append(intel["vehicle_type"])
+
+        if intel.get("pricing_structure"):
+            updates.append("pricing_structure = LEFT(%s, 50)")
+            params.append(intel["pricing_structure"])
+
+        if intel.get("place_of_performance"):
+            updates.append("place_of_performance_detail = LEFT(%s, 200)")
+            params.append(intel["place_of_performance"])
 
         if not updates:
             return False

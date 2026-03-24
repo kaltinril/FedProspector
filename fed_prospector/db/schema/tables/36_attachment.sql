@@ -48,6 +48,8 @@ CREATE TABLE IF NOT EXISTS opportunity_attachment_intel (
     is_recompete          CHAR(1),
     incumbent_name        VARCHAR(200),
     recompete_details     TEXT,
+    pricing_structure     VARCHAR(50),
+    place_of_performance  VARCHAR(200),
     scope_summary         TEXT,
     period_of_performance VARCHAR(200),
     labor_categories      JSON,

@@ -49,6 +49,8 @@ Return a JSON object with these fields:
     "eval_details": "Evaluation factors with weights/priority, e.g. 'Technical (30%), Past Performance (25%), Cost (25%), SB Plan (20%)', or null",
     "vehicle_type": "IDIQ" | "BPA" | "GSA Schedule" | "OASIS" | "OASIS+" | "SEWP" | "CIO-SP3" | "CIO-SP4" | "Alliant" | "VETS 2" | "8(a) STARS" | "GWAC" | "Standalone" | null,
     "vehicle_details": "Contract vehicle details, SIN numbers, pricing structure (FFP/CPFF/T&M), or null",
+    "pricing_structure": "FFP" | "CPFF" | "CPAF" | "CPIF" | "T&M" | "LH" | null,
+    "place_of_performance": "Description of where work is performed, e.g. 'On-site at Fort Bragg, NC', 'Remote/telework', 'Contractor facility, CONUS', 'Hybrid - government facility Washington DC', or null",
     "is_recompete": "Y" or "N" or null (if unclear),
     "incumbent_name": "Name of incumbent contractor or null",
     "recompete_details": "Details about prior contract, transition requirements, or null",
@@ -109,6 +111,21 @@ CONTRACT VEHICLE & PRICING:
 - In vehicle_details, include the pricing structure if mentioned:
   FFP (Firm Fixed Price), CPFF (Cost Plus Fixed Fee), CPAF (Cost Plus Award Fee),
   T&M (Time and Materials), LH (Labor Hour). This affects pricing strategy.
+
+PRICING STRUCTURE:
+- Return the contract pricing type as one of: "FFP", "CPFF", "CPAF", "CPIF", "T&M", "LH".
+- Synonyms: "Firm Fixed Price" or "Firm-Fixed-Price" = "FFP", "Cost Plus Fixed Fee" = "CPFF",
+  "Cost Plus Award Fee" = "CPAF", "Cost Plus Incentive Fee" = "CPIF",
+  "Time and Materials" or "Time & Materials" = "T&M", "Labor Hour" = "LH".
+- If the document specifies multiple CLINs with different pricing types, return the primary/dominant type.
+- null if not mentioned.
+
+PLACE OF PERFORMANCE:
+- Where the work will be performed. Include city/state/installation if specified.
+- Examples: "On-site at Pentagon, Arlington VA", "Remote/telework", "Contractor facility",
+  "Government facility, Washington DC", "OCONUS - Ramstein AB, Germany", "Hybrid".
+- If the document says "on-site" or "government facility" without a specific location, just say that.
+- null if not mentioned.
 
 RECOMPETE / INCUMBENT:
 - Set is_recompete to "Y" if ANY of these appear: incumbent contractor named, "follow-on",
@@ -335,6 +352,8 @@ class AttachmentAIAnalyzer:
                 "eval_details": None,
                 "vehicle_type": None,
                 "vehicle_details": None,
+                "pricing_structure": None,
+                "place_of_performance": None,
                 "is_recompete": None,
                 "incumbent_name": None,
                 "recompete_details": None,
@@ -519,6 +538,85 @@ class AttachmentAIAnalyzer:
             return offsets
         return None
 
+    # Canonical pricing type abbreviations and their synonyms
+    _PRICING_TYPES = {
+        "FFP": re.compile(r"\bFFP\b|Firm[\s-]Fixed[\s-]Price", re.IGNORECASE),
+        "CPFF": re.compile(r"\bCPFF\b|Cost[\s-]Plus[\s-]Fixed[\s-]Fee", re.IGNORECASE),
+        "CPAF": re.compile(r"\bCPAF\b|Cost[\s-]Plus[\s-]Award[\s-]Fee", re.IGNORECASE),
+        "CPIF": re.compile(r"\bCPIF\b|Cost[\s-]Plus[\s-]Incentive[\s-]Fee", re.IGNORECASE),
+        "T&M": re.compile(r"\bT&M\b|\bT\s*&\s*M\b|Time\s+and\s+Materials?|Time\s*&\s*Materials?", re.IGNORECASE),
+        "LH": re.compile(r"\bLH\b|Labor[\s-]Hour", re.IGNORECASE),
+    }
+
+    # Place of performance keywords to look for in text fields
+    _POP_PATTERNS = re.compile(
+        r"\b(?:on[\s-]site|remote|telework|hybrid|CONUS|OCONUS|"
+        r"contractor\s+facility|government\s+facility)\b",
+        re.IGNORECASE,
+    )
+
+    def _extract_pricing_structure(self, result):
+        """Extract pricing_structure from AI response.
+
+        First checks the explicit 'pricing_structure' field from the AI.
+        Falls back to scanning 'vehicle_details' and 'key_requirements' for
+        known pricing type terms. Returns a short abbreviation (max 50 chars)
+        like 'FFP', 'CPFF', 'T&M', etc., or None.
+        """
+        # 1. Check explicit AI field first
+        explicit = result.get("pricing_structure")
+        if explicit and isinstance(explicit, str):
+            val = explicit.strip().upper()
+            # Normalize common full names to abbreviations
+            for abbrev, pattern in self._PRICING_TYPES.items():
+                if pattern.search(val):
+                    return abbrev
+            # If AI returned something we don't recognize, return it truncated
+            if len(val) <= 50:
+                return explicit.strip()
+
+        # 2. Scan vehicle_details and key_requirements for pricing terms
+        texts_to_scan = []
+        vd = result.get("vehicle_details")
+        if vd and isinstance(vd, str):
+            texts_to_scan.append(vd)
+        kr = result.get("key_requirements")
+        if kr and isinstance(kr, list):
+            texts_to_scan.extend(str(item) for item in kr)
+
+        combined = " ".join(texts_to_scan)
+        if combined:
+            for abbrev, pattern in self._PRICING_TYPES.items():
+                if pattern.search(combined):
+                    return abbrev
+
+        return None
+
+    def _extract_place_of_performance(self, result):
+        """Extract place_of_performance from AI response.
+
+        First checks the explicit 'place_of_performance' field from the AI.
+        Falls back to scanning 'key_requirements' for place-of-performance
+        keywords. Returns a descriptive string (max 200 chars) or None.
+        """
+        # 1. Check explicit AI field first
+        explicit = result.get("place_of_performance")
+        if explicit and isinstance(explicit, str) and explicit.strip():
+            return explicit.strip()[:200]
+
+        # 2. Scan key_requirements for place of performance mentions
+        kr = result.get("key_requirements")
+        if kr and isinstance(kr, list):
+            for item in kr:
+                item_str = str(item)
+                if self._POP_PATTERNS.search(item_str):
+                    return item_str[:200]
+                # Also check for explicit "place of performance" phrase
+                if re.search(r"place\s+of\s+performance", item_str, re.IGNORECASE):
+                    return item_str[:200]
+
+        return None
+
     def _save_intel(self, doc, result):
         """Upsert AI analysis results into opportunity_attachment_intel."""
         # Resolve citation quotes to character offsets before saving
@@ -527,15 +625,21 @@ class AttachmentAIAnalyzer:
         conn = get_connection()
         cursor = conn.cursor()
         try:
+            # Extract pricing_structure from AI response, or fall back to parsing vehicle_details/key_requirements
+            pricing_structure = self._extract_pricing_structure(result)
+            # Extract place_of_performance from AI response, or fall back to parsing key_requirements
+            place_of_performance = self._extract_place_of_performance(result)
+
             cursor.execute(
                 "INSERT INTO opportunity_attachment_intel "
                 "(notice_id, attachment_id, extraction_method, source_text_hash, "
                 " clearance_required, clearance_level, clearance_scope, clearance_details, "
                 " eval_method, eval_details, vehicle_type, vehicle_details, "
+                " pricing_structure, place_of_performance, "
                 " is_recompete, incumbent_name, recompete_details, "
                 " scope_summary, period_of_performance, labor_categories, key_requirements, "
                 " overall_confidence, confidence_details, citation_offsets, extracted_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON DUPLICATE KEY UPDATE "
                 "source_text_hash = VALUES(source_text_hash), "
                 "clearance_required = VALUES(clearance_required), "
@@ -546,6 +650,8 @@ class AttachmentAIAnalyzer:
                 "eval_details = VALUES(eval_details), "
                 "vehicle_type = VALUES(vehicle_type), "
                 "vehicle_details = VALUES(vehicle_details), "
+                "pricing_structure = VALUES(pricing_structure), "
+                "place_of_performance = VALUES(place_of_performance), "
                 "is_recompete = VALUES(is_recompete), "
                 "incumbent_name = VALUES(incumbent_name), "
                 "recompete_details = VALUES(recompete_details), "
@@ -570,6 +676,8 @@ class AttachmentAIAnalyzer:
                     result.get("eval_details"),
                     result.get("vehicle_type"),
                     result.get("vehicle_details"),
+                    pricing_structure,
+                    (place_of_performance or "")[:200] or None,
                     result.get("is_recompete"),
                     (result.get("incumbent_name") or "")[:200] or None,
                     result.get("recompete_details"),

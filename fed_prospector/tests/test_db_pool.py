@@ -13,6 +13,7 @@ class TestGetPool:
 
     def test_pool_created_with_correct_params(self):
         """Verify pool is created with expected MySQL parameters."""
+        import config.settings as settings
         db_mod._pool = None  # Reset global pool
         with patch("db.connection.pooling.MySQLConnectionPool") as mock_pool_cls:
             mock_pool_cls.return_value = MagicMock()
@@ -21,7 +22,7 @@ class TestGetPool:
             mock_pool_cls.assert_called_once()
             kwargs = mock_pool_cls.call_args[1]
             assert kwargs["pool_name"] == "fed_pool"
-            assert kwargs["pool_size"] == 10
+            assert kwargs["pool_size"] == settings.DB_POOL_SIZE
             assert kwargs["charset"] == "utf8mb4"
             assert kwargs["collation"] == "utf8mb4_unicode_ci"
             assert kwargs["autocommit"] is False

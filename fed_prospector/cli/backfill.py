@@ -13,8 +13,9 @@ from config.logging_config import setup_logging
 def backfill_opportunity_intel(notice_id, dry_run):
     """Backfill opportunity columns from attachment intelligence.
 
-    Updates security_clearance_required, incumbent_name, and
-    contract_vehicle_type on the opportunity table using the best
+    Updates security_clearance_required, incumbent_name,
+    contract_vehicle_type, pricing_structure, and
+    place_of_performance_detail on the opportunity table using the best
     available intel from opportunity_attachment_intel.
 
     This is useful after AI analysis upgrades intel quality, or to
@@ -49,7 +50,8 @@ def backfill_opportunity_intel(notice_id, dry_run):
             notice_filter = "WHERE notice_id = %s"
 
         cursor.execute(f"""
-            SELECT notice_id, clearance_required, vehicle_type, incumbent_name
+            SELECT notice_id, clearance_required, vehicle_type, incumbent_name,
+                   pricing_structure, place_of_performance
             FROM opportunity_attachment_intel
             WHERE intel_id IN (
                 SELECT MAX(intel_id) FROM (
@@ -95,6 +97,14 @@ def backfill_opportunity_intel(notice_id, dry_run):
             if row["incumbent_name"]:
                 updates.append("incumbent_name = %s")
                 update_params.append(row["incumbent_name"])
+
+            if row.get("pricing_structure"):
+                updates.append("pricing_structure = LEFT(%s, 50)")
+                update_params.append(row["pricing_structure"])
+
+            if row.get("place_of_performance"):
+                updates.append("place_of_performance_detail = LEFT(%s, 200)")
+                update_params.append(row["place_of_performance"])
 
             if not updates:
                 skipped += 1

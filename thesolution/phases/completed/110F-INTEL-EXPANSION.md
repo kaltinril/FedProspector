@@ -1,6 +1,6 @@
 # Phase 110F: Intelligence Extraction Expansion
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** High — fills critical gaps in bid/no-bid decision intelligence
 **Dependencies:** Phase 110C (AI analyzer — complete), Phase 110 (keyword extractor — complete)
 
@@ -67,7 +67,7 @@ These are commonly-filtered fields that justify their own columns rather than be
 ### Update DDL files
 
 - `fed_prospector/db/schema/tables/36_attachment.sql` — add columns to `opportunity_attachment_intel`
-- `fed_prospector/db/schema/tables/01_opportunity.sql` — add columns to `opportunity` (check exact file name)
+- `fed_prospector/db/schema/tables/30_opportunity.sql` — add columns to `opportunity`
 
 ---
 
@@ -234,7 +234,7 @@ This ensures both keyword and AI results populate the same columns.
 | `fed_prospector/etl/attachment_ai_analyzer.py` | Save `pricing_structure` and `place_of_performance` columns |
 | `fed_prospector/cli/backfill.py` | Add new columns to backfill query |
 | `fed_prospector/db/schema/tables/36_attachment.sql` | Add columns to `opportunity_attachment_intel` |
-| `fed_prospector/db/schema/tables/01_opportunity.sql` | Add columns to `opportunity` (verify filename) |
+| `fed_prospector/db/schema/tables/30_opportunity.sql` | Add columns to `opportunity` |
 
 ---
 

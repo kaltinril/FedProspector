@@ -29,6 +29,8 @@ CREATE TABLE IF NOT EXISTS opportunity (
     incumbent_uei        VARCHAR(13),      -- Reserved: not in public Opportunities API v2 response
     incumbent_name       VARCHAR(200),     -- Reserved: not in public Opportunities API v2 response
     contract_vehicle_type VARCHAR(50),     -- Reserved: not in public Opportunities API v2 response
+    pricing_structure     VARCHAR(50),     -- Reserved: not in public Opportunities API v2 response
+    place_of_performance_detail VARCHAR(200), -- Reserved: not in public Opportunities API v2 response
     estimated_contract_value DECIMAL(15,2), -- Reserved: not in public Opportunities API v2 response
     active               CHAR(1) DEFAULT 'Y',
     award_number         VARCHAR(200),
