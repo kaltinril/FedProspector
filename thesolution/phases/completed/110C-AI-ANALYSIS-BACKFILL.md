@@ -1,6 +1,6 @@
 # Phase 110C: AI Document Analysis & Opportunity Column Backfill
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 **Priority:** Medium — completes the AI tier of the hybrid extraction pipeline
 **Dependencies:** Phase 110 (attachment download, text extraction, keyword intel — all complete)
 
@@ -169,3 +169,11 @@ For now, AI analysis is triggered via CLI (`analyze attachments`) or by manually
 - Tasks 2–4 share the same analyzer module, just different entry points (CLI batch vs on-demand request)
 - The `analyze_attachments` CLI command already exists as a placeholder
 - The Document Intelligence UI tab already handles all states (Phase 111, Issue 5)
+
+## Completion Notes
+
+- **AI prompt tuned with domain knowledge**: Public Trust/suitability as clearance, FAR 15.101-1/2 for eval methods, all known GWACs, recompete signals (bridge/successor/transition), structured labor categories with clearance/experience, compliance certs (CMMI/FedRAMP/ISO), pricing structure, place of performance, and set-aside detection. Prompt instructs AI to focus on bid/no-bid decision factors for a WOSB owner.
+- **Backfill is separate**: AI analyzer writes only to `opportunity_attachment_intel`. It does NOT update `opportunity` columns inline. Backfill is a separate, re-runnable command (`python main.py backfill opportunity-intel`).
+- **Cost discovery**: Analyzing all 24K extracted docs would cost ~$523 at Haiku pricing. Bulk analysis is impractical — designed for on-demand per-opportunity use via the UI "Enhance with AI" button.
+- **API key setup**: Anthropic free tier still requires a $5 minimum credit purchase. Key goes in `fed_prospector/.env` as `ANTHROPIC_API_KEY`.
+- **Three UI issues discovered**: AI results replace keyword results, confidence shows "unknown", AI has no source provenance. Tracked in Phase 110G.

@@ -124,7 +124,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 109 | Set-Aside Shift Analysis | COMPLETE | [109-SET-ASIDE-SHIFT-ANALYSIS.md](phases/completed/109-SET-ASIDE-SHIFT-ANALYSIS.md) |
 | 110 | Attachment Intelligence | COMPLETE | [110-ATTACHMENT-INTELLIGENCE.md](phases/completed/110-ATTACHMENT-INTELLIGENCE.md) |
 | 110B | Additional Document Type Extraction | COMPLETE | [110B-ADDITIONAL-DOCUMENT-TYPES.md](phases/completed/110B-ADDITIONAL-DOCUMENT-TYPES.md) |
-| 110C | AI Document Analysis & Opportunity Column Backfill | IN PROGRESS | [110C-AI-ANALYSIS-BACKFILL.md](phases/110C-AI-ANALYSIS-BACKFILL.md) |
+| 110C | AI Document Analysis & Opportunity Column Backfill | COMPLETE | [110C-AI-ANALYSIS-BACKFILL.md](phases/completed/110C-AI-ANALYSIS-BACKFILL.md) |
 | 110D | Incumbent Name Extraction Improvements | COMPLETE | [110D-INCUMBENT-EXTRACTION-IMPROVEMENTS.md](phases/completed/110D-INCUMBENT-EXTRACTION-IMPROVEMENTS.md) |
 | 110E | AI Analysis Cost Controls & Usage Tracking | PLANNED | [110E-AI-COST-CONTROLS.md](phases/110E-AI-COST-CONTROLS.md) |
 | 110F | Intelligence Extraction Expansion | PLANNED | [110F-INTEL-EXPANSION.md](phases/110F-INTEL-EXPANSION.md) |
