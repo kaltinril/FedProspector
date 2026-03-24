@@ -140,6 +140,47 @@ function getResourceLinksForDisplay(
 }
 
 // ---------------------------------------------------------------------------
+// Resource Links (collapsible)
+// ---------------------------------------------------------------------------
+
+const RESOURCE_LINKS_LIMIT = 5;
+
+function ResourceLinksSection({ resourceLinks }: { resourceLinks: { url: string; label: string; contentType: string | null }[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const needsCollapse = resourceLinks.length > RESOURCE_LINKS_LIMIT;
+  const visible = needsCollapse && !expanded ? resourceLinks.slice(0, RESOURCE_LINKS_LIMIT) : resourceLinks;
+
+  return (
+    <Box sx={{ mt: 2 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+        Resource Links ({resourceLinks.length})
+      </Typography>
+      {visible.map((rl, idx) => (
+        <Link
+          key={idx}
+          href={rl.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}
+        >
+          {getFileIcon(rl.contentType)}
+          {rl.label}
+        </Link>
+      ))}
+      {needsCollapse && (
+        <Button
+          size="small"
+          onClick={() => setExpanded((prev) => !prev)}
+          sx={{ textTransform: 'none', fontSize: '0.75rem' }}
+        >
+          {expanded ? 'Show fewer' : `Show all ${resourceLinks.length} links`}
+        </Button>
+      )}
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Qualification Summary (compact, for Overview tab)
 // ---------------------------------------------------------------------------
 
@@ -318,25 +359,9 @@ function OverviewTab({
           </Box>
         )}
 
-        {/* Resource links */}
+        {/* Resource links — collapsed after first 5 */}
         {resourceLinks.length > 0 && (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-              Resource Links
-            </Typography>
-            {resourceLinks.map((rl, idx) => (
-              <Link
-                key={idx}
-                href={rl.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}
-              >
-                {getFileIcon(rl.contentType)}
-                {rl.label}
-              </Link>
-            ))}
-          </Box>
+          <ResourceLinksSection resourceLinks={resourceLinks} />
         )}
       </Paper>
 
