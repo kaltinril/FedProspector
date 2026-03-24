@@ -1233,6 +1233,7 @@ export interface DocumentIntelligenceDto {
   pricingDetails?: string;
   popDetails?: string;
   sources: IntelSourceDto[];
+  mergedPassages: MergedSourcePassageDto[];
   attachments: AttachmentSummaryDto[];
   perAttachmentIntel?: AttachmentIntelBreakdownDto[];
 }
@@ -1243,6 +1244,8 @@ export interface IntelSourceDto {
   pageNumber?: number;
   matchedText?: string;
   surroundingContext?: string;
+  charOffsetStart?: number;
+  charOffsetEnd?: number;
   extractionMethod: string;
   confidence: string;
 }
@@ -1272,6 +1275,23 @@ export interface AttachmentIntelBreakdownDto {
   incumbentName?: string;
   pricingStructure?: string;
   placeOfPerformance?: string;
+}
+
+export interface MergedSourcePassageDto {
+  fieldName: string;
+  filename: string;
+  pageNumber?: number;
+  methods: string[];
+  confidences: string[];
+  text: string;
+  highlights: HighlightSpan[];
+  matchCount: number;
+}
+
+export interface HighlightSpan {
+  start: number;
+  end: number;
+  matchedText: string;
 }
 
 export interface LoadRequestStatusDto {

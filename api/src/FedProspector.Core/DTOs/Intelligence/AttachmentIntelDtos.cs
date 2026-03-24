@@ -31,6 +31,7 @@ public class DocumentIntelligenceDto
     public string? PopDetails { get; set; }
     public List<IntelSourceDto> Sources { get; set; } = new();
     public List<AttachmentSummaryDto> Attachments { get; set; } = new();
+    public List<MergedSourcePassageDto> MergedPassages { get; set; } = new();
     public List<AttachmentIntelBreakdownDto>? PerAttachmentIntel { get; set; }
 }
 
@@ -42,6 +43,8 @@ public class IntelSourceDto
     public string? MatchedText { get; set; }
     public string? SurroundingContext { get; set; }
     public string ExtractionMethod { get; set; } = "";
+    public int? CharOffsetStart { get; set; }
+    public int? CharOffsetEnd { get; set; }
     public string Confidence { get; set; } = "";
 }
 
@@ -85,4 +88,23 @@ public class AttachmentIntelBreakdownDto
     public string? IncumbentName { get; set; }
     public string? PricingStructure { get; set; }
     public string? PlaceOfPerformance { get; set; }
+}
+
+public class MergedSourcePassageDto
+{
+    public string FieldName { get; set; } = "";
+    public string Filename { get; set; } = "";
+    public int? PageNumber { get; set; }
+    public List<string> Methods { get; set; } = new();
+    public List<string> Confidences { get; set; } = new();
+    public string Text { get; set; } = "";
+    public List<HighlightSpan> Highlights { get; set; } = new();
+    public int MatchCount { get; set; }
+}
+
+public class HighlightSpan
+{
+    public int Start { get; set; }
+    public int End { get; set; }
+    public string MatchedText { get; set; } = "";
 }

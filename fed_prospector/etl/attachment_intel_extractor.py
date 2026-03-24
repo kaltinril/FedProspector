@@ -45,7 +45,7 @@ _HEADING_KEYWORDS = {
 _RAW_PATTERNS = {
     "clearance_level": [
         {"pattern": r"\bTS/SCI\b", "value": "TS/SCI", "confidence": "high", "name": "clearance_ts_sci"},
-        {"pattern": r"\bTop\s+Secret\b", "value": "Top Secret", "confidence": "high", "name": "clearance_top_secret"},
+        {"pattern": r"\bTop[\s\-]+Secret\b", "value": "Top Secret", "confidence": "high", "name": "clearance_top_secret"},
         {"pattern": r"(?<!Secretary )\bSecret\b(?!ary|ariat| Service| of)", "value": "Secret", "confidence": "medium", "name": "clearance_secret"},
         {"pattern": r"\b(?:Public\s+Trust|Moderate\s+Risk|High\s+Risk)\b", "value": "Public Trust", "confidence": "medium", "name": "clearance_public_trust"},
         {"pattern": r"\b(?:SF-86|e-?QIP|SF-312|DCSA|SCIF)\b", "value": None, "confidence": "medium", "name": "clearance_indicator"},
@@ -609,13 +609,24 @@ class AttachmentIntelExtractor:
         Returns list of (category, match_info) tuples.
         """
         matches = []
+
         for category, patterns in PATTERNS.items():
-            for pdef in patterns:
+            # Sort patterns longest-first so longer phrases claim their
+            # character range before shorter substrings can match inside them.
+            sorted_patterns = sorted(patterns, key=lambda p: len(p.get("value") or ""), reverse=True)
+
+            # Track claimed character ranges per category so shorter patterns
+            # (e.g., "Secret") don't match inside already-found longer phrases
+            # (e.g., "Top Secret").
+            claimed_ranges = []  # list of (start, end) tuples
+
+            for pdef in sorted_patterns:
                 for m in pdef["regex"].finditer(text):
+                    # Skip if this match falls inside an already-claimed range
+                    if any(cs <= m.start() and ce >= m.end() for cs, ce in claimed_ranges):
+                        continue
+
                     # --- Negation detection ---
-                    # Check if surrounding context negates this match.
-                    # e.g., "does not require security clearance" should NOT
-                    # trigger a positive clearance finding.
                     if self._is_negated(text, m.start(), m.end()):
                         logger.debug(
                             "Negated match skipped: %s (%s) in %s at offset %d",
@@ -644,6 +655,7 @@ class AttachmentIntelExtractor:
                         "scope": pdef.get("scope"),
                     }
                     matches.append((category, match_info))
+                    claimed_ranges.append((m.start(), m.end()))
 
                     # Try incumbent name extraction for recompete matches
                     if category == "recompete" and pdef["name"] in ("recompete_incumbent",):

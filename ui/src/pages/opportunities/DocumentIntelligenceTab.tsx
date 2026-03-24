@@ -37,6 +37,7 @@ import { queryKeys } from '@/queries/queryKeys';
 import type {
   DocumentIntelligenceDto,
   IntelSourceDto,
+  MergedSourcePassageDto,
   AttachmentSummaryDto,
   AttachmentIntelBreakdownDto,
   AnalysisEstimateDto,
@@ -98,11 +99,90 @@ function formatTokens(n: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Source Item — renders a single source row with method badge
+// Renders a merged passage from the API — one text block with multiple highlights
 // ---------------------------------------------------------------------------
 
-function SourceItem({ src }: { src: IntelSourceDto }) {
-  const isAI = src.extractionMethod?.startsWith('ai_');
+function MergedSourceBlock({ passage }: { passage: MergedSourcePassageDto }) {
+  // Merge overlapping/nested highlights into non-overlapping spans.
+  // e.g. "TOP SECRET" (0-10) + "SECRET" (4-10) → single span (0-10)
+  const merged: { start: number; end: number }[] = [];
+  for (const h of passage.highlights) {
+    if (merged.length > 0 && h.start <= merged[merged.length - 1].end) {
+      // Overlapping or adjacent — extend the previous span
+      merged[merged.length - 1].end = Math.max(merged[merged.length - 1].end, h.end);
+    } else {
+      merged.push({ start: h.start, end: h.end });
+    }
+  }
+
+  // Build text fragments: alternating plain text and highlighted spans
+  const fragments: React.ReactNode[] = [];
+  let cursor = 0;
+
+  for (const h of merged) {
+    if (h.start > cursor) {
+      fragments.push(passage.text.slice(cursor, h.start));
+    }
+    fragments.push(
+      <Box key={h.start} component="mark" sx={{ bgcolor: 'warning.light', color: 'warning.contrastText', px: 0.25, borderRadius: 0.5 }}>
+        {passage.text.slice(h.start, h.end)}
+      </Box>,
+    );
+    cursor = h.end;
+  }
+  if (cursor < passage.text.length) {
+    fragments.push(passage.text.slice(cursor));
+  }
+
+  return (
+    <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, flexWrap: 'wrap' }}>
+        {passage.methods.map((m) => (
+          <Chip
+            key={m}
+            label={METHOD_LABELS[m] ?? m}
+            size="small"
+            variant="outlined"
+            sx={{ fontSize: '0.6rem', height: 18 }}
+          />
+        ))}
+        {(() => {
+          const rank: Record<string, number> = { high: 3, medium: 2, low: 1 };
+          const best = passage.confidences.sort((a, b) => (rank[b] ?? 0) - (rank[a] ?? 0))[0];
+          return best ? (
+            <Chip
+              label={best}
+              size="small"
+              color={getConfidenceColor(best)}
+              sx={{ fontSize: '0.6rem', height: 18 }}
+            />
+          ) : null;
+        })()}
+        {passage.highlights.length > 1 && (
+          <Typography variant="caption" color="text.secondary">
+            {passage.highlights.length} matches
+          </Typography>
+        )}
+      </Box>
+      <Typography variant="caption" color="text.secondary" display="block">
+        {passage.filename}
+        {passage.pageNumber != null ? `, p.${passage.pageNumber}` : ''}
+      </Typography>
+      <Typography
+        variant="body2"
+        sx={{ mt: 0.5, fontFamily: 'monospace', fontSize: '0.75rem' }}
+      >
+        {fragments}
+      </Typography>
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AI Source Item — renders an AI explanation (no merging needed)
+// ---------------------------------------------------------------------------
+
+function AISourceItem({ src }: { src: IntelSourceDto }) {
   return (
     <Box sx={{ mt: 1, p: 1, bgcolor: 'action.hover', borderRadius: 1 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
@@ -124,30 +204,11 @@ function SourceItem({ src }: { src: IntelSourceDto }) {
       {src.sourceFilename && (
         <Typography variant="caption" color="text.secondary" display="block">
           {src.sourceFilename}
-          {src.pageNumber != null ? `, p.${src.pageNumber}` : ''}
         </Typography>
       )}
       {src.matchedText && (
-        <Typography
-          variant="body2"
-          sx={{
-            mt: 0.5,
-            fontFamily: isAI ? 'inherit' : 'monospace',
-            fontSize: isAI ? '0.8rem' : '0.75rem',
-            fontStyle: isAI ? 'italic' : 'normal',
-          }}
-        >
-          {!isAI && src.surroundingContext ? (
-            <>
-              {src.surroundingContext.split(src.matchedText)[0]}
-              <Box component="mark" sx={{ bgcolor: 'warning.light', px: 0.25 }}>
-                {src.matchedText}
-              </Box>
-              {src.surroundingContext.split(src.matchedText).slice(1).join(src.matchedText)}
-            </>
-          ) : (
-            src.matchedText
-          )}
+        <Typography variant="body2" sx={{ mt: 0.5, fontSize: '0.8rem', fontStyle: 'italic' }}>
+          {src.matchedText}
         </Typography>
       )}
     </Box>
@@ -240,27 +301,37 @@ function IntelCard({ label, fieldName, value, sources, intel }: IntelCardProps) 
         </Box>
       )}
 
-      {/* Source provenance (expandable) */}
-      {fieldSources.length > 0 && (
-        <Box sx={{ px: 2, pb: 1 }}>
-          <Box
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            onClick={() => setSourcesExpanded((prev) => !prev)}
-          >
-            <Typography variant="caption" color="text.secondary">
-              View Sources ({fieldSources.length})
-            </Typography>
-            <IconButton size="small" sx={{ ml: 'auto', transform: sourcesExpanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
-              <ExpandMoreIcon fontSize="small" />
-            </IconButton>
+      {/* Source provenance (expandable, merged from API) */}
+      {(() => {
+        const fieldPassages = (intel.mergedPassages ?? []).filter(p => p.fieldName === fieldName);
+        const aiSrcs = fieldSources.filter(s => s.extractionMethod?.startsWith('ai_'));
+        const totalPassages = fieldPassages.length + aiSrcs.length;
+        const totalMatches = fieldPassages.reduce((sum, p) => sum + p.matchCount, 0) + aiSrcs.length;
+        if (totalPassages === 0) return null;
+        return (
+          <Box sx={{ px: 2, pb: 1 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setSourcesExpanded((prev) => !prev)}
+            >
+              <Typography variant="caption" color="text.secondary">
+                View Sources ({totalPassages}{totalMatches !== totalPassages ? ` from ${totalMatches} matches` : ''})
+              </Typography>
+              <IconButton size="small" sx={{ ml: 'auto', transform: sourcesExpanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
+                <ExpandMoreIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Collapse in={sourcesExpanded}>
+              {aiSrcs.map((src, idx) => (
+                <AISourceItem key={`ai-${idx}`} src={src} />
+              ))}
+              {fieldPassages.map((passage, idx) => (
+                <MergedSourceBlock key={`kw-${idx}`} passage={passage} />
+              ))}
+            </Collapse>
           </Box>
-          <Collapse in={sourcesExpanded}>
-            {fieldSources.map((src, idx) => (
-              <SourceItem key={idx} src={src} />
-            ))}
-          </Collapse>
-        </Box>
-      )}
+        );
+      })()}
     </Card>
   );
 }
@@ -325,26 +396,36 @@ function ListCard({ label, fieldName, items, sources, intel }: ListCardProps) {
         )}
       </CardContent>
 
-      {fieldSources.length > 0 && (
-        <Box sx={{ px: 2, pb: 1 }}>
-          <Box
-            sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-            onClick={() => setExpanded((prev) => !prev)}
-          >
-            <Typography variant="caption" color="text.secondary">
-              View Sources ({fieldSources.length})
-            </Typography>
-            <IconButton size="small" sx={{ ml: 'auto', transform: expanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
-              <ExpandMoreIcon fontSize="small" />
-            </IconButton>
+      {(() => {
+        const fieldPassages = (intel.mergedPassages ?? []).filter(p => p.fieldName === fieldName);
+        const aiSrcs = fieldSources.filter(s => s.extractionMethod?.startsWith('ai_'));
+        const totalPassages = fieldPassages.length + aiSrcs.length;
+        const totalMatches = fieldPassages.reduce((sum, p) => sum + p.matchCount, 0) + aiSrcs.length;
+        if (totalPassages === 0) return null;
+        return (
+          <Box sx={{ px: 2, pb: 1 }}>
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => setExpanded((prev) => !prev)}
+            >
+              <Typography variant="caption" color="text.secondary">
+                View Sources ({totalPassages}{totalMatches !== totalPassages ? ` from ${totalMatches} matches` : ''})
+              </Typography>
+              <IconButton size="small" sx={{ ml: 'auto', transform: expanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
+                <ExpandMoreIcon fontSize="small" />
+              </IconButton>
+            </Box>
+            <Collapse in={expanded}>
+              {aiSrcs.map((src, idx) => (
+                <AISourceItem key={`ai-${idx}`} src={src} />
+              ))}
+              {fieldPassages.map((passage, idx) => (
+                <MergedSourceBlock key={`kw-${idx}`} passage={passage} />
+              ))}
+            </Collapse>
           </Box>
-          <Collapse in={expanded}>
-            {fieldSources.map((src, idx) => (
-              <SourceItem key={idx} src={src} />
-            ))}
-          </Collapse>
-        </Box>
-      )}
+        );
+      })()}
     </Card>
   );
 }

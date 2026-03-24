@@ -72,7 +72,11 @@ public class AttachmentIntelService : IAttachmentIntelService
         List<OpportunityIntelSource> sources = [];
         if (intelRecords.Count > 0)
         {
-            var allIntelIds = intelRecords.Select(i => i.IntelId).ToList();
+            // Exclude consolidated (attachment_id = NULL) intel records to avoid
+            // duplicating sources that already appear under per-attachment records
+            var allIntelIds = intelRecords
+                .Where(i => i.AttachmentId != null)
+                .Select(i => i.IntelId).ToList();
             sources = await _context.OpportunityIntelSources.AsNoTracking()
                 .Where(s => allIntelIds.Contains(s.IntelId))
                 .ToListAsync();
@@ -151,6 +155,9 @@ public class AttachmentIntelService : IAttachmentIntelService
         string? pricingDetails = null;
         string? popDetails = null;
 
+        // Build merged source passages (server-side merge of nearby keyword matches)
+        var mergedPassages = await BuildMergedPassagesAsync(sources);
+
         // Problem 7: Per-attachment drill-down
         var perAttachmentIntel = BuildPerAttachmentBreakdown(intelRecords, attachmentLookup);
 
@@ -193,6 +200,8 @@ public class AttachmentIntelService : IAttachmentIntelService
                 PageNumber = s.PageNumber,
                 MatchedText = s.MatchedText,
                 SurroundingContext = s.SurroundingContext,
+                CharOffsetStart = s.CharOffsetStart,
+                CharOffsetEnd = s.CharOffsetEnd,
                 ExtractionMethod = s.ExtractionMethod ?? "",
                 Confidence = s.Confidence ?? ""
             }).ToList(),
@@ -208,6 +217,7 @@ public class AttachmentIntelService : IAttachmentIntelService
                 ExtractionStatus = a.ExtractionStatus,
                 SkipReason = a.SkipReason
             }).ToList(),
+            MergedPassages = mergedPassages,
             PerAttachmentIntel = perAttachmentIntel
         };
 
@@ -499,6 +509,131 @@ public class AttachmentIntelService : IAttachmentIntelService
         }
 
         return result;
+    }
+
+    // --- Merged source passages ---
+
+    private const int MergeGap = 250;
+    private const int ContextBorder = 150;
+
+    /// <summary>
+    /// Merge nearby keyword sources from the same document into single text passages
+    /// with multiple highlights, slicing from the attachment's ExtractedText.
+    /// </summary>
+    private async Task<List<MergedSourcePassageDto>> BuildMergedPassagesAsync(
+        List<OpportunityIntelSource> sources)
+    {
+        // Only keyword sources with char offsets can be merged
+        var keywordSources = sources
+            .Where(s => s.CharOffsetStart.HasValue
+                        && !(s.ExtractionMethod ?? "").StartsWith("ai_"))
+            .ToList();
+
+        if (keywordSources.Count == 0)
+            return [];
+
+        // Get distinct attachment IDs we need text for
+        var attachmentIds = keywordSources
+            .Where(s => s.AttachmentId.HasValue)
+            .Select(s => s.AttachmentId!.Value)
+            .Distinct()
+            .ToList();
+
+        // Fetch only AttachmentId + ExtractedText (text can be huge, skip other columns)
+        var textLookup = await _context.OpportunityAttachments.AsNoTracking()
+            .Where(a => attachmentIds.Contains(a.AttachmentId))
+            .Select(a => new { a.AttachmentId, a.ExtractedText })
+            .ToDictionaryAsync(a => a.AttachmentId, a => a.ExtractedText);
+
+        // Group by (FieldName, SourceFilename)
+        var grouped = keywordSources
+            .GroupBy(s => (s.FieldName, Filename: s.SourceFilename ?? ""));
+
+        var passages = new List<MergedSourcePassageDto>();
+
+        foreach (var group in grouped)
+        {
+            var sorted = group.OrderBy(s => s.CharOffsetStart!.Value).ToList();
+
+            // Cluster: merge sources where gap <= MergeGap
+            var clusters = new List<List<OpportunityIntelSource>>();
+            var currentCluster = new List<OpportunityIntelSource> { sorted[0] };
+
+            for (int i = 1; i < sorted.Count; i++)
+            {
+                var prev = currentCluster[^1];
+                var prevEnd = prev.CharOffsetEnd ?? (prev.CharOffsetStart!.Value + (prev.MatchedText?.Length ?? 0));
+                var currStart = sorted[i].CharOffsetStart!.Value;
+
+                if (currStart - prevEnd <= MergeGap)
+                {
+                    currentCluster.Add(sorted[i]);
+                }
+                else
+                {
+                    clusters.Add(currentCluster);
+                    currentCluster = [sorted[i]];
+                }
+            }
+            clusters.Add(currentCluster);
+
+            foreach (var cluster in clusters)
+            {
+                // Find the attachment text for this cluster
+                var attachmentId = cluster[0].AttachmentId;
+                if (attachmentId == null || !textLookup.TryGetValue(attachmentId.Value, out var extractedText)
+                    || string.IsNullOrEmpty(extractedText))
+                {
+                    continue; // Skip — no text available
+                }
+
+                var textLength = extractedText.Length;
+
+                var minStart = cluster.Min(s => s.CharOffsetStart!.Value) - ContextBorder;
+                var maxEnd = cluster.Max(s =>
+                    s.CharOffsetEnd ?? (s.CharOffsetStart!.Value + (s.MatchedText?.Length ?? 0))) + ContextBorder;
+
+                // Clamp to valid range
+                if (minStart < 0) minStart = 0;
+                if (maxEnd > textLength) maxEnd = textLength;
+
+                var textSlice = extractedText[minStart..maxEnd];
+
+                // Build highlights: offset relative to the slice
+                var highlights = new List<HighlightSpan>();
+                foreach (var src in cluster)
+                {
+                    var hStart = src.CharOffsetStart!.Value - minStart;
+                    var hEnd = (src.CharOffsetEnd ?? (src.CharOffsetStart!.Value + (src.MatchedText?.Length ?? 0))) - minStart;
+
+                    // Clamp highlight to slice bounds
+                    if (hStart < 0) hStart = 0;
+                    if (hEnd > textSlice.Length) hEnd = textSlice.Length;
+                    if (hStart >= hEnd) continue;
+
+                    highlights.Add(new HighlightSpan
+                    {
+                        Start = hStart,
+                        End = hEnd,
+                        MatchedText = src.MatchedText ?? textSlice[hStart..hEnd]
+                    });
+                }
+
+                passages.Add(new MergedSourcePassageDto
+                {
+                    FieldName = group.Key.FieldName,
+                    Filename = group.Key.Filename,
+                    PageNumber = cluster[0].PageNumber,
+                    Methods = cluster.Select(s => s.ExtractionMethod ?? "keyword").Distinct().ToList(),
+                    Confidences = cluster.Select(s => s.Confidence).Where(c => !string.IsNullOrEmpty(c)).Select(c => c!).Distinct().ToList(),
+                    Text = textSlice,
+                    Highlights = highlights.OrderBy(h => h.Start).ToList(),
+                    MatchCount = cluster.Count
+                });
+            }
+        }
+
+        return passages;
     }
 
     private static List<string> DeserializeJsonList(string? json)
