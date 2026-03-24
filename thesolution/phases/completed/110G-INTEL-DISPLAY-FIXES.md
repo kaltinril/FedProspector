@@ -1,6 +1,6 @@
 # Phase 110G: Document Intelligence Display Fixes
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** Critical — AI analysis results are hiding keyword results and showing broken confidence
 **Dependencies:** Phase 110C (AI analyzer — complete)
 
@@ -454,3 +454,36 @@ After implementation, verify with test opportunity `63d402fe5ab14912ac95ac72ae5f
 7. Re-analyze button still works
 8. Header shows both extraction methods
 9. Optional: per-attachment view shows what each of the 12 docs contributed
+
+---
+
+## Completion Notes
+
+All 7 problems were implemented as specified:
+
+1. **AI results coexist with keyword results** — backend returns sources from all extraction methods, not just the "best" one
+2. **Confidence badges show actual values** — uses overall_confidence and confidence_details from the intel record
+3. **AI results have source provenance** — AI analyzer now writes explanation-based source rows to opportunity_intel_source
+4. **Attachments are clickable** — filenames link to SAM.gov download URLs
+5. **Cross-attachment aggregation fixed** — domain-specific rules (Y > N for clearance, highest level wins, etc.)
+6. **Detail text fields displayed** — AI explanations (clearance_details, eval_details, etc.) shown as expandable "AI Analysis" sections
+7. **Per-attachment drill-down** — expandable per-attachment section shows what each document contributed
+
+### Additional Improvements Beyond Original Plan
+
+- **Server-side merged passages**: API merges nearby keyword sources from the same document into single text passages with multiple highlights (sliced from ExtractedText), replacing client-side context stitching
+- **Longest-first pattern matching**: keyword extractor sorts patterns by value length descending, claims character ranges to prevent "Secret" matching inside "Top Secret"
+- **Top-Secret hyphen regex**: pattern now matches `Top[\s\-]+Secret` (hyphenated form)
+- **Overlapping highlight merge in UI renderer**
+- **Show highest confidence per passage** instead of listing all
+- **Resource links collapse** on opportunity detail page (first 5 shown, expand for rest)
+- **Key requirements collapse** (first 5 shown, expand for rest)
+- **Dark mode fix for AI Analysis text** (action.hover instead of grey.50)
+- **Char offsets added to IntelSourceDto**
+- **Excluded consolidated (NULL attachment) intel records from source query** to fix duplication (166 to 83 sources)
+
+### Commits
+
+- b0c4444
+- 9017122
+- 444a58b
