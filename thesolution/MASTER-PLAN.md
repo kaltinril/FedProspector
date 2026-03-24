@@ -129,6 +129,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 110E | AI Analysis Cost Controls & Usage Tracking | COMPLETE | [110E-AI-COST-CONTROLS.md](phases/completed/110E-AI-COST-CONTROLS.md) |
 | 110F | Intelligence Extraction Expansion | COMPLETE | [110F-INTEL-EXPANSION.md](phases/completed/110F-INTEL-EXPANSION.md) |
 | 110G | Document Intelligence Display Fixes | PLANNED | [110G-INTEL-DISPLAY-FIXES.md](phases/110G-INTEL-DISPLAY-FIXES.md) |
+| 110H | Intel Backfill Ranking | PLANNED | [110H-INTEL-BACKFILL-RANKING.md](phases/110H-INTEL-BACKFILL-RANKING.md) |
 | 110X | Scheduled & Automated Analysis | PLANNED | [110X-SCHEDULED-ANALYSIS.md](phases/110X-SCHEDULED-ANALYSIS.md) |
 | 110Y | Request Poller Service | PLANNED | [110Y-REQUEST-POLLER-SERVICE.md](phases/110Y-REQUEST-POLLER-SERVICE.md) |
 | 111 | Manual Testing Issues | COMPLETE | [111-MANUAL-TESTING-ISSUES.md](phases/completed/111-MANUAL-TESTING-ISSUES.md) |

@@ -308,7 +308,8 @@ _NEGATION_PHRASES = re.compile(
     r"(?:without|waive[sd]?|exempt(?:ed|ion)?(?:\s+from)?|not\s+(?:required|needed|applicable|necessary))|"
     r"(?:does\s+not|will\s+not|shall\s+not)\s+apply|"
     r"n/?a\s+(?:for|regarding)|"
-    r"(?:there\s+is\s+no|there\s+are\s+no)\b"
+    r"(?:there\s+is\s+no|there\s+are\s+no)\b|"
+    r"e\.g\.\s*,?"
     r")\b",
     re.IGNORECASE,
 )
@@ -688,6 +689,16 @@ class AttachmentIntelExtractor:
         after_text = text[match_end:after_end]
         if _NEGATION_PHRASES_AFTER.search(after_text):
             return True
+
+        # Q&A pattern: match sits inside a question answered with "No"
+        # e.g., "does the Government require... Secret... ? | No, the standard..."
+        qa_end = min(len(text), match_end + 200)
+        qa_text = text[match_end:qa_end]
+        q_mark = qa_text.find("?")
+        if q_mark != -1:
+            answer = qa_text[q_mark:q_mark + 40]
+            if re.search(r"\?\s*\|?\s*No\b", answer, re.IGNORECASE):
+                return True
 
         return False
 
