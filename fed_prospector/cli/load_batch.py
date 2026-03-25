@@ -1,6 +1,6 @@
 """CLI commands for batch loading: daily, weekly, monthly sequences (Phase 61).
 
-Commands: load-daily, load-weekly, load-monthly
+Commands: job-daily, job-weekly, job-monthly
 """
 
 import time
@@ -14,7 +14,9 @@ from config.logging_config import setup_logging
 DAILY_SEQUENCE = ["opportunities", "awards", "saved_searches", "auto_prospect"]
 FULL_SEQUENCE = [
     "entity_daily", "opportunities", "awards",
-    "subawards", "hierarchy", "saved_searches",
+    "subawards", "hierarchy",
+    "attachment_ai", "intel_backfill", "attachment_cleanup",
+    "saved_searches",
 ]
 WEEKLY_SEQUENCE = [
     "entity_daily", "hierarchy", "awards", "exclusions",
@@ -252,14 +254,15 @@ def load_daily(key, full, skip, dry_run, continue_on_failure, force):
 
     Standard: opportunities, awards, saved_searches
     Full (--full): entity_daily, opportunities, awards,
-                   subawards, hierarchy, saved_searches
+                   subawards, hierarchy, attachment_ai,
+                   intel_backfill, attachment_cleanup, saved_searches
 
     Examples:
-        python main.py load daily
-        python main.py load daily --key 1
-        python main.py load daily --full
-        python main.py load daily --skip awards
-        python main.py load daily --dry-run
+        python main.py job daily
+        python main.py job daily --key 1
+        python main.py job daily --full
+        python main.py job daily --skip awards
+        python main.py job daily --dry-run
     """
     sequence = FULL_SEQUENCE if full else DAILY_SEQUENCE
     _run_batch("Daily", sequence, key, skip, dry_run, continue_on_failure, force)
@@ -283,9 +286,9 @@ def load_weekly(key, skip, dry_run, continue_on_failure, force):
               subawards, saved_searches
 
     Examples:
-        python main.py load weekly
-        python main.py load weekly --dry-run
-        python main.py load weekly --skip hierarchy
+        python main.py job weekly
+        python main.py job weekly --dry-run
+        python main.py job weekly --skip hierarchy
     """
     _run_batch("Weekly", WEEKLY_SEQUENCE, key, skip, dry_run, continue_on_failure, force)
 
@@ -308,8 +311,8 @@ def load_monthly(key, skip, dry_run, continue_on_failure, force):
               subawards, hierarchy, calc_rates, usaspending, saved_searches
 
     Examples:
-        python main.py load monthly
-        python main.py load monthly --dry-run
-        python main.py load monthly --key 1
+        python main.py job monthly
+        python main.py job monthly --dry-run
+        python main.py job monthly --key 1
     """
     _run_batch("Monthly", MONTHLY_SEQUENCE, key, skip, dry_run, continue_on_failure, force)

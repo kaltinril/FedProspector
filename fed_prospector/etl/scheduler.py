@@ -1,7 +1,7 @@
 """Job scheduler definitions and runner.
 
 Defines all automated jobs with their schedules, commands, and dependencies.
-Jobs are triggered via CLI (`health run-job`) or Windows Task Scheduler.
+Jobs are triggered via CLI (`job run`) or Windows Task Scheduler.
 This is NOT a daemon - each invocation runs one job and exits.
 
 Windows Task Scheduler setup commands:
@@ -12,8 +12,8 @@ Windows Task Scheduler setup commands:
   schtasks /create /tn "FedContract_CalcRates" /tr "python main.py load labor-rates" /sc MONTHLY /d 1 /st 04:00
   schtasks /create /tn "FedContract_Exclusions" /tr "python main.py load exclusions --key 2" /sc WEEKLY /d MON /st 06:00
   schtasks /create /tn "FedContract_HealthCheck" /tr "python main.py health check" /sc DAILY /st 09:00
-  schtasks /create /tn "FedContract_SavedSearches" /tr "python main.py health run-all-searches" /sc DAILY /st 07:00
-  schtasks /create /tn "FedContract_Maintenance" /tr "python main.py health maintain-db" /sc MONTHLY /d 1 /st 01:00
+  schtasks /create /tn "FedContract_SavedSearches" /tr "python main.py job run-searches" /sc DAILY /st 07:00
+  schtasks /create /tn "FedContract_Maintenance" /tr "python main.py maintain db" /sc MONTHLY /d 1 /st 01:00
 """
 
 import logging
@@ -110,7 +110,7 @@ JOBS = {
     },
     "saved_searches": {
         "description": "Run all active saved searches",
-        "command": ["python", "main.py", "health", "run-all-searches"],
+        "command": ["python", "main.py", "job", "run-searches"],
         "source_system": None,  # No staleness tracking
         "schedule": "Daily 07:00",
         "staleness_hours": None,
@@ -129,6 +129,39 @@ JOBS = {
         "priority": "Medium",
         "catchup_safe": False,
         "estimated_api_calls": 0,   # Calls local C# API only
+    },
+    "attachment_ai": {
+        "description": "AI analysis of attachment documents",
+        "command": ["python", "main.py", "extract", "attachment-ai", "--model", "haiku", "--batch-size", "50"],
+        "source_system": None,
+        "schedule": "Daily 10:00",
+        "staleness_hours": 24,
+        "daily_freshness_hours": 1,
+        "priority": "Medium",
+        "estimated_api_calls": 0,   # Uses Anthropic API, not SAM.gov
+        "notes": "Uses Anthropic API credits (Haiku ~$0.02-0.05/doc). Runs after daily attachment download + text extraction + keyword intel.",
+    },
+    "intel_backfill": {
+        "description": "Backfill opportunity columns from extracted intel",
+        "command": ["python", "main.py", "backfill", "opportunity-intel"],
+        "source_system": None,
+        "schedule": "Daily 11:00",
+        "staleness_hours": 24,
+        "daily_freshness_hours": 1,
+        "priority": "Medium",
+        "estimated_api_calls": 0,
+        "notes": "Per-field frequency-weighted resolution (Phase 110H). No external API calls — reads intel tables, writes to opportunity.",
+    },
+    "attachment_cleanup": {
+        "description": "Clean up analyzed attachment files from disk",
+        "command": ["python", "main.py", "maintain", "attachment-files"],
+        "source_system": None,
+        "schedule": "Daily 12:00",
+        "staleness_hours": 48,
+        "daily_freshness_hours": 1,
+        "priority": "Low",
+        "estimated_api_calls": 0,
+        "notes": "Deletes local files only after all stages complete (download + text + keyword + AI). Extracted data remains in DB.",
     },
 }
 

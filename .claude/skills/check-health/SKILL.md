@@ -71,14 +71,14 @@ Options: `--table <name>` (single table), `--verbose` (show all checked), `--fix
 
 ### Catchup Missed Loads (`catchup`)
 ```bash
-python fed_prospector/main.py health catchup --dry-run
+python fed_prospector/main.py job catchup --dry-run
 ```
 Shows what would run. Remove `--dry-run` to execute. Add `--include-all` for unsafe/long-running jobs.
 
 ### Run Individual Job
 ```bash
-python fed_prospector/main.py health run-job --list     # see available jobs
-python fed_prospector/main.py health run-job <job_name> # run one
+python fed_prospector/main.py job run --list     # see available jobs
+python fed_prospector/main.py job run <job_name> # run one
 ```
 
 ## Common Error Patterns
@@ -89,6 +89,6 @@ python fed_prospector/main.py health run-job <job_name> # run one
 | Connection timeout | Check MySQL is running (`/dev-stack status`) |
 | Load stuck in RUNNING | Likely crashed mid-load — re-run the loader |
 | Schema drift after DDL change | `health check-schema --fix`, apply the ALTER output |
-| Stale data alerts | `health catchup` to recover missed loads |
+| Stale data alerts | `job catchup` to recover missed loads |
 | SAM.gov API quirks | See `thesolution/reference/09-SAM-API-QUIRKS.md` |
 | Data quality issues | See `thesolution/reference/08-DATA-QUALITY-ISSUES.md` |

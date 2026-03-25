@@ -76,17 +76,38 @@ SCHEDULED_TASKS = [
     },
     {
         "task_name": "FedContract_SavedSearches",
-        "command_args": "health run-all-searches",
+        "command_args": "job run-searches",
         "description": "Run all active saved searches",
         "windows": {"sc": "DAILY", "st": "07:00"},
         "crontab": "0 7 * * *",
     },
     {
         "task_name": "FedContract_Maintenance",
-        "command_args": "health maintain-db",
+        "command_args": "maintain db",
         "description": "Run database maintenance",
         "windows": {"sc": "MONTHLY", "d": "1", "st": "01:00"},
         "crontab": "0 1 1 * *",
+    },
+    {
+        "task_name": "FedContract_AttachmentAI",
+        "command_args": "extract attachment-ai --model haiku --batch-size 50",
+        "description": "Run AI analysis on attachment text",
+        "windows": {"sc": "DAILY", "st": "10:00"},
+        "crontab": "0 10 * * *",
+    },
+    {
+        "task_name": "FedContract_IntelBackfill",
+        "command_args": "backfill opportunity-intel",
+        "description": "Backfill opportunity intel from attachment analysis",
+        "windows": {"sc": "DAILY", "st": "11:00"},
+        "crontab": "0 11 * * *",
+    },
+    {
+        "task_name": "FedContract_AttachmentCleanup",
+        "command_args": "maintain attachment-files",
+        "description": "Clean up processed attachment files",
+        "windows": {"sc": "DAILY", "st": "12:00"},
+        "crontab": "0 12 * * *",
     },
 ]
 

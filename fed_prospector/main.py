@@ -11,9 +11,10 @@ Commands are organized into 13 top-level groups:
     analyze   Burn rate, teaming partner discovery, exclusion scanning
     update    Update/enrich existing data (metadata backfill)
     admin     System administration (orgs, users, invitations)
-    cleanup   Clean up local data and files
+    job       Run and manage scheduled jobs: manual triggers, batch loads, catchup
+    maintain  Database and application maintenance tasks
     backfill  Backfill opportunity columns from extracted intelligence
-    health    System health checks, ETL history, maintenance
+    health    System health checks, ETL history, status monitoring
 
 Run 'python main.py GROUP --help' to list commands in a group.
 Run 'python main.py GROUP COMMAND --help' for command-specific help.
@@ -61,7 +62,7 @@ def cli():
     Gathers federal contract data from government APIs into a local MySQL
     database for WOSB/8(a) contract discovery. Commands are organized into
     13 groups: setup, load, download, extract, search, prospect, analyze,
-    update, admin, cleanup, backfill, demand, health.
+    update, admin, job, maintain, backfill, health.
 
     Run 'python main.py GROUP --help' to list commands in a group.
     """
@@ -127,14 +128,14 @@ def extract():
 
 
 @cli.group()
-def demand():
-    """On-demand data loading commands."""
+def job():
+    """Run and manage scheduled jobs: manual triggers, batch loads, catchup."""
     pass
 
 
 @cli.group()
-def cleanup():
-    """Clean up local data and files."""
+def maintain():
+    """Database and application maintenance tasks."""
     pass
 
 
@@ -146,7 +147,7 @@ def backfill():
 
 @cli.group()
 def health():
-    """System health checks, ETL history, job execution, and maintenance."""
+    """System health checks, ETL history, and status monitoring."""
     pass
 
 
@@ -215,9 +216,6 @@ load.add_command(load_transactions, name="usaspending")
 load.add_command(load_calc, name="labor-rates")
 load.add_command(load_subawards, name="subawards")
 load.add_command(usaspending_bulk, name="usaspending-bulk")
-load.add_command(load_daily, name="daily")
-load.add_command(load_weekly, name="weekly")
-load.add_command(load_monthly, name="monthly")
 
 # ---------------------------------------------------------------------------
 # search group commands
@@ -271,10 +269,16 @@ admin.add_command(enable_user, name="enable-user")
 admin.add_command(reset_password, name="reset-password")
 
 # ---------------------------------------------------------------------------
-# demand group commands
+# job group commands
 # ---------------------------------------------------------------------------
 
-demand.add_command(process_requests, name="process-requests")
+job.add_command(run_job, name="run")
+job.add_command(run_all_searches, name="run-searches")
+job.add_command(catchup_datasets, name="catchup")
+job.add_command(load_daily, name="daily")
+job.add_command(load_weekly, name="weekly")
+job.add_command(load_monthly, name="monthly")
+job.add_command(process_requests, name="process-requests")
 
 # ---------------------------------------------------------------------------
 # update group commands
@@ -299,10 +303,12 @@ extract.add_command(extract_attachment_intel, name="attachment-intel")
 extract.add_command(analyze_attachments, name="attachment-ai")
 
 # ---------------------------------------------------------------------------
-# cleanup group commands
+# maintain group commands
 # ---------------------------------------------------------------------------
 
-cleanup.add_command(cleanup_attachment_files, name="attachment-files")
+maintain.add_command(maintain_app_data, name="app-data")
+maintain.add_command(maintain_db, name="db")
+maintain.add_command(cleanup_attachment_files, name="attachment-files")
 
 # ---------------------------------------------------------------------------
 # backfill group commands
@@ -317,11 +323,6 @@ backfill.add_command(backfill_opportunity_intel, name="opportunity-intel")
 health.add_command(status, name="status")
 health.add_command(check_health, name="check")
 health.add_command(load_history, name="load-history")
-health.add_command(catchup_datasets, name="catchup")
-health.add_command(maintain_app_data, name="maintain-app-data")
-health.add_command(maintain_db, name="maintain-db")
-health.add_command(run_job, name="run-job")
-health.add_command(run_all_searches, name="run-all-searches")
 health.add_command(check_schema, name="check-schema")
 health.add_command(attachment_pipeline_status, name="pipeline-status")
 health.add_command(ai_usage, name="ai-usage")

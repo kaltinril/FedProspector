@@ -198,17 +198,55 @@ public class AutoProspectService : IAutoProspectService
         var now = DateOnly.FromDateTime(DateTime.UtcNow);
         var cutoff = now.AddMonths(12);
 
-        // Get expiring contracts in org's NAICS codes
-        var expiringContracts = await _context.FpdsContracts.AsNoTracking()
+        // Stage 1: Get expiring FPDS contracts in org's NAICS codes
+        var fpdsContracts = await _context.FpdsContracts.AsNoTracking()
             .Where(c => c.ModificationNumber == "0"
                 && c.UltimateCompletionDate != null
                 && c.UltimateCompletionDate >= now
                 && c.UltimateCompletionDate <= cutoff
                 && c.NaicsCode != null
                 && orgNaics.Contains(c.NaicsCode))
-            .Select(c => new { c.SolicitationNumber, c.AgencyId, c.NaicsCode, c.FundingAgencyName })
+            .Select(c => new { c.SolicitationNumber, c.NaicsCode, c.FundingAgencyName })
             .Distinct()
             .ToListAsync();
+
+        _logger.LogInformation("Recompete: {Count} expiring FPDS contracts for org {OrgId}", fpdsContracts.Count, orgId);
+
+        // Collect FPDS solicitation numbers for dedup against USASpending
+        var fpdsSolicitations = new HashSet<string>(
+            fpdsContracts
+                .Where(c => !string.IsNullOrEmpty(c.SolicitationNumber))
+                .Select(c => c.SolicitationNumber!),
+            StringComparer.OrdinalIgnoreCase);
+
+        // Stage 2: Get expiring USASpending awards in org's NAICS codes (contracts only, deduped)
+        var usaContracts = await _context.UsaspendingAwards.AsNoTracking()
+            .Where(a => a.DeletedAt == null
+                && a.Piid != null
+                && a.EndDate != null
+                && a.EndDate >= now
+                && a.EndDate <= cutoff
+                && a.NaicsCode != null
+                && orgNaics.Contains(a.NaicsCode))
+            .Select(a => new { a.SolicitationIdentifier, a.NaicsCode, a.FundingAgencyName, a.AwardingAgencyName })
+            .Distinct()
+            .ToListAsync();
+
+        // Dedup: exclude USASpending rows whose solicitation already appeared in FPDS
+        var usaContractsDeduped = usaContracts
+            .Where(a => string.IsNullOrEmpty(a.SolicitationIdentifier)
+                || !fpdsSolicitations.Contains(a.SolicitationIdentifier))
+            .ToList();
+
+        _logger.LogInformation("Recompete: {Count} expiring USASpending contracts for org {OrgId} ({Excluded} deduped)",
+            usaContractsDeduped.Count, orgId, usaContracts.Count - usaContractsDeduped.Count);
+
+        // Combine both sources into a unified list
+        var expiringContracts = fpdsContracts
+            .Select(c => new { SolicitationNumber = c.SolicitationNumber, NaicsCode = c.NaicsCode, FundingAgencyName = c.FundingAgencyName })
+            .Concat(usaContractsDeduped
+                .Select(a => new { SolicitationNumber = a.SolicitationIdentifier, NaicsCode = a.NaicsCode, FundingAgencyName = a.FundingAgencyName ?? a.AwardingAgencyName }))
+            .ToList();
 
         foreach (var contract in expiringContracts)
         {
