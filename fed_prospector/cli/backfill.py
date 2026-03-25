@@ -368,6 +368,9 @@ def backfill_opportunity_intel(notice_id, dry_run, verbose):
             click.echo("No intel rows found to backfill.")
             return
 
+        total_notices = len(all_notice_ids)
+        click.echo(f"Processing {total_notices} opportunities with intel data...")
+
         # Process in batches for efficiency
         BATCH_SIZE = 500
         total_updated = 0
@@ -377,6 +380,14 @@ def backfill_opportunity_intel(notice_id, dry_run, verbose):
 
         for batch_start in range(0, len(all_notice_ids), BATCH_SIZE):
             batch_ids = all_notice_ids[batch_start:batch_start + BATCH_SIZE]
+            batch_num = batch_start // BATCH_SIZE + 1
+            total_batches = (total_notices + BATCH_SIZE - 1) // BATCH_SIZE
+            click.echo(
+                f"  Batch {batch_num}/{total_batches} "
+                f"({batch_start + 1}-{min(batch_start + BATCH_SIZE, total_notices)}"
+                f"/{total_notices})...",
+                nl=False,
+            )
 
             # Load intel rows and source counts for this batch
             intel_by_notice = _load_intel_rows(cursor, batch_ids)
@@ -452,8 +463,8 @@ def backfill_opportunity_intel(notice_id, dry_run, verbose):
                     total_skipped += 1
                     continue
 
-                # Print per-notice detail in dry-run or verbose mode
-                if dry_run or verbose:
+                # Print per-notice detail only in verbose mode
+                if verbose:
                     click.echo(f"Notice {nid}:")
                     for col, val, reason in field_decisions:
                         click.echo(f"  {col} = {val} ({reason})")
@@ -476,6 +487,8 @@ def backfill_opportunity_intel(notice_id, dry_run, verbose):
             # Commit per batch (not per row)
             if not dry_run:
                 conn.commit()
+
+            click.echo(f" {total_updated} updated, {total_fields} fields so far")
 
         # Summary
         verb = "Would update" if dry_run else "Updated"
