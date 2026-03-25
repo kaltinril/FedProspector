@@ -206,7 +206,7 @@ class HealthCheck:
             cursor.execute(
                 "SELECT source_system, requests_made, max_requests, last_request_at "
                 "FROM etl_rate_limit "
-                "WHERE request_date = CURDATE()"
+                "WHERE request_date = UTC_DATE()"
             )
             for row in cursor.fetchall():
                 used = row["requests_made"] or 0
@@ -223,8 +223,8 @@ class HealthCheck:
             # If no rows, show known API sources with 0 usage
             if not results:
                 known_sources = [
-                    ("SAM_OPPORTUNITY_KEY1", settings.SAM_DAILY_LIMIT),
-                    ("SAM_OPPORTUNITY_KEY2", settings.SAM_DAILY_LIMIT_2),
+                    ("SAM_KEY1", settings.SAM_DAILY_LIMIT),
+                    ("SAM_KEY2", settings.SAM_DAILY_LIMIT_2),
                 ]
                 for source, limit in known_sources:
                     results.append({
@@ -327,6 +327,7 @@ class HealthCheck:
             if item["status"] == "STALE":
                 alerts.append({
                     "level": "ERROR",
+                    "source": item["source"],
                     "message": (
                         f"{item['label']} data is stale "
                         f"({item['hours_ago']:.0f}h since last load, "
@@ -336,6 +337,7 @@ class HealthCheck:
             elif item["status"] == "NEVER":
                 alerts.append({
                     "level": "WARN",
+                    "source": item["source"],
                     "message": f"{item['label']} has never been loaded",
                 })
 

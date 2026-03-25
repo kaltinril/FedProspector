@@ -43,8 +43,8 @@ SCHEDULED_TASKS = [
         "task_name": "FedContract_Hierarchy",
         "command_args": "load hierarchy --full-refresh --key 2",
         "description": "Refresh federal org hierarchy",
-        "windows": {"sc": "WEEKLY", "d": "SUN", "st": "02:00"},
-        "crontab": "0 2 * * 0",
+        "windows": {"sc": "MONTHLY", "d": "1", "st": "02:00"},
+        "crontab": "0 2 1 * *",
     },
     {
         "task_name": "FedContract_Awards",

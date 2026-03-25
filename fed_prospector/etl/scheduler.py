@@ -56,9 +56,9 @@ JOBS = {
         "description": "Refresh federal org hierarchy",
         "command": ["python", "main.py", "load", "hierarchy", "--full-refresh", "--key", "2"],
         "source_system": "SAM_FEDHIER",
-        "schedule": "Sunday 02:00",
-        "staleness_hours": 336,  # 14 days
-        "daily_freshness_hours": 144,
+        "schedule": "1st of month 02:00",
+        "staleness_hours": 720,  # 30 days
+        "daily_freshness_hours": 720,
         "priority": "Medium",
         "catchup_safe": True,
         "estimated_api_calls": 50,  # ~5K orgs at 100/page

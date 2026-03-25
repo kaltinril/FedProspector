@@ -2,6 +2,7 @@
 
 import sys
 import time
+from datetime import date, timedelta
 
 import click
 
@@ -18,7 +19,9 @@ from cli.cli_utils import QueryBuilder
               help="Which SAM API key to use (1 or 2, default: 2)")
 @click.option("--force", is_flag=True, default=False,
               help="Ignore previous progress and start fresh")
-def load_hierarchy(status, max_calls, full_refresh, api_key_number, force):
+@click.option("--days-back", type=int, default=None,
+              help="Only load orgs updated in the last N days (incremental). Omit for full refresh.")
+def load_hierarchy(status, max_calls, full_refresh, api_key_number, force, days_back):
     """Load federal organization hierarchy from SAM.gov Federal Hierarchy API.
 
     Fetches the federal agency organizational structure (departments,
@@ -41,8 +44,18 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number, force):
         python main.py load hierarchy --full-refresh --key 2
         python main.py load hierarchy --status Inactive --max-calls 20
         python main.py load hierarchy --force
+        python main.py load hierarchy --days-back 30
     """
     logger = setup_logging()
+
+    if days_back is not None and full_refresh:
+        click.echo("ERROR: --days-back and --full-refresh are mutually exclusive.")
+        sys.exit(1)
+
+    # Calculate updateddatefrom when --days-back is provided
+    updated_date_from = None
+    if days_back is not None:
+        updated_date_from = (date.today() - timedelta(days=days_back)).strftime("%Y-%m-%d")
 
     from api_clients.sam_fedhier_client import SAMFedHierClient
     from api_clients.base_client import RateLimitExceeded
@@ -55,10 +68,17 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number, force):
 
     remaining = client._get_remaining_requests()
 
+    if updated_date_from:
+        mode_str = f"Incremental (updated since {updated_date_from})"
+    elif full_refresh:
+        mode_str = "Full Refresh (TRUNCATE)"
+    else:
+        mode_str = "Incremental Upsert"
+
     click.echo("SAM.gov Federal Hierarchy Load")
     click.echo(f"  API key:      #{api_key_number} (limit: {client.max_daily_requests}/day)")
     click.echo(f"  Status:       {status}")
-    click.echo(f"  Mode:         {'Full Refresh (TRUNCATE)' if full_refresh else 'Incremental Upsert'}")
+    click.echo(f"  Mode:         {mode_str}")
     click.echo(f"  Max calls:    {max_calls}")
     click.echo(f"  API calls remaining today: {remaining}")
 
@@ -71,7 +91,8 @@ def load_hierarchy(status, max_calls, full_refresh, api_key_number, force):
                              status, max_calls)
     else:
         _load_hierarchy_incremental(logger, client, loader, load_manager,
-                                     status, max_calls, api_key_number, force)
+                                     status, max_calls, api_key_number, force,
+                                     updated_date_from=updated_date_from)
 
 
 def _load_hierarchy_full(logger, client, loader, load_manager, status, max_calls):
@@ -143,7 +164,8 @@ def _load_hierarchy_full(logger, client, loader, load_manager, status, max_calls
 
 
 def _load_hierarchy_incremental(logger, client, loader, load_manager,
-                                 status, max_calls, api_key_number, force):
+                                 status, max_calls, api_key_number, force,
+                                 updated_date_from=None):
     """Incremental path: page-by-page loading with resume support."""
     import json as _json
     from api_clients.base_client import RateLimitExceeded
@@ -209,8 +231,11 @@ def _load_hierarchy_incremental(logger, client, loader, load_manager,
     rate_limited = False
 
     try:
+        iter_kwargs = dict(status=status, start_offset=resume_offset, max_pages=max_calls)
+        if updated_date_from:
+            iter_kwargs["updateddatefrom"] = updated_date_from
         for org_list, offset, total_records in client.iter_organization_pages(
-            status=status, start_offset=resume_offset, max_pages=max_calls,
+            **iter_kwargs,
         ):
             if org_list:
                 page_stats = loader.load_organization_batch(org_list, load_id)

@@ -88,11 +88,26 @@ def check_health(as_json):
         click.echo(f"  {item['key_name']:20s} {status} (limit: {item['daily_limit']}/day){expiry}")
 
     # Section: Alerts
+    # Map source_system to the CLI command that refreshes it
+    STALE_FIX_COMMANDS = {
+        "SAM_ENTITY": "job run entity_daily",
+        "SAM_FEDHIER": "job run hierarchy",
+        "SAM_AWARDS": "job run awards",
+        "GSA_CALC": "job run calc_rates",
+        "USASPENDING": "job run usaspending",
+        "SAM_EXCLUSIONS": "job run exclusions",
+        "SAM_SUBAWARD": "load subawards --key 2",
+        "SAM_OPPORTUNITY": "job run opportunities",
+    }
+
     click.echo("\n=== Alerts ===")
     alerts = results["alerts"]
     if alerts:
         for alert in alerts:
             click.echo(f"  [{alert['level']}] {alert['message']}")
+            source = alert.get("source")
+            if source and source in STALE_FIX_COMMANDS:
+                click.echo(f"          Fix: python main.py {STALE_FIX_COMMANDS[source]}")
     else:
         click.echo("  [OK] No alerts")
 
@@ -381,15 +396,31 @@ def run_job(job_name, list_jobs):
     from etl.scheduler import JobRunner, JOBS
 
     if list_jobs:
+        from cli.load_batch import DAILY_SEQUENCE, FULL_SEQUENCE, WEEKLY_SEQUENCE, MONTHLY_SEQUENCE
+        batch_map = {}
+        for name in JOBS:
+            batches = []
+            in_daily = name in DAILY_SEQUENCE
+            in_full = name in FULL_SEQUENCE
+            if in_daily:
+                batches.append("daily")
+            elif in_full:
+                batches.append("daily --full")
+            if name in WEEKLY_SEQUENCE:
+                batches.append("weekly")
+            if name in MONTHLY_SEQUENCE:
+                batches.append("monthly")
+            batch_map[name] = ", ".join(batches) if batches else ""
+
         click.echo("Available jobs:")
         click.echo(
-            f"  {'Name':20s}  {'Schedule':25s}  {'Priority':10s}  Description"
+            f"  {'Name':20s}  {'Schedule':25s}  {'Priority':10s}  {'Batch':20s}  Description"
         )
-        click.echo(f"  {'-'*20}  {'-'*25}  {'-'*10}  {'-'*40}")
+        click.echo(f"  {'-'*20}  {'-'*25}  {'-'*10}  {'-'*20}  {'-'*40}")
         for name, job in JOBS.items():
             click.echo(
                 f"  {name:20s}  {job['schedule']:25s}  "
-                f"{job['priority']:10s}  {job['description']}"
+                f"{job['priority']:10s}  {batch_map[name]:20s}  {job['description']}"
             )
         return
 

@@ -13,13 +13,13 @@ from config.logging_config import setup_logging
 # Job sequences for each batch mode
 DAILY_SEQUENCE = ["opportunities", "awards", "saved_searches", "auto_prospect"]
 FULL_SEQUENCE = [
-    "entity_daily", "opportunities", "awards",
-    "subawards", "hierarchy",
+    "opportunities", "awards",
+    "subawards",
     "attachment_ai", "intel_backfill", "attachment_cleanup",
     "saved_searches",
 ]
 WEEKLY_SEQUENCE = [
-    "entity_daily", "hierarchy", "awards", "exclusions",
+    "entity_daily", "opportunities", "awards", "exclusions",
     "subawards", "saved_searches",
 ]
 MONTHLY_SEQUENCE = [
