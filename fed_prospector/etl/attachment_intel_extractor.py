@@ -349,7 +349,7 @@ class AttachmentIntelExtractor:
 
         Returns:
             dict with keys: notices_processed, intel_rows_upserted,
-                            source_rows_inserted, opportunities_updated
+                            source_rows_inserted
         """
         load_id = self.load_manager.start_load(
             source_system="ATTACHMENT_INTEL",
@@ -366,7 +366,6 @@ class AttachmentIntelExtractor:
             "notices_processed": 0,
             "intel_rows_upserted": 0,
             "source_rows_inserted": 0,
-            "opportunities_updated": 0,
         }
 
         try:
@@ -387,8 +386,6 @@ class AttachmentIntelExtractor:
                     stats["notices_processed"] += 1
                     stats["intel_rows_upserted"] += result["intel_upserted"]
                     stats["source_rows_inserted"] += result["sources_inserted"]
-                    if result["opportunity_updated"]:
-                        stats["opportunities_updated"] += 1
                 except Exception as e:
                     stats["notices_processed"] += 1
                     self.load_manager.log_record_error(
@@ -399,7 +396,7 @@ class AttachmentIntelExtractor:
                     )
                     logger.error("Intel extraction failed for %s: %s", nid, e)
                 pbar.set_postfix_str(
-                    f"intel={stats['intel_rows_upserted']} opps={stats['opportunities_updated']}"
+                    f"intel={stats['intel_rows_upserted']}"
                 )
             pbar.close()
 
@@ -407,16 +404,15 @@ class AttachmentIntelExtractor:
                 load_id,
                 records_read=stats["notices_processed"],
                 records_inserted=stats["intel_rows_upserted"],
-                records_updated=stats["opportunities_updated"],
+                records_updated=0,
                 records_unchanged=0,
                 records_errored=0,
             )
             logger.info(
-                "Intel extraction complete: %d notices, %d intel rows, %d sources, %d opportunities updated",
+                "Intel extraction complete: %d notices, %d intel rows, %d sources",
                 stats["notices_processed"],
                 stats["intel_rows_upserted"],
                 stats["source_rows_inserted"],
-                stats["opportunities_updated"],
             )
         except Exception as e:
             self.load_manager.fail_load(load_id, str(e))
@@ -484,9 +480,9 @@ class AttachmentIntelExtractor:
     def _process_notice(self, notice_id, method, load_id, force=False):
         """Process all text sources for a single notice.
 
-        Returns dict: {intel_upserted, sources_inserted, opportunity_updated}
+        Returns dict: {intel_upserted, sources_inserted}
         """
-        result = {"intel_upserted": 0, "sources_inserted": 0, "opportunity_updated": False}
+        result = {"intel_upserted": 0, "sources_inserted": 0}
 
         # Task 4 (Phase 110D): When force=True, clean up stale consolidated
         # intel rows (attachment_id IS NULL) before re-extraction.
@@ -554,14 +550,11 @@ class AttachmentIntelExtractor:
             )
             result["sources_inserted"] += source_count
 
-        # Update reserved opportunity columns with best intel (clearance, vehicle_type)
-        updated = self._update_opportunity_columns(notice_id, intel)
-        result["opportunity_updated"] = updated
+        # Inline backfill removed in Phase 110H — opportunity columns are now
+        # updated exclusively by `backfill opportunity-intel` (per-field ranking).
 
-        # Task 3 (Phase 110D): Cross-attachment incumbent resolution.
-        # Resolve incumbent_name across all intel rows for this notice,
-        # then attempt UEI lookup (Task 5).
-        self._resolve_incumbent_for_opportunity(notice_id, load_id)
+        # Inline incumbent resolution removed in Phase 110H — incumbent_name
+        # and incumbent_uei are now resolved by `backfill opportunity-intel`.
 
         return result
 

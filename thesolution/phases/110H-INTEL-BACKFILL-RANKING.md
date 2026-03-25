@@ -1,6 +1,6 @@
 # Phase 110H: Intel Backfill Ranking — Frequency-Weighted, Per-Field Selection
 
-**Status:** PLANNED
+**Status:** IN PROGRESS
 **Priority:** High — current backfill picks one winner row, ignoring corroborating evidence
 **Dependencies:** Phase 110F (expanded patterns — complete)
 
@@ -73,23 +73,24 @@ The ranking logic belongs in `cli/backfill.py` (the bulk backfill command). The 
 
 ## Tasks
 
-### Task 1: Remove inline backfill from extractors
-- Remove `_update_opportunity_columns()` call from `attachment_intel_extractor.py`
-- Remove any opportunity UPDATE from `attachment_ai_analyzer.py`
-- Keep the methods for reference but don't call them from the extraction pipeline
+### Task 1: Remove inline backfill from extractor
+- Remove `_update_opportunity_columns()` call (line 558) from `_process_notice()` in `attachment_intel_extractor.py`
+- Remove `_resolve_incumbent_for_opportunity()` call (line 564) — this also directly updates `opportunity.incumbent_name` and `incumbent_uei`, which is inline backfill
+- Keep the methods intact (don't delete them) but stop calling them from the extraction pipeline
+- Note: `attachment_ai_analyzer.py` does NOT have inline opportunity UPDATEs — no changes needed there
 
 ### Task 2: Rework backfill query to per-field resolution
 - Replace single-row ranking with per-field queries
-- Use `opportunity_intel_source` for frequency counting on keyword fields
-- Use `opportunity_attachment_intel` for AI fields (incumbent, estimated value)
+- For keyword-preferred fields (`clearance_required`, `vehicle_type`, `pricing_structure`, `place_of_performance`): query `opportunity_intel_source` for frequency counting, prefer keyword matches with high corroboration
+- For AI-preferred fields (`incumbent_name`): prefer AI rows, fall back to keyword occurrence counting (reuse logic from `_resolve_incumbent_for_opportunity`)
+- For AI-only fields (`estimated_contract_value`): use AI rows only
+- Implement conflict resolution: keyword N>3 beats AI; keyword N=1 loses to AI; agreement is strongest signal
+- Include incumbent UEI resolution (moved from extractor)
 
-### Task 3: Add frequency metadata
-- Store the doc_count/corroboration count alongside the backfilled value
-- Consider adding `backfill_source` or `backfill_confidence` columns to opportunity for transparency
-
-### Task 4: CLI improvements
-- `--dry-run` should show per-field resolution decisions
+### Task 3: CLI improvements
+- `--dry-run` should show per-field resolution decisions with reasoning
 - `--verbose` should show why each field value was chosen (e.g., "pricing_structure=FFP: keyword found in 15/20 docs")
+- Summary stats at end: fields updated by keyword frequency vs AI vs fallback
 
 ---
 
@@ -98,8 +99,7 @@ The ranking logic belongs in `cli/backfill.py` (the bulk backfill command). The 
 | File | What to do |
 |------|------------|
 | `fed_prospector/cli/backfill.py` | Rewrite ranking logic to per-field, frequency-weighted |
-| `fed_prospector/etl/attachment_intel_extractor.py` | Remove `_update_opportunity_columns()` call |
-| `fed_prospector/etl/attachment_ai_analyzer.py` | Remove inline opportunity UPDATE if present |
+| `fed_prospector/etl/attachment_intel_extractor.py` | Remove `_update_opportunity_columns()` and `_resolve_incumbent_for_opportunity()` calls from `_process_notice()` |
 
 ---
 
