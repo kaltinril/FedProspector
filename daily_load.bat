@@ -44,7 +44,9 @@ python ./fed_prospector/main.py extract attachment-intel --batch-size 5000
 echo.
 
 echo [10/12] Running AI analysis on attachment text ...
-python ./fed_prospector/main.py extract attachment-ai --model haiku --batch-size 50
+REM disabling for now to save on costs, this is a per opportunity analysis that can be run on demand when needed 
+echo "skipping attachment AI analysis to save on costs, can be run on demand when needed"
+rem python ./fed_prospector/main.py extract attachment-ai --model haiku --batch-size 50
 echo.
 
 echo [11/12] Backfilling opportunity intel from analysis results ...
