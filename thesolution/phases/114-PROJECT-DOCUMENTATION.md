@@ -1,4 +1,4 @@
-# Phase 115: Project Documentation Suite
+# Phase 114: Project Documentation Suite
 
 **Status:** PLANNED
 **Priority:** Medium — essential for onboarding, maintenance, and eventual handoff
