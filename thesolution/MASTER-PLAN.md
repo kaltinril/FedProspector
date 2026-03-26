@@ -129,9 +129,10 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 110E | AI Analysis Cost Controls & Usage Tracking | COMPLETE | [110E-AI-COST-CONTROLS.md](phases/completed/110E-AI-COST-CONTROLS.md) |
 | 110F | Intelligence Extraction Expansion | COMPLETE | [110F-INTEL-EXPANSION.md](phases/completed/110F-INTEL-EXPANSION.md) |
 | 110G | Document Intelligence Display Fixes | COMPLETE | [110G-INTEL-DISPLAY-FIXES.md](phases/completed/110G-INTEL-DISPLAY-FIXES.md) |
-| 110H | Intel Backfill Ranking | IN PROGRESS | [110H-INTEL-BACKFILL-RANKING.md](phases/110H-INTEL-BACKFILL-RANKING.md) |
+| 110H | Intel Backfill Ranking | COMPLETE | [110H-INTEL-BACKFILL-RANKING.md](phases/completed/110H-INTEL-BACKFILL-RANKING.md) |
 | 110X | Scheduled & Automated Analysis | COMPLETE | [110X-SCHEDULED-ANALYSIS.md](phases/completed/110X-SCHEDULED-ANALYSIS.md) |
 | 110Y | Request Poller Service | PLANNED | [110Y-REQUEST-POLLER-SERVICE.md](phases/110Y-REQUEST-POLLER-SERVICE.md) |
+| 110Z | Early Attachment Cleanup & Re-Analyze | PLANNED | [110Z-EARLY-CLEANUP-AND-REANALYZE.md](phases/110Z-EARLY-CLEANUP-AND-REANALYZE.md) |
 | 111 | Manual Testing Issues | COMPLETE | [111-MANUAL-TESTING-ISSUES.md](phases/completed/111-MANUAL-TESTING-ISSUES.md) |
 | 113 | Federal Hierarchy Browser | PLANNED | [113-FEDERAL-HIERARCHY-BROWSER.md](phases/113-FEDERAL-HIERARCHY-BROWSER.md) |
 | 115 | Project Documentation Suite | PLANNED | [115-PROJECT-DOCUMENTATION.md](phases/115-PROJECT-DOCUMENTATION.md) |

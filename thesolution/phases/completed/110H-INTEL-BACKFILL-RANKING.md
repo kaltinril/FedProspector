@@ -1,6 +1,6 @@
 # Phase 110H: Intel Backfill Ranking — Frequency-Weighted, Per-Field Selection
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 **Priority:** High — current backfill picks one winner row, ignoring corroborating evidence
 **Dependencies:** Phase 110F (expanded patterns — complete)
 
@@ -39,7 +39,7 @@ For each backfill target field on `opportunity`, resolve independently:
 | `pricing_structure` | Keyword frequency > AI (FFP, CPFF, T&M are exact terms) |
 | `place_of_performance_detail` | Keyword frequency > AI (on-site, remote, CONUS are exact) |
 | `incumbent_name` | AI > keyword (requires sentence parsing, context understanding) |
-| `estimated_contract_value` | AI only (requires parsing dollar amounts from context) |
+| `estimated_contract_value` | AI only (deferred — requires parsing dollar amounts from context; not yet reliably extracted) |
 
 ### Frequency-Based Scoring for Keyword Fields
 
@@ -73,24 +73,24 @@ The ranking logic belongs in `cli/backfill.py` (the bulk backfill command). The 
 
 ## Tasks
 
-### Task 1: Remove inline backfill from extractor
-- Remove `_update_opportunity_columns()` call (line 558) from `_process_notice()` in `attachment_intel_extractor.py`
-- Remove `_resolve_incumbent_for_opportunity()` call (line 564) — this also directly updates `opportunity.incumbent_name` and `incumbent_uei`, which is inline backfill
-- Keep the methods intact (don't delete them) but stop calling them from the extraction pipeline
+### Task 1: Remove inline backfill from extractor ✓
+- ✅ Removed `_update_opportunity_columns()` call from `_process_notice()` in `attachment_intel_extractor.py`
+- ✅ Removed `_resolve_incumbent_for_opportunity()` call — inline backfill to `opportunity.incumbent_name` / `incumbent_uei` eliminated
+- ✅ Methods kept intact but no longer called from extraction pipeline
 - Note: `attachment_ai_analyzer.py` does NOT have inline opportunity UPDATEs — no changes needed there
 
-### Task 2: Rework backfill query to per-field resolution
-- Replace single-row ranking with per-field queries
-- For keyword-preferred fields (`clearance_required`, `vehicle_type`, `pricing_structure`, `place_of_performance`): query `opportunity_intel_source` for frequency counting, prefer keyword matches with high corroboration
-- For AI-preferred fields (`incumbent_name`): prefer AI rows, fall back to keyword occurrence counting (reuse logic from `_resolve_incumbent_for_opportunity`)
-- For AI-only fields (`estimated_contract_value`): use AI rows only
-- Implement conflict resolution: keyword N>3 beats AI; keyword N=1 loses to AI; agreement is strongest signal
-- Include incumbent UEI resolution (moved from extractor)
+### Task 2: Rework backfill query to per-field resolution ✓
+- ✅ Replaced single-row ranking with per-field queries
+- ✅ Keyword-preferred fields (`clearance_required`, `vehicle_type`, `pricing_structure`, `place_of_performance`): frequency counting via `opportunity_intel_source`, prefer keyword matches with high corroboration
+- ✅ AI-preferred fields (`incumbent_name`): AI → keyword fallback chain with filename weighting, includes UEI resolution via entity table lookup
+- ⏭️ `estimated_contract_value`: **Deferred** — current AI extraction does not reliably produce dollar amounts; no data to backfill yet
+- ✅ Conflict resolution: keyword N>3 beats AI; keyword N≤3 loses to AI; agreement is strongest signal
 
-### Task 3: CLI improvements
-- `--dry-run` should show per-field resolution decisions with reasoning
-- `--verbose` should show why each field value was chosen (e.g., "pricing_structure=FFP: keyword found in 15/20 docs")
-- Summary stats at end: fields updated by keyword frequency vs AI vs fallback
+### Task 3: CLI improvements ✓
+- ✅ `--dry-run` shows per-field resolution decisions with reasoning
+- ✅ `--verbose` shows why each field value was chosen
+- ✅ Batch progress output during processing
+- ✅ Summary stats at end: fields updated by keyword frequency vs AI vs fallback, UEI resolutions
 
 ---
 
@@ -108,3 +108,4 @@ The ranking logic belongs in `cli/backfill.py` (the bulk backfill command). The 
 - Changing how intel is extracted or stored (110F handles that)
 - UI display changes (110G handles that)
 - Merging key_requirements JSON across rows (future consideration)
+- `estimated_contract_value` backfill (deferred until AI extraction reliably produces dollar amounts)
