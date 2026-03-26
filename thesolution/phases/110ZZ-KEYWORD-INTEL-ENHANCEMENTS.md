@@ -247,7 +247,7 @@ Patterns were tested against 30 randomly sampled real documents. Findings:
 
 ### Additional Findings
 
-- **Case sensitivity**: Existing extractor uses `re.IGNORECASE` — verify this is set. Some documents use ALL CAPS (e.g., "VETERAN-OWNED SMALL BUSINESS").
+- **Case sensitivity**: Confirmed `re.IGNORECASE` is set (line 134 of `attachment_intel_extractor.py`). All patterns are case-insensitive. No action needed.
 - **Wage Determination number format**: Proposed pattern `\d{4}[-]\d{4}` is wrong. Real WD numbers are like `NY20260003`. Fix pattern to: `(?:[A-Z]{2})?\d{7,}` or remove.
 - **"Limited sources"**: Sole-source J&As often use "limited sources" instead of "sole source" — the pattern would miss these. Consider adding `\blimited\s+source\b` as an additional pattern.
 - **Past Performance questionnaires**: Multiple patterns (pricing, POP, task/delivery order) fire on blank form templates. Consider a document-type heuristic: if filename or first 200 chars contain "Past Performance Questionnaire" or "PPQ", lower confidence on all extractions.
