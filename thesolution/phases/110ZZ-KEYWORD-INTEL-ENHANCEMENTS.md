@@ -211,6 +211,50 @@ This re-processes all attachments with the expanded patterns. Existing AI-genera
 
 ---
 
+## False Positive Risks (from validation of 30+ documents)
+
+Patterns were tested against 30 randomly sampled real documents. Findings:
+
+### CRITICAL — Must Fix Before Implementing
+
+| Pattern | Risk | Issue | Fix |
+|---------|------|-------|-----|
+| `Full and Open Competition` | **CRITICAL** | Matches "other than full and open competition" in every sole-source J&A — tags them as "Unrestricted" (exact opposite) | Add negative lookbehind: `(?<!other\s+than\s+)(?<!without\s+)(?<!not\s+)` |
+| `DBA` (for Davis-Bacon) | **HIGH** | "DBA" commonly means "Doing Business As" (e.g., "ABC Corp DBA XYZ Services") | Remove `DBA` standalone; require full phrase "Davis-Bacon" |
+| `$` standalone amounts | **HIGH** | Matches bonding, insurance, liquidated damages, size standards — not contract value | Gate on qualifying words within ±100 chars (ceiling, maximum, estimated, NTE) |
+| `task order` / `delivery order` | **HIGH** | Matches blank form labels in Past Performance questionnaires ("Delivery/Task Order Number (if applicable)") and T&C boilerplate | Require NOT preceded by "Number", not inside parenthetical labels |
+| `not-to-exceed` | **HIGH** | Matches time limits ("not to exceed 8 business hours") — not just dollar amounts | Require `$` or numeric dollar context within ±30 chars |
+
+### Should Fix
+
+| Pattern | Risk | Issue | Fix |
+|---------|------|-------|-----|
+| `SCA` standalone | **MEDIUM** | "SCA" is ambiguous (SCA Health, etc.) | Require full "Service Contract Act" or nearby "wage" context |
+| `Polaris` | **MEDIUM** | Could match Polaris Industries, Polaris vehicles in equipment solicitations | Require context: "Polaris GWAC" or "Polaris contract" or "GSA Polaris" |
+| `sole-source` | **MEDIUM** | No negation handling — matches "this is NOT a sole-source" | Add negative lookbehind for "not a" |
+| `task order` | **MEDIUM** | Matches past-performance narratives, staffing discussions, not just vehicle type | Lower to "low" confidence |
+| `Unrestricted` bare word | **MEDIUM** | Appears in SF-1449 checkbox boilerplate even when NOT selected | Require context near "set-aside" or "competition type" |
+
+### Acceptable Risk
+
+| Pattern | Risk | Notes |
+|---------|------|-------|
+| `ordering period` | LOW | Almost always POP-related in federal contracting |
+| `offsite` / `off-site` | LOW | Could match "offsite backup" but rare in solicitations |
+| `delivery order` | LOW | True positive confirmed — correctly signals IDIQ context |
+| `contractor site/location` | LOW | Specific enough to avoid false positives |
+| `award fee/term` | LOW | Specific contracting terminology |
+
+### Additional Findings
+
+- **Case sensitivity**: Existing extractor uses `re.IGNORECASE` — verify this is set. Some documents use ALL CAPS (e.g., "VETERAN-OWNED SMALL BUSINESS").
+- **Wage Determination number format**: Proposed pattern `\d{4}[-]\d{4}` is wrong. Real WD numbers are like `NY20260003`. Fix pattern to: `(?:[A-Z]{2})?\d{7,}` or remove.
+- **"Limited sources"**: Sole-source J&As often use "limited sources" instead of "sole source" — the pattern would miss these. Consider adding `\blimited\s+source\b` as an additional pattern.
+- **Past Performance questionnaires**: Multiple patterns (pricing, POP, task/delivery order) fire on blank form templates. Consider a document-type heuristic: if filename or first 200 chars contain "Past Performance Questionnaire" or "PPQ", lower confidence on all extractions.
+- **Existing pattern risk**: The current `Firm Fixed Price` / `FFP` pattern also matches PPQ checkbox labels describing past contracts, not the current procurement. This is a pre-existing issue, not introduced by this phase.
+
+---
+
 ## Files to Modify
 
 | File | Change |
