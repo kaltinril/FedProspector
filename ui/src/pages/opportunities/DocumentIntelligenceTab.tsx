@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import Box from '@mui/material/Box';
@@ -32,7 +32,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getDocumentIntelligence, getAnalysisEstimate, requestAnalysis } from '@/api/opportunities';
+import { getDocumentIntelligence, getAnalysisEstimate, requestAnalysis, getAnalysisStatus } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
 import type {
   DocumentIntelligenceDto,
@@ -636,6 +636,7 @@ function AttachmentsTable({ attachments }: { attachments: AttachmentSummaryDto[]
 export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string }) {
   const { enqueueSnackbar } = useSnackbar();
   const queryClient = useQueryClient();
+  const [analysisRequestId, setAnalysisRequestId] = useState<number | null>(null);
 
   const {
     data: intel,
@@ -656,16 +657,40 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
     },
   });
 
+  // Poll analysis status while a request is in progress
+  const { data: analysisStatus } = useQuery({
+    queryKey: queryKeys.opportunities.analysisStatus(noticeId),
+    queryFn: () => getAnalysisStatus(noticeId),
+    enabled: analysisRequestId != null,
+    refetchInterval: 4000,
+  });
+
+  // When analysis completes or fails, refresh intel data and stop polling
+  useEffect(() => {
+    if (analysisRequestId == null || !analysisStatus?.status) return;
+
+    if (analysisStatus.status === 'COMPLETED') {
+      setAnalysisRequestId(null);
+      enqueueSnackbar('Analysis complete. Results updated.', { variant: 'success' });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opportunities.documentIntelligence(noticeId),
+      });
+    } else if (analysisStatus.status === 'FAILED') {
+      setAnalysisRequestId(null);
+      enqueueSnackbar(
+        `Analysis failed: ${analysisStatus.errorMessage ?? 'Unknown error'}`,
+        { variant: 'error' },
+      );
+    }
+  }, [analysisStatus?.status, analysisStatus?.errorMessage, analysisRequestId, noticeId, queryClient, enqueueSnackbar]);
+
+  const analysisProcessing = analysisRequestId != null;
+
   const analyzeMutation = useMutation({
     mutationFn: () => requestAnalysis(noticeId, 'haiku'),
-    onSuccess: () => {
+    onSuccess: (result) => {
       enqueueSnackbar('Analysis requested. Results will appear after processing.', { variant: 'success' });
-      // Refetch after a short delay to pick up status change
-      setTimeout(() => {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.opportunities.documentIntelligence(noticeId),
-        });
-      }, 2000);
+      setAnalysisRequestId(result.requestId ?? null);
     },
     onError: () => {
       enqueueSnackbar('Failed to request analysis', { variant: 'error' });
@@ -674,13 +699,9 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
 
   const basicAnalysisMutation = useMutation({
     mutationFn: () => requestAnalysis(noticeId, 'basic'),
-    onSuccess: () => {
+    onSuccess: (result) => {
       enqueueSnackbar('Basic analysis requested. Attachments will be downloaded and analyzed.', { variant: 'success' });
-      setTimeout(() => {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.opportunities.documentIntelligence(noticeId),
-        });
-      }, 2000);
+      setAnalysisRequestId(result.requestId ?? null);
     },
     onError: () => {
       enqueueSnackbar('Failed to request analysis', { variant: 'error' });
@@ -804,11 +825,11 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
           action={
             <Button
               variant="contained"
-              startIcon={basicAnalysisMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
-              disabled={basicAnalysisMutation.isPending}
+              startIcon={basicAnalysisMutation.isPending || analysisProcessing ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
+              disabled={basicAnalysisMutation.isPending || analysisProcessing}
               onClick={() => basicAnalysisMutation.mutate()}
             >
-              {basicAnalysisMutation.isPending ? 'Requesting...' : 'Run Basic Analysis'}
+              {basicAnalysisMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Run Basic Analysis'}
             </Button>
           }
         />
@@ -855,19 +876,19 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
             <Button
               variant="contained"
-              startIcon={basicAnalysisMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
-              disabled={basicAnalysisMutation.isPending}
+              startIcon={basicAnalysisMutation.isPending || analysisProcessing ? <CircularProgress size={18} color="inherit" /> : <PlayArrowIcon />}
+              disabled={basicAnalysisMutation.isPending || analysisProcessing}
               onClick={() => basicAnalysisMutation.mutate()}
             >
-              {basicAnalysisMutation.isPending ? 'Requesting...' : 'Run Basic Analysis'}
+              {basicAnalysisMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Run Basic Analysis'}
             </Button>
             <Button
               variant="outlined"
-              startIcon={estimateLoading || analyzeMutation.isPending ? <CircularProgress size={18} color="inherit" /> : <AnalyticsIcon />}
-              disabled={estimateLoading || analyzeMutation.isPending}
+              startIcon={estimateLoading || analyzeMutation.isPending || analysisProcessing ? <CircularProgress size={18} color="inherit" /> : <AnalyticsIcon />}
+              disabled={estimateLoading || analyzeMutation.isPending || analysisProcessing}
               onClick={handleEnhanceWithAI}
             >
-              {estimateLoading ? 'Estimating...' : analyzeMutation.isPending ? 'Requesting...' : 'Enhance with AI'}
+              {estimateLoading ? 'Estimating...' : analyzeMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Enhance with AI'}
             </Button>
           </Box>
         </Paper>
@@ -935,17 +956,19 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             <Button
               variant="outlined"
               size="small"
-              startIcon={estimateLoading || analyzeMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
-              disabled={estimateLoading || analyzeMutation.isPending}
+              startIcon={estimateLoading || analyzeMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
+              disabled={estimateLoading || analyzeMutation.isPending || analysisProcessing}
               onClick={handleEnhanceWithAI}
             >
               {estimateLoading
                 ? 'Estimating...'
                 : analyzeMutation.isPending
                   ? 'Requesting...'
-                  : intel.latestExtractionMethod === 'keyword'
-                    ? 'Enhance with AI'
-                    : 'Re-analyze'}
+                  : analysisProcessing
+                    ? 'Processing...'
+                    : intel.latestExtractionMethod === 'keyword'
+                      ? 'Enhance with AI'
+                      : 'Re-analyze'}
             </Button>
           </Box>
         </Box>

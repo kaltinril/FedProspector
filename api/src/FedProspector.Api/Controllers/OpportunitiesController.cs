@@ -189,6 +189,16 @@ public class OpportunitiesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get the status of the most recent analysis request for an opportunity.
+    /// </summary>
+    [HttpGet("{noticeId}/analyze/status")]
+    public async Task<ActionResult<LoadRequestStatusDto>> GetAnalysisStatus(string noticeId)
+    {
+        var result = await _attachmentIntelService.GetAnalysisStatusAsync(noticeId);
+        return result != null ? Ok(result) : Ok(new LoadRequestStatusDto());
+    }
+
+    /// <summary>
     /// Request analysis of opportunity attachments. Inserts a data_load_request for the Python pipeline.
     /// </summary>
     [HttpPost("{noticeId}/analyze")]

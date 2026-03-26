@@ -270,6 +270,25 @@ public class AttachmentIntelService : IAttachmentIntelService
         };
     }
 
+    public async Task<LoadRequestStatusDto?> GetAnalysisStatusAsync(string noticeId)
+    {
+        var request = await _context.DataLoadRequests.AsNoTracking()
+            .Where(r => r.LookupKey == noticeId && r.RequestType == "ATTACHMENT_ANALYSIS")
+            .OrderByDescending(r => r.RequestedAt)
+            .FirstOrDefaultAsync();
+
+        if (request == null) return null;
+
+        return new LoadRequestStatusDto
+        {
+            RequestId = request.RequestId,
+            RequestType = request.RequestType,
+            Status = request.Status,
+            RequestedAt = request.RequestedAt,
+            ErrorMessage = request.ErrorMessage
+        };
+    }
+
     public async Task<AnalysisEstimateDto> GetAnalysisEstimateAsync(string noticeId, string model = "haiku")
     {
         const int maxCharsPerDoc = 100_000;

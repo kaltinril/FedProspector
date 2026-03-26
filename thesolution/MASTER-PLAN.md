@@ -133,6 +133,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 110X | Scheduled & Automated Analysis | COMPLETE | [110X-SCHEDULED-ANALYSIS.md](phases/completed/110X-SCHEDULED-ANALYSIS.md) |
 | 110Y | Request Poller Service | COMPLETE | [110Y-REQUEST-POLLER-SERVICE.md](phases/completed/110Y-REQUEST-POLLER-SERVICE.md) |
 | 110Z | Early Attachment Cleanup & Re-Analyze | PLANNED | [110Z-EARLY-CLEANUP-AND-REANALYZE.md](phases/110Z-EARLY-CLEANUP-AND-REANALYZE.md) |
+| 110ZZ | Keyword Intel Extraction Enhancements | PLANNED | [110ZZ-KEYWORD-INTEL-ENHANCEMENTS.md](phases/110ZZ-KEYWORD-INTEL-ENHANCEMENTS.md) |
 | 111 | Manual Testing Issues | COMPLETE | [111-MANUAL-TESTING-ISSUES.md](phases/completed/111-MANUAL-TESTING-ISSUES.md) |
 | 113 | Federal Hierarchy Browser | PLANNED | [113-FEDERAL-HIERARCHY-BROWSER.md](phases/113-FEDERAL-HIERARCHY-BROWSER.md) |
 | 114 | Project Documentation Suite | PLANNED | [114-PROJECT-DOCUMENTATION.md](phases/114-PROJECT-DOCUMENTATION.md) |

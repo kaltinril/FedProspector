@@ -26,7 +26,7 @@ def setup_logging(name="fed_prospector"):
     # File handler
     file_handler = RotatingFileHandler(
         settings.LOG_DIR / "fed_prospector.log",
-        maxBytes=50 * 1024 * 1024,
+        maxBytes=10 * 1024 * 1024,
         backupCount=10,
         encoding="utf-8",
     )
