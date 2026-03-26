@@ -39,6 +39,28 @@ class DemandLoader:
         self.awards_loader = AwardsLoader()
         self.load_manager = LoadManager()
 
+    def clear_queue(self) -> int:
+        """Cancel all PENDING requests. Returns count cleared."""
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE data_load_request "
+                "SET status = 'CANCELLED', "
+                "    error_message = 'Cleared by --clear-queue on startup', "
+                "    completed_at = %s "
+                "WHERE status = 'PENDING'",
+                (datetime.now(),),
+            )
+            cleared = cursor.rowcount
+            conn.commit()
+            cursor.close()
+            if cleared:
+                logger.info("Cleared %d pending requests from queue", cleared)
+            return cleared
+        finally:
+            conn.close()
+
     def process_pending_requests(self) -> int:
         """Process up to 10 pending requests. Returns count processed."""
         conn = get_connection()

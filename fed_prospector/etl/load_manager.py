@@ -208,6 +208,8 @@ class LoadManager:
             if date_from is not None:
                 sql += "AND JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.date_from')) = %s "
                 params.append(date_from)
+            else:
+                sql += "AND JSON_EXTRACT(parameters, '$.date_from') IS NULL "
             if date_to is not None:
                 sql += "AND JSON_UNQUOTE(JSON_EXTRACT(parameters, '$.date_to')) = %s "
                 params.append(date_to)

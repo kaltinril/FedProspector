@@ -437,10 +437,10 @@ class FedHierLoader(StagingMixin):
             full_path_id = latest.get("fhfullparentpathid", "")
             if full_path_id:
                 # Path is dot-separated: "100000000.100123456.100234567"
-                # The last segment is the immediate parent
+                # Last segment is the org itself; second-to-last is its parent
                 parts = full_path_id.split(".")
-                if parts:
-                    return parts[-1]
+                if len(parts) >= 2:
+                    return parts[-2]
 
         # Fallback: use fhdeptindagencyorgid for sub-tiers
         dept_id = raw.get("fhdeptindagencyorgid")

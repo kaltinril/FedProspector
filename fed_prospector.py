@@ -5,7 +5,7 @@ Usage:
     python fed_prospector.py <command> [service]
 
 Commands:  build | start | stop | restart | status
-Services:  all (default) | db | api | ui
+Services:  all (default) | db | api | ui | poller
 """
 
 import argparse
@@ -39,6 +39,8 @@ API_PORT = int(os.environ.get("API_PORT", "5056"))
 UI_PORT = int(os.environ.get("UI_PORT", "5173"))
 ASPNETCORE_ENV = os.environ.get("ASPNETCORE_ENVIRONMENT", "Development")
 API_URL = f"http://localhost:{API_PORT}"
+POLLER_TITLE = "FedProspect Poller"
+POLLER_DIR = SCRIPT_DIR / "fed_prospector"
 
 
 def is_running(image_name: str) -> bool:
@@ -331,15 +333,74 @@ def check_ui():
         print("  [UI]  Stopped")
 
 
+# -- Poller ------------------------------------------------------------
+
+def _poller_is_running() -> bool:
+    """Check if the poller window is running by its window title."""
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", f"WINDOWTITLE eq {POLLER_TITLE}"],
+            capture_output=True, text=True, timeout=5,
+        )
+        # tasklist prints "INFO: No tasks are running..." when nothing matches
+        return "python" in result.stdout.lower()
+    except Exception:
+        return False
+
+
+def start_poller(clear_queue: bool = False):
+    if _poller_is_running():
+        print("  [POL] Already running.")
+        return
+    print("  [POL] Starting request poller ...")
+    cmd = f'start "{POLLER_TITLE}" /MIN python main.py demand process-requests --watch'
+    if clear_queue:
+        cmd += " --clear-queue"
+        print("  [POL] Clearing pending requests before starting ...")
+    subprocess.Popen(
+        cmd,
+        shell=True,
+        cwd=str(POLLER_DIR),
+    )
+    time.sleep(2)
+    if _poller_is_running():
+        print("  [POL] Ready.  (polling data_load_request every 5s)")
+    else:
+        print("  [POL] WARNING: Poller may not have started. Check the console window.")
+
+
+def stop_poller():
+    if not _poller_is_running():
+        print("  [POL] Not running.")
+        return
+    print("  [POL] Stopping ...")
+    try:
+        subprocess.run(
+            ["taskkill", "/FI", f"WINDOWTITLE eq {POLLER_TITLE}", "/F", "/T"],
+            capture_output=True, timeout=10,
+        )
+    except Exception:
+        pass
+    print("  [POL] Stopped.")
+
+
+def check_poller():
+    if _poller_is_running():
+        print("  [POL] Running  (polling data_load_request)")
+    else:
+        print("  [POL] Stopped")
+
+
 # -- Commands ----------------------------------------------------------
 
 SERVICE_MAP = {
-    "db":  {"start": start_db,  "stop": stop_db,  "check": check_db,  "build": None},
-    "api": {"start": start_api, "stop": stop_api, "check": check_api, "build": build_api},
-    "ui":  {"start": start_ui,  "stop": stop_ui,  "check": check_ui,  "build": build_ui},
+    "db":     {"start": start_db,     "stop": stop_db,     "check": check_db,     "build": None},
+    "api":    {"start": start_api,    "stop": stop_api,    "check": check_api,    "build": build_api},
+    "ui":     {"start": start_ui,     "stop": stop_ui,     "check": check_ui,     "build": build_ui},
+    "poller": {"start": start_poller, "stop": stop_poller, "check": check_poller, "build": None},
 }
 
-ALL_SERVICES = ["db", "api", "ui"]
+ALL_SERVICES = ["db", "api", "ui", "poller"]
 
 
 def cmd_build(service: str):
@@ -365,10 +426,13 @@ def cmd_build(service: str):
             SERVICE_MAP[svc]["start"]()
 
 
-def cmd_start(service: str):
+def cmd_start(service: str, clear_queue: bool = False):
     targets = ALL_SERVICES if service == "all" else [service]
     for svc in targets:
-        SERVICE_MAP[svc]["start"]()
+        if svc == "poller":
+            start_poller(clear_queue=clear_queue)
+        else:
+            SERVICE_MAP[svc]["start"]()
 
 
 def cmd_stop(service: str, force: bool = False):
@@ -410,20 +474,27 @@ def main():
         "service",
         nargs="?",
         default="all",
-        choices=["all", "db", "api", "ui"],
-        help="all (default) | db | api | ui",
+        choices=["all", "db", "api", "ui", "poller"],
+        help="all (default) | db | api | ui | poller",
     )
     parser.add_argument(
         "--force", "-f",
         action="store_true",
         help="Force-kill services instead of graceful shutdown (stop/restart only)",
     )
+    parser.add_argument(
+        "--clear-queue",
+        action="store_true",
+        help="Cancel all pending poller requests before starting (start only, poller only)",
+    )
     args = parser.parse_args()
 
     if args.command in ("stop", "restart"):
         {"stop": cmd_stop, "restart": cmd_restart}[args.command](args.service, force=args.force)
+    elif args.command == "start":
+        cmd_start(args.service, clear_queue=args.clear_queue)
     else:
-        {"build": cmd_build, "start": cmd_start, "status": cmd_status}[args.command](args.service)
+        {"build": cmd_build, "status": cmd_status}[args.command](args.service)
 
 
 if __name__ == "__main__":

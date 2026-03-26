@@ -339,7 +339,13 @@ def _load_hierarchy_incremental(logger, client, loader, load_manager,
               help="Which SAM API key to use (1 or 2, default: 2)")
 @click.option("--force", is_flag=True, default=False,
               help="Ignore previous progress and start fresh")
-def load_offices(max_calls, api_key_number, force):
+@click.option("--verify", is_flag=True, default=False,
+              help="Compare API totalrecords vs DB count for completed orgs (read-only)")
+@click.option("--backfill", is_flag=True, default=False,
+              help="Verify and fetch missing office pages for mismatched orgs")
+@click.option("--days-back", type=int, default=None,
+              help="Only load offices updated in the last N days (incremental). Omit for full refresh.")
+def load_offices(max_calls, api_key_number, force, verify, backfill, days_back):
     """Load Level 3 office organizations from SAM.gov Federal Hierarchy API.
 
     Fetches Level 3 (Office) organizations by querying the hierarchy
@@ -353,13 +359,33 @@ def load_offices(max_calls, api_key_number, force):
     or budget is exhausted, re-run the same command to continue from the
     last completed sub-tier. Use --force to restart from scratch.
 
+    Use --days-back N to scan all sub-tiers for recently updated offices.
+    NOTE: --days-back still requires one API call per sub-tier (~738 calls)
+    because the hierarchy endpoint must be queried per Level 2 org. It only
+    reduces the number of records returned per call, not the call count.
+    This means it offers minimal savings when rate-limited on calls/day.
+
     Examples:
         python main.py load offices
         python main.py load offices --max-calls 100
         python main.py load offices --force
         python main.py load offices --key 1
+        python main.py load offices --days-back 30
     """
     logger = setup_logging()
+
+    if verify and backfill:
+        click.echo("ERROR: --verify and --backfill are mutually exclusive.")
+        sys.exit(1)
+
+    if days_back is not None and force:
+        click.echo("ERROR: --days-back and --force are mutually exclusive.")
+        sys.exit(1)
+
+    # Calculate updateddatefrom when --days-back is provided
+    updated_date_from = None
+    if days_back is not None:
+        updated_date_from = (date.today() - timedelta(days=days_back)).strftime("%Y-%m-%d")
 
     import json as _json
     from api_clients.sam_fedhier_client import SAMFedHierClient
@@ -376,8 +402,14 @@ def load_offices(max_calls, api_key_number, force):
 
     remaining = client._get_remaining_requests()
 
+    if updated_date_from:
+        mode_str = f"Incremental (updated since {updated_date_from})"
+    else:
+        mode_str = "Incremental Upsert"
+
     click.echo("SAM.gov Federal Hierarchy — Level 3 Office Load")
     click.echo(f"  API key:      #{api_key_number} (limit: {client.max_daily_requests}/day)")
+    click.echo(f"  Mode:         {mode_str}")
     click.echo(f"  Max calls:    {max_calls}")
     click.echo(f"  API calls remaining today: {remaining}")
 
@@ -404,12 +436,15 @@ def load_offices(max_calls, api_key_number, force):
     completed_orgs = []
     resume_load = None
     resume_params = None
+    resume_current_org = ""
+    resume_current_page = 0
 
     if not force:
         # Clean up stale RUNNING loads
         load_manager.cleanup_stale_running(SOURCE_SYSTEM)
 
-        resume_load, resume_params = load_manager.get_resumable_load(SOURCE_SYSTEM)
+        resume_load, resume_params = load_manager.get_resumable_load(
+            SOURCE_SYSTEM, date_from=updated_date_from)
 
         if resume_params:
             completed_orgs = resume_params.get("completed_orgs", [])
@@ -424,23 +459,37 @@ def load_offices(max_calls, api_key_number, force):
                 click.echo("  Use --force to reload from scratch.")
                 return
 
+            resume_current_org = str(resume_params.get("current_org") or "")
+            resume_current_page = int(resume_params.get("current_page") or 0)
+
             if completed_orgs:
                 click.echo(f"  Resuming: {len(completed_orgs)} of {len(subtiers)} "
                            f"sub-tiers already done ({prev_calls} calls, "
                            f"{prev_fetched} offices fetched)")
+                if resume_current_org and resume_current_page > 0:
+                    click.echo(f"  Mid-org resume: org {resume_current_org} "
+                               f"from offset {resume_current_page}")
+
+    if verify or backfill:
+        _verify_offices(client, completed_orgs, subtiers, max_calls, backfill,
+                        loader, load_manager)
+        return
 
     # ---- Create load entry ----
+    load_params = {
+        "completed_orgs": completed_orgs,
+        "total_subtiers": len(subtiers),
+        "current_org": None,
+        "current_page": 0,
+        "complete": False,
+        "calls_made": resume_params.get("calls_made", 0) if resume_params else 0,
+        "total_fetched": resume_params.get("total_fetched", 0) if resume_params else 0,
+    }
+    if updated_date_from:
+        load_params["date_from"] = updated_date_from
     load_id = load_manager.start_load(
         SOURCE_SYSTEM, "INCREMENTAL",
-        parameters={
-            "completed_orgs": completed_orgs,
-            "total_subtiers": len(subtiers),
-            "current_org": None,
-            "current_page": 0,
-            "complete": False,
-            "calls_made": resume_params.get("calls_made", 0) if resume_params else 0,
-            "total_fetched": resume_params.get("total_fetched", 0) if resume_params else 0,
-        },
+        parameters=load_params,
     )
     click.echo(f"\nLoad started (load_id={load_id})")
 
@@ -454,6 +503,8 @@ def load_offices(max_calls, api_key_number, force):
     }
     rate_limited = False
     completed_orgs_set = set(str(x) for x in completed_orgs)
+    partial_org_id = None      # org ID if we stopped mid-org
+    partial_org_offset = 0     # next offset to resume from
 
     # ---- Process each sub-tier ----
     subtiers_remaining = [
@@ -475,16 +526,39 @@ def load_offices(max_calls, api_key_number, force):
             _save_offices_progress(
                 load_manager, load_id, completed_orgs, len(subtiers),
                 str(fhorgid), 0, False, calls_made, total_fetched, cumulative,
+                date_from=updated_date_from,
             )
 
             # Fetch all pages of children for this sub-tier
             subtier_offices = 0
+            subtier_complete = True
+            partial_org_id = str(fhorgid)
+            partial_org_offset = 0
+            start_offset = 0
+            if str(fhorgid) == resume_current_org and resume_current_page > 0:
+                start_offset = resume_current_page
+                click.echo(f"    Resuming {org_name} from offset {start_offset}")
+                # Clear so we don't re-apply on retry
+                resume_current_org = ""
+                resume_current_page = 0
+            last_offset = start_offset
             try:
                 for child_orgs, offset, total_records in client.iter_org_children_pages(
-                    fhorgid, start_offset=0, max_pages=max_calls - calls_this_run,
+                    fhorgid, start_offset=start_offset, max_pages=max_calls - calls_this_run,
+                    updateddatefrom=updated_date_from,
                 ):
                     calls_made += 1
                     calls_this_run += 1
+                    last_offset = offset
+                    partial_org_offset = offset + 100
+
+                    page_num = (offset // 100) + 1
+                    total_pages = (total_records + 99) // 100 if total_records else 1
+                    if total_pages > 1:
+                        extra = f"  [{total_records} total offices]" if page_num == 1 else ""
+                        msg = (f"    {org_name}: page {page_num}/{total_pages} "
+                               f"({len(child_orgs) if child_orgs else 0} records){extra}")
+                        click.echo(f"\r{msg:<80}", nl=False)
 
                     if child_orgs:
                         # Ensure parent_org_id is set for child records that
@@ -501,11 +575,18 @@ def load_offices(max_calls, api_key_number, force):
                         subtier_offices += len(child_orgs)
                         total_fetched += len(child_orgs)
 
-                    if calls_this_run >= max_calls:
+                    if calls_this_run >= max_calls and page_num < total_pages:
+                        # Budget exhausted mid-org — don't mark complete
+                        subtier_complete = False
+                        click.echo(
+                            f"\n    {org_name}: budget exhausted at page "
+                            f"{page_num}/{total_pages} — will resume next run"
+                        )
                         break
 
             except RateLimitExceeded:
                 rate_limited = True
+                subtier_complete = False
                 click.echo(f"  Rate limit reached during sub-tier {org_name}")
                 break
             except Exception as e:
@@ -513,6 +594,7 @@ def load_offices(max_calls, api_key_number, force):
                     raise KeyboardInterrupt from None
                 if "429" in str(e):
                     rate_limited = True
+                    subtier_complete = False
                     click.echo(f"  Server rate limit (429) during sub-tier {org_name}")
                     break
                 logger.warning("Error fetching children for %s: %s", fhorgid, e)
@@ -520,28 +602,46 @@ def load_offices(max_calls, api_key_number, force):
                 # failing sub-tiers
                 click.echo(f"  WARN: Error on sub-tier {org_name}: {e} — skipping")
 
-            # Mark this sub-tier as completed
-            completed_orgs.append(str(fhorgid))
-            completed_orgs_set.add(str(fhorgid))
+            # Only mark complete if all pages were fetched
+            if subtier_complete:
+                completed_orgs.append(str(fhorgid))
+                completed_orgs_set.add(str(fhorgid))
 
             done_total = len(completed_orgs)
+            status = "" if subtier_complete else " [PARTIAL]"
             click.echo(
-                f"  [{done_total}/{len(subtiers)}] {org_name}: "
+                f"\r  [{done_total}/{len(subtiers)}] {org_name}: "
                 f"{subtier_offices} offices "
-                f"(calls: {calls_this_run}/{max_calls})"
+                f"(calls: {calls_this_run}/{max_calls}){status:<20}"
             )
 
             # Save progress after each sub-tier
-            _save_offices_progress(
-                load_manager, load_id, completed_orgs, len(subtiers),
-                None, 0, False, calls_made, total_fetched, cumulative,
-            )
+            if subtier_complete:
+                partial_org_id = None
+                partial_org_offset = 0
+                _save_offices_progress(
+                    load_manager, load_id, completed_orgs, len(subtiers),
+                    None, 0, False, calls_made, total_fetched, cumulative,
+                    date_from=updated_date_from,
+                )
+            else:
+                # Save mid-org resume point: next offset to fetch
+                partial_org_id = str(fhorgid)
+                partial_org_offset = last_offset + 100
+                _save_offices_progress(
+                    load_manager, load_id, completed_orgs, len(subtiers),
+                    partial_org_id, partial_org_offset, False,
+                    calls_made, total_fetched, cumulative,
+                    date_from=updated_date_from,
+                )
 
     except KeyboardInterrupt:
         click.echo(f"\n  Interrupted. Progress saved ({len(completed_orgs)} sub-tiers done).")
         _save_offices_progress(
             load_manager, load_id, completed_orgs, len(subtiers),
-            None, 0, False, calls_made, total_fetched, cumulative,
+            partial_org_id, partial_org_offset, False,
+            calls_made, total_fetched, cumulative,
+            date_from=updated_date_from,
         )
         click.echo("  Run the same command again to continue.")
         return
@@ -551,7 +651,10 @@ def load_offices(max_calls, api_key_number, force):
 
     _save_offices_progress(
         load_manager, load_id, completed_orgs, len(subtiers),
-        None, 0, is_complete, calls_made, total_fetched, cumulative,
+        None if is_complete else partial_org_id,
+        0 if is_complete else partial_org_offset,
+        is_complete, calls_made, total_fetched, cumulative,
+        date_from=updated_date_from,
     )
 
     if is_complete:
@@ -581,21 +684,210 @@ def load_offices(max_calls, api_key_number, force):
 
 def _save_offices_progress(load_manager, load_id, completed_orgs, total_subtiers,
                            current_org, current_page, complete, calls_made,
-                           total_fetched, cumulative):
+                           total_fetched, cumulative, date_from=None):
     """Save office load progress to etl_load_log."""
+    params = {
+        "completed_orgs": completed_orgs,
+        "total_subtiers": total_subtiers,
+        "current_org": current_org,
+        "current_page": current_page,
+        "complete": complete,
+        "calls_made": calls_made,
+        "total_fetched": total_fetched,
+    }
+    if date_from:
+        params["date_from"] = date_from
     load_manager.save_load_progress(
         load_id,
-        parameters={
-            "completed_orgs": completed_orgs,
-            "total_subtiers": total_subtiers,
-            "current_org": current_org,
-            "current_page": current_page,
-            "complete": complete,
-            "calls_made": calls_made,
-            "total_fetched": total_fetched,
-        },
+        parameters=params,
         **cumulative,
     )
+
+
+def _verify_offices(client, completed_orgs, subtiers, max_calls, do_backfill,
+                    loader, load_manager):
+    """Find completed orgs with suspicious office counts (divisible by 100).
+
+    A count divisible by 100 suggests pagination was cut short at a page
+    boundary. This check is DB-only — no API calls needed.
+    """
+    from db.connection import get_cursor
+
+    subtier_names = {str(s["fh_org_id"]): s["fh_org_name"] or f"ID:{s['fh_org_id']}"
+                     for s in subtiers}
+
+    click.echo(f"\nVerifying {len(completed_orgs)} completed orgs (DB-only check)...\n")
+
+    suspects = []
+
+    with get_cursor() as cursor:
+        for i, oid in enumerate(completed_orgs, 1):
+            org_name = subtier_names.get(str(oid), f"ID:{oid}")
+
+            cursor.execute(
+                "SELECT COUNT(*) FROM federal_organization "
+                "WHERE parent_org_id = %s AND level = 3",
+                (int(oid),)
+            )
+            (db_count,) = cursor.fetchone()
+
+            if db_count % 100 == 0:
+                suspects.append({
+                    "fh_org_id": oid,
+                    "org_name": org_name,
+                    "db_count": db_count,
+                })
+                click.echo(f"\n  SUSPECT: {org_name} — {db_count} offices "
+                           f"(exactly {db_count // 100} pages)")
+            else:
+                msg = f"  Checking [{i}/{len(completed_orgs)}] {org_name}: {db_count} OK"
+                click.echo(f"\r{msg:<80}", nl=False)
+
+    # Summary
+    click.echo(f"\n\nVerification complete (no API calls used)")
+    click.echo(f"  Checked:  {len(completed_orgs)}")
+    click.echo(f"  OK:       {len(completed_orgs) - len(suspects)}")
+    click.echo(f"  Suspect:  {len(suspects)}")
+
+    if not suspects:
+        click.echo("  No suspicious counts found.")
+        return
+
+    if not do_backfill:
+        click.echo("\nSuspect orgs have counts divisible by 100 (possible truncation).")
+        click.echo("Re-run with --backfill to confirm via API and fetch missing records.")
+        return
+
+    # Backfill confirms via API then fetches missing pages
+    _backfill_offices(client, loader, load_manager, suspects, max_calls)
+
+
+def _backfill_offices(client, loader, load_manager, suspects, remaining_budget):
+    """Confirm suspect orgs via API, then fetch missing pages.
+
+    For each suspect (DB count divisible by 100), makes one API call to get
+    the true totalrecords. If the counts match, the org is fine. If not,
+    fetches the missing pages.
+    """
+    from api_clients.base_client import RateLimitExceeded
+
+    SOURCE_SYSTEM = "SAM_FEDHIER_OFFICES"
+
+    # First pass: confirm which suspects are actually incomplete
+    click.echo(f"\nConfirming {len(suspects)} suspect orgs via API...")
+    confirmed = []
+    calls_used = 0
+
+    for s in suspects:
+        if calls_used >= remaining_budget:
+            click.echo(f"  Budget exhausted during confirmation.")
+            break
+
+        fhorgid = int(s["fh_org_id"])
+        org_name = s["org_name"]
+        db_count = s["db_count"]
+
+        try:
+            data = client.get_org_children(fhorgid, limit=1, offset=0)
+            calls_used += 1
+        except Exception as e:
+            click.echo(f"  WARN: API error for {org_name}: {e}")
+            continue
+
+        api_total = data.get("totalrecords", data.get("totalRecords", 0))
+
+        if db_count < api_total:
+            confirmed.append({
+                "fh_org_id": s["fh_org_id"],
+                "org_name": org_name,
+                "db_count": db_count,
+                "api_total": api_total,
+            })
+            click.echo(f"  CONFIRMED: {org_name} — have {db_count}, need {api_total}")
+        else:
+            msg = f"  OK: {org_name} — {db_count} is correct"
+            click.echo(f"\r{msg:<80}", nl=False)
+
+    click.echo(f"\n  Confirmed {len(confirmed)} incomplete orgs "
+               f"({len(suspects) - len(confirmed)} were fine)")
+
+    if not confirmed:
+        click.echo("  Nothing to backfill.")
+        return
+
+    # Second pass: fetch missing pages
+    load_id = load_manager.start_load(
+        SOURCE_SYSTEM, "BACKFILL",
+        parameters={"mode": "backfill", "confirmed": len(confirmed)},
+    )
+
+    click.echo(f"\nBackfilling {len(confirmed)} orgs "
+               f"(budget: {remaining_budget - calls_used} calls, load_id={load_id})")
+
+    cumulative = {
+        "records_read": 0, "records_inserted": 0, "records_updated": 0,
+        "records_unchanged": 0, "records_errored": 0,
+    }
+
+    for m in confirmed:
+        if calls_used >= remaining_budget:
+            click.echo(f"  Budget exhausted during backfill.")
+            break
+
+        fhorgid = int(m["fh_org_id"])
+        org_name = m["org_name"]
+        db_count = m["db_count"]
+        api_total = m["api_total"]
+
+        # Align to page boundary
+        start_offset = (db_count // 100) * 100
+
+        click.echo(f"  {org_name}: fetching from offset {start_offset} "
+                    f"(have {db_count}, need {api_total})")
+
+        try:
+            for child_orgs, offset, total_records in client.iter_org_children_pages(
+                fhorgid, start_offset=start_offset,
+                max_pages=remaining_budget - calls_used,
+            ):
+                calls_used += 1
+
+                if child_orgs:
+                    for org in child_orgs:
+                        if not org.get("fhorgparenthistory"):
+                            org.setdefault("_injected_parent_org_id", fhorgid)
+
+                    page_stats = loader.load_organization_batch(child_orgs, load_id)
+                    for k in cumulative:
+                        cumulative[k] += page_stats.get(k, 0)
+
+                page_num = (offset // 100) + 1
+                total_pages = (total_records + 99) // 100 if total_records else 1
+                msg = f"    page {page_num}/{total_pages}: {len(child_orgs) if child_orgs else 0} records"
+                click.echo(f"\r{msg:<80}", nl=False)
+
+                if calls_used >= remaining_budget:
+                    break
+
+        except RateLimitExceeded:
+            click.echo(f"\n  Rate limit reached during backfill of {org_name}")
+            break
+        except Exception as e:
+            if "429" in str(e):
+                click.echo(f"\n  Server rate limit (429) during {org_name}")
+                break
+            click.echo(f"\n  WARN: Error backfilling {org_name}: {e}")
+            continue
+
+        click.echo("")  # newline after last page's \r
+
+    load_manager.complete_load(load_id, **cumulative)
+
+    click.echo(f"\nBackfill complete:")
+    click.echo(f"  API calls:         {calls_used}")
+    click.echo(f"  Records inserted:  {cumulative['records_inserted']}")
+    click.echo(f"  Records updated:   {cumulative['records_updated']}")
+    click.echo(f"  Records unchanged: {cumulative['records_unchanged']}")
 
 
 @click.command("search-agencies")

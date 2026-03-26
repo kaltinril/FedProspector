@@ -1,6 +1,6 @@
 # Phase 110Y: Request Poller Service
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** Medium — needed for UI buttons to actually trigger background work
 **Dependencies:** Phase 43 (demand loader exists), Phase 110C (adds ATTACHMENT_ANALYSIS request type)
 

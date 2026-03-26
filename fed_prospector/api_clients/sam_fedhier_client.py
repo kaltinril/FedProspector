@@ -264,7 +264,7 @@ class SAMFedHierClient(BaseAPIClient):
     # Hierarchy endpoint (Level 3 offices)
     # -----------------------------------------------------------------
 
-    def get_org_children(self, fhorgid, limit=100, offset=0):
+    def get_org_children(self, fhorgid, limit=100, offset=0, updateddatefrom=None):
         """Fetch one page of child organizations for the given fhorgid.
 
         Uses the /v1/org/hierarchy endpoint which returns the hierarchical
@@ -275,6 +275,7 @@ class SAMFedHierClient(BaseAPIClient):
             fhorgid: Federal Hierarchy org ID to get children for.
             limit: Records per page (max 100).
             offset: 0-based offset for pagination.
+            updateddatefrom: Start of updated date range (YYYY-MM-DD).
 
         Returns:
             dict: Raw API response containing hierarchy data.
@@ -284,6 +285,8 @@ class SAMFedHierClient(BaseAPIClient):
             "limit": limit,
             "offset": offset,
         }
+        if updateddatefrom is not None:
+            params["updateddatefrom"] = self._format_date(updateddatefrom)
 
         self.logger.debug(
             "FedHier hierarchy fhorgid=%s offset=%d limit=%d", fhorgid, offset, limit
@@ -291,7 +294,8 @@ class SAMFedHierClient(BaseAPIClient):
         response = self.get(self.HIERARCHY_ENDPOINT, params=params)
         return response.json()
 
-    def iter_org_children_pages(self, fhorgid, start_offset=0, max_pages=None):
+    def iter_org_children_pages(self, fhorgid, start_offset=0, max_pages=None,
+                                updateddatefrom=None):
         """Iterate over pages of child orgs for a given fhorgid.
 
         Yields one tuple per API call, giving the caller control to save
@@ -303,6 +307,7 @@ class SAMFedHierClient(BaseAPIClient):
             fhorgid: Federal Hierarchy org ID to get children for.
             start_offset: Offset to start from (0-based) for resumption.
             max_pages: Stop after this many API calls. None = no limit.
+            updateddatefrom: Start of updated date range (YYYY-MM-DD).
 
         Yields:
             tuple: (child_org_list, offset, total_records) per API call.
@@ -321,7 +326,8 @@ class SAMFedHierClient(BaseAPIClient):
         pages_fetched = 0
 
         while True:
-            data = self.get_org_children(fhorgid, limit=100, offset=offset)
+            data = self.get_org_children(fhorgid, limit=100, offset=offset,
+                                         updateddatefrom=updateddatefrom)
 
             # Extract child orgs from the hierarchy response
             child_orgs = self._extract_hierarchy_children(data, str(fhorgid))
