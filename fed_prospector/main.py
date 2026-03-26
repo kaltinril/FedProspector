@@ -43,7 +43,7 @@ Modules:
     cli/attachments.py    download-attachments, extract-attachment-text,
                           extract-attachment-intel, extract-attachment-ai
     cli/backfill.py       backfill-opportunity-intel
-    cli/demand.py         process-requests
+    cli/demand.py         process-requests  (registered under 'job' group)
 """
 
 import sys

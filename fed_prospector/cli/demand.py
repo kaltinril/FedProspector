@@ -20,9 +20,9 @@ def process_requests(watch, clear_queue):
     Use --clear-queue to cancel all pending requests before starting.
 
     Examples:
-        python main.py demand process-requests
-        python main.py demand process-requests --watch
-        python main.py demand process-requests --watch --clear-queue
+        python main.py job process-requests
+        python main.py job process-requests --watch
+        python main.py job process-requests --watch --clear-queue
     """
     logger = setup_logging()
 

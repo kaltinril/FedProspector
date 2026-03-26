@@ -353,7 +353,7 @@ def start_poller(clear_queue: bool = False):
         print("  [POL] Already running.")
         return
     print("  [POL] Starting request poller ...")
-    cmd = f'start "{POLLER_TITLE}" /MIN python main.py demand process-requests --watch'
+    cmd = f'start "{POLLER_TITLE}" /MIN python main.py job process-requests --watch'
     if clear_queue:
         cmd += " --clear-queue"
         print("  [POL] Clearing pending requests before starting ...")

@@ -1120,7 +1120,7 @@ def build_document():
     )
 
     doc.add_heading("CLI Command", level=2)
-    add_code_block(doc, "python main.py demand process-requests [OPTIONS]")
+    add_code_block(doc, "python main.py job process-requests [OPTIONS]")
 
     doc.add_heading("Data Source", level=2)
     doc.add_paragraph(
@@ -1170,8 +1170,8 @@ def build_document():
     )
 
     doc.add_heading("Example Usage", level=2)
-    add_code_block(doc, "python main.py demand process-requests")
-    add_code_block(doc, "python main.py demand process-requests --watch")
+    add_code_block(doc, "python main.py job process-requests")
+    add_code_block(doc, "python main.py job process-requests --watch")
 
     doc.add_heading("Common Issues", level=2)
     doc.add_paragraph(

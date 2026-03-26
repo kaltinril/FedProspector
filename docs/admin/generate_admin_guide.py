@@ -624,10 +624,10 @@ def ch4_cli_reference(doc):
         "that completed ALL 4 pipeline stages. Options: --notice-id, --batch-size, --dry-run"
     )
 
-    # -- demand --
-    doc.add_heading("4.11 demand - On-Demand Loading", level=2)
+    # -- job (on-demand) --
+    doc.add_heading("4.11 job - On-Demand Loading", level=2)
     p = doc.add_paragraph()
-    run = p.add_run("demand process-requests")
+    run = p.add_run("job process-requests")
     run.bold = True
     p.add_run(" - Process queued on-demand data loading requests")
 
