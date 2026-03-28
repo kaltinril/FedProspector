@@ -137,6 +137,8 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 111 | Manual Testing Issues | COMPLETE | [111-MANUAL-TESTING-ISSUES.md](phases/completed/111-MANUAL-TESTING-ISSUES.md) |
 | 112 | Opportunity Description Backfill | COMPLETE | [112-DESCRIPTION-BACKFILL.md](phases/completed/112-DESCRIPTION-BACKFILL.md) |
 | 113 | Federal Hierarchy Browser | PLANNED | [113-FEDERAL-HIERARCHY-BROWSER.md](phases/113-FEDERAL-HIERARCHY-BROWSER.md) |
+| 113B | Hierarchy Cross-Reference Links | PLANNED | [113B-HIERARCHY-CROSS-REFERENCE-LINKS.md](phases/113B-HIERARCHY-CROSS-REFERENCE-LINKS.md) |
+| 113C | Intel Display — Keyword vs AI Side-by-Side | PLANNED | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
 | 114 | Project Documentation Suite | PLANNED | [114-PROJECT-DOCUMENTATION.md](phases/114-PROJECT-DOCUMENTATION.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | PLANNED | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/121-DESCRIPTION-INTEL-EXTRACTION.md) |
@@ -144,6 +146,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
 | 124 | Attachment Hash-Level Deduplication | PLANNED | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
 | 125 | Full Document Viewer with Highlights | PLANNED | [125-FULL-DOCUMENT-VIEWER.md](phases/125-FULL-DOCUMENT-VIEWER.md) |
+| 126 | AI Contradiction Detection | PLANNED | [126-AI-CONTRADICTION-DETECTION.md](phases/126-AI-CONTRADICTION-DETECTION.md) |
 | 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
