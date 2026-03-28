@@ -675,10 +675,13 @@ public class AwardService : IAwardService
             query = query.Where(ua => !excludePiids.Contains(ua.Piid!));
 
         if (!string.IsNullOrWhiteSpace(request.Piid))
-            query = query.Where(ua => ua.Piid!.Contains(request.Piid));
+            query = query.Where(ua => ua.Piid!.StartsWith(request.Piid));
 
+        // Search both PIID and solicitation_identifier with prefix match.
+        // Perf note: could switch to exact match (==) if this ever needs to be faster.
         if (!string.IsNullOrWhiteSpace(request.Solicitation))
-            query = query.Where(ua => ua.SolicitationIdentifier != null && ua.SolicitationIdentifier.Contains(request.Solicitation));
+            query = query.Where(ua => ua.Piid!.StartsWith(request.Solicitation)
+                || (ua.SolicitationIdentifier != null && ua.SolicitationIdentifier.StartsWith(request.Solicitation)));
 
         if (!string.IsNullOrWhiteSpace(request.Naics))
             query = query.Where(ua => ua.NaicsCode == request.Naics);

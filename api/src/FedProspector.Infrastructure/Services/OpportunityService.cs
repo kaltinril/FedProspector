@@ -260,8 +260,11 @@ public partial class OpportunityService : IOpportunityService
         UsaspendingSummaryDto? usaAward = null;
         if (!string.IsNullOrWhiteSpace(opp.SolicitationNumber))
         {
+            // Search both PIID and solicitation_identifier with prefix match.
+            // Perf note: could switch to exact match (==) if this ever needs to be faster.
             var ua = await _context.UsaspendingAwards.AsNoTracking()
-                .FirstOrDefaultAsync(a => a.SolicitationIdentifier == opp.SolicitationNumber);
+                .FirstOrDefaultAsync(a => a.Piid!.StartsWith(opp.SolicitationNumber)
+                    || (a.SolicitationIdentifier != null && a.SolicitationIdentifier.StartsWith(opp.SolicitationNumber)));
             if (ua != null)
             {
                 usaAward = new UsaspendingSummaryDto
