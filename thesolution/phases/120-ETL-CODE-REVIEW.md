@@ -288,6 +288,8 @@ Explicit `f.close()` inside a `with open()` block. The file gets closed twice.
 
 Two separate EXISTS subqueries on `opportunity_attachment_intel` for keyword and AI methods. Could be combined into one query.
 
+> **STALE (Phase 110ZZZ):** `opportunity_attachment_intel` was replaced by `document_intel_summary`. The cleanup code has been updated accordingly.
+
 **Fix:** Use a single subquery with `COUNT(DISTINCT ...)` or `GROUP BY ... HAVING`.
 
 ### P9. Missing Index on extraction_method (LOW)
@@ -295,6 +297,8 @@ Two separate EXISTS subqueries on `opportunity_attachment_intel` for keyword and
 **File:** `db/schema/tables/36_attachment.sql`
 
 The `extraction_method` column is used in WHERE and EXISTS clauses across multiple queries but has no index.
+
+> **STALE (Phase 110ZZZ):** `opportunity_attachment_intel` was replaced by `document_intel_summary`. Index recommendations should target the new table.
 
 **Fix:** Add index on `opportunity_attachment_intel(extraction_method)` or a composite index `(attachment_id, extraction_method)`.
 

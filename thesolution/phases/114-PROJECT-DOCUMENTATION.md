@@ -127,7 +127,7 @@ Produce a complete set of professional documentation covering every layer of the
 ### 4A: Schema Reference (.xlsx)
 - **Format:** Excel workbook (`docs/database/FedProspect-Schema-Reference.xlsx`)
 - **Content (one sheet per logical group):**
-  - **Opportunity Tables:** opportunity, opportunity_attachment, opportunity_attachment_intel, opportunity_intel_source, opportunity_modification
+  - **Opportunity Tables:** opportunity, opportunity_attachment (lean join: notice_id, attachment_id, url), sam_attachment, attachment_document, document_intel_summary, document_intel_evidence, opportunity_attachment_summary, opportunity_modification
   - **Award Tables:** award, subaward
   - **Entity Tables:** entity, entity_exclusion, entity_poi
   - **Reference Tables:** naics_code, psc_code, set_aside_type, sba_type, fips_state, fips_county, federal_hierarchy
