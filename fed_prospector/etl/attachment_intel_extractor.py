@@ -673,9 +673,7 @@ class AttachmentIntelExtractor:
             )
             for row in cursor.fetchall():
                 fname = row["filename"] or "unknown"
-                # Prepend filename so vehicle-type patterns can match it (Phase 110ZZ Task 7)
-                text_with_filename = fname + "\n" + row["extracted_text"]
-                sources.append((row["document_id"], fname, text_with_filename))
+                sources.append((row["document_id"], fname, row["extracted_text"]))
 
             # Opportunity description_text as virtual attachment
             cursor.execute(
@@ -794,6 +792,32 @@ class AttachmentIntelExtractor:
                                 "scope": None,
                             }
                             matches.append(("incumbent_name", inc_info))
+
+        # --- Filename-only scan (no char offsets) ---
+        if attachment_id is not None and filename and filename != "unknown":
+            for category, patterns in PATTERNS.items():
+                sorted_patterns = sorted(patterns, key=lambda p: len(p.get("value") or ""), reverse=True)
+                fname_claimed = []
+                for pdef in sorted_patterns:
+                    if pdef.get("_needs_context_check"):
+                        continue
+                    for m in pdef["regex"].finditer(filename):
+                        if any(cs <= m.start() and ce >= m.end() for cs, ce in fname_claimed):
+                            continue
+                        match_info = {
+                            "attachment_id": attachment_id,
+                            "filename": filename,
+                            "matched_text": m.group()[:500],
+                            "surrounding_context": filename,
+                            "pattern_name": pdef["name"],
+                            "value": pdef.get("value"),
+                            "confidence": pdef["confidence"],
+                            "char_offset_start": None,
+                            "char_offset_end": None,
+                            "scope": pdef.get("scope"),
+                        }
+                        matches.append((category, match_info))
+                        fname_claimed.append((m.start(), m.end()))
 
         return matches
 

@@ -139,9 +139,12 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 113 | Federal Hierarchy Browser | PLANNED | [113-FEDERAL-HIERARCHY-BROWSER.md](phases/113-FEDERAL-HIERARCHY-BROWSER.md) |
 | 114 | Project Documentation Suite | PLANNED | [114-PROJECT-DOCUMENTATION.md](phases/114-PROJECT-DOCUMENTATION.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
+| 124 | Attachment Hash-Level Deduplication | PLANNED | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
+| 125 | Full Document Viewer with Highlights | PLANNED | [125-FULL-DOCUMENT-VIEWER.md](phases/125-FULL-DOCUMENT-VIEWER.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
+| 600 | Insane Optimizations | DEFERRED | [600-INSANE-OPTIMIZATIONS.md](phases/600-INSANE-OPTIMIZATIONS.md) |
 
 ## Success Criteria
 
