@@ -8,9 +8,9 @@
 
 ## Summary
 
-Add a full-featured Federal Hierarchy browser to the UI, letting users explore the three-level government org structure (Department → Sub-Tier → Office), search and filter organizations, view detail pages for each org with related opportunities/awards, and trigger hierarchy data refreshes from the UI instead of the CLI.
+Add a full-featured Federal Hierarchy browser to the UI, letting users explore the three-level government org structure (Department > Sub-Tier > Office), search and filter organizations, view detail pages for each org with related opportunities/awards, and trigger hierarchy data refreshes from the UI instead of the CLI.
 
-Every place in the app that currently displays an office name, department, or agency as plain text becomes a clickable link into this new hierarchy browser.
+Cross-reference linking (making agency/office names throughout the app clickable) is deferred to Phase 113B.
 
 ## Problem / Current State
 
@@ -78,14 +78,7 @@ New controller: `FederalHierarchyController`
 - **API key selector**: Choose Key 1 or Key 2 (shows remaining quota if available).
 - Requires `isSystemAdmin` flag.
 
-#### 4. Cross-Reference Links (App-Wide)
-Anywhere the app displays an agency/office name, make it a clickable link:
-- **Opportunity Detail Page**: `departmentName`, `subTier`, `office` fields → link to matching hierarchy org.
-- **Opportunity Search Results**: Department column → link.
-- **Award Detail Page**: `agencyName`, `contractingOfficeName`, `fundingAgencyName` → links.
-- **Entity Detail Page**: If agency references exist → links.
-
-Link resolution: Match by name against `federal_organization.fh_org_name` (and optionally by code against `agency_code`). Since names aren't normalized FKs yet, use best-match lookup (exact match preferred, fallback to LIKE).
+> **Note:** Cross-reference links (wrapping agency/office names app-wide with clickable links into this browser) are deferred to Phase 113B.
 
 ### Refresh Backend Design
 
@@ -164,17 +157,7 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 - [ ] **Status indicator**: Poll `/hierarchy/refresh/status` while job is running. Show progress bar or spinner with record count.
 - [ ] **Last Refresh info**: Display last refresh timestamp and record counts per level in a summary card.
 
-### Task 5: Cross-Reference Links (App-Wide)
-
-- [ ] Create shared `AgencyLink` component: Given an org name (and optional code), renders a clickable link to `/hierarchy?keyword={name}` (or direct `/hierarchy/{id}` if ID is known).
-- [ ] **Resolution strategy**: The `AgencyLink` component first tries exact name match via a lightweight API call (or client-side cache of org names). Falls back to search link if no exact match.
-- [ ] **Caching**: Use TanStack Query with long `staleTime` (30 min) for org name→ID lookups since hierarchy data rarely changes.
-- [ ] Update `OpportunityDetailPage`: Wrap `departmentName`, `subTier`, `office` with `AgencyLink`.
-- [ ] Update `OpportunitySearchPage`: Make department column render as `AgencyLink`.
-- [ ] Update `AwardDetailPage`: Wrap `agencyName`, `contractingOfficeName`, `fundingAgencyName` with `AgencyLink`.
-- [ ] Update any other pages displaying agency/office names (entity detail, subaward detail, etc.).
-
-### Task 6: TanStack Query Hooks
+### Task 5: TanStack Query Hooks
 
 - [ ] `useHierarchySearch(params)` — paginated search/list query.
 - [ ] `useHierarchyDetail(fhOrgId)` — single org detail with parent chain.
@@ -185,9 +168,8 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 - [ ] `useHierarchyStats(fhOrgId)` — aggregate stats.
 - [ ] `useHierarchyRefresh()` — mutation hook for triggering refresh.
 - [ ] `useHierarchyRefreshStatus()` — polling query for refresh status.
-- [ ] `useOrgLookup(name)` — lightweight name→ID resolution for `AgencyLink`.
 
-### Task 7: TypeScript Types
+### Task 6: TypeScript Types
 
 - [ ] Add all DTOs to `ui/src/types/api.ts`:
   - `FederalOrgListItem`, `FederalOrgDetail`, `FederalOrgBreadcrumb`
@@ -195,13 +177,14 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
   - `FederalOrgStats`, `NaicsBreakdown`, `SetAsideBreakdown`
   - `HierarchyRefreshRequest`, `HierarchyRefreshStatus`
 - [ ] Add API client functions to `ui/src/api/`.
+- [ ] Note: `AgencyLink`-related types (e.g., `OrgLookupResult`) belong in Phase 113B.
 
-### Task 8: Testing
+### Task 7: Testing
 
 - [ ] C# xUnit tests for `FederalHierarchyService` (search, detail, children, tree, stats, descendant matching).
 - [ ] C# integration tests for controller endpoints.
 - [ ] Python: No changes needed (existing CLI/loader tests cover ETL).
-- [ ] Manual test plan: Tree navigation, search, detail page tabs, cross-reference links, refresh flow.
+- [ ] Manual test plan: Tree navigation, search, detail page tabs, refresh flow.
 
 ---
 
@@ -216,7 +199,6 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 | `api/src/FedProspector.Infrastructure/Data/AppDbContext.cs` | Verify `FederalOrganization` DbSet exists (it does) |
 | `ui/src/pages/HierarchyBrowsePage.tsx` | **NEW** — Browse/search page |
 | `ui/src/pages/OrganizationDetailPage.tsx` | **NEW** — Detail page with tabs |
-| `ui/src/components/shared/AgencyLink.tsx` | **NEW** — Reusable cross-reference link component |
 | `ui/src/components/hierarchy/HierarchyTree.tsx` | **NEW** — Expandable tree panel |
 | `ui/src/components/hierarchy/HierarchyRefreshPanel.tsx` | **NEW** — Admin refresh controls |
 | `ui/src/components/hierarchy/OrgStatsCards.tsx` | **NEW** — Statistics display cards/charts |
@@ -225,15 +207,13 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 | `ui/src/types/api.ts` | Add hierarchy DTOs |
 | `ui/src/routes.tsx` | Add `/hierarchy` and `/hierarchy/:fhOrgId` routes |
 | `ui/src/components/layout/Sidebar.tsx` | Add "Federal Hierarchy" nav item under Research |
-| `ui/src/pages/OpportunityDetailPage.tsx` | Wrap department/sub-tier/office with `AgencyLink` |
-| `ui/src/pages/OpportunitySearchPage.tsx` | Wrap department column with `AgencyLink` |
-| `ui/src/pages/AwardDetailPage.tsx` | Wrap agency/office names with `AgencyLink` |
 | `api/tests/` | **NEW** — xUnit tests for hierarchy service/controller |
 
 ---
 
 ## Out of Scope
 
+- **Cross-reference links** (clickable agency/office names app-wide) — That's Phase 113B.
 - **Database normalization** (adding FK columns from opportunity/award to federal_organization) — That's Phase 200.
 - **FPDS agency code mapping table** — Deferred to Phase 200 where a proper crosswalk can be built.
 - **Org-level notifications/alerts** — Future enhancement (e.g., "notify me when this office posts new opportunities").
