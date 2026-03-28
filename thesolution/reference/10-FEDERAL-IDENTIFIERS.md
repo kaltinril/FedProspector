@@ -122,6 +122,49 @@ PIID alone is **not globally unique** -- two agencies could theoretically issue 
 
 ---
 
+## Regex Patterns for Text Extraction
+
+Patterns suitable for extracting identifiers from free text (solicitation documents, SOWs, attachments). Only identifiers with distinctive enough patterns to avoid excessive false positives are included.
+
+### Extractable Identifiers
+
+| Type | Regex | Context Required? | Notes |
+|------|-------|-------------------|-------|
+| **PIID** | `\b[A-HJ-NP-Z0-9]{5,6}\d{2}[A-Z][A-HJ-NP-Z0-9]{3,8}\b` | No | Matches contract IDs, solicitation numbers, IDV PIIDs. Normalize: strip dashes, uppercase. |
+| **UEI** | `\b[A-HJ-NP-Z1-9][A-HJ-NP-Z0-9]{11}\b` | No | Exactly 12 chars. Excludes I/O. First char non-zero. |
+| **CAGE Code** | `\b\d[A-HJ-NP-Z0-9]{3}\d\b` | Recommended | 5 chars -- short enough to get false positives. Boost confidence near "CAGE", "contractor", "vendor". |
+| **DUNS** (legacy) | `\b\d{9}\b` | **Required** | Must appear near "DUNS", "D-U-N-S", or "Data Universal". Too many 9-digit numbers otherwise. |
+| **FAR Clause** | `\b52\.2\d{2}-\d{1,3}\b` | No | Very distinctive `52.2XX-Y` pattern. |
+| **DFARS Clause** | `\b252\.2\d{2}-7\d{3}\b` | No | Very distinctive `252.2XX-7YYY` pattern. |
+| **Wage Determination** | `\b20\d{2}-\d{4,6}\b` | Recommended | Near "wage determination", "SCA", "Davis-Bacon", "WD". |
+| **GSA Schedule** (legacy) | `\bGS-\d{2}F-\d{4,5}[A-Z]?\b` | No | Very distinctive `GS-XXF-` prefix. |
+| **USASpending Award ID** | `\bCONT_(?:AWD\|IDV)_[A-Z0-9_\-]+\b` | No | Very distinctive `CONT_AWD_` or `CONT_IDV_` prefix. |
+
+### Not Suitable for Text Extraction
+
+These identifiers are too short or too ambiguous to extract reliably from free text:
+
+| Type | Why Not |
+|------|---------|
+| NAICS Code (6 digits) | Too many 6-digit numbers in documents (dollar amounts, dates, quantities) |
+| PSC Code (4 chars) | Too short, collides with common abbreviations |
+| Agency/CGAC Code (3-4 digits) | Too short, ubiquitous in numbers |
+| State Code (2 chars) | Too short, appears everywhere |
+| Business Type Code (2 chars) | Too short |
+| Modification Number (6 chars) | Only meaningful with its parent PIID |
+| Congressional District (2 digits) | Too short |
+
+### Normalization Rules
+
+When extracting identifiers from text, normalize before storage and comparison:
+
+1. **Strip cosmetic dashes**: `W52P1J-26-R-0001` -> `W52P1J26R0001`
+2. **Uppercase**: All identifiers stored uppercase
+3. **Trim whitespace**: Leading/trailing spaces removed
+4. **Deduplicate**: Same identifier appearing N times in one document = one reference row
+
+---
+
 ## Data Flow
 
 ```
