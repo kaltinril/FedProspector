@@ -1,23 +1,34 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using FedProspector.Core.Constants;
 using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
+using FedProspector.Core.Options;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace FedProspector.Infrastructure.Services;
 
-public class OpportunityService : IOpportunityService
+public partial class OpportunityService : IOpportunityService
 {
     private readonly FedProspectorDbContext _context;
     private readonly ILogger<OpportunityService> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly SamApiOptions _samApiOptions;
 
-    public OpportunityService(FedProspectorDbContext context, ILogger<OpportunityService> logger)
+    public OpportunityService(
+        FedProspectorDbContext context,
+        ILogger<OpportunityService> logger,
+        IHttpClientFactory httpClientFactory,
+        IOptions<SamApiOptions> samApiOptions)
     {
         _context = context;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
+        _samApiOptions = samApiOptions.Value;
     }
 
     public async Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request, int organizationId)
@@ -554,6 +565,108 @@ public class OpportunityService : IOpportunityService
         }
 
         return sb.ToString();
+    }
+
+    public async Task<(string? descriptionText, string? error, bool notFound)> FetchDescriptionAsync(string noticeId)
+    {
+        var opp = await _context.Opportunities
+            .FirstOrDefaultAsync(o => o.NoticeId == noticeId);
+
+        if (opp == null)
+            return (null, null, true);
+
+        // Already have description text — return it without calling SAM.gov
+        if (!string.IsNullOrWhiteSpace(opp.DescriptionText))
+            return (opp.DescriptionText, null, false);
+
+        if (string.IsNullOrWhiteSpace(opp.DescriptionUrl))
+            return (null, "No description URL available for this opportunity.", true);
+
+        // SSRF protection: only allow SAM.gov API URLs
+        if (!opp.DescriptionUrl.StartsWith("https://api.sam.gov/", StringComparison.OrdinalIgnoreCase))
+        {
+            _logger.LogWarning("Blocked non-SAM.gov description URL for {NoticeId}: {Url}", noticeId, opp.DescriptionUrl);
+            return (null, "Description URL is not a valid SAM.gov API URL.", false);
+        }
+
+        if (string.IsNullOrWhiteSpace(_samApiOptions.ApiKey))
+        {
+            _logger.LogError("SAM API key is not configured — cannot fetch description for {NoticeId}", noticeId);
+            return (null, "SAM API key is not configured.", false);
+        }
+
+        try
+        {
+            // Append API key to the URL
+            var separator = opp.DescriptionUrl.Contains('?') ? "&" : "?";
+            var url = $"{opp.DescriptionUrl}{separator}api_key={_samApiOptions.ApiKey}";
+
+            var client = _httpClientFactory.CreateClient("SamApi");
+            var response = await client.GetAsync(url);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("SAM.gov noticedesc returned {StatusCode} for {NoticeId}",
+                    (int)response.StatusCode, noticeId);
+                return (null, $"SAM.gov returned HTTP {(int)response.StatusCode}.", false);
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+
+            string? htmlDescription = null;
+            if (doc.RootElement.TryGetProperty("description", out var descProp))
+                htmlDescription = descProp.GetString();
+
+            if (string.IsNullOrWhiteSpace(htmlDescription))
+                return (null, "SAM.gov returned an empty description.", false);
+
+            // Strip HTML tags
+            var plainText = StripHtmlTags(htmlDescription);
+
+            // Save to DB
+            opp.DescriptionText = plainText;
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Fetched and saved description for {NoticeId} ({Length} chars)",
+                noticeId, plainText.Length);
+
+            return (plainText, null, false);
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error fetching description for {NoticeId}", noticeId);
+            return (null, $"Error contacting SAM.gov: {ex.Message}", false);
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "JSON parse error for description response for {NoticeId}", noticeId);
+            return (null, "Invalid JSON response from SAM.gov.", false);
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogError(ex, "Timeout fetching description for {NoticeId}", noticeId);
+            return (null, "Request to SAM.gov timed out.", false);
+        }
+    }
+
+    [GeneratedRegex("<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    private static string StripHtmlTags(string html)
+    {
+        // Decode common HTML entities, then strip tags
+        var text = HtmlTagRegex().Replace(html, string.Empty);
+        text = text.Replace("&nbsp;", " ")
+                   .Replace("&amp;", "&")
+                   .Replace("&lt;", "<")
+                   .Replace("&gt;", ">")
+                   .Replace("&quot;", "\"")
+                   .Replace("&#39;", "'")
+                   .Replace("&apos;", "'");
+        // Collapse multiple whitespace/newlines into single spaces, then trim
+        text = Regex.Replace(text, @"\s+", " ").Trim();
+        return text;
     }
 
     /// <summary>

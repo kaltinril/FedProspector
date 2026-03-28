@@ -743,7 +743,7 @@ class OpportunityLoader(StagingMixin):
         """Raised when SAM.gov returns 429 Too Many Requests."""
         pass
 
-    def fetch_description_text(self, description_url):
+    def fetch_description_text(self, description_url, api_key_number=2):
         """Fetch description text from a SAM.gov description URL.
 
         The description endpoint returns JSON: {"description": "<html>..."}
@@ -752,6 +752,7 @@ class OpportunityLoader(StagingMixin):
         Args:
             description_url: Full SAM.gov description URL
                 (e.g. https://api.sam.gov/prod/opportunities/v1/noticedesc?noticeid=...)
+            api_key_number: Which API key to use (1=free 10/day, 2=1000/day).
 
         Returns:
             str: The description text (HTML), or None on failure.
@@ -769,7 +770,10 @@ class OpportunityLoader(StagingMixin):
 
         # Append API key
         separator = "&" if "?" in description_url else "?"
-        api_key = settings.SAM_API_KEY_2 or settings.SAM_API_KEY
+        if api_key_number == 1:
+            api_key = settings.SAM_API_KEY
+        else:
+            api_key = settings.SAM_API_KEY_2 or settings.SAM_API_KEY
         url = f"{description_url}{separator}api_key={api_key}"
 
         try:
@@ -790,77 +794,43 @@ class OpportunityLoader(StagingMixin):
             )
             return None
 
-    def fetch_descriptions(self, batch_size=100, missing_only=True):
-        """Fetch and cache description text for opportunities.
-
-        Queries opportunities with description_url but no description_text,
-        fetches the description from SAM.gov, and updates the DB.
+    def _fetch_description_batch(self, rows, api_key_number, batch_size,
+                                stats, cursor, conn, limit_remaining=None):
+        """Fetch descriptions for a list of opportunity rows.
 
         Args:
+            rows: List of dicts with notice_id and description_url.
+            api_key_number: Which API key to use.
             batch_size: Number of opportunities to process per commit batch.
-            missing_only: If True (default), only fetch for rows where
-                description_text IS NULL.
+            stats: Mutable dict to accumulate fetched/failed counts.
+            cursor: Open DB cursor.
+            conn: Open DB connection.
+            limit_remaining: Max API calls to make, or None for unlimited.
 
         Returns:
-            dict with keys: total_found, fetched, failed
+            int: Number of API calls made (fetched + failed).
         """
         import time
 
-        conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
+        calls_made = 0
+        rate_limited = False
 
-        stats = {"total_found": 0, "fetched": 0, "failed": 0}
+        for i, row in enumerate(rows):
+            if limit_remaining is not None and calls_made >= limit_remaining:
+                break
 
-        try:
-            if missing_only:
-                sql = (
-                    "SELECT notice_id, description_url FROM opportunity "
-                    "WHERE description_text IS NULL AND description_url IS NOT NULL"
+            try:
+                text = self.fetch_description_text(
+                    row["description_url"], api_key_number=api_key_number,
                 )
-            else:
-                sql = (
-                    "SELECT notice_id, description_url FROM opportunity "
-                    "WHERE description_url IS NOT NULL"
-                )
-            cursor.execute(sql)
-            rows = cursor.fetchall()
-            stats["total_found"] = len(rows)
-
-            self.logger.info(
-                "Found %d opportunities needing description fetch", len(rows),
-            )
-
-            for i, row in enumerate(rows):
-                try:
-                    text = self.fetch_description_text(row["description_url"])
-                    if text:
-                        cursor.execute(
-                            "UPDATE opportunity SET description_text = %s "
-                            "WHERE notice_id = %s",
-                            (text, row["notice_id"]),
-                        )
-                        stats["fetched"] += 1
-                    else:
-                        # Mark as empty string so --missing-only won't retry
-                        cursor.execute(
-                            "UPDATE opportunity SET description_text = '' "
-                            "WHERE notice_id = %s",
-                            (row["notice_id"],),
-                        )
-                        stats["failed"] += 1
-                except self.RateLimitError:
-                    self.logger.error(
-                        "SAM.gov rate limit (429) hit after %d requests — "
-                        "stopping description fetch. Fetched=%d, failed=%d.",
-                        i, stats["fetched"], stats["failed"],
+                if text:
+                    cursor.execute(
+                        "UPDATE opportunity SET description_text = %s "
+                        "WHERE notice_id = %s",
+                        (text, row["notice_id"]),
                     )
-                    conn.commit()
-                    break
-                except Exception as exc:
-                    self.logger.warning(
-                        "Error fetching description for %s: %s",
-                        row["notice_id"], exc,
-                    )
+                    stats["fetched"] += 1
+                else:
                     # Mark as empty string so --missing-only won't retry
                     cursor.execute(
                         "UPDATE opportunity SET description_text = '' "
@@ -868,28 +838,258 @@ class OpportunityLoader(StagingMixin):
                         (row["notice_id"],),
                     )
                     stats["failed"] += 1
-
-                # Commit and log progress in batches
-                if (i + 1) % batch_size == 0:
-                    conn.commit()
-                    self.logger.info(
-                        "Progress: %d/%d (fetched=%d, failed=%d)",
-                        i + 1, len(rows), stats["fetched"], stats["failed"],
-                    )
-
-                # Small delay between requests to be polite
-                time.sleep(0.1)
-            else:
-                # Final commit (only if loop completed without break)
+                calls_made += 1
+            except self.RateLimitError:
+                self.logger.error(
+                    "SAM.gov rate limit (429) hit after %d requests — "
+                    "stopping description fetch. Fetched=%d, failed=%d.",
+                    calls_made, stats["fetched"], stats["failed"],
+                )
                 conn.commit()
+                rate_limited = True
+                break
+            except Exception as exc:
+                self.logger.warning(
+                    "Error fetching description for %s: %s",
+                    row["notice_id"], exc,
+                )
+                # Mark as empty string so --missing-only won't retry
+                cursor.execute(
+                    "UPDATE opportunity SET description_text = '' "
+                    "WHERE notice_id = %s",
+                    (row["notice_id"],),
+                )
+                stats["failed"] += 1
+                calls_made += 1
+
+            # Commit and log progress in batches
+            if (i + 1) % batch_size == 0:
+                conn.commit()
+                self.logger.info(
+                    "Progress: %d/%d (fetched=%d, failed=%d)",
+                    i + 1, len(rows), stats["fetched"], stats["failed"],
+                )
+
+            # Small delay between requests to be polite
+            time.sleep(0.1)
+        else:
+            # Final commit (only if loop completed without break)
+            conn.commit()
+
+        if rate_limited:
+            # Return negative to signal rate limit to caller
+            return -1
+
+        # Commit any remaining uncommitted rows
+        conn.commit()
+        return calls_made
+
+    def fetch_descriptions(self, batch_size=100, missing_only=True,
+                           days_back=None, notice_id=None, api_key_number=2,
+                           naics_codes=None, set_aside_codes=None, limit=None):
+        """Fetch and cache description text for opportunities.
+
+        Queries opportunities with description_url but no description_text,
+        fetches the description from SAM.gov, and updates the DB.
+
+        When naics_codes or set_aside_codes are provided, performs a
+        prioritized two-pass fetch: first fetches descriptions for
+        opportunities matching those filters, then uses remaining budget
+        for all other opportunities.
+
+        Args:
+            batch_size: Number of opportunities to process per commit batch.
+            missing_only: If True (default), only fetch for rows where
+                description_text IS NULL.
+            days_back: If set, only fetch for opportunities posted in the
+                last N days.
+            notice_id: If set, fetch for a single notice ID.
+            api_key_number: Which API key to use (1=free 10/day, 2=1000/day).
+            naics_codes: Optional list of NAICS codes for priority fetch.
+            set_aside_codes: Optional list of set-aside codes for priority fetch.
+            limit: Max total descriptions to fetch (default: unlimited).
+
+        Returns:
+            dict with keys: total_found, fetched, failed, priority_fetched
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        stats = {"total_found": 0, "fetched": 0, "failed": 0, "priority_fetched": 0}
+        prioritized = (naics_codes or set_aside_codes) and not notice_id
+
+        try:
+            if notice_id:
+                # --- Single notice fetch (unchanged) ---
+                conditions = ["description_url IS NOT NULL"]
+                params = []
+                if missing_only:
+                    conditions.append("description_text IS NULL")
+                conditions.append("notice_id = %s")
+                params.append(notice_id)
+
+                sql = (
+                    "SELECT notice_id, description_url FROM opportunity "
+                    "WHERE " + " AND ".join(conditions) +
+                    " ORDER BY posted_date DESC"
+                )
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+                stats["total_found"] = len(rows)
+                self.logger.info(
+                    "Found %d opportunities needing description fetch", len(rows),
+                )
+                self._fetch_description_batch(
+                    rows, api_key_number, batch_size, stats, cursor, conn,
+                    limit_remaining=limit,
+                )
+
+            elif prioritized:
+                # --- Priority pass: NAICS + set-aside filtered ---
+                # Priority gets up to half the limit; no days_back filter,
+                # but only active opportunities (response_deadline >= today).
+                priority_limit = limit // 2 if limit else None
+                conditions = ["description_url IS NOT NULL"]
+                params = []
+                if missing_only:
+                    conditions.append("description_text IS NULL")
+                conditions.append("response_deadline >= CURDATE()")
+                if naics_codes:
+                    conditions.append(
+                        "naics_code IN (%s)" % ",".join(["%s"] * len(naics_codes))
+                    )
+                    params.extend(naics_codes)
+                if set_aside_codes:
+                    conditions.append(
+                        "set_aside_code IN (%s)" % ",".join(["%s"] * len(set_aside_codes))
+                    )
+                    params.extend(set_aside_codes)
+
+                sql = (
+                    "SELECT notice_id, description_url FROM opportunity "
+                    "WHERE " + " AND ".join(conditions) +
+                    " ORDER BY posted_date DESC"
+                )
+                cursor.execute(sql, params)
+                priority_rows = cursor.fetchall()
+                stats["total_found"] += len(priority_rows)
+                self.logger.info(
+                    "Priority pass: found %d opportunities (NAICS+set-aside filtered, active only)",
+                    len(priority_rows),
+                )
+
+                priority_calls = self._fetch_description_batch(
+                    priority_rows, api_key_number, batch_size, stats, cursor, conn,
+                    limit_remaining=priority_limit,
+                )
+                stats["priority_fetched"] = stats["fetched"]
+                self.logger.info(
+                    "Priority pass: fetched %d/%d (NAICS+set-aside filtered)",
+                    stats["priority_fetched"], len(priority_rows),
+                )
+
+                # --- Remaining budget pass ---
+                if priority_calls >= 0:  # not rate limited
+                    budget_used = stats["fetched"] + stats["failed"]
+                    remaining = None
+                    if limit is not None:
+                        remaining = limit - budget_used  # full limit minus priority usage
+                        if remaining <= 0:
+                            self.logger.info(
+                                "Limit reached after priority pass, skipping remaining budget pass"
+                            )
+                        else:
+                            self.logger.info(
+                                "Remaining budget pass: %d calls remaining", remaining,
+                            )
+
+                    if remaining is None or remaining > 0:
+                        conditions2 = ["description_url IS NOT NULL"]
+                        params2 = []
+                        if missing_only:
+                            conditions2.append("description_text IS NULL")
+                        if days_back is not None:
+                            conditions2.append(
+                                "posted_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)"
+                            )
+                            params2.append(days_back)
+
+                        # Exclude priority opportunities
+                        exclude_parts = []
+                        if naics_codes:
+                            exclude_parts.append(
+                                "naics_code IN (%s)" % ",".join(["%s"] * len(naics_codes))
+                            )
+                            params2.extend(naics_codes)
+                        if set_aside_codes:
+                            exclude_parts.append(
+                                "set_aside_code IN (%s)" % ",".join(["%s"] * len(set_aside_codes))
+                            )
+                            params2.extend(set_aside_codes)
+                        if exclude_parts:
+                            conditions2.append(
+                                "NOT (%s)" % " AND ".join(exclude_parts)
+                            )
+
+                        sql2 = (
+                            "SELECT notice_id, description_url FROM opportunity "
+                            "WHERE " + " AND ".join(conditions2) +
+                            " ORDER BY posted_date DESC"
+                        )
+                        cursor.execute(sql2, params2)
+                        remaining_rows = cursor.fetchall()
+                        stats["total_found"] += len(remaining_rows)
+                        self.logger.info(
+                            "Remaining budget pass: found %d opportunities (all others)",
+                            len(remaining_rows),
+                        )
+
+                        fetched_before = stats["fetched"]
+                        self._fetch_description_batch(
+                            remaining_rows, api_key_number, batch_size, stats,
+                            cursor, conn, limit_remaining=remaining,
+                        )
+                        self.logger.info(
+                            "Remaining budget pass: fetched %d/%d (all opportunities)",
+                            stats["fetched"] - fetched_before, len(remaining_rows),
+                        )
+
+            else:
+                # --- General pass (no priority filters) ---
+                conditions = ["description_url IS NOT NULL"]
+                params = []
+                if missing_only:
+                    conditions.append("description_text IS NULL")
+                if days_back is not None:
+                    conditions.append(
+                        "posted_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)"
+                    )
+                    params.append(days_back)
+
+                sql = (
+                    "SELECT notice_id, description_url FROM opportunity "
+                    "WHERE " + " AND ".join(conditions) +
+                    " ORDER BY posted_date DESC"
+                )
+                cursor.execute(sql, params)
+                rows = cursor.fetchall()
+                stats["total_found"] = len(rows)
+                self.logger.info(
+                    "Found %d opportunities needing description fetch", len(rows),
+                )
+                self._fetch_description_batch(
+                    rows, api_key_number, batch_size, stats, cursor, conn,
+                    limit_remaining=limit,
+                )
 
         finally:
             cursor.close()
             conn.close()
 
         self.logger.info(
-            "Description fetch complete: total=%d, fetched=%d, failed=%d",
+            "Description fetch complete: total=%d, fetched=%d, failed=%d, priority=%d",
             stats["total_found"], stats["fetched"], stats["failed"],
+            stats["priority_fetched"],
         )
         return stats
 

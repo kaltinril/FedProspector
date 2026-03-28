@@ -1,4 +1,4 @@
-# Phase 110Z: Early Attachment Cleanup & Re-Analyze
+# Phase 130: Early Attachment Cleanup & Re-Analyze
 
 **Status:** PLANNED
 **Depends on:** 110 (Attachment Intelligence) — all complete

@@ -25,6 +25,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DescriptionIcon from '@mui/icons-material/Description';
@@ -48,7 +49,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import QualificationPWinTab from './QualificationPWinTab';
 import CompetitiveIntelTab from './CompetitiveIntelTab';
 import DocumentIntelligenceTab from './DocumentIntelligenceTab';
-import { getOpportunity, getQualification, getPWin } from '@/api/opportunities';
+import { getOpportunity, getQualification, getPWin, fetchDescription } from '@/api/opportunities';
 import { getBurnRate } from '@/api/awards';
 import { createProspect } from '@/api/prospects';
 import { createSavedSearch } from '@/api/savedSearches';
@@ -256,10 +257,28 @@ function OverviewTab({
   pWinLoading?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const description = opp.descriptionText ?? opp.descriptionUrl ?? '';
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+
+  const hasDescription = !!opp.descriptionText;
+  const canFetchDescription = !hasDescription && !!opp.descriptionUrl;
+  const description = opp.descriptionText ?? '';
   const isLong = description.length > 300;
   const locationIndicator = getLocationIndicator(opp.popCountry, opp.popState);
   const resourceLinks = getResourceLinksForDisplay(opp);
+
+  const fetchDescriptionMutation = useMutation({
+    mutationFn: () => fetchDescription(opp.noticeId),
+    onSuccess: () => {
+      enqueueSnackbar('Description fetched from SAM.gov', { variant: 'success' });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.opportunities.detail(opp.noticeId),
+      });
+    },
+    onError: () => {
+      enqueueSnackbar('Failed to fetch description from SAM.gov', { variant: 'error' });
+    },
+  });
 
   const facts = useMemo(
     () => [
@@ -316,24 +335,49 @@ function OverviewTab({
   return (
     <Box>
       {/* Description */}
-      {description && (
+      {(hasDescription || canFetchDescription) && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
             Description
           </Typography>
-          <Collapse in={expanded || !isLong} collapsedSize={80}>
-            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
-              {description}
-            </Typography>
-          </Collapse>
-          {isLong && (
-            <Button
-              size="small"
-              onClick={() => setExpanded((prev) => !prev)}
-              sx={{ mt: 1 }}
-            >
-              {expanded ? 'Show less' : 'Show more'}
-            </Button>
+          {hasDescription ? (
+            <>
+              <Collapse in={expanded || !isLong} collapsedSize={80}>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  {description}
+                </Typography>
+              </Collapse>
+              {isLong && (
+                <Button
+                  size="small"
+                  onClick={() => setExpanded((prev) => !prev)}
+                  sx={{ mt: 1 }}
+                >
+                  {expanded ? 'Show less' : 'Show more'}
+                </Button>
+              )}
+            </>
+          ) : (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <Typography variant="body2" color="text.secondary">
+                No description loaded. A description URL is available on SAM.gov.
+              </Typography>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={
+                  fetchDescriptionMutation.isPending ? (
+                    <CircularProgress size={16} />
+                  ) : (
+                    <CloudDownloadIcon />
+                  )
+                }
+                disabled={fetchDescriptionMutation.isPending}
+                onClick={() => fetchDescriptionMutation.mutate()}
+              >
+                Fetch Description from SAM.gov
+              </Button>
+            </Box>
           )}
         </Paper>
       )}

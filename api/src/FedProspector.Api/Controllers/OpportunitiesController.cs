@@ -68,6 +68,28 @@ public class OpportunitiesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Fetch a missing opportunity description from SAM.gov on demand.
+    /// If already populated, returns the cached text without making an API call.
+    /// </summary>
+    [HttpPost("{noticeId}/fetch-description")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> FetchDescription(string noticeId)
+    {
+        var (descriptionText, error, notFound) = await _service.FetchDescriptionAsync(noticeId);
+
+        if (notFound && error == null)
+            return NotFound(new { message = "Opportunity not found." });
+
+        if (notFound && error != null)
+            return NotFound(new { message = error });
+
+        if (error != null)
+            return ApiError(502, error);
+
+        return Ok(new { noticeId, descriptionText });
+    }
+
+    /// <summary>
     /// Calculate probability of win (pWin) for an opportunity against the current org's profile.
     /// </summary>
     [HttpGet("{noticeId}/pwin")]

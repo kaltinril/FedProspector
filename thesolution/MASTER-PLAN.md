@@ -132,17 +132,22 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 110H | Intel Backfill Ranking | COMPLETE | [110H-INTEL-BACKFILL-RANKING.md](phases/completed/110H-INTEL-BACKFILL-RANKING.md) |
 | 110X | Scheduled & Automated Analysis | COMPLETE | [110X-SCHEDULED-ANALYSIS.md](phases/completed/110X-SCHEDULED-ANALYSIS.md) |
 | 110Y | Request Poller Service | COMPLETE | [110Y-REQUEST-POLLER-SERVICE.md](phases/completed/110Y-REQUEST-POLLER-SERVICE.md) |
-| 110Z | Early Attachment Cleanup & Re-Analyze | PLANNED | [110Z-EARLY-CLEANUP-AND-REANALYZE.md](phases/110Z-EARLY-CLEANUP-AND-REANALYZE.md) |
 | 110ZZ | Keyword Intel Extraction Enhancements | COMPLETE | [110ZZ-KEYWORD-INTEL-ENHANCEMENTS.md](phases/completed/110ZZ-KEYWORD-INTEL-ENHANCEMENTS.md) |
 | 110ZZZ | Attachment Deduplication | COMPLETE | [110ZZZ-ATTACHMENT-DEDUPLICATION.md](phases/completed/110ZZZ-ATTACHMENT-DEDUPLICATION.md) |
 | 111 | Manual Testing Issues | COMPLETE | [111-MANUAL-TESTING-ISSUES.md](phases/completed/111-MANUAL-TESTING-ISSUES.md) |
+| 112 | Opportunity Description Backfill | COMPLETE | [112-DESCRIPTION-BACKFILL.md](phases/completed/112-DESCRIPTION-BACKFILL.md) |
 | 113 | Federal Hierarchy Browser | PLANNED | [113-FEDERAL-HIERARCHY-BROWSER.md](phases/113-FEDERAL-HIERARCHY-BROWSER.md) |
 | 114 | Project Documentation Suite | PLANNED | [114-PROJECT-DOCUMENTATION.md](phases/114-PROJECT-DOCUMENTATION.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
+| 121 | Description Intel Extraction | PLANNED | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/121-DESCRIPTION-INTEL-EXTRACTION.md) |
+| 122 | Opportunity POC Extraction | PLANNED | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/122-OPPORTUNITY-POC-EXTRACTION.md) |
+| 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
 | 124 | Attachment Hash-Level Deduplication | PLANNED | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
 | 125 | Full Document Viewer with Highlights | PLANNED | [125-FULL-DOCUMENT-VIEWER.md](phases/125-FULL-DOCUMENT-VIEWER.md) |
+| 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
+| 300 | Comprehensive Review & Tech Debt Registry | PLANNED | [300-COMPREHENSIVE-REVIEW.md](phases/300-COMPREHENSIVE-REVIEW.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 | 600 | Insane Optimizations | DEFERRED | [600-INSANE-OPTIMIZATIONS.md](phases/600-INSANE-OPTIMIZATIONS.md) |
 

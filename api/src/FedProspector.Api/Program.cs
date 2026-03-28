@@ -39,6 +39,14 @@ builder.Host.UseSerilog((context, loggerConfig) =>
 // --- Strongly-typed options ---
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
 builder.Services.Configure<AppCorsOptions>(builder.Configuration.GetSection(AppCorsOptions.SectionName));
+builder.Services.Configure<SamApiOptions>(builder.Configuration.GetSection(SamApiOptions.SectionName));
+
+// --- HTTP Clients ---
+builder.Services.AddHttpClient("SamApi", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
+});
 
 // --- Database ---
 builder.Services.AddInfrastructure(builder.Configuration);

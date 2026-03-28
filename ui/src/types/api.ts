@@ -1314,3 +1314,8 @@ export interface AnalysisEstimateDto {
   alreadyAnalyzed: number;
   remainingToAnalyze: number;
 }
+
+export interface FetchDescriptionResponse {
+  noticeId: string;
+  descriptionText: string;
+}

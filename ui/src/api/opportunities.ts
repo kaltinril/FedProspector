@@ -16,6 +16,7 @@ import type {
   DocumentIntelligenceDto,
   LoadRequestStatusDto,
   AnalysisEstimateDto,
+  FetchDescriptionResponse,
 } from '@/types/api';
 
 export function searchOpportunities(
@@ -105,4 +106,8 @@ export function getAnalysisStatus(noticeId: string): Promise<LoadRequestStatusDt
 
 export function getAnalysisEstimate(noticeId: string, model: string = 'haiku'): Promise<AnalysisEstimateDto> {
   return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/analyze/estimate`, { params: { model } }).then((r) => r.data);
+}
+
+export function fetchDescription(noticeId: string): Promise<FetchDescriptionResponse> {
+  return apiClient.post(`/opportunities/${encodeURIComponent(noticeId)}/fetch-description`).then((r) => r.data);
 }

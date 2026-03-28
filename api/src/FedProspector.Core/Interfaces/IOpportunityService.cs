@@ -9,4 +9,5 @@ public interface IOpportunityService
     Task<OpportunityDetailDto?> GetDetailAsync(string noticeId, int organizationId);
     Task<PagedResponse<TargetOpportunityDto>> GetTargetsAsync(TargetOpportunitySearchRequest request, int organizationId);
     Task<string> ExportCsvAsync(OpportunitySearchRequest request, int organizationId);
+    Task<(string? descriptionText, string? error, bool notFound)> FetchDescriptionAsync(string noticeId);
 }
