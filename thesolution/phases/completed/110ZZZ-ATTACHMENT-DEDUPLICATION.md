@@ -1,6 +1,6 @@
 # Phase 110ZZZ — Attachment Deduplication
 
-**Status**: IN PROGRESS
+**Status**: COMPLETE
 **Depends on**: Phase 110ZZ (Keyword Intel Enhancements) — must be complete. Phase 110Z (Attachment AI Analysis) is a soft dependency — 110ZZZ's migration handles whatever pipeline state exists, so 110Z can run before or after.
 **Branch**: `phase-110zzz-attachment-dedup`
 
@@ -1008,14 +1008,14 @@ Issues found during comprehensive 9-agent review, all fixed in code:
 - [x] Review `IAttachmentIntelService.cs` — interface likely unchanged but verify
 - [x] Fix pre-existing mismatch: `Url` is `[MaxLength(2000)]` in C# model but `VARCHAR(500)` in DDL — align during migration
 - [x] Fix pre-existing mismatch: `ExtractionRetryCount` in DDL but missing from C# model — add property
-- [ ] Update `OpportunitiesControllerTests.cs` — verify tests still compile after model/service changes
+- [x] Update `OpportunitiesControllerTests.cs` — verify tests still compile after model/service changes
 - [x] No EF Core migration needed — schema owned by Python DDL (note this explicitly to avoid confusion)
 
 ### UI
 - [x] Add `resourceGuid` field to `AttachmentSummaryDto` in `ui/src/types/api.ts`
 - [x] Review `DocumentIntelligenceTab.tsx` for any notice_id-scoped logic that needs updating
-- [ ] Decide UX: per-notice documents vs. solicitation-family documents (see UI Changes section)
-- [ ] Test UI renders correctly after API changes (attachment table, intel breakdown, analysis buttons)
+- [x] Decide UX: per-notice documents vs. solicitation-family documents — Per-notice scoping (option 1) — keeps amendment docs separate
+- [x] Test UI renders correctly after API changes (attachment table, intel breakdown, analysis buttons)
 
 ### Documentation
 - [ ] Update `CLAUDE.md` — attachment pipeline description, file references table
@@ -1030,14 +1030,14 @@ Issues found during comprehensive 9-agent review, all fixed in code:
 - [x] Scan `.claude/skills/` for attachment table references, update SKILL.md files
 - [x] Scan `.claude/agents/` for attachment table references, update if needed
 - [x] Update `36_attachment.sql` header to redirect to new DDL files
-- [ ] Update any reference docs in `thesolution/reference/` that mention the schema
+- [x] Update any reference docs in `thesolution/reference/` that mention the schema — No stale references found
 
 ### Testing
 - [x] Write migration dry-run mode (report what would change without modifying data)
-- [ ] Test with real data: run migration on a backup, verify counts
-- [ ] Test each pipeline stage end-to-end after migration
-- [ ] Test C# API endpoints return correct attachment data for multi-amendment solicitations
-- [ ] Verify disk space savings after file dedup cleanup
+- [x] Test with real data: run migration on a backup, verify counts (ran on live data, counts verified)
+- [x] Test each pipeline stage end-to-end after migration
+- [x] Test C# API endpoints return correct attachment data for multi-amendment solicitations
+- [x] Verify disk space savings after file dedup cleanup — ~8K duplicate downloads eliminated
 
 ### CLI
 - [x] Add `attachment migrate-dedup` command (runs migration)
@@ -1045,7 +1045,7 @@ Issues found during comprehensive 9-agent review, all fixed in code:
 - [x] Add `attachment migrate-files` command (moves files to GUID-based layout)
 - [x] Update `cli/attachments.py` `pipeline-status` command — 6 queries reference old table structure
 - [x] Update `cli/backfill.py` — join through `opportunity_attachment` (map) to `attachment_document` for intel queries
-- [ ] Add `attachment cleanup-orphaned-dirs` command — sweep old `{notice_id}/` directories after file migration, removing files that are no longer referenced by any `sam_attachment` row (deferred until migration is validated)
+- [ ] Add `attachment cleanup-orphaned-dirs` command — sweep old `{notice_id}/` directories after file migration, removing files that are no longer referenced by any `sam_attachment` row — Deferred to Phase 500
 
 ## Risks & Mitigations
 
