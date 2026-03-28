@@ -52,75 +52,94 @@ public class AttachmentIntelService : IAttachmentIntelService
 
     public async Task<DocumentIntelligenceDto?> GetDocumentIntelligenceAsync(string noticeId)
     {
-        // Fetch all attachments for this opportunity
-        var attachments = await _context.OpportunityAttachments.AsNoTracking()
-            .Where(a => a.NoticeId == noticeId)
+        // Fetch attachment mappings for this opportunity via the join table
+        var mappings = await _context.OpportunityAttachments.AsNoTracking()
+            .Where(m => m.NoticeId == noticeId)
             .ToListAsync();
 
-        if (attachments.Count == 0)
+        if (mappings.Count == 0)
             return null;
 
-        // Fetch all intel records for this opportunity
-        var intelRecords = await _context.OpportunityAttachmentIntels.AsNoTracking()
-            .Where(i => i.NoticeId == noticeId)
+        var attachmentIds = mappings.Select(m => m.AttachmentId).Distinct().ToList();
+
+        // Fetch SamAttachment details for these attachments
+        var samAttachments = await _context.SamAttachments.AsNoTracking()
+            .Where(a => attachmentIds.Contains(a.AttachmentId))
             .ToListAsync();
 
-        // Build attachment lookup by ID
-        var attachmentLookup = attachments.ToDictionary(a => a.AttachmentId);
+        var samAttachmentLookup = samAttachments.ToDictionary(a => a.AttachmentId);
 
-        // Fetch sources from ALL intel records (Problem 1: merged sources)
-        List<OpportunityIntelSource> sources = [];
+        // Fetch documents for these attachments
+        var documents = await _context.AttachmentDocuments.AsNoTracking()
+            .Where(d => attachmentIds.Contains(d.AttachmentId))
+            .ToListAsync();
+
+        var documentIds = documents.Select(d => d.DocumentId).ToList();
+
+        // Fetch per-document intel summaries
+        var intelRecords = await _context.DocumentIntelSummaries.AsNoTracking()
+            .Where(i => documentIds.Contains(i.DocumentId))
+            .ToListAsync();
+
+        // Fetch per-opportunity rollup summaries
+        var summaryRecords = await _context.OpportunityAttachmentSummaries.AsNoTracking()
+            .Where(s => s.NoticeId == noticeId)
+            .ToListAsync();
+
+        // Fetch evidence from per-document intel records
+        List<DocumentIntelEvidence> evidence = [];
         if (intelRecords.Count > 0)
         {
-            // Exclude consolidated (attachment_id = NULL) intel records to avoid
-            // duplicating sources that already appear under per-attachment records
-            var allIntelIds = intelRecords
-                .Where(i => i.AttachmentId != null)
-                .Select(i => i.IntelId).ToList();
-            sources = await _context.OpportunityIntelSources.AsNoTracking()
-                .Where(s => allIntelIds.Contains(s.IntelId))
+            var allIntelIds = intelRecords.Select(i => i.IntelId).ToList();
+            evidence = await _context.DocumentIntelEvidence.AsNoTracking()
+                .Where(e => allIntelIds.Contains(e.IntelId))
                 .ToListAsync();
         }
 
-        // Available extraction methods (Problem 1)
-        var availableMethods = intelRecords
+        // Use summary records for aggregated intel (replaces old NULL-attachment consolidated rows)
+        // Fall back to per-document intel if no summaries exist yet
+        var aggregationRecords = summaryRecords.Count > 0 ? summaryRecords : null;
+
+        // Available extraction methods
+        var availableMethods = (aggregationRecords ?? (IEnumerable<IIntelFields>)intelRecords)
             .Where(i => !string.IsNullOrEmpty(i.ExtractionMethod))
             .Select(i => i.ExtractionMethod!)
             .Distinct()
             .OrderBy(m => ExtractionMethodPriority.GetValueOrDefault(m, 0))
             .ToList();
 
-        // Best intel record by method priority (for LatestExtractionMethod, LastExtractedAt)
-        var bestIntel = intelRecords
+        // Best record by method priority (for LatestExtractionMethod, LastExtractedAt)
+        var bestRecord = (aggregationRecords ?? (IEnumerable<IIntelFields>)intelRecords)
             .OrderByDescending(i => ExtractionMethodPriority.GetValueOrDefault(i.ExtractionMethod ?? "", 0))
             .ThenByDescending(i => i.ExtractedAt)
             .FirstOrDefault();
 
-        // Problem 5: Cross-attachment aggregation with domain-specific rules
-        var clearanceRequired = AggregateBooleanYWins(intelRecords, i => i.ClearanceRequired);
-        var clearanceLevel = AggregateClearanceLevel(intelRecords, clearanceRequired);
-        var clearanceScope = AggregatePreferLongest(intelRecords, i => i.ClearanceScope);
-        var evalMethod = AggregatePreferMostSpecific(intelRecords, i => i.EvalMethod);
-        var vehicleType = AggregatePreferMostSpecific(intelRecords, i => i.VehicleType);
-        var isRecompete = AggregateBooleanYWins(intelRecords, i => i.IsRecompete);
-        var incumbentName = AggregatePreferShortest(intelRecords, i => i.IncumbentName);
-        var scopeSummary = AggregatePreferLongestFromBestConfidence(intelRecords, i => i.ScopeSummary);
-        var periodOfPerformance = AggregatePeriodOfPerformance(intelRecords);
-        var pricingStructure = AggregatePreferMostSpecific(intelRecords, i => i.PricingStructure);
-        var placeOfPerformance = AggregatePreferLongest(intelRecords, i => i.PlaceOfPerformance);
+        // Cross-document aggregation with domain-specific rules
+        var recordsForAgg = aggregationRecords ?? (IReadOnlyList<IIntelFields>)intelRecords;
+        var clearanceRequired = AggregateBooleanYWins(recordsForAgg, i => i.ClearanceRequired);
+        var clearanceLevel = AggregateClearanceLevel(recordsForAgg, clearanceRequired);
+        var clearanceScope = AggregatePreferLongest(recordsForAgg, i => i.ClearanceScope);
+        var evalMethod = AggregatePreferMostSpecific(recordsForAgg, i => i.EvalMethod);
+        var vehicleType = AggregatePreferMostSpecific(recordsForAgg, i => i.VehicleType);
+        var isRecompete = AggregateBooleanYWins(recordsForAgg, i => i.IsRecompete);
+        var incumbentName = AggregatePreferShortest(recordsForAgg, i => i.IncumbentName);
+        var scopeSummary = AggregatePreferLongestFromBestConfidence(recordsForAgg, i => i.ScopeSummary);
+        var periodOfPerformance = AggregatePeriodOfPerformance(recordsForAgg);
+        var pricingStructure = AggregatePreferMostSpecific(recordsForAgg, i => i.PricingStructure);
+        var placeOfPerformance = AggregatePreferLongest(recordsForAgg, i => i.PlaceOfPerformance);
 
         // Aggregate labor categories and key requirements from all records
-        var laborCategories = intelRecords
+        var laborCategories = recordsForAgg
             .SelectMany(i => DeserializeJsonList(i.LaborCategories))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var keyRequirements = intelRecords
+        var keyRequirements = recordsForAgg
             .SelectMany(i => DeserializeJsonList(i.KeyRequirements))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        // Problem 2: Confidence from best intel record by method priority
-        var confidenceRecord = intelRecords
+        // Confidence from best record by method priority
+        var confidenceRecord = recordsForAgg
             .Where(i => !string.IsNullOrEmpty(i.OverallConfidence))
             .OrderByDescending(i => ExtractionMethodPriority.GetValueOrDefault(i.ExtractionMethod ?? "", 0))
             .ThenByDescending(i => i.ExtractedAt)
@@ -140,8 +159,8 @@ public class AttachmentIntelService : IAttachmentIntelService
             }
         }
 
-        // Problem 6: Detail text fields from AI records only
-        var aiRecords = intelRecords
+        // Detail text fields from AI records only
+        var aiRecords = recordsForAgg
             .Where(i => i.ExtractionMethod is "ai_haiku" or "ai_sonnet")
             .OrderByDescending(i => ExtractionMethodPriority.GetValueOrDefault(i.ExtractionMethod ?? "", 0))
             .ThenByDescending(i => i.ExtractedAt)
@@ -156,21 +175,22 @@ public class AttachmentIntelService : IAttachmentIntelService
         string? popDetails = null;
 
         // Build merged source passages (server-side merge of nearby keyword matches)
-        var mergedPassages = await BuildMergedPassagesAsync(sources);
+        var mergedPassages = await BuildMergedPassagesAsync(evidence);
 
-        // Problem 7: Per-attachment drill-down
-        var perAttachmentIntel = BuildPerAttachmentBreakdown(intelRecords, attachmentLookup);
+        // Per-attachment drill-down using per-document intel
+        var documentLookup = documents.ToDictionary(d => d.DocumentId);
+        var perAttachmentIntel = BuildPerAttachmentBreakdown(intelRecords, documents, samAttachmentLookup);
 
-        var analyzedCount = attachments.Count(a =>
-            a.ExtractionStatus == "extracted" || a.ExtractionStatus == "analyzed");
+        var analyzedCount = documents.Count(d =>
+            d.ExtractionStatus == "extracted");
 
         var dto = new DocumentIntelligenceDto
         {
             NoticeId = noticeId,
-            AttachmentCount = attachments.Count,
+            AttachmentCount = samAttachments.Count,
             AnalyzedCount = analyzedCount,
-            LatestExtractionMethod = bestIntel?.ExtractionMethod,
-            LastExtractedAt = bestIntel?.ExtractedAt,
+            LatestExtractionMethod = bestRecord?.ExtractionMethod,
+            LastExtractedAt = bestRecord?.ExtractedAt,
             ClearanceRequired = clearanceRequired,
             ClearanceLevel = clearanceLevel,
             ClearanceScope = clearanceScope,
@@ -193,28 +213,29 @@ public class AttachmentIntelService : IAttachmentIntelService
             RecompeteDetails = recompeteDetails,
             PricingDetails = pricingDetails,
             PopDetails = popDetails,
-            Sources = sources.Select(s => new IntelSourceDto
+            Sources = evidence.Select(e => new IntelSourceDto
             {
-                FieldName = s.FieldName,
-                SourceFilename = s.SourceFilename,
-                PageNumber = s.PageNumber,
-                MatchedText = s.MatchedText,
-                SurroundingContext = s.SurroundingContext,
-                CharOffsetStart = s.CharOffsetStart,
-                CharOffsetEnd = s.CharOffsetEnd,
-                ExtractionMethod = s.ExtractionMethod ?? "",
-                Confidence = s.Confidence ?? ""
+                FieldName = e.FieldName,
+                SourceFilename = e.SourceFilename,
+                PageNumber = e.PageNumber,
+                MatchedText = e.MatchedText,
+                SurroundingContext = e.SurroundingContext,
+                CharOffsetStart = e.CharOffsetStart,
+                CharOffsetEnd = e.CharOffsetEnd,
+                ExtractionMethod = e.ExtractionMethod ?? "",
+                Confidence = e.Confidence ?? ""
             }).ToList(),
-            Attachments = attachments.Select(a => new AttachmentSummaryDto
+            Attachments = samAttachments.Select(a => new AttachmentSummaryDto
             {
                 AttachmentId = a.AttachmentId,
+                ResourceGuid = a.ResourceGuid,
                 Filename = a.Filename ?? "",
                 Url = a.Url,
-                ContentType = a.ContentType,
+                ContentType = documents.FirstOrDefault(d => d.AttachmentId == a.AttachmentId)?.ContentType,
                 FileSizeBytes = a.FileSizeBytes,
-                PageCount = a.PageCount,
+                PageCount = documents.FirstOrDefault(d => d.AttachmentId == a.AttachmentId)?.PageCount,
                 DownloadStatus = a.DownloadStatus,
-                ExtractionStatus = a.ExtractionStatus,
+                ExtractionStatus = documents.FirstOrDefault(d => d.AttachmentId == a.AttachmentId)?.ExtractionStatus ?? "pending",
                 SkipReason = a.SkipReason
             }).ToList(),
             MergedPassages = mergedPassages,
@@ -295,35 +316,40 @@ public class AttachmentIntelService : IAttachmentIntelService
         const int systemPromptTokensPerDoc = 800;
         const int maxOutputTokensPerDoc = 2000;
 
-        // Get all complete attachments for this notice
-        var attachments = await _context.OpportunityAttachments.AsNoTracking()
-            .Where(a => a.NoticeId == noticeId && a.ExtractionStatus == "extracted")
-            .Select(a => new
-            {
-                a.AttachmentId,
-                TextLength = a.ExtractedText != null ? a.ExtractedText.Length : 0
-            })
-            .ToListAsync();
-
-        // Get attachment IDs that already have AI analysis (excluding dry runs)
-        var analyzedAttachmentIds = await _context.OpportunityAttachmentIntels.AsNoTracking()
-            .Where(i => i.NoticeId == noticeId
-                && i.AttachmentId != null
-                && i.ExtractionMethod != null
-                && i.ExtractionMethod.StartsWith("ai_")
-                && i.ExtractionMethod != "ai_dry_run")
-            .Select(i => i.AttachmentId!.Value)
+        // Get attachment IDs for this notice via the map table
+        var attachmentIds = await _context.OpportunityAttachments.AsNoTracking()
+            .Where(m => m.NoticeId == noticeId)
+            .Select(m => m.AttachmentId)
             .Distinct()
             .ToListAsync();
 
-        var analyzedSet = new HashSet<int>(analyzedAttachmentIds);
-        var totalAttachments = attachments.Count;
-        var alreadyAnalyzed = attachments.Count(a => analyzedSet.Contains(a.AttachmentId));
-        var remaining = totalAttachments - alreadyAnalyzed;
+        // Get all extracted documents for these attachments
+        var documents = await _context.AttachmentDocuments.AsNoTracking()
+            .Where(d => attachmentIds.Contains(d.AttachmentId) && d.ExtractionStatus == "extracted")
+            .Select(d => new
+            {
+                d.DocumentId,
+                d.AttachmentId,
+                TextLength = d.ExtractedText != null ? d.ExtractedText.Length : 0
+            })
+            .ToListAsync();
 
-        var totalChars = attachments
-            .Where(a => !analyzedSet.Contains(a.AttachmentId))
-            .Sum(a => Math.Min(a.TextLength, maxCharsPerDoc));
+        // Get document IDs that already have AI analysis
+        var analyzedDocumentIds = await _context.DocumentIntelSummaries.AsNoTracking()
+            .Where(i => documents.Select(d => d.DocumentId).Contains(i.DocumentId)
+                && i.ExtractionMethod.StartsWith("ai_"))
+            .Select(i => i.DocumentId)
+            .Distinct()
+            .ToListAsync();
+
+        var analyzedSet = new HashSet<int>(analyzedDocumentIds);
+        var totalDocuments = documents.Count;
+        var alreadyAnalyzed = documents.Count(d => analyzedSet.Contains(d.DocumentId));
+        var remaining = totalDocuments - alreadyAnalyzed;
+
+        var totalChars = documents
+            .Where(d => !analyzedSet.Contains(d.DocumentId))
+            .Sum(d => Math.Min(d.TextLength, maxCharsPerDoc));
 
         var estimatedInputTokens = totalChars / 4 + systemPromptTokensPerDoc * remaining;
         var estimatedOutputTokens = maxOutputTokensPerDoc * remaining;
@@ -341,7 +367,7 @@ public class AttachmentIntelService : IAttachmentIntelService
         return new AnalysisEstimateDto
         {
             NoticeId = noticeId,
-            AttachmentCount = totalAttachments,
+            AttachmentCount = totalDocuments,
             TotalChars = totalChars,
             EstimatedInputTokens = estimatedInputTokens,
             EstimatedOutputTokens = estimatedOutputTokens,
@@ -352,7 +378,7 @@ public class AttachmentIntelService : IAttachmentIntelService
         };
     }
 
-    // --- Aggregation helpers (Problem 5) ---
+    // --- Aggregation helpers ---
 
     /// <summary>Returns true-ish value if it's not a null equivalent.</summary>
     private static string? NormalizeValue(string? value)
@@ -364,7 +390,7 @@ public class AttachmentIntelService : IAttachmentIntelService
 
     /// <summary>"Y" wins over "N" wins over null.</summary>
     private static string? AggregateBooleanYWins(
-        List<OpportunityAttachmentIntel> records, Func<OpportunityAttachmentIntel, string?> selector)
+        IEnumerable<IIntelFields> records, Func<IIntelFields, string?> selector)
     {
         string? best = null;
         foreach (var r in records)
@@ -380,13 +406,13 @@ public class AttachmentIntelService : IAttachmentIntelService
 
     /// <summary>Highest clearance level wins, only from records where clearance_required = "Y".</summary>
     private static string? AggregateClearanceLevel(
-        List<OpportunityAttachmentIntel> records, string? aggregatedClearanceRequired)
+        IEnumerable<IIntelFields> records, string? aggregatedClearanceRequired)
     {
         // Only consider clearance levels from records that say clearance is required
-        var candidates = records;
+        var candidates = records.ToList();
         if (string.Equals(aggregatedClearanceRequired, "Y", StringComparison.OrdinalIgnoreCase))
         {
-            candidates = records
+            candidates = candidates
                 .Where(r => string.Equals(NormalizeValue(r.ClearanceRequired), "Y", StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
@@ -415,7 +441,7 @@ public class AttachmentIntelService : IAttachmentIntelService
 
     /// <summary>Prefer the shortest non-null, non-equivalent value (likely the clean name).</summary>
     private static string? AggregatePreferShortest(
-        List<OpportunityAttachmentIntel> records, Func<OpportunityAttachmentIntel, string?> selector)
+        IEnumerable<IIntelFields> records, Func<IIntelFields, string?> selector)
     {
         string? best = null;
         foreach (var r in records)
@@ -430,7 +456,7 @@ public class AttachmentIntelService : IAttachmentIntelService
 
     /// <summary>Prefer the longest non-null, non-equivalent value (most detail).</summary>
     private static string? AggregatePreferLongest(
-        List<OpportunityAttachmentIntel> records, Func<OpportunityAttachmentIntel, string?> selector)
+        IEnumerable<IIntelFields> records, Func<IIntelFields, string?> selector)
     {
         string? best = null;
         foreach (var r in records)
@@ -445,7 +471,7 @@ public class AttachmentIntelService : IAttachmentIntelService
 
     /// <summary>Prefer the most specific (longest) non-null value — works for eval_method, vehicle_type, pricing.</summary>
     private static string? AggregatePreferMostSpecific(
-        List<OpportunityAttachmentIntel> records, Func<OpportunityAttachmentIntel, string?> selector)
+        IEnumerable<IIntelFields> records, Func<IIntelFields, string?> selector)
     {
         // "Most specific" = longest non-null value, as specific values like "LPTA" or "Best Value"
         // are more informative than generic ones
@@ -454,7 +480,7 @@ public class AttachmentIntelService : IAttachmentIntelService
 
     /// <summary>Prefer longest from highest-confidence record.</summary>
     private static string? AggregatePreferLongestFromBestConfidence(
-        List<OpportunityAttachmentIntel> records, Func<OpportunityAttachmentIntel, string?> selector)
+        IEnumerable<IIntelFields> records, Func<IIntelFields, string?> selector)
     {
         // Order by method priority (higher = better confidence), then by value length
         var best = records
@@ -467,7 +493,7 @@ public class AttachmentIntelService : IAttachmentIntelService
     }
 
     /// <summary>Prefer values with actual durations, reject "not specified" variants.</summary>
-    private static string? AggregatePeriodOfPerformance(List<OpportunityAttachmentIntel> records)
+    private static string? AggregatePeriodOfPerformance(IEnumerable<IIntelFields> records)
     {
         // NormalizeValue already strips "not specified" etc.
         // Among remaining values, prefer the longest (most detail)
@@ -476,7 +502,7 @@ public class AttachmentIntelService : IAttachmentIntelService
 
     /// <summary>Get detail text from AI records only, preferring highest method priority then most recent.</summary>
     private static string? AggregateDetailField(
-        List<OpportunityAttachmentIntel> aiRecords, Func<OpportunityAttachmentIntel, string?> selector)
+        IEnumerable<IIntelFields> aiRecords, Func<IIntelFields, string?> selector)
     {
         // aiRecords are already sorted by method priority desc, then extractedAt desc
         foreach (var r in aiRecords)
@@ -487,17 +513,21 @@ public class AttachmentIntelService : IAttachmentIntelService
         return null;
     }
 
-    /// <summary>Build per-attachment breakdown for Problem 7.</summary>
+    /// <summary>Build per-attachment breakdown using per-document intel.</summary>
     private static List<AttachmentIntelBreakdownDto> BuildPerAttachmentBreakdown(
-        List<OpportunityAttachmentIntel> intelRecords,
-        Dictionary<int, OpportunityAttachment> attachmentLookup)
+        List<DocumentIntelSummary> intelRecords,
+        List<AttachmentDocument> documents,
+        Dictionary<int, SamAttachment> samAttachmentLookup)
     {
-        // Group intel records by attachment_id, pick best per attachment
         var result = new List<AttachmentIntelBreakdownDto>();
 
+        // Build document-to-attachment lookup
+        var docToAttachment = documents.ToDictionary(d => d.DocumentId, d => d.AttachmentId);
+
+        // Group intel records by attachment_id (via document -> attachment mapping)
         var grouped = intelRecords
-            .Where(i => i.AttachmentId.HasValue)
-            .GroupBy(i => i.AttachmentId!.Value);
+            .Where(i => docToAttachment.ContainsKey(i.DocumentId))
+            .GroupBy(i => docToAttachment[i.DocumentId]);
 
         foreach (var group in grouped)
         {
@@ -506,7 +536,7 @@ public class AttachmentIntelService : IAttachmentIntelService
                 .ThenByDescending(i => i.ExtractedAt)
                 .First();
 
-            var filename = attachmentLookup.TryGetValue(group.Key, out var att)
+            var filename = samAttachmentLookup.TryGetValue(group.Key, out var att)
                 ? att.Filename ?? ""
                 : "";
 
@@ -536,47 +566,47 @@ public class AttachmentIntelService : IAttachmentIntelService
     private const int ContextBorder = 150;
 
     /// <summary>
-    /// Merge nearby keyword sources from the same document into single text passages
-    /// with multiple highlights, slicing from the attachment's ExtractedText.
+    /// Merge nearby keyword evidence from the same document into single text passages
+    /// with multiple highlights, slicing from the document's ExtractedText.
     /// </summary>
     private async Task<List<MergedSourcePassageDto>> BuildMergedPassagesAsync(
-        List<OpportunityIntelSource> sources)
+        List<DocumentIntelEvidence> evidence)
     {
-        // Only keyword sources with char offsets can be merged
-        var keywordSources = sources
-            .Where(s => s.CharOffsetStart.HasValue
-                        && !(s.ExtractionMethod ?? "").StartsWith("ai_"))
+        // Only keyword evidence with char offsets can be merged
+        var keywordEvidence = evidence
+            .Where(e => e.CharOffsetStart.HasValue
+                        && !(e.ExtractionMethod ?? "").StartsWith("ai_"))
             .ToList();
 
-        if (keywordSources.Count == 0)
+        if (keywordEvidence.Count == 0)
             return [];
 
-        // Get distinct attachment IDs we need text for
-        var attachmentIds = keywordSources
-            .Where(s => s.AttachmentId.HasValue)
-            .Select(s => s.AttachmentId!.Value)
+        // Get distinct document IDs we need text for
+        var documentIds = keywordEvidence
+            .Where(e => e.DocumentId.HasValue)
+            .Select(e => e.DocumentId!.Value)
             .Distinct()
             .ToList();
 
-        // Fetch only AttachmentId + ExtractedText (text can be huge, skip other columns)
-        var textLookup = await _context.OpportunityAttachments.AsNoTracking()
-            .Where(a => attachmentIds.Contains(a.AttachmentId))
-            .Select(a => new { a.AttachmentId, a.ExtractedText })
-            .ToDictionaryAsync(a => a.AttachmentId, a => a.ExtractedText);
+        // Fetch only DocumentId + ExtractedText (text can be huge, skip other columns)
+        var textLookup = await _context.AttachmentDocuments.AsNoTracking()
+            .Where(d => documentIds.Contains(d.DocumentId))
+            .Select(d => new { d.DocumentId, d.ExtractedText })
+            .ToDictionaryAsync(d => d.DocumentId, d => d.ExtractedText);
 
         // Group by (FieldName, SourceFilename)
-        var grouped = keywordSources
-            .GroupBy(s => (s.FieldName, Filename: s.SourceFilename ?? ""));
+        var grouped = keywordEvidence
+            .GroupBy(e => (e.FieldName, Filename: e.SourceFilename ?? ""));
 
         var passages = new List<MergedSourcePassageDto>();
 
         foreach (var group in grouped)
         {
-            var sorted = group.OrderBy(s => s.CharOffsetStart!.Value).ToList();
+            var sorted = group.OrderBy(e => e.CharOffsetStart!.Value).ToList();
 
-            // Cluster: merge sources where gap <= MergeGap
-            var clusters = new List<List<OpportunityIntelSource>>();
-            var currentCluster = new List<OpportunityIntelSource> { sorted[0] };
+            // Cluster: merge evidence where gap <= MergeGap
+            var clusters = new List<List<DocumentIntelEvidence>>();
+            var currentCluster = new List<DocumentIntelEvidence> { sorted[0] };
 
             for (int i = 1; i < sorted.Count; i++)
             {
@@ -598,9 +628,9 @@ public class AttachmentIntelService : IAttachmentIntelService
 
             foreach (var cluster in clusters)
             {
-                // Find the attachment text for this cluster
-                var attachmentId = cluster[0].AttachmentId;
-                if (attachmentId == null || !textLookup.TryGetValue(attachmentId.Value, out var extractedText)
+                // Find the document text for this cluster
+                var documentId = cluster[0].DocumentId;
+                if (documentId == null || !textLookup.TryGetValue(documentId.Value, out var extractedText)
                     || string.IsNullOrEmpty(extractedText))
                 {
                     continue; // Skip — no text available
@@ -608,9 +638,9 @@ public class AttachmentIntelService : IAttachmentIntelService
 
                 var textLength = extractedText.Length;
 
-                var minStart = cluster.Min(s => s.CharOffsetStart!.Value) - ContextBorder;
-                var maxEnd = cluster.Max(s =>
-                    s.CharOffsetEnd ?? (s.CharOffsetStart!.Value + (s.MatchedText?.Length ?? 0))) + ContextBorder;
+                var minStart = cluster.Min(e => e.CharOffsetStart!.Value) - ContextBorder;
+                var maxEnd = cluster.Max(e =>
+                    e.CharOffsetEnd ?? (e.CharOffsetStart!.Value + (e.MatchedText?.Length ?? 0))) + ContextBorder;
 
                 // Clamp to valid range
                 if (minStart < 0) minStart = 0;
@@ -643,8 +673,8 @@ public class AttachmentIntelService : IAttachmentIntelService
                     FieldName = group.Key.FieldName,
                     Filename = group.Key.Filename,
                     PageNumber = cluster[0].PageNumber,
-                    Methods = cluster.Select(s => s.ExtractionMethod ?? "keyword").Distinct().ToList(),
-                    Confidences = cluster.Select(s => s.Confidence).Where(c => !string.IsNullOrEmpty(c)).Select(c => c!).Distinct().ToList(),
+                    Methods = cluster.Select(e => e.ExtractionMethod ?? "keyword").Distinct().ToList(),
+                    Confidences = cluster.Select(e => e.Confidence).Where(c => !string.IsNullOrEmpty(c)).Select(c => c!).Distinct().ToList(),
                     Text = textSlice,
                     Highlights = highlights.OrderBy(h => h.Start).ToList(),
                     MatchCount = cluster.Count

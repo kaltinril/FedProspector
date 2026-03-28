@@ -879,7 +879,7 @@ class AttachmentTextExtractor:
     """Extracts text from downloaded opportunity attachments.
 
     Produces annotated Markdown with heading hierarchy, bold markers,
-    and table formatting. Stores results back in the opportunity_attachment
+    and table formatting. Stores results back in the attachment_document
     table.
     """
 
@@ -1028,33 +1028,49 @@ class AttachmentTextExtractor:
     # ------------------------------------------------------------------
 
     def _fetch_pending(self, notice_id, batch_size, force):
-        """Fetch attachments eligible for extraction."""
+        """Fetch documents eligible for extraction.
+
+        Queries attachment_document joined to sam_attachment for file_path.
+        When filtering by --notice-id, joins through opportunity_attachment map.
+        """
         conn = self.db_connection or get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            conditions = ["download_status = 'downloaded'"]
+            conditions = ["sa.download_status = 'downloaded'"]
             params = []
 
             if force:
-                conditions.append("extraction_status IN ('pending', 'extracted', 'failed', 'unsupported')")
+                conditions.append("ad.extraction_status IN ('pending', 'extracted', 'failed', 'unsupported')")
             else:
-                conditions.append("extraction_status = 'pending'")
-                conditions.append("extraction_retry_count < 10")
+                conditions.append("ad.extraction_status = 'pending'")
+                conditions.append("ad.extraction_retry_count < 10")
 
+            join_clause = ""
             if notice_id:
-                conditions.append("notice_id = %s")
+                join_clause = (
+                    "JOIN opportunity_attachment m ON m.attachment_id = sa.attachment_id "
+                )
+                conditions.append("m.notice_id = %s")
                 params.append(notice_id)
 
             sql = (
-                "SELECT attachment_id, notice_id, filename, content_type, file_path "
-                "FROM opportunity_attachment "
-                f"WHERE {' AND '.join(conditions)} "
-                "ORDER BY attachment_id "
+                "SELECT ad.document_id, ad.attachment_id, "
+                "COALESCE(ad.filename, sa.filename) AS filename, "
+                "ad.content_type, sa.file_path "
+                "FROM attachment_document ad "
+                "JOIN sam_attachment sa ON sa.attachment_id = ad.attachment_id "
+                + join_clause
+                + f"WHERE {' AND '.join(conditions)} "
+                "ORDER BY ad.document_id "
                 "LIMIT %s"
             )
             params.append(batch_size)
             cursor.execute(sql, params)
-            return cursor.fetchall()
+            rows = cursor.fetchall()
+            # Map document_id to attachment_id for downstream compatibility
+            for row in rows:
+                row["attachment_id"] = row["document_id"]
+            return rows
         finally:
             cursor.close()
             if not self.db_connection:
@@ -1095,18 +1111,22 @@ class AttachmentTextExtractor:
     # ------------------------------------------------------------------
 
     def _save_extraction(self, attachment_id, text, text_hash, page_count, is_scanned, load_id):
-        """Write extraction results to opportunity_attachment."""
+        """Write extraction results to attachment_document.
+
+        Note: attachment_id here is actually document_id (mapped in _fetch_pending).
+        """
+        document_id = attachment_id  # renamed for clarity
         conn = self.db_connection or get_connection()
         cursor = conn.cursor()
         try:
             # Strip null bytes — MySQL rejects them in TEXT columns
             clean_text = text.replace("\x00", "") if text else text
             cursor.execute(
-                "UPDATE opportunity_attachment SET "
+                "UPDATE attachment_document SET "
                 "extracted_text = %s, text_hash = %s, page_count = %s, "
                 "is_scanned = %s, extraction_status = 'extracted', "
                 "extracted_at = %s, last_load_id = %s "
-                "WHERE attachment_id = %s",
+                "WHERE document_id = %s",
                 (
                     clean_text,
                     text_hash,
@@ -1114,7 +1134,7 @@ class AttachmentTextExtractor:
                     1 if is_scanned else 0,
                     datetime.now(),
                     load_id,
-                    attachment_id,
+                    document_id,
                 ),
             )
             conn.commit()
@@ -1127,16 +1147,20 @@ class AttachmentTextExtractor:
                 conn.close()
 
     def _mark_failed(self, attachment_id, load_id, error_msg):
-        """Mark attachment extraction as failed."""
+        """Mark document extraction as failed.
+
+        Note: attachment_id here is actually document_id (mapped in _fetch_pending).
+        """
+        document_id = attachment_id
         conn = self.db_connection or get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "UPDATE opportunity_attachment SET "
+                "UPDATE attachment_document SET "
                 "extraction_status = 'failed', extraction_retry_count = extraction_retry_count + 1, "
                 "extracted_at = %s, last_load_id = %s "
-                "WHERE attachment_id = %s",
-                (datetime.now(), load_id, attachment_id),
+                "WHERE document_id = %s",
+                (datetime.now(), load_id, document_id),
             )
             conn.commit()
         except Exception:
@@ -1148,15 +1172,19 @@ class AttachmentTextExtractor:
                 conn.close()
 
     def _mark_unsupported(self, attachment_id, load_id):
-        """Mark attachment content type as unsupported."""
+        """Mark document content type as unsupported.
+
+        Note: attachment_id here is actually document_id (mapped in _fetch_pending).
+        """
+        document_id = attachment_id
         conn = self.db_connection or get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "UPDATE opportunity_attachment SET "
+                "UPDATE attachment_document SET "
                 "extraction_status = 'unsupported', extracted_at = %s, last_load_id = %s "
-                "WHERE attachment_id = %s",
-                (datetime.now(), load_id, attachment_id),
+                "WHERE document_id = %s",
+                (datetime.now(), load_id, document_id),
             )
             conn.commit()
         except Exception:

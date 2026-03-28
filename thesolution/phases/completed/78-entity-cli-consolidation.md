@@ -233,3 +233,36 @@ These files may reference the old command names in strings, comments, or docs:
 - Changes to `BulkLoader` or `EntityLoader` (these work fine)
 - Changes to `search entities` command (separate concern under `search` group)
 - Adding new API filters beyond the agreed set (uei, name, naics, set-aside, status, date, max-calls)
+
+## Database & Attachment Backup Commands
+
+### MySQL Data Directory Backup
+```bash
+# Stop MySQL first, then:
+robocopy E:\mysql\data E:\mysql\data_backup_<label> /MIR /MT:8 /R:1 /W:1 /NFL /NDL
+
+# Restore (stop MySQL first):
+robocopy E:\mysql\data_backup_<label> E:\mysql\data /MIR /MT:8 /R:1 /W:1 /NFL /NDL
+```
+
+### Attachment Directory Backup
+```bash
+robocopy E:\fedprospector\attachments E:\fedprospector\attachments_backup_<label> /MIR /MT:8 /R:1 /W:1 /NFL /NDL
+
+# Restore:
+robocopy E:\fedprospector\attachments_backup_<label> E:\fedprospector\attachments /MIR /MT:8 /R:1 /W:1 /NFL /NDL
+```
+
+### SQL Table Dump (optional, for specific tables)
+```bash
+mysqldump -u fed_app -p fed_contracts <table1> <table2> > E:\mysql\<label>_tables.sql
+
+# Restore:
+mysql -u fed_app -p fed_contracts < E:\mysql\<label>_tables.sql
+```
+
+**Notes:**
+- MySQL must be stopped for data directory backup/restore (otherwise risk corrupted InnoDB pages)
+- `/MT:8` uses 8 threads for NVMe SSD performance (~41 GB/min observed)
+- `/MIR` mirrors source to destination (adds, updates, AND deletes to match)
+- Replace `<label>` with a descriptive name (e.g., `pre110zzz`, `pre_phase120`)

@@ -6,6 +6,7 @@ Used by all ETL loaders. Import from here instead of reimplementing per-loader.
 import hashlib
 import json
 import logging
+import re
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -105,6 +106,29 @@ def escape_tsv_value(value) -> str:
     s = s.replace("\n", "\\n")
     s = s.replace("\r", "\\r")
     return s
+
+
+# ---------------------------------------------------------------------------
+# Dynamic NAICS / Set-Aside derivation (Phase 91-E1+E2)
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Resource GUID extraction (Phase 110ZZZ — Attachment Deduplication)
+# ---------------------------------------------------------------------------
+
+_RESOURCE_GUID_RE = re.compile(r'/resources/files/([0-9a-f]{32})/download', re.IGNORECASE)
+
+
+def extract_resource_guid(url: str) -> str | None:
+    """Extract the 32-char hex resource GUID from a SAM.gov attachment URL.
+
+    Returns the lowercase GUID or None if the URL doesn't match the expected pattern.
+    """
+    if not url:
+        return None
+    m = _RESOURCE_GUID_RE.search(url)
+    return m.group(1).lower() if m else None
 
 
 # ---------------------------------------------------------------------------

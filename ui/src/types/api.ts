@@ -1260,6 +1260,7 @@ export interface AttachmentSummaryDto {
   extractionStatus: string;
   skipReason?: string;
   url?: string;
+  resourceGuid?: string;
 }
 
 export interface AttachmentIntelBreakdownDto {

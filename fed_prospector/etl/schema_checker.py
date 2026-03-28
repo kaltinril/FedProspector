@@ -221,7 +221,7 @@ def _parse_table_body(body: str, tdef: TableDef):
             continue
 
         # INDEX / KEY
-        if upper.startswith("INDEX") or (upper.startswith("KEY") and not upper.startswith("KEY(")):
+        if upper.startswith("INDEX ") or (upper.startswith("KEY ") and not upper.startswith("KEY(")):
             m = re.match(r'(?:INDEX|KEY)\s+`?(\w+)`?\s*\((.+)\)', line, re.IGNORECASE)
             if m:
                 name = m.group(1).lower()

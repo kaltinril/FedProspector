@@ -1,6 +1,6 @@
 # Phase 110ZZ: Keyword Intelligence Extraction Enhancements
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** Medium — improves bid-decision intelligence without API costs
 **Dependencies:** Phase 110F (current keyword extractor)
 
@@ -9,6 +9,8 @@
 ## Summary
 
 The keyword intelligence extractor (`attachment_intel_extractor.py`) has 60 regex patterns across 10 categories, but analysis of 19 real solicitation documents reveals significant gaps. The `period_of_performance`, `labor_categories`, and `scope_summary` columns exist in the schema but are only populated by the AI analyzer — never by keyword extraction.
+
+**Validation (2026-03-25):** Tested proposed patterns against 4,926 opportunities with keyword-extracted intel. Period of performance matches 71.6% of all docs, NAICS 54.9%, wage determination 37.0%, contract value 43.1%, CMMC/NIST 8.4%. The new categories would elevate ~400–600 currently-low-confidence opportunities to medium or high.
 
 This phase broadens existing patterns and adds new categories to improve keyword-based intelligence extraction without requiring AI API calls.
 
@@ -167,9 +169,22 @@ Add to `compliance_certs` (existing category, no new column needed):
 
 ### Task 7: Scan Filenames for Vehicle Type
 
-Currently, patterns only scan `extracted_text`. The filename often contains vehicle identifiers (e.g., "BPA Logistical Support.pdf"). Modify `_gather_text_sources` to prepend the filename to the text source so patterns can match filename content.
+`_gather_text_sources` already returns `(attachment_id, filename, text)` tuples and filenames are tracked in match_info, but `_run_patterns` only scans the `extracted_text` — filenames are never pattern-matched. The filename often contains vehicle identifiers (e.g., "BPA Logistical Support.pdf").
 
-This is a small code change in the source-gathering logic, not a new pattern.
+**Fix:** Prepend `filename + "\n"` to the text before passing to pattern scanning in `_run_patterns`. Adjust `char_offset_start`/`char_offset_end` in source provenance by the filename length offset.
+
+### Task 8: PPQ / Past Performance Document-Type Heuristic
+
+585 documents (12% of the corpus) are Past Performance Questionnaires or similar forms. Patterns for pricing, period of performance, task/delivery orders, and vehicle type fire on blank form templates that describe *past* contract characteristics, not the current procurement.
+
+**Implementation:**
+1. In `_gather_text_sources`, tag each source with a `is_ppq` flag:
+   - Check if filename matches `(?i)(?:past\s+performance|PPQ)`
+   - Check if first 200 chars of extracted_text match the same pattern
+2. In `_run_patterns`, if `is_ppq` is True, downgrade all match confidence by one level (high→medium, medium→low, low→low)
+3. Store the PPQ flag in match_info so consolidation can use it for tie-breaking
+
+This is a cross-cutting concern that mitigates false positives in Tasks 1b, 1d, 2, and 5.
 
 ---
 
@@ -219,11 +234,12 @@ Patterns were tested against 30 randomly sampled real documents. Findings:
 
 | Pattern | Risk | Issue | Fix |
 |---------|------|-------|-----|
-| `Full and Open Competition` | **CRITICAL** | Matches "other than full and open competition" in every sole-source J&A — tags them as "Unrestricted" (exact opposite) | Add negative lookbehind: `(?<!other\s+than\s+)(?<!without\s+)(?<!not\s+)` |
+| `Full and Open Competition` | **CRITICAL** | 71% false-positive rate: 708 of 995 corpus matches are "other than full and open competition" in sole-source J&As — tags them as "Unrestricted" (exact opposite) | Negative lookbehind alone is insufficient — "other than" can appear many words before "full and open". Require proximity to a `set-aside` or `competition type` heading, or require the phrase NOT preceded by "other than" within 60 chars |
 | `DBA` (for Davis-Bacon) | **HIGH** | "DBA" commonly means "Doing Business As" (e.g., "ABC Corp DBA XYZ Services") | Remove `DBA` standalone; require full phrase "Davis-Bacon" |
 | `$` standalone amounts | **HIGH** | Matches bonding, insurance, liquidated damages, size standards — not contract value | Gate on qualifying words within ±100 chars (ceiling, maximum, estimated, NTE) |
 | `task order` / `delivery order` | **HIGH** | Matches blank form labels in Past Performance questionnaires ("Delivery/Task Order Number (if applicable)") and T&C boilerplate | Require NOT preceded by "Number", not inside parenthetical labels |
 | `not-to-exceed` | **HIGH** | Matches time limits ("not to exceed 8 business hours") — not just dollar amounts | Require `$` or numeric dollar context within ±30 chars |
+| PPQ / Past Performance forms | **CRITICAL** | 585 documents (12% of corpus) contain PPQ content. Multiple categories (pricing, POP, task/delivery order) fire on blank form templates describing *past* contracts, not the current procurement | Add document-type heuristic: if filename or first 200 chars contain "Past Performance Questionnaire", "PPQ", or "Past Performance Information", lower confidence on all extractions by one level (high→medium, medium→low) |
 
 ### Should Fix
 
@@ -232,7 +248,7 @@ Patterns were tested against 30 randomly sampled real documents. Findings:
 | `SCA` standalone | **MEDIUM** | "SCA" is ambiguous (SCA Health, etc.) | Require full "Service Contract Act" or nearby "wage" context |
 | `Polaris` | **MEDIUM** | Could match Polaris Industries, Polaris vehicles in equipment solicitations | Require context: "Polaris GWAC" or "Polaris contract" or "GSA Polaris" |
 | `sole-source` | **MEDIUM** | No negation handling — matches "this is NOT a sole-source" | Add negative lookbehind for "not a" |
-| `task order` | **MEDIUM** | Matches past-performance narratives, staffing discussions, not just vehicle type | Lower to "low" confidence |
+| `task order` | **MEDIUM** | 13.4% of task/delivery order matches (351 of 2,618) appear inside PPQ documents describing past contract types, not current opportunity structure | Lower to "low" confidence; also gated by Task 8 PPQ heuristic |
 | `Unrestricted` bare word | **MEDIUM** | Appears in SF-1449 checkbox boilerplate even when NOT selected | Require context near "set-aside" or "competition type" |
 
 ### Acceptable Risk
@@ -250,7 +266,6 @@ Patterns were tested against 30 randomly sampled real documents. Findings:
 - **Case sensitivity**: Confirmed `re.IGNORECASE` is set (line 134 of `attachment_intel_extractor.py`). All patterns are case-insensitive. No action needed.
 - **Wage Determination number format**: Proposed pattern `\d{4}[-]\d{4}` is wrong. Real WD numbers are like `NY20260003`. Fix pattern to: `(?:[A-Z]{2})?\d{7,}` or remove.
 - **"Limited sources"**: Sole-source J&As often use "limited sources" instead of "sole source" — the pattern would miss these. Consider adding `\blimited\s+source\b` as an additional pattern.
-- **Past Performance questionnaires**: Multiple patterns (pricing, POP, task/delivery order) fire on blank form templates. Consider a document-type heuristic: if filename or first 200 chars contain "Past Performance Questionnaire" or "PPQ", lower confidence on all extractions.
 - **Existing pattern risk**: The current `Firm Fixed Price` / `FFP` pattern also matches PPQ checkbox labels describing past contracts, not the current procurement. This is a pre-existing issue, not introduced by this phase.
 
 ---
@@ -264,3 +279,30 @@ Patterns were tested against 30 randomly sampled real documents. Findings:
 ## Documents Analyzed
 
 19 randomly sampled solicitation attachments were analyzed across document types (SOWs, RFQs, RFIs, solicitations, amendments, specifications) to identify common patterns. Current patterns found matches in only ~30% of documents; the enhancements target the most common gaps.
+
+**Corpus-wide validation (2026-03-25):** Proposed patterns tested against 4,926 opportunities (8,466 distinct notice_ids in intel table, 18,275 total intel records). False positive rates validated quantitatively — see "False Positive Risks" section for counts. PPQ heuristic promoted to Task 8 based on 12% corpus prevalence.
+
+## Validation Results (2026-03-25)
+
+Before/after comparison on 30 randomly sampled opportunities:
+
+| Metric | Before | After | Delta |
+|--------|--------|-------|-------|
+| Total intel rows | 93 | 135 | +42 (+45%) |
+| High confidence | 73 | 110 | +37 |
+| Medium confidence | 11 | 22 | +11 |
+| Low confidence | 9 | 3 | -6 (upgraded) |
+| has_vehicle | 34 | 73 | +39 (+115%) |
+| has_pricing | 7 | 59 | +52 (+743%) |
+| has_pop_place | 18 | 76 | +58 (+322%) |
+| has_pop_time | 0 | 39 | +39 (new category) |
+| has_key_req | 11 | 103 | +92 (+836%) |
+| has_clearance | 16 | 16 | unchanged |
+| has_eval | 30 | 30 | unchanged |
+| has_recompete | 26 | 26 | unchanged |
+
+**Bug found during implementation:** `period_of_performance` column was missing from the `_upsert_intel_row` INSERT/UPDATE SQL — the column existed in the schema but was never included in the keyword extractor's persistence query (it was AI-only). Fixed as part of this phase.
+
+**Pattern count:** 60 → 101 patterns across 10 → 14 categories.
+
+**Re-extraction required:** Run `python main.py extract attachment-intel --force` to apply new patterns to all existing attachments.

@@ -66,9 +66,17 @@ public class FedProspectorDbContext : DbContext
     public DbSet<OpportunityRelationship> OpportunityRelationships { get; set; }
     public DbSet<ContractingOfficer> ContractingOfficers { get; set; }
     public DbSet<OpportunityPoc> OpportunityPocs { get; set; }
+
+    // -----------------------------------------------------------------------
+    // Attachment Tables (6 — normalized dedup schema, Phase 110ZZZ)
+    // -----------------------------------------------------------------------
+
+    public DbSet<SamAttachment> SamAttachments { get; set; }
+    public DbSet<AttachmentDocument> AttachmentDocuments { get; set; }
     public DbSet<OpportunityAttachment> OpportunityAttachments { get; set; }
-    public DbSet<OpportunityAttachmentIntel> OpportunityAttachmentIntels { get; set; }
-    public DbSet<OpportunityIntelSource> OpportunityIntelSources { get; set; }
+    public DbSet<DocumentIntelSummary> DocumentIntelSummaries { get; set; }
+    public DbSet<DocumentIntelEvidence> DocumentIntelEvidence { get; set; }
+    public DbSet<OpportunityAttachmentSummary> OpportunityAttachmentSummaries { get; set; }
 
     // -----------------------------------------------------------------------
     // Federal / Awards Tables (5)
@@ -163,6 +171,21 @@ public class FedProspectorDbContext : DbContext
         modelBuilder.Entity<FpdsContract>()
             .HasKey(e => new { e.ContractId, e.ModificationNumber });
 
+        modelBuilder.Entity<OpportunityAttachment>()
+            .HasKey(m => new { m.NoticeId, m.AttachmentId });
+
+        modelBuilder.Entity<OpportunityAttachment>()
+            .HasOne(m => m.SamAttachment)
+            .WithMany()
+            .HasForeignKey(m => m.AttachmentId)
+            .HasPrincipalKey(s => s.AttachmentId);
+
+        modelBuilder.Entity<AttachmentDocument>()
+            .HasOne(d => d.SamAttachment)
+            .WithMany()
+            .HasForeignKey(d => d.AttachmentId)
+            .HasPrincipalKey(s => s.AttachmentId);
+
         // ----- Unique Constraints -----
 
         modelBuilder.Entity<UsaspendingTransaction>()
@@ -230,16 +253,36 @@ public class FedProspectorDbContext : DbContext
             .Property(e => e.ResourceLinks)
             .HasColumnType("json");
 
-        modelBuilder.Entity<OpportunityAttachmentIntel>()
+        modelBuilder.Entity<DocumentIntelSummary>()
             .Property(e => e.LaborCategories)
             .HasColumnType("json");
 
-        modelBuilder.Entity<OpportunityAttachmentIntel>()
+        modelBuilder.Entity<DocumentIntelSummary>()
             .Property(e => e.KeyRequirements)
             .HasColumnType("json");
 
-        modelBuilder.Entity<OpportunityAttachmentIntel>()
+        modelBuilder.Entity<DocumentIntelSummary>()
             .Property(e => e.ConfidenceDetails)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<DocumentIntelSummary>()
+            .Property(e => e.CitationOffsets)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<OpportunityAttachmentSummary>()
+            .Property(e => e.LaborCategories)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<OpportunityAttachmentSummary>()
+            .Property(e => e.KeyRequirements)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<OpportunityAttachmentSummary>()
+            .Property(e => e.ConfidenceDetails)
+            .HasColumnType("json");
+
+        modelBuilder.Entity<OpportunityAttachmentSummary>()
+            .Property(e => e.CitationOffsets)
             .HasColumnType("json");
 
         // ----- Y/N Boolean Value Converters -----

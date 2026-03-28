@@ -2,7 +2,8 @@
 
 Reads the resource_links JSON column from the opportunity table, downloads
 each attachment file, computes a SHA-256 content hash, and stores metadata
-in the opportunity_attachment table.
+in the normalized attachment tables (sam_attachment, attachment_document,
+opportunity_attachment map).
 
 Implements SSRF protection, redirect validation, Content-Type filtering,
 and file-size limits.  Integrates with LoadManager for ETL load tracking.
@@ -21,6 +22,7 @@ from urllib.parse import unquote, urlparse
 import requests
 
 from db.connection import get_connection
+from etl.etl_utils import extract_resource_guid
 from etl.load_manager import LoadManager
 from etl.resource_link_resolver import _ALLOWED_PREFIXES, _parse_content_disposition
 
@@ -46,7 +48,7 @@ _MAX_DOWNLOAD_RETRIES = 3
 
 
 class AttachmentDownloader:
-    """Download SAM.gov opportunity attachments and track in opportunity_attachment."""
+    """Download SAM.gov opportunity attachments and track in normalized tables."""
 
     def __init__(self, db_connection=None, load_manager=None, attachment_dir=None):
         """Initialize the downloader.
@@ -115,6 +117,18 @@ class AttachmentDownloader:
             logger.info("Found %d attachment URLs to process (load_id=%d)",
                         len(urls_to_download), load_id)
 
+            # Deduplicate by resource_guid so concurrent threads don't write
+            # to the same filesystem path.  For each unique URL, download once
+            # (using the first notice_id) then insert mapping rows for the rest.
+            unique_downloads, extra_mappings = self._dedup_by_guid(urls_to_download)
+            if len(unique_downloads) < len(urls_to_download):
+                logger.info(
+                    "Deduplicated %d URLs down to %d unique resource_guids "
+                    "(%d extra mapping rows will be created after download)",
+                    len(urls_to_download), len(unique_downloads),
+                    sum(len(v) for v in extra_mappings.values()),
+                )
+
             from concurrent.futures import ThreadPoolExecutor, as_completed
             from threading import Lock
             from tqdm import tqdm
@@ -130,6 +144,18 @@ class AttachmentDownloader:
                         opp_notice_id, url, max_file_size_bytes,
                         check_changed, load_id,
                     )
+                    # On success, insert mapping rows for other notice_ids
+                    # that share the same resource_guid
+                    if result in ("downloaded", "skipped"):
+                        guid = extract_resource_guid(url)
+                        if guid and guid in extra_mappings:
+                            existing = self._check_existing_guid(guid)
+                            if existing:
+                                for extra_nid in extra_mappings[guid]:
+                                    self._insert_mapping_row(
+                                        extra_nid, url,
+                                        existing["attachment_id"], load_id,
+                                    )
                     return result
                 except Exception:
                     logger.exception("Unexpected error downloading %s for %s",
@@ -149,18 +175,22 @@ class AttachmentDownloader:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {
                     executor.submit(_download_one, opp_id, url): (opp_id, url)
-                    for opp_id, url in urls_to_download
+                    for opp_id, url in unique_downloads
                 }
                 for future in as_completed(futures):
                     result = future.result()
+                    opp_id, url = futures[future]
+                    guid = extract_resource_guid(url)
+                    # Count the primary download + any extra mappings as processed
+                    extra_count = len(extra_mappings.get(guid, [])) if guid else 0
                     with stats_lock:
                         if result == "downloaded":
-                            stats["downloaded"] += 1
+                            stats["downloaded"] += 1 + extra_count
                         elif result == "skipped":
-                            stats["skipped"] += 1
+                            stats["skipped"] += 1 + extra_count
                         else:
-                            stats["failed"] += 1
-                        pbar.update(1)
+                            stats["failed"] += 1 + extra_count
+                        pbar.update(1 + extra_count)
                         pbar.set_postfix_str(
                             f"ok={stats['downloaded']} skip={stats['skipped']} fail={stats['failed']}"
                         )
@@ -226,12 +256,14 @@ class AttachmentDownloader:
                 if missing_only:
                     missing_filter = (
                         " AND o.notice_id NOT IN ("
-                        "  SELECT DISTINCT oa.notice_id FROM opportunity_attachment oa"
-                        "  WHERE oa.download_status IN ('downloaded', 'skipped')"
-                        "  GROUP BY oa.notice_id"
+                        "  SELECT DISTINCT m.notice_id"
+                        "  FROM opportunity_attachment m"
+                        "  JOIN sam_attachment sa ON sa.attachment_id = m.attachment_id"
+                        "  WHERE sa.download_status IN ('downloaded', 'skipped')"
+                        "  GROUP BY m.notice_id"
                         "  HAVING COUNT(*) >= ("
                         "    SELECT JSON_LENGTH(o2.resource_links)"
-                        "    FROM opportunity o2 WHERE o2.notice_id = oa.notice_id"
+                        "    FROM opportunity o2 WHERE o2.notice_id = m.notice_id"
                         "  )"
                         ")"
                     )
@@ -281,9 +313,10 @@ class AttachmentDownloader:
             for nid, u in url_pairs:
                 flat_params.extend([nid, u])
             cursor.execute(
-                f"SELECT notice_id, url FROM opportunity_attachment "
-                f"WHERE download_status IN ('downloaded', 'skipped') "
-                f"AND (notice_id, url) IN ({placeholders})",
+                f"SELECT m.notice_id, m.url FROM opportunity_attachment m "
+                f"JOIN sam_attachment sa ON sa.attachment_id = m.attachment_id "
+                f"WHERE sa.download_status IN ('downloaded', 'skipped') "
+                f"AND (m.notice_id, m.url) IN ({placeholders})",
                 flat_params,
             )
             already_downloaded = {(r[0], r[1]) for r in cursor.fetchall()}
@@ -293,12 +326,62 @@ class AttachmentDownloader:
 
         return [(nid, u) for nid, u in url_pairs if (nid, u) not in already_downloaded]
 
+    @staticmethod
+    def _dedup_by_guid(url_pairs):
+        """Deduplicate (notice_id, url) pairs by resource_guid.
+
+        When multiple notice_ids share the same URL (same resource_guid),
+        only one should be downloaded. The rest get mapping rows after
+        the download succeeds.
+
+        Returns:
+            tuple: (unique_downloads, extra_mappings)
+                unique_downloads: list of (notice_id, url) to actually download
+                extra_mappings: dict of {resource_guid: [extra_notice_ids]}
+        """
+        from collections import defaultdict
+
+        guid_groups = defaultdict(list)
+        no_guid = []
+
+        for nid, url in url_pairs:
+            guid = extract_resource_guid(url)
+            if guid:
+                guid_groups[guid].append((nid, url))
+            else:
+                no_guid.append((nid, url))
+
+        unique_downloads = list(no_guid)
+        extra_mappings = {}
+
+        for guid, pairs in guid_groups.items():
+            # First pair gets downloaded; rest are extra mappings
+            unique_downloads.append(pairs[0])
+            if len(pairs) > 1:
+                extra_mappings[guid] = [nid for nid, _url in pairs[1:]]
+
+        return unique_downloads, extra_mappings
+
     def _download_single(self, notice_id, url, max_file_size_bytes, check_changed, load_id):
         """Download a single attachment URL.
 
         Returns:
             'downloaded', 'skipped', or 'failed'
         """
+        resource_guid = extract_resource_guid(url)
+
+        # Check if resource_guid already has a downloaded file in sam_attachment.
+        # If so, skip download entirely — just insert the mapping row.
+        if resource_guid:
+            existing = self._check_existing_guid(resource_guid)
+            if existing and existing["download_status"] == "downloaded":
+                # Already downloaded — just add the mapping row
+                self._insert_mapping_row(notice_id, url, existing["attachment_id"], load_id)
+                logger.debug(
+                    "GUID %s already downloaded — added mapping for %s", resource_guid, notice_id
+                )
+                return "skipped"
+
         # SSRF protection
         if not any(url.startswith(prefix) for prefix in _ALLOWED_PREFIXES):
             logger.warning("Blocked non-SAM.gov URL (SSRF protection): %s", url)
@@ -405,8 +488,9 @@ class AttachmentDownloader:
         # Sanitize filename
         filename = self._sanitize_filename(filename)
 
-        # Stream download to disk
-        dest_dir = self.attachment_dir / notice_id
+        # Stream download to disk — use resource_guid-based path if available
+        dir_name = resource_guid if resource_guid else notice_id
+        dest_dir = self.attachment_dir / dir_name
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_path = dest_dir / filename
 
@@ -447,7 +531,7 @@ class AttachmentDownloader:
                 return "skipped"
 
         # Store relative path from attachment_dir
-        relative_path = f"{notice_id}/{filename}"
+        relative_path = f"{dir_name}/{filename}"
 
         self._upsert_attachment_row(
             notice_id, url,
@@ -502,16 +586,58 @@ class AttachmentDownloader:
 
     def _get_existing_hash(self, notice_id, url):
         """Get the content_hash of an existing attachment row, or None."""
+        resource_guid = extract_resource_guid(url)
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            if resource_guid:
+                cursor.execute(
+                    "SELECT content_hash FROM sam_attachment "
+                    "WHERE resource_guid = %s",
+                    (resource_guid,),
+                )
+            else:
+                cursor.execute(
+                    "SELECT content_hash FROM sam_attachment "
+                    "WHERE url = %s",
+                    (url[:500],),
+                )
+            row = cursor.fetchone()
+            return row[0] if row else None
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _check_existing_guid(self, resource_guid):
+        """Check if a resource_guid already exists in sam_attachment.
+
+        Returns dict with attachment_id and download_status, or None.
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT attachment_id, download_status FROM sam_attachment "
+                "WHERE resource_guid = %s",
+                (resource_guid,),
+            )
+            return cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _insert_mapping_row(self, notice_id, url, attachment_id, load_id):
+        """Insert an opportunity_attachment mapping row (INSERT IGNORE for idempotency)."""
         conn = get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "SELECT content_hash FROM opportunity_attachment "
-                "WHERE notice_id = %s AND url = %s",
-                (notice_id, url),
+                "INSERT IGNORE INTO opportunity_attachment "
+                "(notice_id, attachment_id, url, last_load_id) "
+                "VALUES (%s, %s, %s, %s)",
+                (notice_id, attachment_id, url[:500], load_id),
             )
-            row = cursor.fetchone()
-            return row[0] if row else None
+            conn.commit()
         finally:
             cursor.close()
             conn.close()
@@ -530,18 +656,23 @@ class AttachmentDownloader:
         load_id=None,
         skip_reason=None,
     ):
-        """INSERT or UPDATE an opportunity_attachment row."""
+        """Multi-table upsert: sam_attachment + attachment_document + opportunity_attachment map."""
+        resource_guid = extract_resource_guid(url)
+        if not resource_guid:
+            # Non-standard URL — use md5 of URL as fallback GUID
+            resource_guid = hashlib.md5(url.encode()).hexdigest()
+
         conn = get_connection()
         cursor = conn.cursor()
         try:
+            # 1. Upsert sam_attachment by resource_guid
             cursor.execute(
-                "INSERT INTO opportunity_attachment "
-                "(notice_id, url, filename, content_type, file_size_bytes, "
+                "INSERT INTO sam_attachment "
+                "(resource_guid, url, filename, file_size_bytes, "
                 " file_path, download_status, content_hash, downloaded_at, last_load_id, skip_reason) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON DUPLICATE KEY UPDATE "
                 "filename = COALESCE(VALUES(filename), filename), "
-                "content_type = COALESCE(VALUES(content_type), content_type), "
                 "file_size_bytes = COALESCE(VALUES(file_size_bytes), file_size_bytes), "
                 "file_path = COALESCE(VALUES(file_path), file_path), "
                 "download_status = VALUES(download_status), "
@@ -551,48 +682,105 @@ class AttachmentDownloader:
                 "download_retry_count = CASE WHEN VALUES(download_status) = 'downloaded' THEN 0 ELSE download_retry_count END, "
                 "skip_reason = VALUES(skip_reason)",
                 (
-                    notice_id, url[:500], filename, content_type, file_size_bytes,
+                    resource_guid, url[:500], filename, file_size_bytes,
                     file_path, download_status, content_hash, downloaded_at, load_id,
                     skip_reason,
                 ),
             )
+
+            # 2. Get the attachment_id (LAST_INSERT_ID or SELECT)
+            attachment_id = cursor.lastrowid
+            if not attachment_id:
+                cursor.execute(
+                    "SELECT attachment_id FROM sam_attachment WHERE resource_guid = %s",
+                    (resource_guid,),
+                )
+                row = cursor.fetchone()
+                attachment_id = row[0] if row else None
+
+            # 3. Create attachment_document row if this is a new sam_attachment
+            #    (INSERT IGNORE — only creates if attachment_id doesn't exist yet)
+            if attachment_id:
+                cursor.execute(
+                    "INSERT IGNORE INTO attachment_document "
+                    "(attachment_id, filename, content_type, last_load_id) "
+                    "VALUES (%s, %s, %s, %s)",
+                    (attachment_id, filename, content_type, load_id),
+                )
+
+            # 4. Insert opportunity_attachment mapping row (INSERT IGNORE for idempotency)
+            if attachment_id:
+                cursor.execute(
+                    "INSERT IGNORE INTO opportunity_attachment "
+                    "(notice_id, attachment_id, url, last_load_id) "
+                    "VALUES (%s, %s, %s, %s)",
+                    (notice_id, attachment_id, url[:500], load_id),
+                )
+
             conn.commit()
         finally:
             cursor.close()
             conn.close()
 
     def _mark_transient_failure(self, notice_id, url, load_id, reason):
-        """Increment retry count; auto-skip if max retries exceeded."""
+        """Increment retry count; auto-skip if max retries exceeded.
+
+        Operates on sam_attachment by resource_guid. Also ensures the
+        opportunity_attachment mapping row exists.
+        """
+        resource_guid = extract_resource_guid(url)
+        if not resource_guid:
+            resource_guid = hashlib.md5(url.encode()).hexdigest()
+
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            # Ensure row exists
+            # Ensure sam_attachment row exists
             cursor.execute(
-                "INSERT INTO opportunity_attachment (notice_id, url, download_status, last_load_id) "
+                "INSERT INTO sam_attachment (resource_guid, url, download_status, last_load_id) "
                 "VALUES (%s, %s, 'failed', %s) "
                 "ON DUPLICATE KEY UPDATE "
                 "download_retry_count = download_retry_count + 1, "
+                "download_status = 'failed', "
                 "last_load_id = VALUES(last_load_id)",
-                (notice_id, url[:500], load_id),
+                (resource_guid, url[:500], load_id),
             )
-            # Check if we've exceeded max retries
+
+            # Get attachment_id for mapping row
             cursor.execute(
-                "SELECT download_retry_count FROM opportunity_attachment "
-                "WHERE notice_id = %s AND url = %s",
-                (notice_id, url[:500]),
+                "SELECT attachment_id, download_retry_count FROM sam_attachment "
+                "WHERE resource_guid = %s",
+                (resource_guid,),
             )
             row = cursor.fetchone()
-            retry_count = row[0] if row else 0
-            if retry_count >= _MAX_DOWNLOAD_RETRIES:
-                logger.warning(
-                    "Max retries (%d) reached for %s — marking skipped (reason: %s)",
-                    _MAX_DOWNLOAD_RETRIES, url, reason,
-                )
+            if row:
+                attachment_id, retry_count = row[0], row[1]
+
+                # Ensure attachment_document row exists
                 cursor.execute(
-                    "UPDATE opportunity_attachment SET download_status = 'skipped', "
-                    "skip_reason = %s WHERE notice_id = %s AND url = %s",
-                    (f"max_retries_{reason}", notice_id, url[:500]),
+                    "INSERT IGNORE INTO attachment_document "
+                    "(attachment_id, last_load_id) VALUES (%s, %s)",
+                    (attachment_id, load_id),
                 )
+
+                # Ensure mapping row exists
+                cursor.execute(
+                    "INSERT IGNORE INTO opportunity_attachment "
+                    "(notice_id, attachment_id, url, last_load_id) "
+                    "VALUES (%s, %s, %s, %s)",
+                    (notice_id, attachment_id, url[:500], load_id),
+                )
+
+                if retry_count >= _MAX_DOWNLOAD_RETRIES:
+                    logger.warning(
+                        "Max retries (%d) reached for %s — marking skipped (reason: %s)",
+                        _MAX_DOWNLOAD_RETRIES, url, reason,
+                    )
+                    cursor.execute(
+                        "UPDATE sam_attachment SET download_status = 'skipped', "
+                        "skip_reason = %s WHERE resource_guid = %s",
+                        (f"max_retries_{reason}", resource_guid),
+                    )
             conn.commit()
         finally:
             cursor.close()

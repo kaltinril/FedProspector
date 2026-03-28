@@ -249,24 +249,33 @@ class AttachmentAIAnalyzer:
             try:
                 result = self._analyze_document(doc)
                 if result:
-                    intel_id = self._save_intel(doc, result)
-                    self._save_ai_sources(
-                        intel_id, doc["attachment_id"],
-                        doc.get("filename"), result,
-                    )
-                    stats["analyzed"] += 1
-                    logger.info(
-                        "Analyzed %s attachment_id=%s (%s confidence)",
-                        doc["notice_id"], doc["attachment_id"],
-                        result.get("overall_confidence", "unknown"),
-                    )
+                    if self.dry_run:
+                        # Dry runs log usage (already done in _analyze_document)
+                        # but do NOT write intel rows
+                        stats["analyzed"] += 1
+                        logger.info(
+                            "DRY RUN: analyzed %s document_id=%s (no intel written)",
+                            doc["notice_id"], doc["document_id"],
+                        )
+                    else:
+                        intel_id = self._save_intel(doc, result)
+                        self._save_ai_sources(
+                            intel_id, doc["document_id"],
+                            doc.get("filename"), result,
+                        )
+                        stats["analyzed"] += 1
+                        logger.info(
+                            "Analyzed %s document_id=%s (%s confidence)",
+                            doc["notice_id"], doc["document_id"],
+                            result.get("overall_confidence", "unknown"),
+                        )
                 else:
                     stats["failed"] += 1
             except Exception as e:
                 stats["failed"] += 1
                 logger.error(
-                    "Failed to analyze %s attachment_id=%s: %s",
-                    doc["notice_id"], doc["attachment_id"], e,
+                    "Failed to analyze %s document_id=%s: %s",
+                    doc["notice_id"], doc["document_id"], e,
                 )
 
         logger.info(
@@ -286,34 +295,56 @@ class AttachmentAIAnalyzer:
         return self.analyze(notice_id=notice_id, batch_size=1000, force=force)
 
     def _fetch_eligible_documents(self, notice_id, batch_size, force):
-        """Fetch documents that have extracted text but no AI intel row yet."""
+        """Fetch documents that have extracted text but no AI intel row yet.
+
+        Queries attachment_document joined to sam_attachment. For --notice-id
+        filter, joins through opportunity_attachment map.
+        """
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            conditions = ["oa.extraction_status = 'extracted'", "oa.extracted_text IS NOT NULL"]
+            conditions = ["ad.extraction_status = 'extracted'", "ad.extracted_text IS NOT NULL"]
             params = []
 
+            join_clause = ""
             if notice_id:
-                conditions.append("oa.notice_id = %s")
+                join_clause = (
+                    "JOIN opportunity_attachment m ON m.attachment_id = sa.attachment_id "
+                )
+                conditions.append("m.notice_id = %s")
                 params.append(notice_id)
 
             if not force:
                 # Exclude documents that already have an AI intel row (real, not dry_run)
                 conditions.append("""
                     NOT EXISTS (
-                        SELECT 1 FROM opportunity_attachment_intel oai
-                        WHERE oai.attachment_id = oa.attachment_id
-                          AND oai.extraction_method IN ('ai_haiku', 'ai_sonnet')
+                        SELECT 1 FROM document_intel_summary dis
+                        WHERE dis.document_id = ad.document_id
+                          AND dis.extraction_method IN ('ai_haiku', 'ai_sonnet')
                     )
                 """)
 
             where = " AND ".join(conditions)
+            # Use MIN(m.notice_id) as canonical notice_id for logging/usage tracking
+            if notice_id:
+                notice_select = "m.notice_id"
+                group_clause = ""
+            else:
+                notice_select = (
+                    "(SELECT MIN(m2.notice_id) FROM opportunity_attachment m2 "
+                    " WHERE m2.attachment_id = sa.attachment_id) AS notice_id"
+                )
+                group_clause = ""
+
             cursor.execute(f"""
-                SELECT oa.attachment_id, oa.notice_id, oa.filename,
-                       oa.extracted_text, oa.text_hash
-                FROM opportunity_attachment oa
+                SELECT ad.document_id, {notice_select},
+                       COALESCE(ad.filename, sa.filename) AS filename,
+                       ad.extracted_text, ad.text_hash
+                FROM attachment_document ad
+                JOIN sam_attachment sa ON sa.attachment_id = ad.attachment_id
+                {join_clause}
                 WHERE {where}
-                ORDER BY oa.attachment_id
+                ORDER BY ad.document_id
                 LIMIT %s
             """, params + [batch_size])
 
@@ -335,7 +366,7 @@ class AttachmentAIAnalyzer:
             text = text[:max_chars] + "\n\n[Document truncated at 100,000 characters]"
             logger.debug(
                 "Truncated document %s from %d to %d chars",
-                doc["attachment_id"], len(doc["extracted_text"]), max_chars,
+                doc["document_id"], len(doc["extracted_text"]), max_chars,
             )
 
         user_message = f"Analyze this federal solicitation document:\n\n{text}"
@@ -344,7 +375,7 @@ class AttachmentAIAnalyzer:
             # Log what would be sent
             logger.info(
                 "DRY RUN: Would send %d chars to %s for attachment_id=%s (%s)",
-                len(user_message), self.model_id, doc["attachment_id"], doc["filename"],
+                len(user_message), self.model_id, doc["document_id"], doc["filename"],
             )
             # Return a mock response to exercise the full pipeline
             return {
@@ -384,7 +415,7 @@ class AttachmentAIAnalyzer:
         )
 
         # Log token usage and cost
-        self._log_usage(doc["notice_id"], doc["attachment_id"], response.usage)
+        self._log_usage(doc["notice_id"], doc["document_id"], response.usage)
 
         # Parse JSON from response
         response_text = response.content[0].text.strip()
@@ -407,7 +438,7 @@ class AttachmentAIAnalyzer:
         except json.JSONDecodeError as e:
             logger.error(
                 "Failed to parse JSON response for attachment_id=%s: %s\nResponse: %s",
-                doc["attachment_id"], e, response_text[:500],
+                doc["document_id"], e, response_text[:500],
             )
             return None
 
@@ -431,8 +462,12 @@ class AttachmentAIAnalyzer:
         )
         return round(cost, 6)
 
-    def _log_usage(self, notice_id, attachment_id, response_usage):
-        """Log AI API usage to ai_usage_log table."""
+    def _log_usage(self, notice_id, document_id, response_usage):
+        """Log AI API usage to ai_usage_log table.
+
+        Note: ai_usage_log.attachment_id column actually stores document_id
+        values (post-dedup migration). Column rename deferred to avoid schema churn.
+        """
         input_tokens = response_usage.input_tokens
         output_tokens = response_usage.output_tokens
         cache_read = getattr(response_usage, 'cache_read_input_tokens', 0) or 0
@@ -446,17 +481,18 @@ class AttachmentAIAnalyzer:
         try:
             conn = get_connection()
             cursor = conn.cursor()
+            # attachment_id column stores document_id (naming mismatch; see docstring)
             cursor.execute("""
                 INSERT INTO ai_usage_log
                 (notice_id, attachment_id, model, input_tokens, output_tokens,
                  cache_read_tokens, cache_write_tokens, cost_usd, requested_by)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """, (notice_id, attachment_id, self.model_key, input_tokens, output_tokens,
+            """, (notice_id, document_id, self.model_key, input_tokens, output_tokens,
                   cache_read, cache_write, cost, self.requested_by))
             conn.commit()
             logger.debug(
-                "Logged AI usage: %s attachment_id=%s model=%s in=%d out=%d cost=$%.6f",
-                notice_id, attachment_id, self.model_key,
+                "Logged AI usage: %s document_id=%s model=%s in=%d out=%d cost=$%.6f",
+                notice_id, document_id, self.model_key,
                 input_tokens, output_tokens, cost,
             )
         except Exception as e:
@@ -622,13 +658,15 @@ class AttachmentAIAnalyzer:
         return None
 
     def _save_intel(self, doc, result):
-        """Upsert AI analysis results into opportunity_attachment_intel.
+        """Upsert AI analysis results into document_intel_summary.
 
         Returns:
             int: The intel_id of the inserted or updated row.
         """
         # Resolve citation quotes to character offsets before saving
         citation_offsets = self._resolve_citations(doc, result)
+
+        document_id = doc["document_id"]
 
         conn = get_connection()
         cursor = conn.cursor()
@@ -639,15 +677,15 @@ class AttachmentAIAnalyzer:
             place_of_performance = self._extract_place_of_performance(result)
 
             cursor.execute(
-                "INSERT INTO opportunity_attachment_intel "
-                "(notice_id, attachment_id, extraction_method, source_text_hash, "
+                "INSERT INTO document_intel_summary "
+                "(document_id, extraction_method, source_text_hash, "
                 " clearance_required, clearance_level, clearance_scope, clearance_details, "
                 " eval_method, eval_details, vehicle_type, vehicle_details, "
                 " pricing_structure, place_of_performance, "
                 " is_recompete, incumbent_name, recompete_details, "
                 " scope_summary, period_of_performance, labor_categories, key_requirements, "
                 " overall_confidence, confidence_details, citation_offsets, extracted_at) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON DUPLICATE KEY UPDATE "
                 "source_text_hash = VALUES(source_text_hash), "
                 "clearance_required = VALUES(clearance_required), "
@@ -672,8 +710,7 @@ class AttachmentAIAnalyzer:
                 "citation_offsets = VALUES(citation_offsets), "
                 "extracted_at = VALUES(extracted_at)",
                 (
-                    doc["notice_id"],
-                    doc["attachment_id"],
+                    document_id,
                     self.extraction_method,
                     doc.get("text_hash"),
                     result.get("clearance_required"),
@@ -704,17 +741,17 @@ class AttachmentAIAnalyzer:
             intel_id = cursor.lastrowid
             if not intel_id:
                 cursor.execute(
-                    "SELECT intel_id FROM opportunity_attachment_intel "
-                    "WHERE notice_id = %s AND attachment_id = %s AND extraction_method = %s",
-                    (doc["notice_id"], doc["attachment_id"], self.extraction_method),
+                    "SELECT intel_id FROM document_intel_summary "
+                    "WHERE document_id = %s AND extraction_method = %s",
+                    (document_id, self.extraction_method),
                 )
                 row = cursor.fetchone()
                 intel_id = row[0] if row else None
 
             conn.commit()
             logger.debug(
-                "Saved AI intel for %s attachment_id=%s (method=%s, intel_id=%s)",
-                doc["notice_id"], doc["attachment_id"], self.extraction_method, intel_id,
+                "Saved AI intel for %s document_id=%s (method=%s, intel_id=%s)",
+                doc["notice_id"], document_id, self.extraction_method, intel_id,
             )
             return intel_id
         except Exception:
@@ -724,15 +761,15 @@ class AttachmentAIAnalyzer:
             cursor.close()
             conn.close()
 
-    def _save_ai_sources(self, intel_id, attachment_id, filename, result):
-        """Write explanation-based source rows for AI analysis results.
+    def _save_ai_sources(self, intel_id, document_id, filename, result):
+        """Write explanation-based evidence rows for AI analysis results.
 
-        Creates one opportunity_intel_source row per non-null detail field
+        Creates one document_intel_evidence row per non-null detail field
         extracted by AI, enabling "View Sources" in the UI for AI results.
 
         Args:
-            intel_id: The intel_id from opportunity_attachment_intel.
-            attachment_id: The attachment that was analyzed.
+            intel_id: The intel_id from document_intel_summary.
+            document_id: The document that was analyzed.
             filename: The attachment filename.
             result: The parsed AI analysis result dict.
         """
@@ -779,9 +816,9 @@ class AttachmentAIAnalyzer:
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            # Delete existing AI source rows for this intel_id (idempotent re-runs)
+            # Delete existing AI evidence rows for this intel_id (idempotent re-runs)
             cursor.execute(
-                "DELETE FROM opportunity_intel_source WHERE intel_id = %s",
+                "DELETE FROM document_intel_evidence WHERE intel_id = %s",
                 (intel_id,),
             )
 
@@ -793,14 +830,14 @@ class AttachmentAIAnalyzer:
                     confidence = "medium"
 
                 cursor.execute(
-                    "INSERT INTO opportunity_intel_source "
-                    "(intel_id, field_name, attachment_id, source_filename, "
+                    "INSERT INTO document_intel_evidence "
+                    "(intel_id, field_name, document_id, source_filename, "
                     " matched_text, extraction_method, confidence) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     (
                         intel_id,
                         field_name,
-                        attachment_id,
+                        document_id,
                         filename,
                         detail_text[:500],
                         self.extraction_method,

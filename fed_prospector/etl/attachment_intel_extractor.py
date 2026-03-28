@@ -2,8 +2,8 @@
 
 Scans extracted attachment text (annotated Markdown) and opportunity description_text
 for security clearance, evaluation method, contract vehicle, and recompete signals.
-Stores structured intel in opportunity_attachment_intel with full provenance tracking
-in opportunity_intel_source.
+Stores structured intel in document_intel_summary with full provenance tracking
+in document_intel_evidence. Per-opportunity rollup in opportunity_attachment_summary.
 
 Usage:
     from etl.attachment_intel_extractor import AttachmentIntelExtractor
@@ -14,6 +14,7 @@ Usage:
 import hashlib
 import json
 import logging
+import os
 import re
 from collections import Counter
 from datetime import datetime
@@ -39,6 +40,10 @@ _HEADING_KEYWORDS = {
     "subcontracting_oci": {"subcontracting", "small business", "conflict of interest", "oci"},
     "place_of_performance": {"place of performance", "location", "work site", "telework"},
     "set_aside_type": {"set-aside", "set aside", "small business", "socioeconomic"},
+    "period_of_performance": {"period of performance", "duration", "term", "ordering period", "option"},
+    "naics_code": {"naics", "size standard", "product service code", "psc", "classification"},
+    "wage_determination": {"wage", "labor", "compensation", "service contract act", "davis-bacon"},
+    "contract_value": {"value", "ceiling", "estimated", "price", "cost", "budget", "funding"},
 }
 
 # Raw pattern definitions — compiled at module load
@@ -66,6 +71,12 @@ _RAW_PATTERNS = {
         {"pattern": r"\bIDIQ\b", "value": "IDIQ", "confidence": "high", "name": "vehicle_idiq"},
         {"pattern": r"\b(?:GWAC|SEWP|CIO-SP[34]|Alliant|VETS\s*2|8\(a\)\s*STARS)\b", "value": None, "confidence": "high", "name": "vehicle_gwac"},
         {"pattern": r"\bSIN\s+\d{6}", "value": "GSA MAS", "confidence": "medium", "name": "vehicle_sin"},
+        {"pattern": r"(?<!Number )\btask\s+order\b(?!\s*(?:Number|\())", "value": "IDIQ", "confidence": "low", "name": "vehicle_task_order"},
+        {"pattern": r"(?<!Number )\bdelivery\s+order\b(?!\s*(?:Number|\())", "value": "IDIQ", "confidence": "low", "name": "vehicle_delivery_order"},
+        {"pattern": r"\b(?:indefinite[- ]delivery(?:[- ]indefinite[- ]quantity)?)\b", "value": "IDIQ", "confidence": "high", "name": "vehicle_id_iq_spelled"},
+        {"pattern": r"\b(?:BOA|Basic\s+Ordering\s+Agreement)\b", "value": "BOA", "confidence": "high", "name": "vehicle_boa"},
+        {"pattern": r"\b(?:SBIR|STTR)\b", "value": None, "confidence": "high", "name": "vehicle_sbir"},
+        {"pattern": r"\bPolaris\s+(?:GWAC|contract)\b|GSA\s+Polaris\b", "value": "Polaris", "confidence": "high", "name": "vehicle_polaris"},
     ],
     "recompete": [
         {"pattern": r"\b(?:incumbent|current\s+contractor|currently\s+performed\s+by)\b", "value": "Y", "confidence": "high", "name": "recompete_incumbent"},
@@ -81,6 +92,9 @@ _RAW_PATTERNS = {
         {"pattern": r"\b(?:Cost[- ]Plus[- ]Incentive[- ]Fee|CPIF)\b", "value": "CPIF", "confidence": "high", "name": "pricing_cpif"},
         {"pattern": r"\b(?:Time[- ]and[- ]Materials?|T&M|T & M)\b", "value": "T&M", "confidence": "high", "name": "pricing_tm"},
         {"pattern": r"\b(?:Labor[- ]Hour|LH)\b", "value": "LH", "confidence": "high", "name": "pricing_lh"},
+        {"pattern": r"\b(?:Fixed[- ]Price[- ]Incentive|FPI(?:F|S)?)\b", "value": "FPI", "confidence": "high", "name": "pricing_fpi"},
+        {"pattern": r"\b(?:Cost[- ]Reimbursement|Cost[- ]Type)\b", "value": "Cost Reimbursement", "confidence": "medium", "name": "pricing_cr"},
+        {"pattern": r"\baward\s+(?:term|fee)\b", "value": None, "confidence": "medium", "name": "pricing_award_fee"},
     ],
     "compliance_certs": [
         {"pattern": r"\bCMMI\s*(?:Level|Lvl|ML|-)?\s*[2-5]\b", "value": None, "confidence": "high", "name": "cert_cmmi"},
@@ -92,6 +106,9 @@ _RAW_PATTERNS = {
         {"pattern": r"\bITIL\b", "value": "ITIL", "confidence": "medium", "name": "cert_itil"},
         {"pattern": r"\bCISSP\b", "value": "CISSP", "confidence": "high", "name": "cert_cissp"},
         {"pattern": r"\bCompTIA\s+(?:Security\+|Network\+|A\+|CASP)(?=\s|$|[,;.])", "value": None, "confidence": "medium", "name": "cert_comptia"},
+        {"pattern": r"\bCMMC\s*(?:Level\s*)?[1-5]\b", "value": "CMMC", "confidence": "high", "name": "cert_cmmc_level"},
+        {"pattern": r"\bNIST\s+(?:SP\s+)?800-171\b", "value": "NIST 800-171", "confidence": "high", "name": "cert_nist_171"},
+        {"pattern": r"\bDFARS?\s+252\.204-7012\b", "value": "DFARS CUI", "confidence": "high", "name": "cert_dfars_cui"},
     ],
     "bonding_insurance": [
         {"pattern": r"\b(?:performance\s+bond)\b", "value": "Performance Bond", "confidence": "high", "name": "bond_performance"},
@@ -115,6 +132,10 @@ _RAW_PATTERNS = {
         {"pattern": r"\b(?:government\s+facilit(?:y|ies)|government\s+site)\b", "value": "Government Facility", "confidence": "medium", "name": "pop_government"},
         {"pattern": r"\bCONUS\b", "value": "CONUS", "confidence": "high", "name": "pop_conus"},
         {"pattern": r"\bOCONUS\b", "value": "OCONUS", "confidence": "high", "name": "pop_oconus"},
+        {"pattern": r"\bcontractor'?s?\s+(?:site|location|premises)\b", "value": "Contractor Facility", "confidence": "medium", "name": "pop_contractor_site"},
+        {"pattern": r"\b(?:off[- ]?site|offsite)\b", "value": "Off-Site", "confidence": "medium", "name": "pop_offsite"},
+        {"pattern": r"\bgovernment\s+premises\b", "value": "Government Facility", "confidence": "medium", "name": "pop_gov_premises"},
+        {"pattern": r"\bmultiple\s+(?:locations|sites)\b", "value": "Multiple Locations", "confidence": "medium", "name": "pop_multiple"},
     ],
     "set_aside_type": [
         {"pattern": r"\b(?:WOSB|Women[- ]Owned\s+Small\s+Business)\b", "value": "WOSB", "confidence": "high", "name": "setaside_wosb"},
@@ -122,6 +143,39 @@ _RAW_PATTERNS = {
         {"pattern": r"\b8\(a\)\b", "value": "8(a)", "confidence": "high", "name": "setaside_8a"},
         {"pattern": r"\b(?:SDVOSB|Service[- ]Disabled\s+Veteran[- ]Owned)\b", "value": "SDVOSB", "confidence": "high", "name": "setaside_sdvosb"},
         {"pattern": r"\bHUBZone\b", "value": "HUBZone", "confidence": "high", "name": "setaside_hubzone"},
+        {"pattern": r"\b(?:Total\s+Small\s+Business|Total\s+SB)\s*(?:Set[- ]?Aside)?\b", "value": "Total SB", "confidence": "high", "name": "setaside_total_sb"},
+        {"pattern": r"\bSmall\s+Business\s+Set[- ]?Aside\b", "value": "SB Set-Aside", "confidence": "high", "name": "setaside_sb"},
+        {"pattern": r"\b(?:VOSB|Veteran[- ]Owned\s+Small\s+Business)\b", "value": "VOSB", "confidence": "high", "name": "setaside_vosb"},
+        {"pattern": r"\bsole[- ]source\b", "value": "Sole Source", "confidence": "high", "name": "setaside_sole_source"},
+        {"pattern": r"\bFull\s+and\s+Open\s+Competition\b", "value": "Unrestricted", "confidence": "high", "name": "setaside_unrestricted_fao", "_needs_context_check": "no_other_than"},
+        {"pattern": r"\bUnrestricted\b", "value": "Unrestricted", "confidence": "medium", "name": "setaside_unrestricted", "_needs_context_check": "near_set_aside"},
+    ],
+    "period_of_performance": [
+        {"pattern": r"\b(?:one|two|three|four|five|six|seven|1|2|3|4|5|6|7)\s*\(?\d*\)?\s*base\s+(?:year|period)", "value": None, "confidence": "high", "name": "pop_base_year"},
+        {"pattern": r"\bbase\s+(?:year|period)\s*(?:plus|and|\+|with)\s*(?:\w+\s+)?\(?\d+\)?\s*option\s+(?:year|period)s?", "value": None, "confidence": "high", "name": "pop_base_plus_option"},
+        {"pattern": r"\bperiod\s+of\s+performance\s+(?:is|shall\s+be|:)\s*(?:approximately\s+)?(\d+)\s*(?:month|year|day)s?", "value": None, "confidence": "high", "name": "pop_duration"},
+        {"pattern": r"\b(?:one|two|three|four|five|six|seven|eight|nine|ten|\d+)[- ]year\s+(?:contract|IDIQ|ordering\s+period|effort|period)", "value": None, "confidence": "high", "name": "pop_x_year"},
+        {"pattern": r"\bordering\s+period\b", "value": None, "confidence": "medium", "name": "pop_ordering_period"},
+        {"pattern": r"\boption\s+(?:year|period)s?\b", "value": None, "confidence": "medium", "name": "pop_option"},
+    ],
+    "naics_code": [
+        {"pattern": r"\bNAICS\s*(?:Code)?[:\s]*(\d{6})\b", "value": None, "confidence": "high", "name": "naics_code"},
+        {"pattern": r"\bsize\s+standard\s+(?:of\s+|is\s+)?\$[\d,.]+\s*(?:million|M)?\b", "value": None, "confidence": "medium", "name": "naics_size_standard"},
+        {"pattern": r"\b(?:PSC|Product\s+Service\s+Code)[:\s]*([A-Z]\d{3})\b", "value": None, "confidence": "high", "name": "psc_code"},
+    ],
+    "wage_determination": [
+        {"pattern": r"\bService\s+Contract\s+(?:Act|Labor\s+Standards)\b", "value": "SCA", "confidence": "high", "name": "wage_sca"},
+        {"pattern": r"\bDavis[- ]Bacon(?:\s+Act)?\b", "value": "Davis-Bacon", "confidence": "high", "name": "wage_dba"},
+        {"pattern": r"\bWage\s+Determination\s*(?:No\.?|Number|#)?[:\s]*(?:[A-Z]{2})?\d{7,}\b", "value": None, "confidence": "high", "name": "wage_wd_number"},
+        {"pattern": r"\bFAR\s+52\.222-41\b", "value": "SCA", "confidence": "high", "name": "wage_far_sca"},
+        {"pattern": r"\bFAR\s+52\.222-6\b", "value": "Davis-Bacon", "confidence": "high", "name": "wage_far_dba"},
+        {"pattern": r"\bprevailing\s+wage\b", "value": None, "confidence": "medium", "name": "wage_prevailing"},
+    ],
+    "contract_value": [
+        {"pattern": r"\$\s*\d+(?:\.\d+)?\s*(?:million|billion|M|B)\b", "value": None, "confidence": "high", "name": "value_shorthand"},
+        {"pattern": r"\b(?:ceiling|maximum)\s+(?:value|price|amount|contract\s+value)\b", "value": None, "confidence": "medium", "name": "value_ceiling"},
+        {"pattern": r"\b(?:estimated|total|aggregate)\s+(?:value|amount|price|cost)\b", "value": None, "confidence": "medium", "name": "value_estimated"},
+        {"pattern": r"\bnot[- ]to[- ]exceed\b(?=.{0,30}\$)", "value": None, "confidence": "medium", "name": "value_nte"},
     ],
 }
 
@@ -287,6 +341,14 @@ _COMMON_ENGLISH_WORDS = _INCUMBENT_FALSE_POSITIVES | frozenset({
     "without", "would", "could", "might", "yet",
 })
 
+# PPQ / Past Performance document detection (Phase 110ZZ Task 8)
+# Documents matching this pattern describe past contracts, not the current procurement.
+# All confidence levels are downgraded by one level for matches in these documents.
+_PPQ_DOCUMENT_PATTERN = re.compile(
+    r"\b(?:Past\s+Performance\s+(?:Questionnaire|Information|Survey|Evaluation)|PPQ)\b",
+    re.IGNORECASE,
+)
+
 # Regex to detect Q&A format: name followed by (number)
 _QA_PAREN_NUMBER = re.compile(r"\s*\(\d")
 
@@ -330,9 +392,10 @@ _NEGATION_PHRASES_AFTER = re.compile(
 class AttachmentIntelExtractor:
     """Extract structured intelligence from opportunity attachment text using regex patterns."""
 
-    def __init__(self, db_connection=None, load_manager=None):
+    def __init__(self, db_connection=None, load_manager=None, dump_on_error: bool = False):
         self.db_connection = db_connection
         self.load_manager = load_manager or LoadManager()
+        self.dump_on_error = dump_on_error
 
     # ------------------------------------------------------------------
     # Public API
@@ -370,7 +433,12 @@ class AttachmentIntelExtractor:
 
         try:
             notice_ids = self._fetch_eligible_notices(notice_id, batch_size, method, force)
-            logger.info("Found %d notices to extract intel from (load_id=%d)", len(notice_ids), load_id)
+            total_eligible = self._count_eligible_notices(notice_id, method, force)
+            remaining = total_eligible - len(notice_ids)
+            logger.info(
+                "Found %d notices to extract intel from (load_id=%d) — %d total eligible, %d remaining after this batch",
+                len(notice_ids), load_id, total_eligible, remaining,
+            )
 
             from tqdm import tqdm
 
@@ -395,6 +463,8 @@ class AttachmentIntelExtractor:
                         error_message=str(e),
                     )
                     logger.error("Intel extraction failed for %s: %s", nid, e)
+                    if self.dump_on_error:
+                        raise
                 pbar.set_postfix_str(
                     f"intel={stats['intel_rows_upserted']}"
                 )
@@ -441,8 +511,9 @@ class AttachmentIntelExtractor:
             if force:
                 sql = (
                     "SELECT DISTINCT n.notice_id FROM ("
-                    "  SELECT notice_id FROM opportunity_attachment "
-                    "  WHERE extraction_status = 'extracted' AND extracted_text IS NOT NULL "
+                    "  SELECT m.notice_id FROM opportunity_attachment m "
+                    "  JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    "  WHERE ad.extraction_status = 'extracted' AND ad.extracted_text IS NOT NULL "
                     "  UNION "
                     "  SELECT notice_id FROM opportunity "
                     "  WHERE description_text IS NOT NULL AND description_text != ''"
@@ -454,21 +525,62 @@ class AttachmentIntelExtractor:
                 # Exclude notices that already have keyword intel
                 sql = (
                     "SELECT DISTINCT n.notice_id FROM ("
-                    "  SELECT notice_id FROM opportunity_attachment "
-                    "  WHERE extraction_status = 'extracted' AND extracted_text IS NOT NULL "
+                    "  SELECT m.notice_id FROM opportunity_attachment m "
+                    "  JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    "  WHERE ad.extraction_status = 'extracted' AND ad.extracted_text IS NOT NULL "
                     "  UNION "
                     "  SELECT notice_id FROM opportunity "
                     "  WHERE description_text IS NOT NULL AND description_text != ''"
                     ") n "
-                    "LEFT JOIN opportunity_attachment_intel i "
-                    "  ON n.notice_id = i.notice_id AND i.extraction_method = %s "
-                    "WHERE i.intel_id IS NULL "
+                    "LEFT JOIN opportunity_attachment_summary s "
+                    "  ON n.notice_id = s.notice_id AND s.extraction_method = %s "
+                    "WHERE s.summary_id IS NULL "
                     "ORDER BY n.notice_id "
                     "LIMIT %s"
                 )
             params = [batch_size] if force else [method, batch_size]
             cursor.execute(sql, params)
             return [row[0] for row in cursor.fetchall()]
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _count_eligible_notices(self, notice_id, method, force):
+        """Count total eligible notices (without LIMIT) for progress reporting."""
+        if notice_id:
+            return 1
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            if force:
+                sql = (
+                    "SELECT COUNT(DISTINCT n.notice_id) FROM ("
+                    "  SELECT m.notice_id FROM opportunity_attachment m "
+                    "  JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    "  WHERE ad.extraction_status = 'extracted' AND ad.extracted_text IS NOT NULL "
+                    "  UNION "
+                    "  SELECT notice_id FROM opportunity "
+                    "  WHERE description_text IS NOT NULL AND description_text != ''"
+                    ") n"
+                )
+                cursor.execute(sql)
+            else:
+                sql = (
+                    "SELECT COUNT(DISTINCT n.notice_id) FROM ("
+                    "  SELECT m.notice_id FROM opportunity_attachment m "
+                    "  JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    "  WHERE ad.extraction_status = 'extracted' AND ad.extracted_text IS NOT NULL "
+                    "  UNION "
+                    "  SELECT notice_id FROM opportunity "
+                    "  WHERE description_text IS NOT NULL AND description_text != ''"
+                    ") n "
+                    "LEFT JOIN opportunity_attachment_summary s "
+                    "  ON n.notice_id = s.notice_id AND s.extraction_method = %s "
+                    "WHERE s.summary_id IS NULL"
+                )
+                cursor.execute(sql, [method])
+            return cursor.fetchone()[0]
         finally:
             cursor.close()
             conn.close()
@@ -505,50 +617,30 @@ class AttachmentIntelExtractor:
         intel = self._consolidate_matches(all_matches)
         text_hash = self._compute_combined_hash(sources)
 
-        # Upsert per-source intel rows (one per attachment_id)
-        attachment_ids_seen = set()
-        for attachment_id, filename, text in sources:
-            source_matches = [m for m in all_matches if m[1]["attachment_id"] == attachment_id]
+        # Upsert per-source intel rows (one per document_id)
+        document_ids_seen = set()
+        for document_id, filename, text in sources:
+            source_matches = [m for m in all_matches if m[1]["attachment_id"] == document_id]
             if not source_matches:
                 continue
-            attachment_ids_seen.add(attachment_id)
+            document_ids_seen.add(document_id)
             source_intel = self._consolidate_matches(source_matches)
             source_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
             intel_id = self._upsert_intel_row(
-                notice_id, attachment_id, method, source_hash, source_intel, load_id,
+                notice_id, document_id, method, source_hash, source_intel, load_id,
             )
-            result["intel_upserted"] += 1
+            if intel_id:
+                result["intel_upserted"] += 1
 
-            # Replace source provenance rows
-            source_count = self._replace_source_rows(
-                intel_id, source_matches, method,
-            )
-            result["sources_inserted"] += source_count
+                # Replace evidence provenance rows
+                source_count = self._replace_source_rows(
+                    intel_id, source_matches, method,
+                )
+                result["sources_inserted"] += source_count
 
-        # Also upsert a consolidated row with attachment_id=NULL if multiple sources
-        if len(sources) > 1 or (len(sources) == 1 and sources[0][0] is not None):
-            # Always create a NULL-attachment consolidated row for the notice
-            consolidated_id = self._upsert_intel_row(
-                notice_id, None, method, text_hash, intel, load_id,
-            )
-            result["intel_upserted"] += 1
-            source_count = self._replace_source_rows(
-                consolidated_id, all_matches, method,
-            )
-            result["sources_inserted"] += source_count
-
-        # If only one source and it was description_text (attachment_id=None),
-        # the per-source loop already created the NULL row
-        if len(sources) == 1 and sources[0][0] is None and not attachment_ids_seen:
-            consolidated_id = self._upsert_intel_row(
-                notice_id, None, method, text_hash, intel, load_id,
-            )
-            result["intel_upserted"] += 1
-            source_count = self._replace_source_rows(
-                consolidated_id, all_matches, method,
-            )
-            result["sources_inserted"] += source_count
+        # Upsert opportunity-level summary row in opportunity_attachment_summary
+        self._upsert_summary_row(notice_id, method, text_hash, intel, load_id)
 
         # Inline backfill removed in Phase 110H — opportunity columns are now
         # updated exclusively by `backfill opportunity-intel` (per-field ranking).
@@ -561,22 +653,29 @@ class AttachmentIntelExtractor:
     def _gather_text_sources(self, notice_id):
         """Gather all text sources for a notice.
 
-        Returns list of (attachment_id_or_None, filename, text).
+        Returns list of (document_id_or_None, filename, text).
+        Joins through opportunity_attachment map to find documents for this notice.
         """
         sources = []
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
-            # Extracted attachments
+            # Extracted attachments via map table
             cursor.execute(
-                "SELECT attachment_id, filename, extracted_text "
-                "FROM opportunity_attachment "
-                "WHERE notice_id = %s AND extraction_status = 'extracted' "
-                "AND extracted_text IS NOT NULL",
+                "SELECT ad.document_id, COALESCE(ad.filename, sa.filename) AS filename, "
+                "ad.extracted_text "
+                "FROM opportunity_attachment m "
+                "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                "JOIN sam_attachment sa ON sa.attachment_id = m.attachment_id "
+                "WHERE m.notice_id = %s AND ad.extraction_status = 'extracted' "
+                "AND ad.extracted_text IS NOT NULL",
                 (notice_id,),
             )
             for row in cursor.fetchall():
-                sources.append((row["attachment_id"], row["filename"] or "unknown", row["extracted_text"]))
+                fname = row["filename"] or "unknown"
+                # Prepend filename so vehicle-type patterns can match it (Phase 110ZZ Task 7)
+                text_with_filename = fname + "\n" + row["extracted_text"]
+                sources.append((row["document_id"], fname, text_with_filename))
 
             # Opportunity description_text as virtual attachment
             cursor.execute(
@@ -603,6 +702,12 @@ class AttachmentIntelExtractor:
         """
         matches = []
 
+        # PPQ heuristic: detect past-performance documents (Phase 110ZZ Task 8)
+        is_ppq = bool(
+            _PPQ_DOCUMENT_PATTERN.search(filename)
+            or _PPQ_DOCUMENT_PATTERN.search(text[:200])
+        )
+
         for category, patterns in PATTERNS.items():
             # Sort patterns longest-first so longer phrases claim their
             # character range before shorter substrings can match inside them.
@@ -627,10 +732,32 @@ class AttachmentIntelExtractor:
                         )
                         continue
 
+                    # --- Context checks for high-FP patterns (Phase 110ZZ) ---
+                    context_check = pdef.get("_needs_context_check")
+                    if context_check == "no_other_than":
+                        # "Full and Open Competition" — skip if preceded by "other than" within 60 chars
+                        pre_text = text[max(0, m.start() - 60):m.start()].lower()
+                        if "other than" in pre_text:
+                            logger.debug("Context check failed (other than): %s in %s", pdef["name"], filename)
+                            continue
+                    elif context_check == "near_set_aside":
+                        # "Unrestricted" — require near "set-aside" or "competition" heading/context
+                        window = text[max(0, m.start() - 200):min(len(text), m.end() + 200)].lower()
+                        if not any(kw in window for kw in ("set-aside", "set aside", "competition type", "competition:")):
+                            logger.debug("Context check failed (no set-aside context): %s in %s", pdef["name"], filename)
+                            continue
+
                     confidence = pdef["confidence"]
 
                     # Structure-aware confidence boosting
                     confidence = self._boost_confidence(text, m.start(), category, confidence)
+
+                    # PPQ downgrade: past-performance docs describe old contracts (Phase 110ZZ Task 8)
+                    if is_ppq:
+                        if confidence == "high":
+                            confidence = "medium"
+                        elif confidence == "medium":
+                            confidence = "low"
 
                     context_start = max(0, m.start() - 150)
                     context_end = min(len(text), m.end() + 150)
@@ -816,16 +943,17 @@ class AttachmentIntelExtractor:
             "clearance_required": None,
             "clearance_level": None,
             "clearance_scope": None,
-            "clearance_details": [],
+            "clearance_details": {},
             "eval_method": None,
-            "eval_details": [],
+            "eval_details": {},
             "vehicle_type": None,
-            "vehicle_details": [],
+            "vehicle_details": {},
             "is_recompete": None,
             "incumbent_name": None,
-            "recompete_details": [],
+            "recompete_details": {},
             "pricing_structure": None,
             "place_of_performance": None,
+            "period_of_performance": None,
             "key_requirements": [],
             "overall_confidence": "low",
             "confidence_details": {},
@@ -843,15 +971,16 @@ class AttachmentIntelExtractor:
             if conf_rank > prev[0] or (conf_rank == prev[0] and value and not prev[1]):
                 best[category] = (conf_rank, value, scope)
 
-            # Collect details
+            # Collect details (deduplicated with occurrence counts)
+            detail_key = f"{info['pattern_name']}: {info['matched_text']}"
             if category == "clearance_level":
-                intel["clearance_details"].append(f"{info['pattern_name']}: {info['matched_text']}")
+                intel["clearance_details"][detail_key] = intel["clearance_details"].get(detail_key, 0) + 1
             elif category == "eval_method":
-                intel["eval_details"].append(f"{info['pattern_name']}: {info['matched_text']}")
+                intel["eval_details"][detail_key] = intel["eval_details"].get(detail_key, 0) + 1
             elif category == "vehicle_type":
-                intel["vehicle_details"].append(f"{info['pattern_name']}: {info['matched_text']}")
+                intel["vehicle_details"][detail_key] = intel["vehicle_details"].get(detail_key, 0) + 1
             elif category == "recompete":
-                intel["recompete_details"].append(f"{info['pattern_name']}: {info['matched_text']}")
+                intel["recompete_details"][detail_key] = intel["recompete_details"].get(detail_key, 0) + 1
             elif category == "incumbent_name":
                 # Collect for occurrence-based consolidation (Phase 110D)
                 pass  # handled below after loop
@@ -875,6 +1004,30 @@ class AttachmentIntelExtractor:
             elif category == "set_aside_type":
                 tag_value = value if value else info["matched_text"]
                 tagged = f"[SET-ASIDE] {tag_value}"
+                if tagged not in intel["key_requirements"]:
+                    intel["key_requirements"].append(tagged)
+            elif category == "period_of_performance":
+                tag_value = info["matched_text"]
+                # Store the matched text with surrounding context as the value
+                context = info.get("surrounding_context", tag_value)
+                if tag_value not in str(intel.get("period_of_performance") or ""):
+                    if intel["period_of_performance"]:
+                        intel["period_of_performance"] += "; " + tag_value
+                    else:
+                        intel["period_of_performance"] = tag_value
+            elif category == "naics_code":
+                tag_value = value if value else info["matched_text"]
+                tagged = f"[NAICS] {tag_value}"
+                if tagged not in intel["key_requirements"]:
+                    intel["key_requirements"].append(tagged)
+            elif category == "wage_determination":
+                tag_value = value if value else info["matched_text"]
+                tagged = f"[WAGE] {tag_value}"
+                if tagged not in intel["key_requirements"]:
+                    intel["key_requirements"].append(tagged)
+            elif category == "contract_value":
+                tag_value = value if value else info["matched_text"]
+                tagged = f"[VALUE] {tag_value}"
                 if tagged not in intel["key_requirements"]:
                     intel["key_requirements"].append(tagged)
 
@@ -940,8 +1093,12 @@ class AttachmentIntelExtractor:
                 intel["place_of_performance"] = value
             intel["confidence_details"]["place_of_performance"] = _rank_to_conf(rank)
 
+        if "period_of_performance" in best:
+            rank, _, _ = best["period_of_performance"]
+            intel["confidence_details"]["period_of_performance"] = _rank_to_conf(rank)
+
         # Track confidence for JSON array categories
-        for json_cat in ("compliance_certs", "bonding_insurance", "subcontracting_oci", "set_aside_type"):
+        for json_cat in ("compliance_certs", "bonding_insurance", "subcontracting_oci", "set_aside_type", "naics_code", "wage_determination", "contract_value"):
             if json_cat in best:
                 rank, _, _ = best[json_cat]
                 intel["confidence_details"][json_cat] = _rank_to_conf(rank)
@@ -963,11 +1120,16 @@ class AttachmentIntelExtractor:
         else:
             intel["overall_confidence"] = "low"
 
-        # Convert detail lists to text
-        intel["clearance_details"] = "; ".join(intel["clearance_details"]) if intel["clearance_details"] else None
-        intel["eval_details"] = "; ".join(intel["eval_details"]) if intel["eval_details"] else None
-        intel["vehicle_details"] = "; ".join(intel["vehicle_details"]) if intel["vehicle_details"] else None
-        intel["recompete_details"] = "; ".join(intel["recompete_details"]) if intel["recompete_details"] else None
+        # Convert detail dicts to "pattern: text (count)" format
+        def _format_details(detail_dict):
+            if not detail_dict:
+                return None
+            return "; ".join(f"{k} ({v})" for k, v in detail_dict.items())
+
+        intel["clearance_details"] = _format_details(intel["clearance_details"])
+        intel["eval_details"] = _format_details(intel["eval_details"])
+        intel["vehicle_details"] = _format_details(intel["vehicle_details"])
+        intel["recompete_details"] = _format_details(intel["recompete_details"])
 
         # Convert key_requirements list to JSON (or None if empty)
         intel["key_requirements"] = intel["key_requirements"] if intel["key_requirements"] else None
@@ -986,18 +1148,115 @@ class AttachmentIntelExtractor:
     # DB persistence
     # ------------------------------------------------------------------
 
-    def _upsert_intel_row(self, notice_id, attachment_id, method, text_hash, intel, load_id):
-        """Upsert a row into opportunity_attachment_intel. Returns intel_id."""
+    # Fields that hold potentially large text in intel dicts
+    _TEXT_FIELDS = [
+        "clearance_details", "eval_details", "vehicle_details", "recompete_details",
+        "clearance_level", "clearance_scope", "eval_method", "vehicle_type",
+        "incumbent_name", "pricing_structure", "place_of_performance",
+        "period_of_performance", "overall_confidence",
+    ]
+
+    def _handle_db_insert_error(self, e, table_name, notice_id, method, intel, document_id=None):
+        """Build enhanced error message for DB insert failures and optionally dump to file.
+
+        Args:
+            e: The exception from the DB insert.
+            table_name: Table being written to (document_intel_summary or opportunity_attachment_summary).
+            notice_id: The opportunity notice ID.
+            method: Extraction method label.
+            intel: The intel dict being inserted.
+            document_id: The document ID (None for summary rows).
+
+        Returns:
+            Enhanced error message string.
+
+        Raises:
+            The original exception if dump_on_error is True (after writing dump file).
+        """
+        err_str = str(e)
+
+        # Try to extract column name from MySQL error like "Data too long for column 'X'"
+        import re as _re
+        col_match = _re.search(r"Data too long for column '(\w+)'", err_str)
+        col_name = col_match.group(1) if col_match else None
+
+        # Build field-length summary
+        field_lengths = {}
+        for field in self._TEXT_FIELDS:
+            val = intel.get(field)
+            if val is not None:
+                field_lengths[field] = len(str(val).encode("utf-8"))
+
+        # Also check JSON-serialized fields
+        for field in ("key_requirements", "confidence_details"):
+            val = intel.get(field)
+            if val is not None:
+                serialized = json.dumps(val)
+                field_lengths[field] = len(serialized.encode("utf-8"))
+
+        if col_name and col_name in field_lengths:
+            enhanced_msg = (
+                f"Data too long for column '{col_name}' on {table_name} "
+                f"(attempted {field_lengths[col_name]:,} bytes, column max ~65535 bytes)"
+            )
+        else:
+            enhanced_msg = f"DB insert error on {table_name}: {err_str}"
+
+        if self.dump_on_error:
+            # Write dump file
+            dump_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "logs")
+            os.makedirs(dump_dir, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+            dump_filename = f"intel_dump_{notice_id}_{ts}.json"
+            dump_path = os.path.join(dump_dir, dump_filename)
+
+            # Build serializable dump
+            dump_data = {
+                "notice_id": notice_id,
+                "document_id": document_id,
+                "extraction_method": method,
+                "table_name": table_name,
+                "field_lengths_bytes": field_lengths,
+                "intel": {},
+            }
+            for k, v in intel.items():
+                try:
+                    json.dumps(v)
+                    dump_data["intel"][k] = v
+                except (TypeError, ValueError):
+                    dump_data["intel"][k] = str(v)
+
+            with open(dump_path, "w", encoding="utf-8") as f:
+                json.dump(dump_data, f, indent=2, default=str)
+
+            logger.error(
+                "Intel extraction failed for %s: %s — dump written to %s",
+                notice_id, enhanced_msg, dump_path,
+            )
+            raise
+
+        return enhanced_msg
+
+    def _upsert_intel_row(self, notice_id, document_id, method, text_hash, intel, load_id):
+        """Upsert a per-document intel row into document_intel_summary. Returns intel_id.
+
+        For document_id=None (description_text source), this is skipped — those go
+        to the summary table only.
+        """
+        if document_id is None:
+            # Description-text-only sources don't get per-document intel rows
+            return None
+
         conn = get_connection()
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "INSERT INTO opportunity_attachment_intel "
-                "(notice_id, attachment_id, extraction_method, source_text_hash, "
+                "INSERT INTO document_intel_summary "
+                "(document_id, extraction_method, source_text_hash, "
                 " clearance_required, clearance_level, clearance_scope, clearance_details, "
                 " eval_method, eval_details, vehicle_type, vehicle_details, "
                 " is_recompete, incumbent_name, recompete_details, "
-                " pricing_structure, place_of_performance, key_requirements, "
+                " pricing_structure, place_of_performance, period_of_performance, key_requirements, "
                 " overall_confidence, confidence_details, last_load_id, extracted_at) "
                 "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
                 "ON DUPLICATE KEY UPDATE "
@@ -1015,14 +1274,14 @@ class AttachmentIntelExtractor:
                 "recompete_details = VALUES(recompete_details), "
                 "pricing_structure = VALUES(pricing_structure), "
                 "place_of_performance = VALUES(place_of_performance), "
+                "period_of_performance = VALUES(period_of_performance), "
                 "key_requirements = VALUES(key_requirements), "
                 "overall_confidence = VALUES(overall_confidence), "
                 "confidence_details = VALUES(confidence_details), "
                 "last_load_id = VALUES(last_load_id), "
                 "extracted_at = VALUES(extracted_at)",
                 (
-                    notice_id,
-                    attachment_id,
+                    document_id,
                     method,
                     text_hash,
                     intel["clearance_required"],
@@ -1038,6 +1297,7 @@ class AttachmentIntelExtractor:
                     intel["recompete_details"],
                     intel["pricing_structure"],
                     intel["place_of_performance"],
+                    intel["period_of_performance"],
                     json.dumps(intel["key_requirements"]) if intel["key_requirements"] else None,
                     intel["overall_confidence"],
                     json.dumps(intel["confidence_details"]) if intel["confidence_details"] else None,
@@ -1053,23 +1313,102 @@ class AttachmentIntelExtractor:
             else:
                 # ON DUPLICATE KEY UPDATE doesn't set lastrowid reliably; query it
                 cursor.execute(
-                    "SELECT intel_id FROM opportunity_attachment_intel "
-                    "WHERE notice_id = %s AND attachment_id <=> %s AND extraction_method = %s",
-                    (notice_id, attachment_id, method),
+                    "SELECT intel_id FROM document_intel_summary "
+                    "WHERE document_id = %s AND extraction_method = %s",
+                    (document_id, method),
                 )
                 row = cursor.fetchone()
                 intel_id = row[0] if row else None
 
             return intel_id
-        except Exception:
+        except Exception as e:
             conn.rollback()
-            raise
+            enhanced = self._handle_db_insert_error(
+                e, "document_intel_summary", notice_id, method, intel,
+                document_id=document_id,
+            )
+            # If dump_on_error is True, _handle_db_insert_error already raised.
+            # Otherwise, raise with the enhanced message.
+            raise type(e)(enhanced) from e
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _upsert_summary_row(self, notice_id, method, text_hash, intel, load_id):
+        """Upsert a per-opportunity rollup row into opportunity_attachment_summary."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO opportunity_attachment_summary "
+                "(notice_id, extraction_method, source_text_hash, "
+                " clearance_required, clearance_level, clearance_scope, clearance_details, "
+                " eval_method, eval_details, vehicle_type, vehicle_details, "
+                " is_recompete, incumbent_name, recompete_details, "
+                " pricing_structure, place_of_performance, period_of_performance, key_requirements, "
+                " overall_confidence, confidence_details, last_load_id, extracted_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE "
+                "source_text_hash = VALUES(source_text_hash), "
+                "clearance_required = VALUES(clearance_required), "
+                "clearance_level = VALUES(clearance_level), "
+                "clearance_scope = VALUES(clearance_scope), "
+                "clearance_details = VALUES(clearance_details), "
+                "eval_method = VALUES(eval_method), "
+                "eval_details = VALUES(eval_details), "
+                "vehicle_type = VALUES(vehicle_type), "
+                "vehicle_details = VALUES(vehicle_details), "
+                "is_recompete = VALUES(is_recompete), "
+                "incumbent_name = VALUES(incumbent_name), "
+                "recompete_details = VALUES(recompete_details), "
+                "pricing_structure = VALUES(pricing_structure), "
+                "place_of_performance = VALUES(place_of_performance), "
+                "period_of_performance = VALUES(period_of_performance), "
+                "key_requirements = VALUES(key_requirements), "
+                "overall_confidence = VALUES(overall_confidence), "
+                "confidence_details = VALUES(confidence_details), "
+                "last_load_id = VALUES(last_load_id), "
+                "extracted_at = VALUES(extracted_at)",
+                (
+                    notice_id,
+                    method,
+                    text_hash,
+                    intel["clearance_required"],
+                    intel["clearance_level"],
+                    intel.get("clearance_scope"),
+                    intel["clearance_details"],
+                    intel["eval_method"],
+                    intel["eval_details"],
+                    intel["vehicle_type"],
+                    intel["vehicle_details"],
+                    intel["is_recompete"],
+                    intel["incumbent_name"],
+                    intel["recompete_details"],
+                    intel["pricing_structure"],
+                    intel["place_of_performance"],
+                    intel["period_of_performance"],
+                    json.dumps(intel["key_requirements"]) if intel["key_requirements"] else None,
+                    intel["overall_confidence"],
+                    json.dumps(intel["confidence_details"]) if intel["confidence_details"] else None,
+                    load_id,
+                    datetime.now(),
+                ),
+            )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            enhanced = self._handle_db_insert_error(
+                e, "opportunity_attachment_summary", notice_id, method, intel,
+            )
+            # If dump_on_error is True, _handle_db_insert_error already raised.
+            # Otherwise, raise with the enhanced message.
+            raise type(e)(enhanced) from e
         finally:
             cursor.close()
             conn.close()
 
     def _replace_source_rows(self, intel_id, matches, method):
-        """Delete old source rows and insert new ones for an intel_id.
+        """Delete old evidence rows and insert new ones for an intel_id.
 
         Returns count of rows inserted.
         """
@@ -1079,9 +1418,9 @@ class AttachmentIntelExtractor:
         conn = get_connection()
         cursor = conn.cursor()
         try:
-            # Delete existing source rows for this intel_id
+            # Delete existing evidence rows for this intel_id
             cursor.execute(
-                "DELETE FROM opportunity_intel_source WHERE intel_id = %s",
+                "DELETE FROM document_intel_evidence WHERE intel_id = %s",
                 (intel_id,),
             )
 
@@ -1095,8 +1434,8 @@ class AttachmentIntelExtractor:
                     field_name = "incumbent_name"
 
                 cursor.execute(
-                    "INSERT INTO opportunity_intel_source "
-                    "(intel_id, field_name, attachment_id, source_filename, "
+                    "INSERT INTO document_intel_evidence "
+                    "(intel_id, field_name, document_id, source_filename, "
                     " char_offset_start, char_offset_end, matched_text, "
                     " surrounding_context, pattern_name, extraction_method, confidence) "
                     "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
@@ -1139,10 +1478,10 @@ class AttachmentIntelExtractor:
     ]
 
     def _resolve_incumbent_for_opportunity(self, notice_id, load_id):
-        """Resolve incumbent name across all attachment intel rows for a notice.
+        """Resolve incumbent name across all document intel rows for a notice.
 
-        Queries all opportunity_attachment_intel rows for the notice_id where
-        incumbent_name IS NOT NULL. If all agree, uses that name. If they
+        Queries all document_intel_summary rows for the notice_id (via map table)
+        where incumbent_name IS NOT NULL. If all agree, uses that name. If they
         disagree, picks the name with the highest occurrence count. Ties are
         broken by document-type weighting based on filename heuristics.
 
@@ -1152,10 +1491,12 @@ class AttachmentIntelExtractor:
         cursor = conn.cursor(dictionary=True)
         try:
             cursor.execute(
-                "SELECT i.incumbent_name, a.filename "
-                "FROM opportunity_attachment_intel i "
-                "LEFT JOIN opportunity_attachment a ON i.attachment_id = a.attachment_id "
-                "WHERE i.notice_id = %s AND i.incumbent_name IS NOT NULL",
+                "SELECT dis.incumbent_name, COALESCE(ad.filename, sa.filename) AS filename "
+                "FROM document_intel_summary dis "
+                "JOIN attachment_document ad ON ad.document_id = dis.document_id "
+                "JOIN sam_attachment sa ON sa.attachment_id = ad.attachment_id "
+                "JOIN opportunity_attachment m ON m.attachment_id = sa.attachment_id "
+                "WHERE m.notice_id = %s AND dis.incumbent_name IS NOT NULL",
                 (notice_id,),
             )
             rows = cursor.fetchall()
@@ -1290,25 +1631,62 @@ class AttachmentIntelExtractor:
     # ------------------------------------------------------------------
 
     def _cleanup_stale_intel_rows(self, notice_id):
-        """Delete stale intel rows with attachment_id=NULL for a notice.
+        """Delete stale summary rows for a notice before re-extraction.
 
-        When --force is used, old consolidated intel rows (attachment_id IS NULL)
-        from previous runs may persist. This removes them before re-extraction
-        so they don't interfere with fresh results.
+        When --force is used, old consolidated summary rows from previous runs
+        may persist. This removes them before re-extraction so they don't
+        interfere with fresh results.
+
+        Also cleans up per-document intel+evidence for documents mapped to this notice.
+        Deletes evidence rows BEFORE intel rows (evidence references intel_id).
         """
         conn = get_connection()
         cursor = conn.cursor()
         try:
+            # 1. Delete stale opportunity_attachment_summary rows for this notice
+            #    Only keyword/heuristic rows — leave AI rows intact
             cursor.execute(
-                "DELETE FROM opportunity_attachment_intel "
-                "WHERE notice_id = %s AND attachment_id IS NULL",
+                "DELETE FROM opportunity_attachment_summary "
+                "WHERE notice_id = %s AND extraction_method IN ('keyword', 'heuristic')",
                 (notice_id,),
             )
-            deleted = cursor.rowcount
+            summary_deleted = cursor.rowcount
+
+            # 2. Delete per-document evidence + intel for documents mapped to this notice
+            #    Only keyword/heuristic rows — leave AI rows intact
+            # First find intel_ids for documents on this notice
+            cursor.execute(
+                "SELECT dis.intel_id FROM document_intel_summary dis "
+                "JOIN attachment_document ad ON ad.document_id = dis.document_id "
+                "JOIN opportunity_attachment m ON m.attachment_id = ad.attachment_id "
+                "WHERE m.notice_id = %s AND dis.extraction_method IN ('keyword', 'heuristic')",
+                (notice_id,),
+            )
+            intel_ids = [row[0] for row in cursor.fetchall()]
+
+            evidence_deleted = 0
+            intel_deleted = 0
+            if intel_ids:
+                # Delete evidence BEFORE intel (evidence references intel_id)
+                placeholders = ", ".join(["%s"] * len(intel_ids))
+                cursor.execute(
+                    f"DELETE FROM document_intel_evidence WHERE intel_id IN ({placeholders})",
+                    intel_ids,
+                )
+                evidence_deleted = cursor.rowcount
+
+                cursor.execute(
+                    f"DELETE FROM document_intel_summary WHERE intel_id IN ({placeholders})",
+                    intel_ids,
+                )
+                intel_deleted = cursor.rowcount
+
             conn.commit()
-            if deleted > 0:
+            total = summary_deleted + evidence_deleted + intel_deleted
+            if total > 0:
                 logger.debug(
-                    "Cleaned up %d stale intel rows for %s", deleted, notice_id
+                    "Cleaned up stale intel for %s: %d summary, %d intel, %d evidence rows",
+                    notice_id, summary_deleted, intel_deleted, evidence_deleted,
                 )
         except Exception:
             conn.rollback()

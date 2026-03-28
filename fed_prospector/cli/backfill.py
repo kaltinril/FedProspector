@@ -157,13 +157,14 @@ def _resolve_ai_preferred(intel_rows, field_doc_counts, total_doc_counts,
     # -- Keyword fallback with filename weighting + case-insensitive dedup --
     if cursor and notice_id and field_name == "incumbent_name":
         cursor.execute("""
-            SELECT i.incumbent_name, a.filename
-            FROM opportunity_attachment_intel i
-            LEFT JOIN opportunity_attachment a
-                   ON i.attachment_id = a.attachment_id
-            WHERE i.notice_id = %s
-              AND i.incumbent_name IS NOT NULL
-              AND i.extraction_method IN ('keyword', 'heuristic')
+            SELECT dis.incumbent_name, sa.filename
+            FROM opportunity_attachment oa
+            JOIN attachment_document ad ON oa.attachment_id = ad.attachment_id
+            JOIN document_intel_summary dis ON ad.document_id = dis.document_id
+            LEFT JOIN sam_attachment sa ON oa.attachment_id = sa.attachment_id
+            WHERE oa.notice_id = %s
+              AND dis.incumbent_name IS NOT NULL
+              AND dis.extraction_method IN ('keyword', 'heuristic')
         """, [notice_id])
         kw_rows = cursor.fetchall()
 
@@ -226,7 +227,7 @@ def _resolve_uei(cursor, incumbent_name):
     return None, None
 
 
-# Map opportunity_intel_source.field_name → intel column name used by backfill
+# Map document_intel_evidence.field_name → intel column name used by backfill
 _SOURCE_FIELD_MAP = {
     "clearance_level": "clearance_required",
     # Others match: vehicle_type, pricing_structure, place_of_performance, incumbent_name
@@ -250,21 +251,24 @@ def _load_source_counts(cursor, notice_ids):
     params = list(notice_ids)
 
     # Per-value document counts
+    # Join: evidence -> document_intel_summary -> attachment_document -> opportunity_attachment
     cursor.execute(f"""
-        SELECT oai.notice_id, ois.field_name,
-               CASE ois.field_name
-                   WHEN 'clearance_level' THEN oai.clearance_required
-                   WHEN 'vehicle_type' THEN oai.vehicle_type
-                   WHEN 'pricing_structure' THEN oai.pricing_structure
-                   WHEN 'place_of_performance' THEN oai.place_of_performance
-                   WHEN 'incumbent_name' THEN oai.incumbent_name
+        SELECT oa.notice_id, die.field_name,
+               CASE die.field_name
+                   WHEN 'clearance_level' THEN dis.clearance_required
+                   WHEN 'vehicle_type' THEN dis.vehicle_type
+                   WHEN 'pricing_structure' THEN dis.pricing_structure
+                   WHEN 'place_of_performance' THEN dis.place_of_performance
+                   WHEN 'incumbent_name' THEN dis.incumbent_name
                END AS field_value,
-               COUNT(DISTINCT COALESCE(ois.attachment_id, CONCAT('intel_', ois.intel_id))) AS doc_count
-        FROM opportunity_intel_source ois
-        JOIN opportunity_attachment_intel oai ON ois.intel_id = oai.intel_id
-        WHERE oai.notice_id IN ({placeholders})
-          AND ois.extraction_method IN ('keyword', 'heuristic')
-        GROUP BY oai.notice_id, ois.field_name, field_value
+               COUNT(DISTINCT die.document_id) AS doc_count
+        FROM document_intel_evidence die
+        JOIN document_intel_summary dis ON die.intel_id = dis.intel_id
+        JOIN attachment_document ad ON dis.document_id = ad.document_id
+        JOIN opportunity_attachment oa ON ad.attachment_id = oa.attachment_id
+        WHERE oa.notice_id IN ({placeholders})
+          AND die.extraction_method IN ('keyword', 'heuristic')
+        GROUP BY oa.notice_id, die.field_name, field_value
     """, params)
 
     field_doc_counts = {}
@@ -275,13 +279,15 @@ def _load_source_counts(cursor, notice_ids):
 
     # Total distinct docs per (notice_id, field_name)
     cursor.execute(f"""
-        SELECT oai.notice_id, ois.field_name,
-               COUNT(DISTINCT COALESCE(ois.attachment_id, CONCAT('intel_', ois.intel_id))) AS total_docs
-        FROM opportunity_intel_source ois
-        JOIN opportunity_attachment_intel oai ON ois.intel_id = oai.intel_id
-        WHERE oai.notice_id IN ({placeholders})
-          AND ois.extraction_method IN ('keyword', 'heuristic')
-        GROUP BY oai.notice_id, ois.field_name
+        SELECT oa.notice_id, die.field_name,
+               COUNT(DISTINCT die.document_id) AS total_docs
+        FROM document_intel_evidence die
+        JOIN document_intel_summary dis ON die.intel_id = dis.intel_id
+        JOIN attachment_document ad ON dis.document_id = ad.document_id
+        JOIN opportunity_attachment oa ON ad.attachment_id = oa.attachment_id
+        WHERE oa.notice_id IN ({placeholders})
+          AND die.extraction_method IN ('keyword', 'heuristic')
+        GROUP BY oa.notice_id, die.field_name
     """, params)
 
     total_doc_counts = {}
@@ -295,25 +301,60 @@ def _load_source_counts(cursor, notice_ids):
 def _load_intel_rows(cursor, notice_ids):
     """Load intel rows for a batch of notice_ids.
 
+    Loads keyword/heuristic rows from opportunity_attachment_summary AND
+    AI rows (ai_haiku, ai_sonnet) from document_intel_summary so that
+    _resolve_keyword_preferred and _resolve_ai_preferred can see both sources.
+
     Returns dict of notice_id -> list of intel rows.
     """
     if not notice_ids:
         return {}
 
     placeholders = ", ".join(["%s"] * len(notice_ids))
+
+    # 1. Keyword/heuristic rows from opportunity_attachment_summary
     cursor.execute(f"""
-        SELECT intel_id, notice_id, extraction_method,
+        SELECT summary_id AS intel_id, notice_id, extraction_method,
                clearance_required,
                vehicle_type, incumbent_name,
                pricing_structure, place_of_performance
-        FROM opportunity_attachment_intel
+        FROM opportunity_attachment_summary
         WHERE notice_id IN ({placeholders})
-        ORDER BY notice_id, intel_id
+        ORDER BY notice_id, summary_id
     """, list(notice_ids))
 
     grouped = defaultdict(list)
     for row in cursor.fetchall():
         grouped[row["notice_id"]].append(row)
+
+    # 2. AI rows from document_intel_summary (ai_haiku, ai_sonnet)
+    #    Join through attachment_document -> opportunity_attachment to get notice_id.
+    #    For each notice, pick the best AI row per extraction_method
+    #    (highest confidence, prefer sonnet over haiku).
+    cursor.execute(f"""
+        SELECT dis.intel_id, oa.notice_id, dis.extraction_method,
+               dis.clearance_required,
+               dis.vehicle_type, dis.incumbent_name,
+               dis.pricing_structure, dis.place_of_performance
+        FROM document_intel_summary dis
+        JOIN attachment_document ad ON ad.document_id = dis.document_id
+        JOIN opportunity_attachment oa ON oa.attachment_id = ad.attachment_id
+        WHERE oa.notice_id IN ({placeholders})
+          AND dis.extraction_method IN ('ai_haiku', 'ai_sonnet')
+        ORDER BY oa.notice_id,
+                 FIELD(dis.extraction_method, 'ai_haiku', 'ai_sonnet'),
+                 FIELD(dis.overall_confidence, 'low', 'medium', 'high') DESC,
+                 dis.intel_id DESC
+    """, list(notice_ids))
+
+    # Keep only the best AI row per (notice_id, extraction_method)
+    seen_ai = set()
+    for row in cursor.fetchall():
+        key = (row["notice_id"], row["extraction_method"])
+        if key not in seen_ai:
+            seen_ai.add(key)
+            grouped[row["notice_id"]].append(row)
+
     return grouped
 
 
@@ -352,15 +393,29 @@ def backfill_opportunity_intel(notice_id, dry_run, verbose):
     cursor = conn.cursor(dictionary=True)
 
     try:
-        # Get all notice_ids that have intel rows
+        # Get all notice_ids that have intel rows (keyword OR AI)
         if notice_id:
             cursor.execute(
-                "SELECT DISTINCT notice_id FROM opportunity_attachment_intel "
-                "WHERE notice_id = %s", [notice_id]
+                "SELECT DISTINCT notice_id FROM opportunity_attachment_summary "
+                "WHERE notice_id = %s "
+                "UNION "
+                "SELECT DISTINCT oa.notice_id "
+                "FROM document_intel_summary dis "
+                "JOIN attachment_document ad ON ad.document_id = dis.document_id "
+                "JOIN opportunity_attachment oa ON oa.attachment_id = ad.attachment_id "
+                "WHERE oa.notice_id = %s "
+                "  AND dis.extraction_method IN ('ai_haiku', 'ai_sonnet')",
+                [notice_id, notice_id]
             )
         else:
             cursor.execute(
-                "SELECT DISTINCT notice_id FROM opportunity_attachment_intel"
+                "SELECT DISTINCT notice_id FROM opportunity_attachment_summary "
+                "UNION "
+                "SELECT DISTINCT oa.notice_id "
+                "FROM document_intel_summary dis "
+                "JOIN attachment_document ad ON ad.document_id = dis.document_id "
+                "JOIN opportunity_attachment oa ON oa.attachment_id = ad.attachment_id "
+                "WHERE dis.extraction_method IN ('ai_haiku', 'ai_sonnet')"
             )
         all_notice_ids = [r["notice_id"] for r in cursor.fetchall()]
 

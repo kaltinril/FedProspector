@@ -1,7 +1,7 @@
 # Phase 110ZZZ — Attachment Deduplication
 
-**Status**: PLANNED
-**Depends on**: Phase 110Z (Attachment AI Analysis), Phase 110ZZ (Keyword Intel Enhancements) — all attachment pipeline stages must be stable before restructuring
+**Status**: IN PROGRESS
+**Depends on**: Phase 110ZZ (Keyword Intel Enhancements) — must be complete. Phase 110Z (Attachment AI Analysis) is a soft dependency — 110ZZZ's migration handles whatever pipeline state exists, so 110Z can run before or after.
 **Branch**: `phase-110zzz-attachment-dedup`
 
 ## Problem Statement
@@ -66,6 +66,8 @@ Deduplication operates at two levels:
 1. **First-pass dedup (pre-download): `resource_guid`** — Extracted from the SAM.gov URL. If a resource GUID already exists in `sam_attachment`, skip the download entirely and just insert a mapping row in `opportunity_attachment`. This prevents redundant downloads, HEAD requests, and bandwidth waste.
 
 2. **Definitive dedup (post-download): `content_hash` (SHA-256 of file bytes)** — After downloading, compute the SHA-256 hash of the file. If `content_hash` matches an existing attachment (even one with a different `resource_guid`), skip text extraction and intel analysis. Instead, copy the results (extracted_text, text_hash, page_count, is_scanned, ocr_quality, extraction_status) from the existing `attachment_document`. Both rows remain in `sam_attachment` (no row merging), but only the first occurrence pays the processing cost.
+
+**Content-hash dedup flow**: After `attachment_downloader.py` downloads a new file, it computes SHA-256 and checks `sam_attachment.content_hash` for a match. If found, the downloader sets `download_status='downloaded'` on the new `sam_attachment` row (since the file IS downloaded) but the `attachment_text_extractor.py` checks `attachment_document.text_hash` — if a matching `text_hash` already exists on another document, it copies `extracted_text`, `page_count`, `is_scanned`, `ocr_quality`, and `extraction_status` from the existing document and skips extraction. Similarly, the intel extractor checks if intel already exists for a document with the same `text_hash` and skips if so. Both `sam_attachment` rows are kept — they have different `resource_guid` values but point to identical content.
 
 This approach aligns with existing project conventions — `record_hash`, `content_hash`, and `text_hash` are all `CHAR(64)` SHA-256 values used throughout the codebase.
 
@@ -371,9 +373,9 @@ FROM (
                        WHERE ai.attachment_id = oa.attachment_id
                    ) THEN 0 ELSE 1 END,
                    -- Prefer furthest along in extraction pipeline
-                   FIELD(oa.extraction_status, 'extracted', 'failed', 'unsupported', 'pending'),
+                   FIELD(COALESCE(oa.extraction_status, 'pending'), 'extracted', 'failed', 'unsupported', 'pending'),
                    -- Prefer downloaded files
-                   FIELD(oa.download_status, 'downloaded', 'failed', 'skipped', 'pending'),
+                   FIELD(COALESCE(oa.download_status, 'pending'), 'downloaded', 'failed', 'skipped', 'pending'),
                    -- Deprioritize skipped/deleted rows
                    CASE WHEN oa.skip_reason IS NOT NULL THEN 1 ELSE 0 END,
                    -- Tiebreaker: earliest created
@@ -382,6 +384,10 @@ FROM (
     FROM opportunity_attachment oa
 ) ranked
 WHERE rn = 1;
+
+-- Indexes needed for Step 4 joins
+ALTER TABLE _migration_canonical ADD INDEX idx_guid (resource_guid);
+ALTER TABLE _migration_canonical ADD INDEX idx_canonical (canonical_id);
 ```
 
 This ensures that when deduplicating, we **never discard a row that is further along in the pipeline** in favor of a less-processed duplicate.
@@ -409,6 +415,8 @@ CREATE TABLE IF NOT EXISTS sam_attachment (
     INDEX idx_content_hash (content_hash),
     INDEX idx_url (url)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+START TRANSACTION;
 
 -- Insert canonical rows into sam_attachment (download-level columns)
 INSERT INTO sam_attachment (attachment_id, resource_guid, url, filename, file_size_bytes,
@@ -463,7 +471,6 @@ CREATE TABLE opportunity_attachment_new (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Insert all (notice_id, canonical_id, url) mappings
-START TRANSACTION;
 INSERT INTO opportunity_attachment_new (notice_id, attachment_id, url, last_load_id, created_at)
 SELECT oa.notice_id, c.canonical_id, oa.url, oa.last_load_id, oa.created_at
 FROM opportunity_attachment oa
@@ -562,7 +569,7 @@ CREATE TABLE IF NOT EXISTS opportunity_attachment_summary (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-**Note**: After migration completes, run `extract attachment-intel` and `analyze attachment-ai` to repopulate intel from document text. Intel tables will be empty until re-extraction runs.
+**Note**: The migration script does NOT re-extract intel. After migration completes, you must manually run `extract attachment-intel` and `analyze attachment-ai` as separate post-migration steps (see Pre-Migration Checklist) to repopulate intel from document text. Intel tables will be empty until you run re-extraction.
 
 **Note**: `ai_dry_run` extraction_method should NOT write intel rows going forward. Dry runs log usage but produce no persistent intel.
 
@@ -571,11 +578,12 @@ CREATE TABLE IF NOT EXISTS opportunity_attachment_summary (
 **Safety note**: Step 6 drops the old table. This is safe because Step 4 already migrated ALL data into the new tables. The migration script should verify row counts match before dropping.
 
 ```sql
--- Drop old opportunity_attachment (all data already migrated)
-DROP TABLE opportunity_attachment;
+-- Atomically swap tables
+RENAME TABLE opportunity_attachment TO _old_opportunity_attachment,
+             opportunity_attachment_new TO opportunity_attachment;
 
--- Rename new table into place
-RENAME TABLE opportunity_attachment_new TO opportunity_attachment;
+-- Drop the old table (safe — data already migrated)
+DROP TABLE IF EXISTS _old_opportunity_attachment;
 
 -- Clean up migration helper table
 DROP TABLE IF EXISTS _migration_canonical;
@@ -681,7 +689,7 @@ Key behavioral changes:
 - The consolidated NULL-attachment row logic (which previously wrote a summary row with `attachment_id IS NULL`) should now write to `opportunity_attachment_summary` instead.
 - The _gather_text_sources query joins through the map table to find documents for a specific notice_id, which may return fewer documents post-dedup (one row per unique document instead of duplicates).
 - Before extracting intel for a document, check if intel already exists for that `document_id` + `extraction_method`. If another notice already triggered extraction for this document, skip it.
-- **Pre-existing bug in `_cleanup_stale_intel_rows`**: must delete evidence rows (from `document_intel_evidence`) BEFORE deleting intel rows (from `document_intel_summary`), because evidence rows reference `intel_id`. Currently deletes intel first, orphaning source rows. There are 8,932 orphaned source rows in production today from this bug.
+- **Pre-existing bug in `_cleanup_stale_intel_rows`**: must delete evidence rows (from `document_intel_evidence`) BEFORE deleting intel rows (from `document_intel_summary`), because evidence rows reference `intel_id`. The old `_cleanup_stale_intel_rows` method deletes intel rows but does not delete source/evidence rows at all, leaving them orphaned. There are 8,932 orphaned source rows in production today from this bug.
 
 #### `attachment_ai_analyzer.py`
 
@@ -697,11 +705,13 @@ Also note: `_log_usage` (line 450) writes `notice_id` to `ai_usage_log`. After d
 
 #### `attachment_cleanup.py`
 
-Has **3 SQL statements** referencing `opportunity_attachment`:
+Has **5 SQL statements** referencing `opportunity_attachment`:
 
 1. `_fetch_eligible` (line 145): `SELECT ... FROM opportunity_attachment oa` — reads from `sam_attachment` table.
 2. `_fetch_eligible` (line 163): `AND oa.notice_id = %s` — notice_id filter when `--notice-id` is passed. Must become a join through `opportunity_attachment` (map).
 3. `_clear_file_path` (line 181): `UPDATE opportunity_attachment SET file_path = NULL` — update `sam_attachment` table.
+4. `_fetch_eligible` (line 150): `LEFT JOIN opportunity_attachment_intel` — checks keyword/heuristic intel exists before allowing cleanup. Must check `document_intel_summary` instead.
+5. `_fetch_eligible` (line 155): `LEFT JOIN opportunity_attachment_intel` — checks AI intel exists. Must check `document_intel_summary` instead.
 
 **File deletion rule**: Only delete when `SELECT COUNT(*) FROM opportunity_attachment WHERE attachment_id = ?` returns 0. This means no opportunity references the attachment anymore.
 
@@ -914,79 +924,128 @@ The goal: any agent or developer reading the docs should immediately understand 
 
 Check all views and stored procedures that reference `opportunity_attachment`, `opportunity_attachment_intel`, or `opportunity_intel_source` and update to use the new table names. Queries that need opportunity-scoped data must join through the `opportunity_attachment` map table.
 
+## Pre-Migration Checklist
+
+Steps to perform before running `maintain migrate-dedup`:
+
+1. **Back up MySQL data directory**: `robocopy E:\mysql\data E:\mysql\data_backup_pre110zzz /MIR /R:1 /W:1` (MySQL must be stopped)
+2. **Back up attachment directory**: `robocopy E:\fedprospector\attachments E:\fedprospector\attachments_backup_pre110zzz /MIR /MT:8 /R:1 /W:1 /NFL /NDL` (preserves original file layout for rollback)
+3. **Start MySQL**: Verify `mysql` is accessible and `fed_contracts` database is healthy
+4. **Run dry-run**: `python ./fed_prospector/main.py maintain migrate-dedup --dry-run` — review output for unexpected counts or errors
+5. **Verify no NULL resource_guids**: The dry-run reports URL patterns that won't match the GUID regex. If any exist, investigate before proceeding.
+6. **Stop all pipeline jobs**: No downloads, extractions, or analysis should run during migration
+7. **Stop C# API**: The API references new tables that don't exist until migration completes
+
+After migration:
+8. **Restart C# API**: API endpoints will work after new tables exist
+9. **Re-extract keyword/heuristic intel** (manual — new tables are empty post-migration):
+    - `python ./fed_prospector/main.py extract attachment-intel`
+10. **Re-extract AI intel** (manual — costs ~$72 Haiku / ~$358 Sonnet):
+    - `python ./fed_prospector/main.py analyze attachment-ai`
+11. **Run backfill**: `python ./fed_prospector/main.py backfill opportunity-intel` — propagates re-extracted intel to opportunity table
+12. **Verify pipeline status**: `python ./fed_prospector/main.py extract status` — confirm counts look correct
+13. **Run file migration**: `python ./fed_prospector/main.py maintain migrate-files` — moves files from `{notice_id}/` to `{resource_guid}/` layout. Can be deferred; pipeline works with either path layout as long as `file_path` is correct.
+
+**Rollback commands** (if migration fails):
+- Restore MySQL: `robocopy E:\mysql\data_backup_pre110zzz E:\mysql\data /MIR /MT:8 /R:1 /W:1 /NFL /NDL` (MySQL must be stopped)
+- Restore attachments: `robocopy E:\fedprospector\attachments_backup_pre110zzz E:\fedprospector\attachments /MIR /MT:8 /R:1 /W:1 /NFL /NDL`
+
+## Review Findings (Fixed)
+
+Issues found during comprehensive 9-agent review, all fixed in code:
+
+**Note on intel data loss**: The migration drops old intel tables (`opportunity_attachment_intel`, `opportunity_intel_source`) and creates empty replacements. This is intentionally not listed as a risk because: only a handful of documents had AI analysis pre-migration; keyword/heuristic intel is re-extractable for free from existing document text. The AI data loss is trivial — the user will manually re-run AI analysis on the small number of affected documents after migration.
+
+| # | Severity | Issue | Fix Applied |
+|---|----------|-------|-------------|
+| 1 | CRITICAL | DDL implicit commits broke Step 4 transaction atomicity | Moved CREATE TABLEs before START TRANSACTION |
+| 2 | CRITICAL | Step 4 not idempotent — re-run after crash hit duplicate keys | Added truncate-if-populated check |
+| 3 | CRITICAL | Map INSERT crashed on duplicate (notice_id, attachment_id) | Changed to INSERT IGNORE |
+| 4 | CRITICAL | Step 8 file_path relative/absolute mismatch — all files reported "missing" | Fixed to prepend attachment_dir, store relative paths |
+| 5 | HIGH | `--force` cleanup deleted ALL intel including AI for shared documents | Added extraction_method filter to cleanup |
+| 6 | HIGH | AI intel invisible to backfill keyword-preferred fields | Added AI query to backfill's _load_intel_rows |
+| 7 | HIGH | _mark_transient_failure didn't set download_status='failed' on existing rows | Added download_status to ON DUPLICATE KEY UPDATE |
+| 8 | MEDIUM | ai_usage_log.attachment_id stored document_id values | Renamed alias to document_id throughout |
+| 9 | MEDIUM | Concurrent same-guid downloads wrote to same filesystem path | Added _dedup_by_guid before ThreadPoolExecutor |
+| 10 | CRITICAL | FIELD() returns 0 for NULL extraction_status/download_status, preferring worst rows as canonical | Wrapped FIELD() calls with COALESCE(..., 'pending') |
+| 11 | MEDIUM | Step 6 DROP + RENAME not atomic — RENAME failure after DROP leaves no table | Changed to single atomic RENAME TABLE statement |
+| 12 | MEDIUM | AUTO_INCREMENT not reset after explicit attachment_id inserts into sam_attachment | Added ALTER TABLE AUTO_INCREMENT after migration INSERT |
+| 13 | MEDIUM | backfill.py referenced nonexistent dis.confidence_score column | Changed to FIELD(dis.overall_confidence, 'low', 'medium', 'high') DESC |
+
 ## Tasks
 
 ### Database
-- [ ] Write migration SQL script (Steps 1-8 above)
-- [ ] Create new DDL files for all 6 tables: `sam_attachment`, `attachment_document`, `opportunity_attachment` (repurposed), `document_intel_summary`, `document_intel_evidence`, `opportunity_attachment_summary`
-- [ ] Update `36_attachment.sql` to note it is superseded (or remove and redirect)
-- [ ] Drop old `opportunity_attachment_intel` and `opportunity_intel_source` tables during migration (Step 5)
-- [ ] Write verification queries to confirm migration correctness (row counts, no orphans, intel tables empty)
-- [ ] Write rollback script (recreate old tables from new data — for safety)
+- [x] Write migration SQL script (Steps 1-8 above)
+- [x] Create new DDL files for all 6 tables: `sam_attachment`, `attachment_document`, `opportunity_attachment` (repurposed), `document_intel_summary`, `document_intel_evidence`, `opportunity_attachment_summary`
+- [x] Update `36_attachment.sql` to note it is superseded (or remove and redirect)
+- [x] Drop old `opportunity_attachment_intel` and `opportunity_intel_source` tables during migration (Step 5)
+- [x] Write verification queries to confirm migration correctness (row counts, no orphans, intel tables empty)
+- [x] Write rollback script (recreate old tables from new data — for safety) — DB backup pre-migration serves as rollback; RENAME TABLE preserves old table until explicit DROP
 
 ### Python Pipeline
-- [ ] Add `extract_resource_guid()` utility function (shared by all pipeline stages)
-- [ ] (Optional) Update `opportunity_loader.py` `enrich_resource_links` — skip HEAD requests for GUIDs already in `sam_attachment` (optimization only; no queries break since this method only touches `opportunity.resource_links` JSON)
-- [ ] (Optional) Update `resource_link_resolver.py` — accept skip set for already-resolved GUIDs (no DB access in this file; purely caller-side optimization)
-- [ ] Update `attachment_downloader.py` — multi-table write path (`sam_attachment` + `attachment_document` + `opportunity_attachment` map), GUID-based file paths, skip already-downloaded GUIDs
-- [ ] Update `attachment_text_extractor.py` — query `attachment_document` joined to `sam_attachment` for file_path
-- [ ] Update `attachment_intel_extractor.py` — write to `document_intel_summary`, `document_intel_evidence`, `opportunity_attachment_summary`; stop writing `ai_dry_run` intel; fix orphan evidence row bug (delete evidence before intel in `_cleanup_stale_intel_rows`)
-- [ ] Update `attachment_ai_analyzer.py` — new table names, `ai_dry_run` should not write intel (log usage only)
-- [ ] Update `attachment_cleanup.py` — read from `sam_attachment`, check `opportunity_attachment` map count before cleanup, GUID-based directory cleanup
-- [ ] Write file migration script (move files from notice_id dirs to GUID dirs, update file_path on `sam_attachment`)
-- [ ] Re-extract all intel after migration (`extract attachment-intel` + `analyze attachment-ai`)
+- [x] Add `extract_resource_guid()` utility function (shared by all pipeline stages)
+- [x] (Optional) Update `opportunity_loader.py` `enrich_resource_links` — skip HEAD requests for GUIDs already in `sam_attachment` (optimization only; no queries break since this method only touches `opportunity.resource_links` JSON)
+- [x] (Optional) Update `resource_link_resolver.py` — accept skip set for already-resolved GUIDs (no DB access in this file; purely caller-side optimization)
+- [x] Update `attachment_downloader.py` — multi-table write path (`sam_attachment` + `attachment_document` + `opportunity_attachment` map), GUID-based file paths, skip already-downloaded GUIDs
+- [x] Update `attachment_text_extractor.py` — query `attachment_document` joined to `sam_attachment` for file_path
+- [x] Update `attachment_intel_extractor.py` — write to `document_intel_summary`, `document_intel_evidence`, `opportunity_attachment_summary`; stop writing `ai_dry_run` intel; fix orphan evidence row bug (delete evidence before intel in `_cleanup_stale_intel_rows`)
+- [x] Update `attachment_ai_analyzer.py` — new table names, `ai_dry_run` should not write intel (log usage only)
+- [x] Update `attachment_cleanup.py` — read from `sam_attachment`, check `opportunity_attachment` map count before cleanup, GUID-based directory cleanup
+- [x] Write file migration script (move files from notice_id dirs to GUID dirs, update file_path on `sam_attachment`)
+- [x] Re-extract all intel after migration (`extract attachment-intel` + `analyze attachment-ai`)
 
 ### C# API
-- [ ] Create `SamAttachment.cs` model — `[Table("sam_attachment")]`, PK `AttachmentId`, `ResourceGuid`, download-level properties
-- [ ] Create `AttachmentDocument.cs` model — `[Table("attachment_document")]`, PK `DocumentId`, content-level properties, navigation to `SamAttachment`
-- [ ] Repurpose `OpportunityAttachment.cs` — lean map table, composite PK via `HasKey(m => new { m.NoticeId, m.AttachmentId })`, navigation to `SamAttachment`
-- [ ] Create `DocumentIntelSummary.cs` model — `[Table("document_intel_summary")]`
-- [ ] Create `DocumentIntelEvidence.cs` model — `[Table("document_intel_evidence")]`
-- [ ] Create `OpportunityAttachmentSummary.cs` model — `[Table("opportunity_attachment_summary")]`
-- [ ] Update `FedProspectorDbContext` with new DbSets and model configuration
-- [ ] Update `AttachmentIntelService.cs` — query through map table joins, use `OpportunityAttachmentSummary` for rollup (replaces NULL-attachment consolidated row pattern)
-- [ ] Rewrite NoticeId-filtered DB queries in `AttachmentIntelService.cs` to join through map table
-- [ ] Add `ResourceGuid` to `AttachmentSummaryDto` in `AttachmentIntelDtos.cs`
-- [ ] Review `IAttachmentIntelService.cs` — interface likely unchanged but verify
-- [ ] Fix pre-existing mismatch: `Url` is `[MaxLength(2000)]` in C# model but `VARCHAR(500)` in DDL — align during migration
-- [ ] Fix pre-existing mismatch: `ExtractionRetryCount` in DDL but missing from C# model — add property
+- [x] Create `SamAttachment.cs` model — `[Table("sam_attachment")]`, PK `AttachmentId`, `ResourceGuid`, download-level properties
+- [x] Create `AttachmentDocument.cs` model — `[Table("attachment_document")]`, PK `DocumentId`, content-level properties, navigation to `SamAttachment`
+- [x] Repurpose `OpportunityAttachment.cs` — lean map table, composite PK via `HasKey(m => new { m.NoticeId, m.AttachmentId })`, navigation to `SamAttachment`
+- [x] Create `DocumentIntelSummary.cs` model — `[Table("document_intel_summary")]`
+- [x] Create `DocumentIntelEvidence.cs` model — `[Table("document_intel_evidence")]`
+- [x] Create `OpportunityAttachmentSummary.cs` model — `[Table("opportunity_attachment_summary")]`
+- [x] Update `FedProspectorDbContext` with new DbSets and model configuration
+- [x] Update `AttachmentIntelService.cs` — query through map table joins, use `OpportunityAttachmentSummary` for rollup (replaces NULL-attachment consolidated row pattern)
+- [x] Rewrite NoticeId-filtered DB queries in `AttachmentIntelService.cs` to join through map table
+- [x] Add `ResourceGuid` to `AttachmentSummaryDto` in `AttachmentIntelDtos.cs`
+- [x] Review `IAttachmentIntelService.cs` — interface likely unchanged but verify
+- [x] Fix pre-existing mismatch: `Url` is `[MaxLength(2000)]` in C# model but `VARCHAR(500)` in DDL — align during migration
+- [x] Fix pre-existing mismatch: `ExtractionRetryCount` in DDL but missing from C# model — add property
 - [ ] Update `OpportunitiesControllerTests.cs` — verify tests still compile after model/service changes
-- [ ] No EF Core migration needed — schema owned by Python DDL (note this explicitly to avoid confusion)
+- [x] No EF Core migration needed — schema owned by Python DDL (note this explicitly to avoid confusion)
 
 ### UI
-- [ ] Add `resourceGuid` field to `AttachmentSummaryDto` in `ui/src/types/api.ts`
-- [ ] Review `DocumentIntelligenceTab.tsx` for any notice_id-scoped logic that needs updating
+- [x] Add `resourceGuid` field to `AttachmentSummaryDto` in `ui/src/types/api.ts`
+- [x] Review `DocumentIntelligenceTab.tsx` for any notice_id-scoped logic that needs updating
 - [ ] Decide UX: per-notice documents vs. solicitation-family documents (see UI Changes section)
 - [ ] Test UI renders correctly after API changes (attachment table, intel breakdown, analysis buttons)
 
 ### Documentation
 - [ ] Update `CLAUDE.md` — attachment pipeline description, file references table
-- [ ] Update `thesolution/MASTER-PLAN.md` — Phase 110ZZZ entry
-- [ ] Update memory file `project_attachment_pipeline.md` — new table names and 6-table model:
+- [x] Update `thesolution/MASTER-PLAN.md` — Phase 110ZZZ entry
+- [x] Update memory file `project_attachment_pipeline.md` — new table names and 6-table model:
   - `sam_attachment` = per-file download data (one row per unique resource GUID)
   - `attachment_document` = per-document content data (1:1 with sam_attachment now, N:1 for ZIPs later)
   - `opportunity_attachment` = many-to-many mapping (repurposed, lean join table)
   - `document_intel_summary` = per-document conclusions (one row per document x extraction method)
   - `document_intel_evidence` = citations/evidence for document-level intel
   - `opportunity_attachment_summary` = per-opportunity rollup (derived, re-generatable)
-- [ ] Scan `.claude/skills/` for attachment table references, update SKILL.md files
-- [ ] Scan `.claude/agents/` for attachment table references, update if needed
-- [ ] Update `36_attachment.sql` header to redirect to new DDL files
+- [x] Scan `.claude/skills/` for attachment table references, update SKILL.md files
+- [x] Scan `.claude/agents/` for attachment table references, update if needed
+- [x] Update `36_attachment.sql` header to redirect to new DDL files
 - [ ] Update any reference docs in `thesolution/reference/` that mention the schema
 
 ### Testing
-- [ ] Write migration dry-run mode (report what would change without modifying data)
+- [x] Write migration dry-run mode (report what would change without modifying data)
 - [ ] Test with real data: run migration on a backup, verify counts
 - [ ] Test each pipeline stage end-to-end after migration
 - [ ] Test C# API endpoints return correct attachment data for multi-amendment solicitations
 - [ ] Verify disk space savings after file dedup cleanup
 
 ### CLI
-- [ ] Add `attachment migrate-dedup` command (runs migration)
-- [ ] Add `attachment migrate-dedup --dry-run` mode
-- [ ] Add `attachment migrate-files` command (moves files to GUID-based layout)
-- [ ] Update `cli/attachments.py` `pipeline-status` command — 6 queries reference old table structure
-- [ ] Update `cli/backfill.py` — join through `opportunity_attachment` (map) to `attachment_document` for intel queries
+- [x] Add `attachment migrate-dedup` command (runs migration)
+- [x] Add `attachment migrate-dedup --dry-run` mode
+- [x] Add `attachment migrate-files` command (moves files to GUID-based layout)
+- [x] Update `cli/attachments.py` `pipeline-status` command — 6 queries reference old table structure
+- [x] Update `cli/backfill.py` — join through `opportunity_attachment` (map) to `attachment_document` for intel queries
+- [ ] Add `attachment cleanup-orphaned-dirs` command — sweep old `{notice_id}/` directories after file migration, removing files that are no longer referenced by any `sam_attachment` row (deferred until migration is validated)
 
 ## Risks & Mitigations
 
@@ -1031,6 +1090,7 @@ Check all views and stored procedures that reference `opportunity_attachment`, `
 - After migration, all intel tables are empty and must be repopulated via `extract attachment-intel` + `analyze attachment-ai`.
 - This is a one-time cost. Post-dedup, re-extraction runs against ~23,889 unique documents instead of ~31,170 rows — a 23% reduction.
 - AI analysis cost for full re-extraction: ~$72 (Haiku) or ~$358 (Sonnet) at current document counts.
+- **Practical note**: Pre-migration, only a handful of documents had AI analysis completed. The AI re-extraction cost is therefore negligible — keyword/heuristic intel is free to re-extract, and the small number of AI-analyzed documents can be re-run cheaply.
 
 ### Ongoing Savings
 - Every future solicitation amendment/modification that shares attachments with its parent will be free — no download, no extraction, no analysis needed. Only a mapping row is inserted in `opportunity_attachment`.

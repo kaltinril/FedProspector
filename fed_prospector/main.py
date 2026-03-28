@@ -182,6 +182,7 @@ from cli.attachments import (
     download_attachments, extract_attachment_text,
     extract_attachment_intel, analyze_attachments,
     cleanup_attachment_files, attachment_pipeline_status,
+    migrate_dedup, migrate_files,
 )
 from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
@@ -309,6 +310,8 @@ extract.add_command(analyze_attachments, name="attachment-ai")
 maintain.add_command(maintain_app_data, name="app-data")
 maintain.add_command(maintain_db, name="db")
 maintain.add_command(cleanup_attachment_files, name="attachment-files")
+maintain.add_command(migrate_dedup, name="migrate-dedup")
+maintain.add_command(migrate_files, name="migrate-files")
 
 # ---------------------------------------------------------------------------
 # backfill group commands

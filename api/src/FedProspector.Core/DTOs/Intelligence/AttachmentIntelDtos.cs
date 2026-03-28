@@ -64,6 +64,7 @@ public class AnalysisEstimateDto
 public class AttachmentSummaryDto
 {
     public int AttachmentId { get; set; }
+    public string? ResourceGuid { get; set; }
     public string Filename { get; set; } = "";
     public string? Url { get; set; }
     public string? ContentType { get; set; }

@@ -130,7 +130,9 @@ def extract_attachment_text(notice_id, batch_size, force, workers):
               help="Intelligence extraction method")
 @click.option("--force", is_flag=True, default=False,
               help="Re-extract intel even if already extracted")
-def extract_attachment_intel(notice_id, batch_size, method, force):
+@click.option("--dump", is_flag=True, default=False,
+              help="Dump intel dict to JSON file on DB insert error and stop")
+def extract_attachment_intel(notice_id, batch_size, method, force, dump):
     """Extract structured intelligence from attachment text.
 
     Parses extracted text to identify key requirements, evaluation
@@ -146,7 +148,7 @@ def extract_attachment_intel(notice_id, batch_size, method, force):
 
     from etl.attachment_intel_extractor import AttachmentIntelExtractor
 
-    extractor = AttachmentIntelExtractor()
+    extractor = AttachmentIntelExtractor(dump_on_error=dump)
     logger.info(
         "Starting attachment intel extraction (batch_size=%d, method=%s, force=%s)",
         batch_size, method, force,
@@ -164,9 +166,9 @@ def extract_attachment_intel(notice_id, batch_size, method, force):
     )
 
     click.echo(
-        f"Done. Processed {stats.get('processed', 0)} attachments, "
-        f"extracted {stats.get('extracted', 0)} intel records, "
-        f"failed {stats.get('failed', 0)}"
+        f"Done. Processed {stats.get('notices_processed', 0)} notices, "
+        f"extracted {stats.get('intel_rows_upserted', 0)} intel records, "
+        f"{stats.get('source_rows_inserted', 0)} evidence rows"
     )
 
 
@@ -251,10 +253,14 @@ def attachment_pipeline_status():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Downloads
+    # Map table count (opportunity_attachment is now a lean join table)
+    cursor.execute("SELECT COUNT(*) FROM opportunity_attachment")
+    map_total = cursor.fetchone()[0]
+
+    # Downloads (from sam_attachment)
     cursor.execute("""
         SELECT download_status, COUNT(*)
-        FROM opportunity_attachment
+        FROM sam_attachment
         GROUP BY download_status
         ORDER BY FIELD(download_status, 'downloaded', 'pending', 'failed', 'skipped')
     """)
@@ -265,17 +271,18 @@ def attachment_pipeline_status():
     click.echo("  Attachment Intelligence Pipeline Status")
     click.echo("=" * 55)
     click.echo()
-    click.echo(f"  STAGE 1: Download ({dl_total:,} total)")
+    click.echo(f"  STAGE 1: Download ({dl_total:,} unique files, {map_total:,} map rows)")
     for status, cnt in dl_rows:
         click.echo(f"    {status:<14} {cnt:>8,}")
 
-    # Text extraction (of downloaded)
+    # Text extraction (from attachment_document, joined to downloaded sam_attachment)
     cursor.execute("""
-        SELECT extraction_status, COUNT(*)
-        FROM opportunity_attachment
-        WHERE download_status = 'downloaded'
-        GROUP BY extraction_status
-        ORDER BY FIELD(extraction_status, 'extracted', 'pending', 'failed', 'unsupported')
+        SELECT ad.extraction_status, COUNT(*)
+        FROM attachment_document ad
+        JOIN sam_attachment sa ON sa.attachment_id = ad.attachment_id
+        WHERE sa.download_status = 'downloaded'
+        GROUP BY ad.extraction_status
+        ORDER BY FIELD(ad.extraction_status, 'extracted', 'pending', 'failed', 'unsupported')
     """)
     ext_rows = cursor.fetchall()
     ext_total = sum(r[1] for r in ext_rows)
@@ -285,13 +292,13 @@ def attachment_pipeline_status():
     for status, cnt in ext_rows:
         click.echo(f"    {status:<14} {cnt:>8,}")
 
-    # Intel extraction
+    # Intel extraction (from document_intel_summary)
     cursor.execute("""
         SELECT
-            (SELECT COUNT(*) FROM opportunity_attachment WHERE extraction_status = 'extracted') as eligible,
-            (SELECT COUNT(DISTINCT attachment_id) FROM opportunity_attachment_intel
+            (SELECT COUNT(*) FROM attachment_document WHERE extraction_status = 'extracted') as eligible,
+            (SELECT COUNT(DISTINCT document_id) FROM document_intel_summary
              WHERE extraction_method IN ('keyword', 'heuristic')) as keyword_done,
-            (SELECT COUNT(DISTINCT attachment_id) FROM opportunity_attachment_intel
+            (SELECT COUNT(DISTINCT document_id) FROM document_intel_summary
              WHERE extraction_method IN ('ai_haiku', 'ai_sonnet')) as ai_done
     """)
     row = cursor.fetchone()
@@ -307,34 +314,40 @@ def attachment_pipeline_status():
     click.echo(f"    completed       {ai_done:>8,}")
     click.echo(f"    remaining       {eligible - ai_done:>8,}")
 
-    # Cleanup eligibility
+    # Cleanup eligibility (join sam_attachment -> attachment_document -> document_intel_summary)
     cursor.execute("""
-        SELECT COUNT(*) FROM opportunity_attachment oa
-        WHERE oa.download_status = 'downloaded'
-          AND oa.extraction_status = 'extracted'
-          AND oa.file_path IS NOT NULL
+        SELECT COUNT(*) FROM sam_attachment sa
+        WHERE sa.download_status = 'downloaded'
+          AND sa.file_path IS NOT NULL
           AND EXISTS (
-              SELECT 1 FROM opportunity_attachment_intel oai
-              WHERE oai.attachment_id = oa.attachment_id
-                AND oai.extraction_method IN ('keyword', 'heuristic')
+              SELECT 1 FROM attachment_document ad
+              WHERE ad.attachment_id = sa.attachment_id
+                AND ad.extraction_status = 'extracted'
           )
           AND EXISTS (
-              SELECT 1 FROM opportunity_attachment_intel oai
-              WHERE oai.attachment_id = oa.attachment_id
-                AND oai.extraction_method IN ('ai_haiku', 'ai_sonnet')
+              SELECT 1 FROM attachment_document ad
+              JOIN document_intel_summary dis ON dis.document_id = ad.document_id
+              WHERE ad.attachment_id = sa.attachment_id
+                AND dis.extraction_method IN ('keyword', 'heuristic')
+          )
+          AND EXISTS (
+              SELECT 1 FROM attachment_document ad
+              JOIN document_intel_summary dis ON dis.document_id = ad.document_id
+              WHERE ad.attachment_id = sa.attachment_id
+                AND dis.extraction_method IN ('ai_haiku', 'ai_sonnet')
           )
     """)
     cleanup_eligible = cursor.fetchone()[0]
 
-    # Disk usage
+    # Disk usage (from sam_attachment)
     cursor.execute("""
         SELECT COALESCE(SUM(file_size_bytes), 0)
-        FROM opportunity_attachment
+        FROM sam_attachment
         WHERE file_path IS NOT NULL AND download_status = 'downloaded'
     """)
     disk_bytes = cursor.fetchone()[0]
 
-    # Filenames
+    # Filenames (from sam_attachment)
     cursor.execute("""
         SELECT
             SUM(CASE WHEN filename IS NOT NULL
@@ -345,7 +358,7 @@ def attachment_pipeline_status():
                       OR filename LIKE 'Attachment%%'
                       OR filename LIKE 'attachment%%'
                 THEN 1 ELSE 0 END) as generic_names
-        FROM opportunity_attachment
+        FROM sam_attachment
     """)
     real_names, generic_names = cursor.fetchone()
 
@@ -364,6 +377,84 @@ def attachment_pipeline_status():
 
     cursor.close()
     conn.close()
+
+
+@click.command("migrate-dedup")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Show what would happen without modifying data")
+def migrate_dedup(dry_run):
+    """Run the attachment deduplication migration (Phase 110ZZZ).
+
+    Migrates from the single-table opportunity_attachment model to a
+    normalized 6-table model: sam_attachment, attachment_document,
+    opportunity_attachment (map), document_intel_summary,
+    document_intel_evidence, and opportunity_attachment_summary.
+
+    Use --dry-run to preview the migration without making changes.
+
+    Examples:
+        python main.py maintain migrate-dedup --dry-run
+        python main.py maintain migrate-dedup
+    """
+    logger = setup_logging()
+
+    from etl.attachment_migration import AttachmentDeduplicationMigration
+
+    if dry_run:
+        click.echo("DRY RUN — no data will be modified")
+
+    click.echo("Running attachment deduplication migration...")
+
+    migration = AttachmentDeduplicationMigration(dry_run=dry_run)
+    stats = migration.run()
+
+    if dry_run:
+        report = stats.get("report", [])
+        for line in report:
+            click.echo(f"  {line}")
+        click.echo("DRY RUN complete. No changes were made.")
+    else:
+        click.echo("Migration complete. Table row counts:")
+        for table, count in stats.items():
+            if isinstance(count, int):
+                click.echo(f"  {table}: {count:,}")
+
+
+@click.command("migrate-files")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Show what would happen without moving files")
+def migrate_files(dry_run):
+    """Migrate attachment files to GUID-based directory layout.
+
+    Moves files from {ATTACHMENT_DIR}/{notice_id}/{filename} to
+    {ATTACHMENT_DIR}/{resource_guid}/{filename}. Safe to re-run;
+    already-moved files are skipped.
+
+    Run this after migrate-dedup completes successfully.
+
+    Examples:
+        python main.py maintain migrate-files --dry-run
+        python main.py maintain migrate-files
+    """
+    logger = setup_logging()
+
+    from etl.attachment_migration import AttachmentDeduplicationMigration
+
+    if dry_run:
+        click.echo("DRY RUN — no files will be moved")
+
+    click.echo("Migrating attachment files to GUID-based layout...")
+
+    migration = AttachmentDeduplicationMigration(dry_run=dry_run)
+    stats = migration._step8_migrate_files()
+
+    verb = "Would move" if dry_run else "Moved"
+    click.echo(
+        f"Done. {verb} {stats['moved']} files, "
+        f"skipped {stats['skipped_already_moved']} already moved, "
+        f"{stats['skipped_missing']} missing from disk, "
+        f"{stats['failed']} failed"
+    )
 
 
 @click.command("attachment-files")

@@ -96,7 +96,7 @@ class AttachmentFileCleanup:
                     self._clear_file_path(conn, row["attachment_id"])
                     stats["deleted"] += 1
 
-                    # Try to remove empty parent directory (notice_id folder)
+                    # Try to remove empty parent directory (resource_guid folder)
                     try:
                         parent = full_path.parent
                         if parent != self.attachment_dir and not any(parent.iterdir()):
@@ -131,39 +131,45 @@ class AttachmentFileCleanup:
         """Fetch attachments eligible for cleanup.
 
         Eligible = all 4 pipeline stages complete:
-          1. download_status = 'downloaded'
-          2. extraction_status = 'extracted'
-          3. Has keyword/heuristic intel record
-          4. Has AI analysis record (ai_haiku or ai_sonnet)
+          1. download_status = 'downloaded' (sam_attachment)
+          2. extraction_status = 'extracted' (attachment_document)
+          3. Has keyword/heuristic intel record (document_intel_summary)
+          4. Has AI analysis record (document_intel_summary)
         AND file_path is not NULL (file still on disk).
         """
         conn = self.db_connection or get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
             sql = """
-                SELECT oa.attachment_id, oa.file_path, oa.file_size_bytes
-                FROM opportunity_attachment oa
-                WHERE oa.download_status = 'downloaded'
-                  AND oa.extraction_status = 'extracted'
-                  AND oa.file_path IS NOT NULL
+                SELECT sa.attachment_id, sa.file_path, sa.file_size_bytes
+                FROM sam_attachment sa
+                JOIN attachment_document ad ON ad.attachment_id = sa.attachment_id
+                WHERE sa.download_status = 'downloaded'
+                  AND ad.extraction_status = 'extracted'
+                  AND sa.file_path IS NOT NULL
                   AND EXISTS (
-                      SELECT 1 FROM opportunity_attachment_intel oai
-                      WHERE oai.attachment_id = oa.attachment_id
-                        AND oai.extraction_method IN ('keyword', 'heuristic')
+                      SELECT 1 FROM document_intel_summary dis
+                      WHERE dis.document_id = ad.document_id
+                        AND dis.extraction_method IN ('keyword', 'heuristic')
                   )
                   AND EXISTS (
-                      SELECT 1 FROM opportunity_attachment_intel oai
-                      WHERE oai.attachment_id = oa.attachment_id
-                        AND oai.extraction_method IN ('ai_haiku', 'ai_sonnet')
+                      SELECT 1 FROM document_intel_summary dis
+                      WHERE dis.document_id = ad.document_id
+                        AND dis.extraction_method IN ('ai_haiku', 'ai_sonnet')
                   )
             """
             params = []
 
             if notice_id:
-                sql += " AND oa.notice_id = %s"
+                sql += (
+                    " AND EXISTS ("
+                    "   SELECT 1 FROM opportunity_attachment m"
+                    "   WHERE m.attachment_id = sa.attachment_id AND m.notice_id = %s"
+                    " )"
+                )
                 params.append(notice_id)
 
-            sql += " ORDER BY oa.attachment_id LIMIT %s"
+            sql += " ORDER BY sa.attachment_id LIMIT %s"
             params.append(batch_size)
 
             cursor.execute(sql, params)
@@ -174,11 +180,11 @@ class AttachmentFileCleanup:
                 conn.close()
 
     def _clear_file_path(self, conn, attachment_id):
-        """Set file_path to NULL to indicate the file has been removed."""
+        """Set file_path to NULL on sam_attachment to indicate the file has been removed."""
         cursor = conn.cursor()
         try:
             cursor.execute(
-                "UPDATE opportunity_attachment SET file_path = NULL WHERE attachment_id = %s",
+                "UPDATE sam_attachment SET file_path = NULL WHERE attachment_id = %s",
                 (attachment_id,),
             )
             conn.commit()
