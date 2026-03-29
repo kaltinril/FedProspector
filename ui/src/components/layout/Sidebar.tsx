@@ -19,6 +19,7 @@ import TrackChangesOutlined from '@mui/icons-material/TrackChangesOutlined';
 import BookmarkBorderOutlined from '@mui/icons-material/BookmarkBorderOutlined';
 import CorporateFareOutlined from '@mui/icons-material/CorporateFareOutlined';
 import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
+import AccountTreeOutlined from '@mui/icons-material/AccountTreeOutlined';
 import EventBusyOutlined from '@mui/icons-material/EventBusyOutlined';
 import RecommendOutlined from '@mui/icons-material/RecommendOutlined';
 import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
@@ -69,6 +70,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Awards', icon: <EmojiEventsOutlined />, route: '/awards' },
       { label: 'Entities', icon: <BusinessOutlined />, route: '/entities' },
       { label: 'Teaming', icon: <GroupsOutlined />, route: '/subawards/teaming' },
+      { label: 'Federal Hierarchy', icon: <AccountTreeOutlined />, route: '/hierarchy' },
     ],
   },
   {

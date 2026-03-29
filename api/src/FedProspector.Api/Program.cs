@@ -177,6 +177,7 @@ builder.Services.AddScoped<IQualificationService, QualificationService>();
 builder.Services.AddScoped<IOrganizationEntityService, OrganizationEntityService>();
 builder.Services.AddScoped<IAutoProspectService, AutoProspectService>();
 builder.Services.AddScoped<IAttachmentIntelService, AttachmentIntelService>();
+builder.Services.AddScoped<IFederalHierarchyService, FederalHierarchyService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

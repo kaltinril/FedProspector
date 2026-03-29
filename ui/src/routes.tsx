@@ -29,6 +29,10 @@ const OpportunityDetailPage = lazy(
 const AwardDetailPage = lazy(() => import('@/pages/awards/AwardDetailPage'));
 const EntityDetailPage = lazy(() => import('@/pages/entities/EntityDetailPage'));
 const TeamingPartnerPage = lazy(() => import('@/pages/subawards/TeamingPartnerPage'));
+const HierarchyBrowsePage = lazy(() => import('@/pages/hierarchy/HierarchyBrowsePage'));
+const OrganizationDetailPage = lazy(
+  () => import('@/pages/hierarchy/OrganizationDetailPage'),
+);
 const ProspectPipelinePage = lazy(() => import('@/pages/prospects/ProspectPipelinePage'));
 const ProspectDetailPage = lazy(() => import('@/pages/prospects/ProspectDetailPage'));
 const ProposalDetailPage = lazy(() => import('@/pages/prospects/ProposalDetailPage'));
@@ -183,6 +187,24 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <TeamingPartnerPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Federal Hierarchy */}
+      <Route
+        path="/hierarchy"
+        element={
+          <AuthenticatedLayout>
+            <HierarchyBrowsePage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/hierarchy/:fhOrgId"
+        element={
+          <AuthenticatedLayout>
+            <OrganizationDetailPage />
           </AuthenticatedLayout>
         }
       />

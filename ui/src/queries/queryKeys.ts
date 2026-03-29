@@ -85,6 +85,17 @@ export const queryKeys = {
     naicsDetail: (code: string) => ['reference', 'naics', 'detail', code] as const,
     certificationTypes: ['reference', 'certificationTypes'] as const,
   },
+  hierarchy: {
+    all: ['hierarchy'] as const,
+    list: (params: Record<string, unknown>) => ['hierarchy', 'list', params] as const,
+    detail: (fhOrgId: string) => ['hierarchy', 'detail', fhOrgId] as const,
+    children: (fhOrgId: string, status?: string, keyword?: string) => ['hierarchy', 'children', fhOrgId, status ?? '', keyword ?? ''] as const,
+    tree: (keyword?: string) => ['hierarchy', 'tree', keyword ?? ''] as const,
+    opportunities: (fhOrgId: string, params?: Record<string, unknown>) => ['hierarchy', 'opportunities', fhOrgId, params] as const,
+    awards: (fhOrgId: string, params?: Record<string, unknown>) => ['hierarchy', 'awards', fhOrgId, params] as const,
+    stats: (fhOrgId: string) => ['hierarchy', 'stats', fhOrgId] as const,
+    refreshStatus: ['hierarchy', 'refreshStatus'] as const,
+  },
   auth: {
     me: ['auth', 'me'] as const,
   },

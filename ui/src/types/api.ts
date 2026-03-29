@@ -1319,3 +1319,80 @@ export interface FetchDescriptionResponse {
   noticeId: string;
   descriptionText: string;
 }
+
+// ============================================================
+// Federal Hierarchy types (Phase 113)
+// ============================================================
+
+export interface FederalOrgListItem {
+  fhOrgId: string;
+  fhOrgName: string;
+  fhOrgType: string;
+  status: string;
+  agencyCode: string | null;
+  cgac: string | null;
+  level: number | null;
+  parentOrgId: string | null;
+  opportunityCount?: number;
+  awardCount?: number;
+  childCount?: number;
+}
+
+export interface FederalOrgBreadcrumb {
+  fhOrgId: string;
+  fhOrgName: string;
+  fhOrgType: string;
+  level: number;
+}
+
+export interface FederalOrgDetail extends FederalOrgListItem {
+  description: string | null;
+  oldfpdsOfficeCode: string | null;
+  createdDate: string | null;
+  lastModifiedDate: string | null;
+  lastLoadedAt: string | null;
+  parentChain: FederalOrgBreadcrumb[];
+}
+
+export interface FederalOrgTreeNode {
+  fhOrgId: string;
+  fhOrgName: string;
+  childCount: number;
+  descendantCount: number;
+}
+
+export interface FederalOrgSearchParams {
+  keyword?: string;
+  fhOrgType?: string;
+  status?: string;
+  agencyCode?: string;
+  cgac?: string;
+  level?: number;
+  parentOrgId?: string;
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortDescending?: boolean;
+}
+
+export interface FederalOrgStats {
+  opportunityCount: number;
+  openOpportunityCount: number;
+  awardCount: number;
+  totalAwardDollars: number;
+  topNaicsCodes: { code: string; count: number }[];
+  setAsideBreakdown: { type: string; count: number }[];
+}
+
+export interface HierarchyRefreshRequest {
+  level: 'hierarchy' | 'offices' | 'full';
+  apiKey: 1 | 2;
+}
+
+export interface HierarchyRefreshStatus {
+  isRunning: boolean;
+  lastRefreshAt: string | null;
+  lastRefreshRecordCount: number | null;
+  levelsLoaded: { level: number; count: number }[];
+  jobId?: string;
+}

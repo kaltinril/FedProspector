@@ -1,6 +1,6 @@
 # Phase 113: Federal Hierarchy Browser
 
-**Status:** PLANNED
+**Status:** IN PROGRESS
 **Priority:** Medium
 **Dependencies:** Phase 70 (UI Complete), Phase 5D (Federal Hierarchy ETL Complete)
 
@@ -101,17 +101,17 @@ Option B is preferred if 110Y is complete; Option A is the fallback.
 
 ### Task 1: C# API — FederalHierarchyController + Service
 
-- [ ] Create `FederalHierarchyController` with routes listed above.
-- [ ] Create `IFederalHierarchyService` / `FederalHierarchyService` in Infrastructure layer.
-- [ ] Search/list endpoint: paginated query on `federal_organization` with filters (name, type, status, agency code, CGAC). Full-text search on name.
-- [ ] Detail endpoint: single org by `fh_org_id`, include parent chain (recursive CTE or iterative lookup for breadcrumb).
-- [ ] Children endpoint: `WHERE parent_org_id = @fhOrgId ORDER BY fh_org_name`.
-- [ ] Tree endpoint: `WHERE level = 1 AND status = 'Active'` with `COUNT(*)` of descendants per department (subquery or CTE).
-- [ ] Opportunities endpoint: Match org name against `opportunity.department_name`, `sub_tier`, or `office`. Include descendant matching (a department should show all its sub-tier and office opportunities).
-- [ ] Awards endpoint: Match against `fpds_contract.agency_name`, `contracting_office_name`, or `usaspending_award` fields. Include descendant matching.
-- [ ] Stats endpoint: Aggregate counts and sums from opportunity/award tables for the org and its descendants.
-- [ ] Refresh endpoint: Admin-only (`[Authorize(Policy = "SystemAdmin")]`), triggers appropriate Python CLI command. Returns job ID.
-- [ ] Refresh status endpoint: Returns last load info from `etl_load_log WHERE source = 'fedhier'`.
+- [x] Create `FederalHierarchyController` with routes listed above.
+- [x] Create `IFederalHierarchyService` / `FederalHierarchyService` in Infrastructure layer.
+- [x] Search/list endpoint: paginated query on `federal_organization` with filters (name, type, status, agency code, CGAC). Full-text search on name.
+- [x] Detail endpoint: single org by `fh_org_id`, include parent chain (recursive CTE or iterative lookup for breadcrumb).
+- [x] Children endpoint: `WHERE parent_org_id = @fhOrgId ORDER BY fh_org_name`.
+- [x] Tree endpoint: `WHERE level = 1 AND status = 'Active'` with `COUNT(*)` of descendants per department (subquery or CTE).
+- [x] Opportunities endpoint: Match org name against `opportunity.department_name`, `sub_tier`, or `office`. Include descendant matching (a department should show all its sub-tier and office opportunities).
+- [ ] Awards endpoint: Match against `fpds_contract.agency_name`, `contracting_office_name`, or `usaspending_award` fields. Include descendant matching. *(Removed from detail page — too slow for large orgs)*
+- [ ] Stats endpoint: Aggregate counts and sums from opportunity/award tables for the org and its descendants. *(Removed from detail page — too slow for large orgs)*
+- [x] Refresh endpoint: Admin-only (`[Authorize(Policy = "SystemAdmin")]`), triggers appropriate Python CLI command. Returns job ID. *(Returns 501 stub — needs Phase 110Y or subprocess implementation)*
+- [x] Refresh status endpoint: Returns last load info from `etl_load_log WHERE source = 'fedhier'`.
 
 **DTOs:**
 ```
@@ -127,57 +127,57 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 
 ### Task 2: UI — Hierarchy Browse Page
 
-- [ ] Create `HierarchyBrowsePage` component at route `/hierarchy`.
-- [ ] Add "Federal Hierarchy" nav item to Sidebar under **Research** section (icon: `AccountTree`).
-- [ ] **Tree Panel**: MUI `TreeView` component (or custom expandable list). Load departments on mount, lazy-load children on expand via `/hierarchy/{id}/children`.
-- [ ] **List Panel**: MUI DataGrid showing orgs at selected tree node level. Paginated, sortable.
-- [ ] **Search**: Debounced text input searching name/code. Calls `/hierarchy?keyword=...`. Results replace list panel content.
-- [ ] **Filters**: Status toggle (Active/Inactive/All), org type filter (Department/Sub-Tier/Office).
-- [ ] **Breadcrumb**: Show hierarchy path. Clicking a breadcrumb level navigates to that org's children.
-- [ ] URL state: `/hierarchy?type=Office&status=Active&keyword=navy&page=1`.
+- [x] Create `HierarchyBrowsePage` component at route `/hierarchy`.
+- [x] Add "Federal Hierarchy" nav item to Sidebar under **Research** section (icon: `AccountTree`).
+- [x] **Tree Panel**: MUI `TreeView` component (or custom expandable list). Load departments on mount, lazy-load children on expand via `/hierarchy/{id}/children`.
+- [x] **List Panel**: MUI DataGrid showing orgs at selected tree node level. Paginated, sortable.
+- [x] **Search**: Debounced text input searching name/code. Calls `/hierarchy?keyword=...`. Results replace list panel content.
+- [x] **Filters**: Status toggle (Active/Inactive/All), org type filter (Department/Sub-Tier/Office).
+- [x] **Breadcrumb**: Show hierarchy path. Clicking a breadcrumb level navigates to that org's children.
+- [x] URL state: `/hierarchy?type=Office&status=Active&keyword=navy&page=1`.
 
 ### Task 3: UI — Organization Detail Page
 
-- [ ] Create `OrganizationDetailPage` component at route `/hierarchy/:fhOrgId`.
-- [ ] **Header**: Org name, type badge (`Chip`), status chip, identifiers (agency code, CGAC, FPDS code).
-- [ ] **Breadcrumb**: Full parent chain from API, each level clickable.
-- [ ] **Overview Tab**: Description, dates, parent org link, all code identifiers.
-- [ ] **Children Tab** (Dept/Sub-Tier only): DataGrid of child orgs, clickable rows.
-- [ ] **Opportunities Tab**: Paginated DataGrid from `/hierarchy/{id}/opportunities`. Columns: Title, Solicitation #, Type, Status, Response Deadline, Set-Aside, Value. Row click → opportunity detail.
-- [ ] **Awards Tab**: Paginated DataGrid from `/hierarchy/{id}/awards`. Columns: Contract #, Vendor, Award Amount, Period, NAICS. Row click → award detail.
-- [ ] **Statistics Tab**: Cards showing counts + totals. Bar chart for NAICS breakdown. Pie chart for set-aside distribution.
+- [x] Create `OrganizationDetailPage` component at route `/hierarchy/:fhOrgId`.
+- [x] **Header**: Org name, type badge (`Chip`), status chip, identifiers (agency code, CGAC, FPDS code).
+- [x] **Breadcrumb**: Full parent chain from API, each level clickable.
+- [x] **Overview Tab**: Description, dates, parent org link, all code identifiers.
+- [x] **Children Tab** (Dept/Sub-Tier only): DataGrid of child orgs, clickable rows.
+- [x] **Opportunities Tab**: Paginated DataGrid from `/hierarchy/{id}/opportunities`. Columns: Title, Solicitation #, Type, Status, Response Deadline, Set-Aside, Value. Row click → opportunity detail.
+- [ ] **Awards Tab**: *(Removed — too slow for large orgs, causes timeouts)*
+- [ ] **Statistics Tab**: *(Removed — too slow for large orgs, causes timeouts)*
 
 ### Task 4: UI — Hierarchy Refresh Panel (Admin)
 
-- [ ] Add refresh controls to browse page header (visible only to `isSystemAdmin` users).
-- [ ] **Refresh Hierarchy** button: POST `/hierarchy/refresh` with `{level: "hierarchy"}`. Confirm dialog.
-- [ ] **Refresh Offices** button: POST with `{level: "offices"}`. Confirm dialog explaining ~738 API calls.
-- [ ] **Full Refresh** button: POST with `{level: "full"}`. Double-confirm dialog (destructive).
-- [ ] **API Key selector**: Radio/toggle for Key 1 vs Key 2. Show note about rate limits (Key 1: 10/day, Key 2: 1000/day).
-- [ ] **Status indicator**: Poll `/hierarchy/refresh/status` while job is running. Show progress bar or spinner with record count.
-- [ ] **Last Refresh info**: Display last refresh timestamp and record counts per level in a summary card.
+- [x] Add refresh controls to browse page header (visible only to `isSystemAdmin` users).
+- [x] **Refresh Hierarchy** button: POST `/hierarchy/refresh` with `{level: "hierarchy"}`. Confirm dialog.
+- [x] **Refresh Offices** button: POST with `{level: "offices"}`. Confirm dialog explaining ~738 API calls.
+- [x] **Full Refresh** button: POST with `{level: "full"}`. Double-confirm dialog (destructive).
+- [x] **API Key selector**: Radio/toggle for Key 1 vs Key 2. Show note about rate limits (Key 1: 10/day, Key 2: 1000/day).
+- [x] **Status indicator**: Poll `/hierarchy/refresh/status` while job is running. Show progress bar or spinner with record count.
+- [x] **Last Refresh info**: Display last refresh timestamp and record counts per level in a summary card.
 
 ### Task 5: TanStack Query Hooks
 
-- [ ] `useHierarchySearch(params)` — paginated search/list query.
-- [ ] `useHierarchyDetail(fhOrgId)` — single org detail with parent chain.
-- [ ] `useHierarchyChildren(fhOrgId)` — lazy-loaded children for tree expansion.
-- [ ] `useHierarchyTree()` — top-level departments with counts.
-- [ ] `useHierarchyOpportunities(fhOrgId, pagination)` — related opportunities.
-- [ ] `useHierarchyAwards(fhOrgId, pagination)` — related awards.
-- [ ] `useHierarchyStats(fhOrgId)` — aggregate stats.
-- [ ] `useHierarchyRefresh()` — mutation hook for triggering refresh.
-- [ ] `useHierarchyRefreshStatus()` — polling query for refresh status.
+- [x] `useHierarchySearch(params)` — paginated search/list query.
+- [x] `useHierarchyDetail(fhOrgId)` — single org detail with parent chain.
+- [x] `useHierarchyChildren(fhOrgId)` — lazy-loaded children for tree expansion.
+- [x] `useHierarchyTree()` — top-level departments with counts.
+- [x] `useHierarchyOpportunities(fhOrgId, pagination)` — related opportunities.
+- [ ] `useHierarchyAwards(fhOrgId, pagination)` — related awards. *(Not implemented — Awards tab removed)*
+- [ ] `useHierarchyStats(fhOrgId)` — aggregate stats. *(Not implemented — Statistics tab removed)*
+- [x] `useHierarchyRefresh()` — mutation hook for triggering refresh.
+- [x] `useHierarchyRefreshStatus()` — polling query for refresh status.
 
 ### Task 6: TypeScript Types
 
-- [ ] Add all DTOs to `ui/src/types/api.ts`:
+- [x] Add all DTOs to `ui/src/types/api.ts`:
   - `FederalOrgListItem`, `FederalOrgDetail`, `FederalOrgBreadcrumb`
   - `FederalOrgTreeNode`, `FederalOrgSearchParams`
   - `FederalOrgStats`, `NaicsBreakdown`, `SetAsideBreakdown`
   - `HierarchyRefreshRequest`, `HierarchyRefreshStatus`
-- [ ] Add API client functions to `ui/src/api/`.
-- [ ] Note: `AgencyLink`-related types (e.g., `OrgLookupResult`) belong in Phase 113B.
+- [x] Add API client functions to `ui/src/api/`.
+- [x] Note: `AgencyLink`-related types (e.g., `OrgLookupResult`) belong in Phase 113B.
 
 ### Task 7: Testing
 
@@ -208,6 +208,15 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 | `ui/src/routes.tsx` | Add `/hierarchy` and `/hierarchy/:fhOrgId` routes |
 | `ui/src/components/layout/Sidebar.tsx` | Add "Federal Hierarchy" nav item under Research |
 | `api/tests/` | **NEW** — xUnit tests for hierarchy service/controller |
+
+---
+
+## Known Issues / Deferred
+
+- **Refresh endpoint returns 501 (stub)** — The POST `/hierarchy/refresh` endpoint is wired in the UI but the backend returns 501 Not Implemented. Needs Phase 110Y (Request Poller Service) or a direct subprocess implementation to actually trigger Python CLI loads.
+- **Awards tab and Statistics tab removed from detail page** — These tabs were cut because the underlying queries are too slow for large orgs (e.g., Department of Defense). The queries time out on departments with thousands of descendant orgs. Needs query optimization or pre-aggregation before re-enabling.
+- **5,023 orgs have NULL names** — SAM.gov data quality issue. These records exist in `federal_organization` with valid `fh_org_id` but no `fh_org_name`. They appear as blank rows in search results.
+- **33 MAJOR COMMAND orgs have NULL level** — These orgs have `fh_org_type = 'MAJOR COMMAND'` but `level` is NULL (SAM.gov does not assign them a numeric level). They are shown in the tree as children of their parent org but hidden from the Children tab DataGrid to avoid confusion.
 
 ---
 

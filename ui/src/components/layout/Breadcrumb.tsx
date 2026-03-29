@@ -13,6 +13,7 @@ const ROUTE_LABELS: Record<string, string> = {
   proposals: 'Proposals',
   'saved-searches': 'Saved Searches',
   organization: 'Organization',
+  hierarchy: 'Federal Hierarchy',
   admin: 'Admin',
   setup: 'Company Setup',
   users: 'Users',
