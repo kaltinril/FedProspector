@@ -92,8 +92,6 @@ export const queryKeys = {
     children: (fhOrgId: string, status?: string, keyword?: string) => ['hierarchy', 'children', fhOrgId, status ?? '', keyword ?? ''] as const,
     tree: (keyword?: string) => ['hierarchy', 'tree', keyword ?? ''] as const,
     opportunities: (fhOrgId: string, params?: Record<string, unknown>) => ['hierarchy', 'opportunities', fhOrgId, params] as const,
-    awards: (fhOrgId: string, params?: Record<string, unknown>) => ['hierarchy', 'awards', fhOrgId, params] as const,
-    stats: (fhOrgId: string) => ['hierarchy', 'stats', fhOrgId] as const,
     refreshStatus: ['hierarchy', 'refreshStatus'] as const,
   },
   auth: {

@@ -108,8 +108,8 @@ Option B is preferred if 110Y is complete; Option A is the fallback.
 - [x] Children endpoint: `WHERE parent_org_id = @fhOrgId ORDER BY fh_org_name`.
 - [x] Tree endpoint: `WHERE level = 1 AND status = 'Active'` with `COUNT(*)` of descendants per department (subquery or CTE).
 - [x] Opportunities endpoint: Match org name against `opportunity.department_name`, `sub_tier`, or `office`. Include descendant matching (a department should show all its sub-tier and office opportunities).
-- [ ] Awards endpoint: Match against `fpds_contract.agency_name`, `contracting_office_name`, or `usaspending_award` fields. Include descendant matching. *(Removed from detail page — too slow for large orgs)*
-- [ ] Stats endpoint: Aggregate counts and sums from opportunity/award tables for the org and its descendants. *(Removed from detail page — too slow for large orgs)*
+- [x] ~~Awards endpoint~~ — **Permanently descoped.** Not worth the performance cost for large orgs (e.g., DoD descendants cause query timeouts).
+- [x] ~~Stats endpoint~~ — **Permanently descoped.** Not worth the performance cost for large orgs (e.g., DoD descendants cause query timeouts).
 - [x] Refresh endpoint: Admin-only (`[Authorize(Policy = "SystemAdmin")]`), triggers appropriate Python CLI command. Returns job ID. *(Returns 501 stub — needs Phase 110Y or subprocess implementation)*
 - [x] Refresh status endpoint: Returns last load info from `etl_load_log WHERE source = 'fedhier'`.
 
@@ -144,8 +144,8 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 - [x] **Overview Tab**: Description, dates, parent org link, all code identifiers.
 - [x] **Children Tab** (Dept/Sub-Tier only): DataGrid of child orgs, clickable rows.
 - [x] **Opportunities Tab**: Paginated DataGrid from `/hierarchy/{id}/opportunities`. Columns: Title, Solicitation #, Type, Status, Response Deadline, Set-Aside, Value. Row click → opportunity detail.
-- [ ] **Awards Tab**: *(Removed — too slow for large orgs, causes timeouts)*
-- [ ] **Statistics Tab**: *(Removed — too slow for large orgs, causes timeouts)*
+- [x] ~~**Awards Tab**~~ — **Permanently descoped.** Not worth the performance cost for large orgs.
+- [x] ~~**Statistics Tab**~~ — **Permanently descoped.** Not worth the performance cost for large orgs.
 
 ### Task 4: UI — Hierarchy Refresh Panel (Admin)
 
@@ -164,8 +164,8 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 - [x] `useHierarchyChildren(fhOrgId)` — lazy-loaded children for tree expansion.
 - [x] `useHierarchyTree()` — top-level departments with counts.
 - [x] `useHierarchyOpportunities(fhOrgId, pagination)` — related opportunities.
-- [ ] `useHierarchyAwards(fhOrgId, pagination)` — related awards. *(Not implemented — Awards tab removed)*
-- [ ] `useHierarchyStats(fhOrgId)` — aggregate stats. *(Not implemented — Statistics tab removed)*
+- [x] ~~`useHierarchyAwards(fhOrgId, pagination)`~~ — **Permanently descoped** with Awards tab.
+- [x] ~~`useHierarchyStats(fhOrgId)`~~ — **Permanently descoped** with Statistics tab.
 - [x] `useHierarchyRefresh()` — mutation hook for triggering refresh.
 - [x] `useHierarchyRefreshStatus()` — polling query for refresh status.
 
@@ -214,7 +214,7 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 ## Known Issues / Deferred
 
 - **Refresh endpoint returns 501 (stub)** — The POST `/hierarchy/refresh` endpoint is wired in the UI but the backend returns 501 Not Implemented. Needs Phase 110Y (Request Poller Service) or a direct subprocess implementation to actually trigger Python CLI loads.
-- **Awards tab and Statistics tab removed from detail page** — These tabs were cut because the underlying queries are too slow for large orgs (e.g., Department of Defense). The queries time out on departments with thousands of descendant orgs. Needs query optimization or pre-aggregation before re-enabling.
+- **Awards tab, Statistics tab, and their endpoints permanently descoped** — The underlying queries are too slow for large orgs (e.g., Department of Defense with thousands of descendants) and not worth the optimization effort. No plans to re-enable.
 - **5,023 orgs have NULL names** — SAM.gov data quality issue. These records exist in `federal_organization` with valid `fh_org_id` but no `fh_org_name`. They appear as blank rows in search results.
 - **33 MAJOR COMMAND orgs have NULL level** — These orgs have `fh_org_type = 'MAJOR COMMAND'` but `level` is NULL (SAM.gov does not assign them a numeric level). They are shown in the tree as children of their parent org but hidden from the Children tab DataGrid to avoid confusion.
 

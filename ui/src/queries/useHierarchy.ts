@@ -6,8 +6,6 @@ import {
   getOrganizationChildren,
   getHierarchyTree,
   getOrganizationOpportunities,
-  getOrganizationAwards,
-  getOrganizationStats,
   triggerRefresh,
   getRefreshStatus,
 } from '@/api/hierarchy';
@@ -59,28 +57,6 @@ export function useHierarchyOpportunities(
     staleTime: 3 * 60 * 1000,
     enabled: !!fhOrgId,
     placeholderData: (prev) => prev,
-  });
-}
-
-export function useHierarchyAwards(
-  fhOrgId: string,
-  pagination?: { page?: number; pageSize?: number; sortBy?: string; sortDescending?: boolean },
-) {
-  return useQuery({
-    queryKey: queryKeys.hierarchy.awards(fhOrgId, pagination as Record<string, unknown>),
-    queryFn: () => getOrganizationAwards(fhOrgId, pagination),
-    staleTime: 3 * 60 * 1000,
-    enabled: !!fhOrgId,
-    placeholderData: (prev) => prev,
-  });
-}
-
-export function useHierarchyStats(fhOrgId: string) {
-  return useQuery({
-    queryKey: queryKeys.hierarchy.stats(fhOrgId),
-    queryFn: () => getOrganizationStats(fhOrgId),
-    staleTime: 5 * 60 * 1000,
-    enabled: !!fhOrgId,
   });
 }
 

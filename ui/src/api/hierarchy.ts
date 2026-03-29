@@ -5,9 +5,7 @@ import type {
   FederalOrgDetail,
   FederalOrgTreeNode,
   FederalOrgSearchParams,
-  FederalOrgStats,
   OpportunitySearchResult,
-  AwardSearchResult,
   HierarchyRefreshRequest,
   HierarchyRefreshStatus,
 } from '@/types/api';
@@ -37,17 +35,6 @@ export function getOrganizationOpportunities(
   params?: { page?: number; pageSize?: number; sortBy?: string; sortDescending?: boolean; active?: string; type?: string; setAsideCode?: string },
 ): Promise<PagedResponse<OpportunitySearchResult>> {
   return apiClient.get(`/hierarchy/${encodeURIComponent(fhOrgId)}/opportunities`, { params }).then((r) => r.data);
-}
-
-export function getOrganizationAwards(
-  fhOrgId: string,
-  params?: { page?: number; pageSize?: number; sortBy?: string; sortDescending?: boolean },
-): Promise<PagedResponse<AwardSearchResult>> {
-  return apiClient.get(`/hierarchy/${encodeURIComponent(fhOrgId)}/awards`, { params }).then((r) => r.data);
-}
-
-export function getOrganizationStats(fhOrgId: string): Promise<FederalOrgStats> {
-  return apiClient.get(`/hierarchy/${encodeURIComponent(fhOrgId)}/stats`).then((r) => r.data);
 }
 
 export function triggerRefresh(request: HierarchyRefreshRequest): Promise<HierarchyRefreshStatus> {

@@ -1,10 +1,13 @@
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Models;
+using FedProspector.Core.Options;
 using FedProspector.Infrastructure.Data;
 using FedProspector.Infrastructure.Services;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Moq;
 
 namespace FedProspector.Infrastructure.Tests.Services;
 
@@ -20,7 +23,9 @@ public class OpportunityServiceTests : IDisposable
             .Options;
 
         _context = new FedProspectorDbContext(options);
-        _service = new OpportunityService(_context, NullLogger<OpportunityService>.Instance);
+        var httpClientFactory = Mock.Of<IHttpClientFactory>();
+        var samApiOptions = Options.Create(new SamApiOptions());
+        _service = new OpportunityService(_context, NullLogger<OpportunityService>.Instance, httpClientFactory, samApiOptions);
     }
 
     public void Dispose()

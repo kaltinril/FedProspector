@@ -70,26 +70,6 @@ public class FederalHierarchyController : ApiControllerBase
     }
 
     /// <summary>
-    /// Get awards linked to this organization and its descendants.
-    /// </summary>
-    [HttpGet("{fhOrgId:int}/awards")]
-    public async Task<IActionResult> GetAwards(int fhOrgId, [FromQuery] PagedRequest request)
-    {
-        var result = await _service.GetAwardsAsync(fhOrgId, request);
-        return Ok(result);
-    }
-
-    /// <summary>
-    /// Get aggregate stats (opportunity counts, award dollars, NAICS breakdown, set-aside breakdown).
-    /// </summary>
-    [HttpGet("{fhOrgId:int}/stats")]
-    public async Task<IActionResult> GetStats(int fhOrgId)
-    {
-        var result = await _service.GetStatsAsync(fhOrgId);
-        return Ok(result);
-    }
-
-    /// <summary>
     /// Trigger a hierarchy data refresh. System Admin only.
     /// </summary>
     [HttpPost("refresh")]
