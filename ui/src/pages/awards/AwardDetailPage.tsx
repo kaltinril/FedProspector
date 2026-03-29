@@ -11,6 +11,7 @@ import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import { BackToSearch } from '@/components/shared/BackToSearch';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { KeyFactsGrid } from '@/components/shared/KeyFactsGrid';
@@ -130,9 +131,9 @@ function ContractDetailsTab({ award }: { award: AwardDetail }) {
           },
         ]
       : []),
-    { label: 'Contracting Office', value: award.contractingOfficeName },
+    { label: 'Contracting Office', value: award.contractingOfficeName ? <AgencyLink name={award.contractingOfficeName} agencyCode={award.contractingOfficeId ?? undefined} /> : null },
     ...(award.fundingAgencyName && award.fundingAgencyName !== award.agencyName
-      ? [{ label: 'Funding Agency', value: award.fundingAgencyName }]
+      ? [{ label: 'Funding Agency', value: <AgencyLink name={award.fundingAgencyName} agencyCode={award.fundingAgencyId ?? undefined} /> }]
       : []),
   ];
 
@@ -678,7 +679,9 @@ export default function AwardDetailPage() {
               <Typography variant="body2" color="text.secondary">
                 Agency
               </Typography>
-              <Typography variant="body1">{award.agencyName}</Typography>
+              <Typography variant="body1">
+                <AgencyLink name={award.agencyName} agencyCode={award.agencyId ?? undefined} />
+              </Typography>
             </Box>
           )}
           {award.fundingAgencyName && award.fundingAgencyName !== award.agencyName && (
@@ -686,7 +689,9 @@ export default function AwardDetailPage() {
               <Typography variant="body2" color="text.secondary">
                 Funding Agency
               </Typography>
-              <Typography variant="body1">{award.fundingAgencyName}</Typography>
+              <Typography variant="body1">
+                <AgencyLink name={award.fundingAgencyName} agencyCode={award.fundingAgencyId ?? undefined} />
+              </Typography>
             </Box>
           )}
           <Box>

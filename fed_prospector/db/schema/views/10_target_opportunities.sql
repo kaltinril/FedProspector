@@ -11,6 +11,7 @@ SELECT
     o.solicitation_number,
     o.department_name,
     o.office,
+    o.contracting_office_id,
     o.posted_date,
     o.response_deadline,
     DATEDIFF(o.response_deadline, NOW()) AS days_until_due,

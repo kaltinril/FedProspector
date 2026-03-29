@@ -7,6 +7,7 @@ public class RecommendedOpportunityDto
     public string? SolicitationNumber { get; set; }
     public string? DepartmentName { get; set; }
     public string? SubTier { get; set; }
+    public string? ContractingOfficeId { get; set; }
     public string? SetAsideCode { get; set; }
     public string? SetAsideDescription { get; set; }
     public string? NaicsCode { get; set; }

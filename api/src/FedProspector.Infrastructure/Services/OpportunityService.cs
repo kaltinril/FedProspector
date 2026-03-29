@@ -112,6 +112,7 @@ public partial class OpportunityService : IOpportunityService
                 SolicitationNumber = o.SolicitationNumber,
                 DepartmentName = o.DepartmentName,
                 Office = o.Office,
+                ContractingOfficeId = o.ContractingOfficeId,
                 PostedDate = o.PostedDate,
                 ResponseDeadline = o.ResponseDeadline,
                 DaysUntilDue = o.ResponseDeadline != null
@@ -309,6 +310,7 @@ public partial class OpportunityService : IOpportunityService
             DepartmentName = opp.DepartmentName,
             SubTier = opp.SubTier,
             Office = opp.Office,
+            ContractingOfficeId = opp.ContractingOfficeId,
             PostedDate = opp.PostedDate,
             ResponseDeadline = opp.ResponseDeadline,
             ArchiveDate = opp.ArchiveDate,
@@ -423,6 +425,7 @@ public partial class OpportunityService : IOpportunityService
                 SolicitationNumber = t.SolicitationNumber,
                 DepartmentName = t.DepartmentName,
                 Office = t.Office,
+                ContractingOfficeId = t.ContractingOfficeId,
                 PostedDate = t.PostedDate,
                 ResponseDeadline = t.ResponseDeadline,
                 DaysUntilDue = t.DaysUntilDue,

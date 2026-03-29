@@ -17,6 +17,7 @@ import type { FilterConfig } from '@/components/shared/SearchFilters';
 import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay';
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import { searchOpportunities, exportOpportunities } from '@/api/opportunities';
 import { createProspect } from '@/api/prospects';
 import { queryKeys } from '@/queries/queryKeys';
@@ -314,6 +315,9 @@ export default function OpportunitySearchPage() {
         field: 'departmentName',
         headerName: 'Department',
         width: 180,
+        renderCell: (params) => (
+          <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} />
+        ),
         valueGetter: (_value, row) => row.departmentName ?? '--',
       },
       {

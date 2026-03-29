@@ -9,6 +9,7 @@ public class OpportunityDetailDto
     public string? DepartmentName { get; set; }
     public string? SubTier { get; set; }
     public string? Office { get; set; }
+    public string? ContractingOfficeId { get; set; }
     public DateOnly? PostedDate { get; set; }
     public DateTime? ResponseDeadline { get; set; }
     public DateOnly? ArchiveDate { get; set; }

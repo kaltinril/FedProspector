@@ -15,6 +15,7 @@ import Tooltip from '@mui/material/Tooltip';
 import SwapHorizOutlined from '@mui/icons-material/SwapHorizOutlined';
 import WarningAmberOutlined from '@mui/icons-material/WarningAmberOutlined';
 
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
@@ -128,7 +129,7 @@ function buildColumns(navigate: ReturnType<typeof useNavigate>): GridColDef<Expi
       headerName: 'Agency',
       flex: 1,
       minWidth: 140,
-      valueFormatter: (value: string | null | undefined) => value ?? '--',
+      renderCell: (params) => params.row.agencyName ? <AgencyLink name={params.row.agencyName} /> : '--',
     },
     {
       field: 'naicsCode',

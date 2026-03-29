@@ -44,3 +44,25 @@ export function triggerRefresh(request: HierarchyRefreshRequest): Promise<Hierar
 export function getRefreshStatus(): Promise<HierarchyRefreshStatus> {
   return apiClient.get('/hierarchy/refresh/status').then((r) => r.data);
 }
+
+/**
+ * Resolve an agency name (and optional code) to a single FederalOrgListItem.
+ * Tries agencyCode first if provided, then falls back to keyword search.
+ */
+export async function lookupOrganization(params: {
+  name: string;
+  agencyCode?: string;
+}): Promise<FederalOrgListItem | null> {
+  if (params.agencyCode) {
+    const result = await searchOrganizations({
+      agencyCode: params.agencyCode,
+      pageSize: 1,
+    });
+    if (result.items.length > 0) return result.items[0];
+  }
+  const result = await searchOrganizations({
+    keyword: params.name,
+    pageSize: 1,
+  });
+  return result.items.length > 0 ? result.items[0] : null;
+}

@@ -8,6 +8,7 @@ export interface OpportunitySearchResult {
   solicitationNumber?: string | null;
   departmentName?: string | null;
   office?: string | null;
+  contractingOfficeId?: string | null;
   postedDate?: string | null;
   responseDeadline?: string | null;
   daysUntilDue?: number | null;
@@ -48,6 +49,7 @@ export interface OpportunityDetail {
   departmentName?: string | null;
   subTier?: string | null;
   office?: string | null;
+  contractingOfficeId?: string | null;
   postedDate?: string | null;
   responseDeadline?: string | null;
   archiveDate?: string | null;
@@ -143,6 +145,7 @@ export interface TargetOpportunityDto {
   solicitationNumber?: string | null;
   departmentName?: string | null;
   office?: string | null;
+  contractingOfficeId?: string | null;
   postedDate?: string | null;
   responseDeadline?: string | null;
   daysUntilDue?: number | null;
@@ -575,6 +578,7 @@ export interface ProspectOpportunityDto {
   departmentName?: string | null;
   subTier?: string | null;
   office?: string | null;
+  contractingOfficeId?: string | null;
   postedDate?: string | null;
   responseDeadline?: string | null;
   type?: string | null;
@@ -1058,6 +1062,7 @@ export interface RecommendedOpportunityDto {
   solicitationNumber: string | null;
   departmentName: string | null;
   subTier: string | null;
+  contractingOfficeId?: string | null;
   setAsideCode: string | null;
   setAsideDescription: string | null;
   naicsCode: string | null;

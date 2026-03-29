@@ -14,6 +14,7 @@ import type { SelectChangeEvent } from '@mui/material/Select';
 import Skeleton from '@mui/material/Skeleton';
 import Tooltip from '@mui/material/Tooltip';
 
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
@@ -132,7 +133,7 @@ function buildColumns(
       headerName: 'Agency',
       flex: 1,
       minWidth: 140,
-      valueFormatter: (value: string | null | undefined) => value ?? '--',
+      renderCell: (params) => params.row.departmentName ? <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} /> : '--',
     },
     {
       field: 'naicsCode',

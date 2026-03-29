@@ -13,6 +13,7 @@ import { ErrorState } from '@/components/shared/ErrorState';
 import { searchAwards } from '@/api/awards';
 import { queryKeys } from '@/queries/queryKeys';
 import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { AwardSearchResult, AwardSearchParams } from '@/types/api';
 import { AWARD_SET_ASIDE_OPTIONS } from '@/constants/options';
@@ -76,7 +77,7 @@ function buildColumns(navigate: ReturnType<typeof useNavigate>): GridColDef<Awar
       },
     },
     { field: 'vendorName', headerName: 'Vendor Name', flex: 1.2, minWidth: 150 },
-    { field: 'agencyName', headerName: 'Agency', flex: 1, minWidth: 140 },
+    { field: 'agencyName', headerName: 'Agency', flex: 1, minWidth: 140, renderCell: (params) => <AgencyLink name={params.row.agencyName} /> },
     { field: 'naicsCode', headerName: 'NAICS', width: 100 },
     { field: 'setAsideType', headerName: 'Set-Aside', width: 120 },
     {

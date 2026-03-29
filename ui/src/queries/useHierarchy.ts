@@ -8,6 +8,7 @@ import {
   getOrganizationOpportunities,
   triggerRefresh,
   getRefreshStatus,
+  lookupOrganization,
 } from '@/api/hierarchy';
 import type { FederalOrgSearchParams, HierarchyRefreshRequest } from '@/types/api';
 
@@ -58,6 +59,19 @@ export function useHierarchyOpportunities(
     enabled: !!fhOrgId,
     placeholderData: (prev) => prev,
   });
+}
+
+export function useOrgLookup(name: string | undefined, agencyCode?: string) {
+  const query = useQuery({
+    queryKey: queryKeys.hierarchy.lookup(name, agencyCode),
+    queryFn: () => lookupOrganization({ name: name!, agencyCode }),
+    staleTime: 30 * 60 * 1000,
+    enabled: !!name,
+  });
+  return {
+    fhOrgId: query.data?.fhOrgId ?? null,
+    isLoading: query.isLoading,
+  };
 }
 
 export function useHierarchyRefresh() {

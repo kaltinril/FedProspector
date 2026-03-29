@@ -335,6 +335,7 @@ public class FederalHierarchyService : IFederalHierarchyService
                 SolicitationNumber = o.SolicitationNumber,
                 DepartmentName = o.DepartmentName,
                 Office = o.Office,
+                ContractingOfficeId = o.ContractingOfficeId,
                 PostedDate = o.PostedDate,
                 ResponseDeadline = o.ResponseDeadline,
                 SetAsideCode = o.SetAsideCode,

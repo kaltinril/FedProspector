@@ -7,6 +7,7 @@ public class OpportunitySearchDto
     public string? SolicitationNumber { get; set; }
     public string? DepartmentName { get; set; }
     public string? Office { get; set; }
+    public string? ContractingOfficeId { get; set; }
     public DateOnly? PostedDate { get; set; }
     public DateTime? ResponseDeadline { get; set; }
     public int? DaysUntilDue { get; set; }

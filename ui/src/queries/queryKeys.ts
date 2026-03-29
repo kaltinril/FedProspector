@@ -93,6 +93,8 @@ export const queryKeys = {
     tree: (keyword?: string) => ['hierarchy', 'tree', keyword ?? ''] as const,
     opportunities: (fhOrgId: string, params?: Record<string, unknown>) => ['hierarchy', 'opportunities', fhOrgId, params] as const,
     refreshStatus: ['hierarchy', 'refreshStatus'] as const,
+    lookup: (name?: string, agencyCode?: string) =>
+      ['hierarchy', 'lookup', name ?? '', agencyCode ?? ''] as const,
   },
   auth: {
     me: ['auth', 'me'] as const,

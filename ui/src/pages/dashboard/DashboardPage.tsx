@@ -24,6 +24,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
 import { BarChart } from '@mui/x-charts/BarChart';
 
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import { useDashboard } from '@/queries/useDashboard';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { LoadingState } from '@/components/shared/LoadingState';
@@ -300,9 +301,9 @@ export default function DashboardPage() {
                   >
                     <ListItemText
                       primary={rec.title ?? rec.solicitationNumber ?? rec.noticeId}
-                      secondary={rec.departmentName ?? undefined}
+                      secondary={rec.departmentName ? <AgencyLink name={rec.departmentName} agencyCode={rec.contractingOfficeId ?? undefined} /> : undefined}
                       primaryTypographyProps={{ variant: 'body2', fontWeight: 500, noWrap: true }}
-                      secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
+                      secondaryTypographyProps={{ variant: 'caption', noWrap: true, component: 'div' as const }}
                     />
                     <Box sx={{ display: 'flex', gap: 1, ml: 1, flexShrink: 0 }}>
                       {rec.daysRemaining != null && (

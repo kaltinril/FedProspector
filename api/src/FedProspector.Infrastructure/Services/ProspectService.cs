@@ -370,6 +370,7 @@ public class ProspectService : IProspectService
                 DepartmentName = opp.DepartmentName,
                 SubTier = opp.SubTier,
                 Office = opp.Office,
+                ContractingOfficeId = opp.ContractingOfficeId,
                 PostedDate = opp.PostedDate,
                 ResponseDeadline = opp.ResponseDeadline,
                 Type = opp.Type,

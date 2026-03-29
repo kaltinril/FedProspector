@@ -9,6 +9,7 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
 
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { SearchFilters } from '@/components/shared/SearchFilters';
 import type { FilterConfig } from '@/components/shared/SearchFilters';
@@ -266,6 +267,7 @@ export default function TargetOpportunityPage() {
         headerName: 'Department',
         width: 180,
         valueGetter: (_value, row) => row.departmentName ?? '--',
+        renderCell: (params) => params.row.departmentName ? <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} /> : '--',
       },
       {
         field: 'setAsideDescription',

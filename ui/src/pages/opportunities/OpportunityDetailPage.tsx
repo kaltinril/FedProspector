@@ -32,6 +32,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import ImageIcon from '@mui/icons-material/Image';
 
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { BackToSearch } from '@/components/shared/BackToSearch';
 import { TabbedDetailPage } from '@/components/shared/TabbedDetailPage';
@@ -1118,7 +1119,7 @@ export default function OpportunityDetailPage() {
           <Chip label={`NAICS ${opp.naicsCode}`} size="small" variant="outlined" />
         )}
         {opp.departmentName && (
-          <Chip label={opp.departmentName} size="small" variant="outlined" />
+          <Chip label={<AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} />} size="small" variant="outlined" />
         )}
         {opp.active != null && (
           <Chip

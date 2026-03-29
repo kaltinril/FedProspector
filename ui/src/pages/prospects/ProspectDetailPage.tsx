@@ -22,6 +22,7 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import DeleteIcon from '@mui/icons-material/Delete';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 
+import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { BackToSearch } from '@/components/shared/BackToSearch';
 import { TabbedDetailPage } from '@/components/shared/TabbedDetailPage';
@@ -174,8 +175,8 @@ function OverviewTab({
   const oppFacts = useMemo(() => {
     if (!opp) return [];
     return [
-      { label: 'Department', value: opp.departmentName ?? '--' },
-      { label: 'Office', value: opp.office ?? '--' },
+      { label: 'Department', value: opp.departmentName ? <AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
+      { label: 'Office', value: opp.office ? <AgencyLink name={opp.office} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
       { label: 'NAICS', value: opp.naicsCode ?? '--' },
       {
         label: 'Set-Aside',
@@ -738,9 +739,9 @@ function IntelTab({ detail }: { detail: ProspectDetailDto }) {
   const facts = [
     { label: 'Title', value: opp.title ?? '--' },
     { label: 'Solicitation Number', value: opp.solicitationNumber ?? '--' },
-    { label: 'Department', value: opp.departmentName ?? '--' },
-    { label: 'Sub-Tier', value: opp.subTier ?? '--' },
-    { label: 'Office', value: opp.office ?? '--' },
+    { label: 'Department', value: opp.departmentName ? <AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
+    { label: 'Sub-Tier', value: opp.subTier ? <AgencyLink name={opp.subTier} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
+    { label: 'Office', value: opp.office ? <AgencyLink name={opp.office} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
     { label: 'Type', value: opp.type ?? '--' },
     { label: 'NAICS', value: opp.naicsCode ?? '--' },
     {
