@@ -136,7 +136,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 110ZZZ | Attachment Deduplication | COMPLETE | [110ZZZ-ATTACHMENT-DEDUPLICATION.md](phases/completed/110ZZZ-ATTACHMENT-DEDUPLICATION.md) |
 | 111 | Manual Testing Issues | COMPLETE | [111-MANUAL-TESTING-ISSUES.md](phases/completed/111-MANUAL-TESTING-ISSUES.md) |
 | 112 | Opportunity Description Backfill | COMPLETE | [112-DESCRIPTION-BACKFILL.md](phases/completed/112-DESCRIPTION-BACKFILL.md) |
-| 113 | Federal Hierarchy Browser | IN PROGRESS | [113-FEDERAL-HIERARCHY-BROWSER.md](phases/113-FEDERAL-HIERARCHY-BROWSER.md) |
+| 113 | Federal Hierarchy Browser | COMPLETE | [113-FEDERAL-HIERARCHY-BROWSER.md](phases/completed/113-FEDERAL-HIERARCHY-BROWSER.md) |
 | 113B | Hierarchy Cross-Reference Links | COMPLETE | [113B-HIERARCHY-CROSS-REFERENCE-LINKS.md](phases/completed/113B-HIERARCHY-CROSS-REFERENCE-LINKS.md) |
 | 113C | Intel Display — Keyword vs AI Side-by-Side | PLANNED | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
 | 114 | Project Documentation Suite | PLANNED | [114-PROJECT-DOCUMENTATION.md](phases/114-PROJECT-DOCUMENTATION.md) |

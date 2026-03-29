@@ -184,9 +184,9 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 ### Task 7: Testing
 
 - [x] C# xUnit tests for `FederalHierarchyService` (search, detail, children, tree, stats, descendant matching) — 82 tests.
-- [ ] C# integration tests for controller endpoints.
+- [x] C# integration tests for controller endpoints — 35 tests (including refresh endpoint auth).
 - [x] Python: No changes needed (existing CLI/loader tests cover ETL).
-- [ ] Manual test plan: Tree navigation, search, detail page tabs, refresh flow.
+- [x] Manual test plan: Tree navigation, search, detail page tabs, refresh flow.
 
 ---
 

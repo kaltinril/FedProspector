@@ -300,6 +300,64 @@ public class FederalHierarchyControllerTests
         _serviceMock.Verify(s => s.GetOpportunitiesAsync(999, pagedRequest, null, null, null), Times.Once);
     }
 
+    // --- RefreshOrganization ---
+
+    [Fact]
+    public async Task RefreshOrganization_AuthenticatedUser_ReturnsOk()
+    {
+        SetAuthenticatedUser(userId: 5);
+        _serviceMock.Setup(s => s.RequestRefreshAsync("100012345", 5))
+            .ReturnsAsync(42);
+
+        var result = await _controller.RefreshOrganization("100012345");
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
+
+    [Fact]
+    public async Task RefreshOrganization_AuthenticatedUser_ReturnsRequestId()
+    {
+        SetAuthenticatedUser(userId: 5);
+        _serviceMock.Setup(s => s.RequestRefreshAsync("100012345", 5))
+            .ReturnsAsync(42);
+
+        var result = await _controller.RefreshOrganization("100012345") as OkObjectResult;
+
+        // Anonymous type — check via dynamic
+        var json = System.Text.Json.JsonSerializer.Serialize(result!.Value);
+        json.Should().Contain("\"requestId\":42");
+        json.Should().Contain("\"message\":");
+    }
+
+    [Fact]
+    public async Task RefreshOrganization_CallsServiceWithCorrectParameters()
+    {
+        SetAuthenticatedUser(userId: 7);
+        _serviceMock.Setup(s => s.RequestRefreshAsync("500099999", 7))
+            .ReturnsAsync(1);
+
+        await _controller.RefreshOrganization("500099999");
+
+        _serviceMock.Verify(s => s.RequestRefreshAsync("500099999", 7), Times.Once);
+    }
+
+    [Fact]
+    public async Task RefreshOrganization_NoAuthenticatedUser_ReturnsUnauthorized()
+    {
+        // Default HttpContext has no claims — GetCurrentUserId() returns null
+        var result = await _controller.RefreshOrganization("100012345");
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task RefreshOrganization_NoAuthenticatedUser_DoesNotCallService()
+    {
+        var result = await _controller.RefreshOrganization("100012345");
+
+        _serviceMock.Verify(s => s.RequestRefreshAsync(It.IsAny<string>(), It.IsAny<int>()), Times.Never);
+    }
+
     // --- TriggerRefresh ---
 
     [Fact]
