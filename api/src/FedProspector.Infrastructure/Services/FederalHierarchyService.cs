@@ -2,6 +2,7 @@ using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.FederalHierarchy;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
+using FedProspector.Core.Models;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -13,7 +14,9 @@ public class FederalHierarchyService : IFederalHierarchyService
     private readonly FedProspectorDbContext _context;
     private readonly ILogger<FederalHierarchyService> _logger;
 
-    public FederalHierarchyService(FedProspectorDbContext context, ILogger<FederalHierarchyService> logger)
+    public FederalHierarchyService(
+        FedProspectorDbContext context,
+        ILogger<FederalHierarchyService> logger)
     {
         _context = context;
         _logger = logger;
@@ -385,6 +388,38 @@ public class FederalHierarchyService : IFederalHierarchyService
         };
     }
 
+    public async Task<int> RequestRefreshAsync(string fhOrgId, int userId)
+    {
+        // Check for existing pending/processing request (duplicate detection)
+        var existing = await _context.DataLoadRequests
+            .Where(r => r.RequestType == "REFRESH_FEDHIER_ORG"
+                     && r.LookupKey == fhOrgId
+                     && (r.Status == "PENDING" || r.Status == "PROCESSING"))
+            .FirstOrDefaultAsync();
+
+        if (existing != null)
+            return existing.RequestId;
+
+        var request = new DataLoadRequest
+        {
+            RequestType = "REFRESH_FEDHIER_ORG",
+            LookupKey = fhOrgId,
+            LookupKeyType = "FH_ORG_ID",
+            Status = "PENDING",
+            RequestedBy = userId,
+            RequestedAt = DateTime.UtcNow
+        };
+
+        _context.DataLoadRequests.Add(request);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Queued refresh request {RequestId} for federal organization fhOrgId={FhOrgId}",
+            request.RequestId, fhOrgId);
+
+        return request.RequestId;
+    }
+
     // --- Private helpers ---
 
     private async Task<List<FederalOrgBreadcrumbDto>> BuildParentChainAsync(int? parentOrgId)
@@ -481,4 +516,5 @@ public class FederalHierarchyService : IFederalHierarchyService
         if (string.IsNullOrEmpty(input)) return input;
         return input.Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
     }
+
 }

@@ -8,6 +8,7 @@ Request types:
     USASPENDING_AWARD   - Fetch award + transactions from USASpending.gov
     FPDS_AWARD          - Fetch FPDS contract data from SAM.gov Awards API
     ATTACHMENT_ANALYSIS - Run Claude AI analysis on attachment documents
+    REFRESH_FEDHIER_ORG - Refresh a single federal organization from SAM.gov Federal Hierarchy
 """
 
 import json
@@ -20,6 +21,7 @@ from etl.usaspending_loader import USASpendingLoader
 from etl.awards_loader import AwardsLoader
 from api_clients.usaspending_client import USASpendingClient
 from api_clients.sam_awards_client import SAMAwardsClient
+from api_clients.sam_fedhier_client import SAMFedHierClient
 
 logger = logging.getLogger("fed_prospector.etl.demand_loader")
 
@@ -35,6 +37,7 @@ class DemandLoader:
     def __init__(self):
         self.usa_client = USASpendingClient()
         self.sam_client = SAMAwardsClient(api_key_number=2)
+        self.fedhier_client = SAMFedHierClient(api_key_number=2)
         self.usa_loader = USASpendingLoader()
         self.awards_loader = AwardsLoader()
         self.load_manager = LoadManager()
@@ -95,6 +98,8 @@ class DemandLoader:
             self._process_fpds(req)
         elif request_type == "ATTACHMENT_ANALYSIS":
             self._process_attachment_analysis(req)
+        elif request_type == "REFRESH_FEDHIER_ORG":
+            self._process_refresh_fedhier_org(req)
         else:
             raise ValueError(f"Unknown request_type: {request_type}")
 
@@ -346,6 +351,76 @@ class DemandLoader:
         logger.info(
             "Request %d completed: analyzed %d documents for notice '%s'",
             request_id, summary["analyzed"], notice_id,
+        )
+
+    # ------------------------------------------------------------------
+    # Federal Hierarchy org refresh
+    # ------------------------------------------------------------------
+
+    def _process_refresh_fedhier_org(self, req):
+        """Refresh a single federal organization from SAM.gov Federal Hierarchy.
+
+        lookup_key contains the fh_org_id (string). Fetches the org from
+        the SAM.gov Federal Hierarchy API and upserts it into the
+        federal_organization table using the existing FedHierLoader.
+        """
+        request_id = req["request_id"]
+        fh_org_id = req["lookup_key"]
+
+        self._set_status(request_id, "PROCESSING", started_at=datetime.now())
+
+        logger.info("Request %d: refreshing federal org fh_org_id='%s'", request_id, fh_org_id)
+
+        # Fetch the single org from SAM.gov
+        org_data = self.fedhier_client.get_organization(fh_org_id)
+
+        if not org_data:
+            raise ValueError(f"No federal organization found for fh_org_id '{fh_org_id}'")
+
+        # Load via FedHierLoader
+        from etl.fedhier_loader import FedHierLoader
+
+        fedhier_loader = FedHierLoader(load_manager=self.load_manager)
+
+        load_id = self.load_manager.start_load(
+            "SAM_FEDHIER", "INCREMENTAL",
+            parameters={"fh_org_id": fh_org_id, "demand_request_id": request_id},
+        )
+        try:
+            stats = fedhier_loader.load_organizations([org_data], load_id)
+            self.load_manager.complete_load(
+                load_id,
+                records_read=stats["records_read"],
+                records_inserted=stats["records_inserted"],
+                records_updated=stats.get("records_updated", 0),
+            )
+        except Exception as e:
+            self.load_manager.fail_load(load_id, str(e))
+            raise
+
+        # Determine action from stats
+        if stats["records_inserted"] > 0:
+            action = "inserted"
+        elif stats["records_updated"] > 0:
+            action = "updated"
+        else:
+            action = "unchanged"
+
+        summary = {
+            "fh_org_id": fh_org_id,
+            "action": action,
+            "org_name": org_data.get("fhorgname"),
+        }
+        self._set_status(
+            request_id, "COMPLETED",
+            completed_at=datetime.now(),
+            load_id=load_id,
+            result_summary=summary,
+        )
+
+        logger.info(
+            "Request %d completed: fh_org_id='%s' action=%s org_name='%s'",
+            request_id, fh_org_id, action, org_data.get("fhorgname"),
         )
 
     # ------------------------------------------------------------------

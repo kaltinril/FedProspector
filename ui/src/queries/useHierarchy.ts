@@ -7,6 +7,7 @@ import {
   getHierarchyTree,
   getOrganizationOpportunities,
   triggerRefresh,
+  refreshOrganization,
   getRefreshStatus,
   lookupOrganization,
 } from '@/api/hierarchy';
@@ -72,6 +73,21 @@ export function useOrgLookup(name: string | undefined, agencyCode?: string) {
     fhOrgId: query.data?.fhOrgId ?? null,
     isLoading: query.isLoading,
   };
+}
+
+export function useRefreshOrganization(fhOrgId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => refreshOrganization(fhOrgId),
+    onSuccess: () => {
+      // The backend queues the refresh for the poller. Invalidate after a delay
+      // so the page picks up the refreshed data once the poller has processed it.
+      setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.detail(fhOrgId) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.hierarchy.children(fhOrgId) });
+      }, 7000);
+    },
+  });
 }
 
 export function useHierarchyRefresh() {

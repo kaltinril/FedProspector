@@ -70,6 +70,20 @@ public class FederalHierarchyController : ApiControllerBase
     }
 
     /// <summary>
+    /// Queue a refresh request for a single organization via the data load poller.
+    /// </summary>
+    [HttpPost("{fhOrgId}/refresh")]
+    public async Task<IActionResult> RefreshOrganization(string fhOrgId)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null)
+            return Unauthorized();
+
+        var requestId = await _service.RequestRefreshAsync(fhOrgId, userId.Value);
+        return Ok(new { requestId, message = "Refresh request queued. The poller will process it shortly." });
+    }
+
+    /// <summary>
     /// Trigger a hierarchy data refresh. System Admin only.
     /// </summary>
     [HttpPost("refresh")]

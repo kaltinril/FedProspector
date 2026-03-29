@@ -8,6 +8,7 @@ import type {
   OpportunitySearchResult,
   HierarchyRefreshRequest,
   HierarchyRefreshStatus,
+  OrgRefreshQueuedResponse,
 } from '@/types/api';
 
 export function searchOrganizations(
@@ -39,6 +40,10 @@ export function getOrganizationOpportunities(
 
 export function triggerRefresh(request: HierarchyRefreshRequest): Promise<HierarchyRefreshStatus> {
   return apiClient.post('/hierarchy/refresh', request).then((r) => r.data);
+}
+
+export function refreshOrganization(fhOrgId: string): Promise<OrgRefreshQueuedResponse> {
+  return apiClient.post(`/hierarchy/${encodeURIComponent(fhOrgId)}/refresh`).then((r) => r.data);
 }
 
 export function getRefreshStatus(): Promise<HierarchyRefreshStatus> {

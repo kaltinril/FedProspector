@@ -95,6 +95,8 @@ The refresh endpoints trigger Python CLI commands server-side. Two approaches (c
 
 Option B is preferred if 110Y is complete; Option A is the fallback.
 
+**Implemented:** Single-org refresh uses Option B (poller queue). `POST /hierarchy/{fhOrgId}/refresh` inserts a `REFRESH_FEDHIER_ORG` row into `data_load_request`. The Python demand loader picks it up, fetches the org from SAM.gov via `fedhier_client`, and upserts via `fedhier_loader`. UI shows a refresh button on the org detail page with queued confirmation and delayed data invalidation.
+
 ---
 
 ## Tasks
@@ -110,7 +112,7 @@ Option B is preferred if 110Y is complete; Option A is the fallback.
 - [x] Opportunities endpoint: Match org name against `opportunity.department_name`, `sub_tier`, or `office`. Include descendant matching (a department should show all its sub-tier and office opportunities).
 - [x] ~~Awards endpoint~~ — **Permanently descoped.** Not worth the performance cost for large orgs (e.g., DoD descendants cause query timeouts).
 - [x] ~~Stats endpoint~~ — **Permanently descoped.** Not worth the performance cost for large orgs (e.g., DoD descendants cause query timeouts).
-- [x] Refresh endpoint: Admin-only (`[Authorize(Policy = "SystemAdmin")]`), triggers appropriate Python CLI command. Returns job ID. *(Returns 501 stub — needs Phase 110Y or subprocess implementation)*
+- [x] Refresh endpoint: `POST /hierarchy/{fhOrgId}/refresh` queues a `REFRESH_FEDHIER_ORG` request via the poller (Phase 110Y). Bulk admin refresh (`POST /hierarchy/refresh`) remains 501 stub — deferred to Phase 500.
 - [x] Refresh status endpoint: Returns last load info from `etl_load_log WHERE source = 'fedhier'`.
 
 **DTOs:**
@@ -181,9 +183,9 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 
 ### Task 7: Testing
 
-- [ ] C# xUnit tests for `FederalHierarchyService` (search, detail, children, tree, stats, descendant matching).
+- [x] C# xUnit tests for `FederalHierarchyService` (search, detail, children, tree, stats, descendant matching) — 82 tests.
 - [ ] C# integration tests for controller endpoints.
-- [ ] Python: No changes needed (existing CLI/loader tests cover ETL).
+- [x] Python: No changes needed (existing CLI/loader tests cover ETL).
 - [ ] Manual test plan: Tree navigation, search, detail page tabs, refresh flow.
 
 ---
@@ -213,7 +215,7 @@ HierarchyRefreshStatusDto { isRunning, lastRefreshAt, lastRefreshRecordCount, le
 
 ## Known Issues / Deferred
 
-- **Refresh endpoint returns 501 (stub)** — The POST `/hierarchy/refresh` endpoint is wired in the UI but the backend returns 501 Not Implemented. Needs Phase 110Y (Request Poller Service) or a direct subprocess implementation to actually trigger Python CLI loads.
+- **Bulk refresh endpoint returns 501 (stub)** — The admin-only `POST /hierarchy/refresh` endpoint returns 501. Single-org refresh (`POST /hierarchy/{fhOrgId}/refresh`) is fully functional via the poller. Bulk refresh deferred to Phase 500.
 - **Awards tab, Statistics tab, and their endpoints permanently descoped** — The underlying queries are too slow for large orgs (e.g., Department of Defense with thousands of descendants) and not worth the optimization effort. No plans to re-enable.
 - **5,023 orgs have NULL names** — SAM.gov data quality issue. These records exist in `federal_organization` with valid `fh_org_id` but no `fh_org_name`. They appear as blank rows in search results.
 - **33 MAJOR COMMAND orgs have NULL level** — These orgs have `fh_org_type = 'MAJOR COMMAND'` but `level` is NULL (SAM.gov does not assign them a numeric level). They are shown in the tree as children of their parent org but hidden from the Children tab DataGrid to avoid confusion.

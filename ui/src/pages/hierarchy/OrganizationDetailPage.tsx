@@ -3,7 +3,9 @@ import { useParams, useNavigate, Link as RouterLink } from 'react-router-dom';
 import type { GridColDef, GridPaginationModel, GridSortModel, GridRowParams } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
 import Breadcrumbs from '@mui/material/Breadcrumbs';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import Link from '@mui/material/Link';
 import Paper from '@mui/material/Paper';
 import FormControl from '@mui/material/FormControl';
@@ -11,8 +13,11 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AccountTreeOutlined from '@mui/icons-material/AccountTreeOutlined';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import { useSnackbar } from 'notistack';
 
 import { PageHeader } from '@/components/shared/PageHeader';
 import { BackToSearch } from '@/components/shared/BackToSearch';
@@ -27,6 +32,7 @@ import {
   useHierarchyDetail,
   useHierarchySearch,
   useHierarchyOpportunities,
+  useRefreshOrganization,
 } from '@/queries/useHierarchy';
 import { useDebounce } from '@/hooks/useDebounce';
 import { formatDate, formatDateTime } from '@/utils/dateFormatters';
@@ -373,6 +379,19 @@ function OpportunitiesTab({ fhOrgId }: { fhOrgId: string }) {
 export default function OrganizationDetailPage() {
   const { fhOrgId } = useParams<{ fhOrgId: string }>();
   const { data: org, isLoading, isError, refetch } = useHierarchyDetail(fhOrgId ?? '');
+  const refreshMutation = useRefreshOrganization(fhOrgId ?? '');
+  const { enqueueSnackbar } = useSnackbar();
+
+  const handleRefresh = () => {
+    refreshMutation.mutate(undefined, {
+      onSuccess: () => {
+        enqueueSnackbar('Refresh queued — data will update shortly', { variant: 'success' });
+      },
+      onError: () => {
+        enqueueSnackbar('Failed to queue refresh from SAM.gov', { variant: 'error' });
+      },
+    });
+  };
 
   if (isLoading) {
     return (
@@ -466,6 +485,23 @@ export default function OrganizationDetailPage() {
         title={org.fhOrgName}
         actions={
           <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+            <Tooltip title="Refresh from SAM.gov">
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={
+                  refreshMutation.isPending ? (
+                    <CircularProgress size={16} color="inherit" />
+                  ) : (
+                    <RefreshIcon />
+                  )
+                }
+                onClick={handleRefresh}
+                disabled={refreshMutation.isPending}
+              >
+                Refresh from SAM.gov
+              </Button>
+            </Tooltip>
             <Chip
               label={org.fhOrgType}
               color={TYPE_CHIP_COLOR[org.fhOrgType] ?? 'default'}

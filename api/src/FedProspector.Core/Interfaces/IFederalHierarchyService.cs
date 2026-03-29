@@ -12,4 +12,5 @@ public interface IFederalHierarchyService
     Task<List<FederalOrgTreeNodeDto>> GetTreeAsync(string? keyword = null);
     Task<PagedResponse<OpportunitySearchDto>> GetOpportunitiesAsync(int fhOrgId, PagedRequest request, string? active = null, string? type = null, string? setAsideCode = null);
     Task<HierarchyRefreshStatusDto> GetRefreshStatusAsync();
+    Task<int> RequestRefreshAsync(string fhOrgId, int userId);
 }

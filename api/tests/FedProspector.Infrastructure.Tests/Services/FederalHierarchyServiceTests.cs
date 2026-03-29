@@ -760,4 +760,562 @@ public class FederalHierarchyServiceTests : IDisposable
 
         result.LevelsLoaded.Select(l => l.Level).Should().BeInAscendingOrder();
     }
+
+    // ===========================
+    // Additional SearchAsync edge cases
+    // ===========================
+
+    [Fact]
+    public async Task SearchAsync_MultipleFilters_AppliedTogether()
+    {
+        SeedOrg(1, "Active Dept", type: "Department", status: "Active", level: 1, agencyCode: "DOD");
+        SeedOrg(2, "Active SubTier", type: "Sub-Tier", status: "Active", level: 2, agencyCode: "DOD", parentOrgId: 1);
+        SeedOrg(3, "Inactive Dept", type: "Department", status: "Inactive", level: 1, agencyCode: "DOD");
+        SeedOrg(4, "Active Dept Other", type: "Department", status: "Active", level: 1, agencyCode: "DOE");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto
+        {
+            FhOrgType = "Department",
+            Status = "Active",
+            AgencyCode = "DOD"
+        });
+
+        result.TotalCount.Should().Be(1);
+        result.Items.Should().ContainSingle(o => o.FhOrgName == "Active Dept");
+    }
+
+    [Fact]
+    public async Task SearchAsync_EmptyDatabase_ReturnsEmptyResult()
+    {
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto());
+
+        result.TotalCount.Should().Be(0);
+        result.Items.Should().BeEmpty();
+        result.Page.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task SearchAsync_DefaultSort_OrdersByName()
+    {
+        SeedOrg(1, "Zebra Dept");
+        SeedOrg(2, "Alpha Dept");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto());
+
+        result.Items.Select(o => o.FhOrgName).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task SearchAsync_SortByType_ReturnsSorted()
+    {
+        SeedOrg(1, "Office A", type: "Office", level: 3);
+        SeedOrg(2, "Dept B", type: "Department", level: 1);
+        SeedOrg(3, "Sub-Tier C", type: "Sub-Tier", level: 2);
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto { SortBy = "type" });
+
+        result.Items.Select(o => o.FhOrgType).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task SearchAsync_SortByLevel_ReturnsSorted()
+    {
+        SeedOrg(1, "Dept", level: 1);
+        SeedOrg(2, "Office", level: 3, parentOrgId: 3);
+        SeedOrg(3, "Sub-Tier", level: 2, parentOrgId: 1);
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto { SortBy = "level" });
+
+        result.Items.Select(o => o.Level).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task SearchAsync_SortByStatus_ReturnsSorted()
+    {
+        SeedOrg(1, "Dept A", status: "Inactive");
+        SeedOrg(2, "Dept B", status: "Active");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto { SortBy = "status" });
+
+        result.Items.Select(o => o.Status).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task SearchAsync_SortByLevelDescending_ReturnsSortedDesc()
+    {
+        SeedOrg(1, "Dept", level: 1);
+        SeedOrg(2, "Sub-Tier", level: 2, parentOrgId: 1);
+        SeedOrg(3, "Office", level: 3, parentOrgId: 2);
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto
+        {
+            SortBy = "level",
+            SortDescending = true
+        });
+
+        result.Items.Select(o => o.Level).Should().BeInDescendingOrder();
+    }
+
+    [Fact]
+    public async Task SearchAsync_UnknownSortBy_FallsBackToNameSort()
+    {
+        SeedOrg(1, "Zebra");
+        SeedOrg(2, "Alpha");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto { SortBy = "nonexistent" });
+
+        result.Items.Select(o => o.FhOrgName).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task SearchAsync_LastPage_ReturnsRemainingItems()
+    {
+        for (int i = 1; i <= 7; i++)
+            SeedOrg(i, $"Org {i:D2}");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto { Page = 3, PageSize = 3 });
+
+        result.TotalCount.Should().Be(7);
+        result.Items.Should().HaveCount(1); // 7 items, page 3 of size 3 = 1 remaining
+    }
+
+    [Fact]
+    public async Task SearchAsync_PageBeyondData_ReturnsEmptyItems()
+    {
+        SeedOrg(1, "Only Org");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto { Page = 5, PageSize = 25 });
+
+        result.TotalCount.Should().Be(1);
+        result.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SearchAsync_NoFilters_ReturnsAll()
+    {
+        SeedOrg(1, "Dept A");
+        SeedOrg(2, "Dept B");
+        SeedOrg(3, "Dept C");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto());
+
+        result.TotalCount.Should().Be(3);
+        result.Items.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task SearchAsync_MapsAllDtoFields()
+    {
+        SeedOrg(1, "Test Dept", type: "Department", status: "Active", level: 1,
+            agencyCode: "TEST", cgac: "099");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto());
+
+        var item = result.Items.Should().ContainSingle().Subject;
+        item.FhOrgId.Should().Be(1);
+        item.FhOrgName.Should().Be("Test Dept");
+        item.FhOrgType.Should().Be("Department");
+        item.Status.Should().Be("Active");
+        item.AgencyCode.Should().Be("TEST");
+        item.Cgac.Should().Be("099");
+        item.Level.Should().Be(1);
+        item.ParentOrgId.Should().BeNull();
+    }
+
+    // ===========================
+    // Additional GetDetailAsync edge cases
+    // ===========================
+
+    [Fact]
+    public async Task GetDetailAsync_MidLevelOrg_ParentChainContainsOnlyAncestors()
+    {
+        SeedHierarchy();
+
+        var result = await _service.GetDetailAsync(200); // Sub-Tier (Army)
+
+        result.Should().NotBeNull();
+        result!.ParentChain.Should().HaveCount(1);
+        result.ParentChain[0].FhOrgId.Should().Be(100);
+        result.ParentChain[0].FhOrgName.Should().Be("Department of Defense");
+    }
+
+    [Fact]
+    public async Task GetDetailAsync_OrgWithNoChildren_HasZeroChildCount()
+    {
+        SeedOrg(1, "Leaf Office", type: "Office", level: 3);
+
+        var result = await _service.GetDetailAsync(1);
+
+        result.Should().NotBeNull();
+        result!.ChildCount.Should().Be(0);
+    }
+
+    // ===========================
+    // Additional GetChildrenAsync edge cases
+    // ===========================
+
+    [Fact]
+    public async Task GetChildrenAsync_NullStatus_ReturnsAllChildren()
+    {
+        SeedOrg(1, "Department", level: 1);
+        SeedOrg(2, "Active Child", type: "Sub-Tier", status: "Active", level: 2, parentOrgId: 1);
+        SeedOrg(3, "Inactive Child", type: "Sub-Tier", status: "Inactive", level: 2, parentOrgId: 1);
+
+        var result = await _service.GetChildrenAsync(1, status: null);
+
+        result.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task GetChildrenAsync_NonExistentParent_ReturnsEmpty()
+    {
+        SeedOrg(1, "Some Org", level: 1);
+
+        var result = await _service.GetChildrenAsync(999);
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetChildrenAsync_MapsAllDtoFields()
+    {
+        SeedOrg(1, "Department", level: 1);
+        SeedOrg(2, "Army", type: "Sub-Tier", status: "Active", level: 2,
+            parentOrgId: 1, agencyCode: "ARMY", cgac: "021");
+
+        var result = await _service.GetChildrenAsync(1);
+
+        var child = result.Should().ContainSingle().Subject;
+        child.FhOrgId.Should().Be(2);
+        child.FhOrgName.Should().Be("Army");
+        child.FhOrgType.Should().Be("Sub-Tier");
+        child.Status.Should().Be("Active");
+        child.AgencyCode.Should().Be("ARMY");
+        child.Cgac.Should().Be("021");
+        child.Level.Should().Be(2);
+        child.ParentOrgId.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetChildrenAsync_EmptyStringStatus_ReturnsAllChildren()
+    {
+        SeedOrg(1, "Department", level: 1);
+        SeedOrg(2, "Active Child", type: "Sub-Tier", status: "Active", level: 2, parentOrgId: 1);
+        SeedOrg(3, "Inactive Child", type: "Sub-Tier", status: "Inactive", level: 2, parentOrgId: 1);
+
+        var result = await _service.GetChildrenAsync(1, status: "");
+
+        result.Should().HaveCount(2);
+    }
+
+    // ===========================
+    // Additional GetTreeAsync edge cases
+    // ===========================
+
+    [Fact]
+    public async Task GetTreeAsync_DepartmentWithNoChildren_HasZeroCounts()
+    {
+        SeedOrg(1, "Empty Dept", level: 1, status: "Active");
+
+        var result = await _service.GetTreeAsync();
+
+        result.Should().HaveCount(1);
+        result[0].ChildCount.Should().Be(0);
+        result[0].DescendantCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetTreeAsync_MultipleDepartments_EachHasOwnCounts()
+    {
+        SeedOrg(1, "Dept A", level: 1, status: "Active");
+        SeedOrg(2, "Dept B", level: 1, status: "Active");
+        SeedOrg(10, "Sub A1", type: "Sub-Tier", level: 2, parentOrgId: 1);
+        SeedOrg(11, "Sub A2", type: "Sub-Tier", level: 2, parentOrgId: 1);
+        SeedOrg(20, "Sub B1", type: "Sub-Tier", level: 2, parentOrgId: 2);
+        SeedOrg(100, "Office A1a", type: "Office", level: 3, parentOrgId: 10);
+
+        var result = await _service.GetTreeAsync();
+
+        result.Should().HaveCount(2);
+        var deptA = result.First(d => d.FhOrgId == 1);
+        var deptB = result.First(d => d.FhOrgId == 2);
+        deptA.ChildCount.Should().Be(2); // Sub A1 + Sub A2
+        deptA.DescendantCount.Should().Be(3); // 2 sub-tiers + 1 office
+        deptB.ChildCount.Should().Be(1); // Sub B1
+        deptB.DescendantCount.Should().Be(1); // just the 1 sub-tier, no offices
+    }
+
+    [Fact]
+    public async Task GetTreeAsync_EmptyDatabase_ReturnsEmpty()
+    {
+        var result = await _service.GetTreeAsync();
+
+        result.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetTreeAsync_NoKeyword_ExcludesNonLevel1Orgs()
+    {
+        SeedOrg(1, "Dept", level: 1, status: "Active");
+        SeedOrg(2, "Sub-Tier", type: "Sub-Tier", level: 2, status: "Active", parentOrgId: 1);
+        SeedOrg(3, "Office", type: "Office", level: 3, status: "Active", parentOrgId: 2);
+
+        var result = await _service.GetTreeAsync();
+
+        result.Should().HaveCount(1);
+        result[0].FhOrgId.Should().Be(1);
+    }
+
+    // ===========================
+    // Additional GetOpportunitiesAsync edge cases
+    // ===========================
+
+    [Fact]
+    public async Task GetOpportunitiesAsync_SubTierOrg_MatchesChildOfficeNames()
+    {
+        SeedOrg(1, "Dept of Defense", level: 1);
+        SeedOrg(10, "Army", type: "Sub-Tier", level: 2, parentOrgId: 1);
+        SeedOrg(100, "Army Contracting", type: "Office", level: 3, parentOrgId: 10);
+
+        SeedOpportunity("OPP-ARMY", subTier: "Army");
+        SeedOpportunity("OPP-OFFICE", office: "Army Contracting");
+        SeedOpportunity("OPP-DEPT", departmentName: "Dept of Defense");
+
+        // Search from the sub-tier level — should find Army + Army Contracting, but not Dept
+        var result = await _service.GetOpportunitiesAsync(10, new PagedRequest());
+
+        result.TotalCount.Should().Be(2);
+        result.Items.Select(o => o.NoticeId).Should().BeEquivalentTo("OPP-ARMY", "OPP-OFFICE");
+    }
+
+    [Fact]
+    public async Task GetOpportunitiesAsync_OfficeLevelOrg_MatchesOwnNameOnly()
+    {
+        SeedOrg(1, "Dept of Defense", level: 1);
+        SeedOrg(10, "Army", type: "Sub-Tier", level: 2, parentOrgId: 1);
+        SeedOrg(100, "Army Contracting", type: "Office", level: 3, parentOrgId: 10);
+
+        SeedOpportunity("OPP-OFFICE", office: "Army Contracting");
+        SeedOpportunity("OPP-ARMY", subTier: "Army");
+
+        // Search from office level — only matches own name (offices have no children)
+        var result = await _service.GetOpportunitiesAsync(100, new PagedRequest());
+
+        result.TotalCount.Should().Be(1);
+        result.Items.Should().ContainSingle(o => o.NoticeId == "OPP-OFFICE");
+    }
+
+    [Fact]
+    public async Task GetOpportunitiesAsync_EmptyDatabase_ReturnsEmpty()
+    {
+        SeedOrg(1, "Dept", level: 1);
+
+        var result = await _service.GetOpportunitiesAsync(1, new PagedRequest());
+
+        result.TotalCount.Should().Be(0);
+        result.Items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetOpportunitiesAsync_MapsAllDtoFields()
+    {
+        SeedOrg(1, "Dept of Defense", level: 1);
+        var opp = new Opportunity
+        {
+            NoticeId = "OPP-FULL",
+            Title = "Full Fields Test",
+            SolicitationNumber = "SOL-001",
+            DepartmentName = "Dept of Defense",
+            Office = "Test Office",
+            ContractingOfficeId = "CO-001",
+            PostedDate = new DateOnly(2024, 6, 1),
+            ResponseDeadline = new DateTime(2024, 7, 1, 12, 0, 0, DateTimeKind.Utc),
+            SetAsideCode = "WOSB",
+            SetAsideDescription = "Women-Owned Small Business",
+            NaicsCode = "541512",
+            EstimatedContractValue = 500000m,
+            PopState = "VA",
+            Active = "Yes"
+        };
+        _context.Opportunities.Add(opp);
+        _context.SaveChanges();
+
+        var result = await _service.GetOpportunitiesAsync(1, new PagedRequest());
+
+        var item = result.Items.Should().ContainSingle().Subject;
+        item.NoticeId.Should().Be("OPP-FULL");
+        item.Title.Should().Be("Full Fields Test");
+        item.SolicitationNumber.Should().Be("SOL-001");
+        item.DepartmentName.Should().Be("Dept of Defense");
+        item.Office.Should().Be("Test Office");
+        item.ContractingOfficeId.Should().Be("CO-001");
+        item.PostedDate.Should().Be(new DateOnly(2024, 6, 1));
+        item.SetAsideCode.Should().Be("WOSB");
+        item.SetAsideDescription.Should().Be("Women-Owned Small Business");
+        item.NaicsCode.Should().Be("541512");
+        item.EstimatedContractValue.Should().Be(500000m);
+        item.PopState.Should().Be("VA");
+    }
+
+    // ===========================
+    // Additional GetRefreshStatusAsync edge cases
+    // ===========================
+
+    [Fact]
+    public async Task GetRefreshStatusAsync_RunningLoad_FallsBackToStartedAt()
+    {
+        var startedAt = new DateTime(2024, 6, 15, 10, 0, 0, DateTimeKind.Utc);
+        SeedLoadLog("fedhier", "running", startedAt: startedAt);
+
+        var result = await _service.GetRefreshStatusAsync();
+
+        result.IsRunning.Should().BeTrue();
+        result.LastRefreshAt.Should().Be(startedAt);
+    }
+
+    [Fact]
+    public async Task GetRefreshStatusAsync_OrgsWithNullLevel_ExcludedFromLevelCounts()
+    {
+        SeedOrg(1, "Dept", level: 1);
+        SeedOrg(2, "Unknown Level", level: null);
+
+        var result = await _service.GetRefreshStatusAsync();
+
+        result.LevelsLoaded.Should().HaveCount(1);
+        result.LevelsLoaded[0].Level.Should().Be(1);
+        result.LevelsLoaded[0].Count.Should().Be(1);
+    }
+
+    // ===========================
+    // Negative / edge-case: SearchAsync
+    // ===========================
+
+    [Fact]
+    public async Task SearchAsync_WhitespaceOnlyKeyword_TreatedAsNoFilter()
+    {
+        SeedOrg(1, "Dept A");
+        SeedOrg(2, "Dept B");
+
+        var result = await _service.SearchAsync(new FederalOrgSearchRequestDto { Keyword = "   " });
+
+        result.TotalCount.Should().Be(2);
+        result.Items.Should().HaveCount(2);
+    }
+
+    // ===========================
+    // Negative / edge-case: GetDetailAsync
+    // ===========================
+
+    [Fact]
+    public async Task GetDetailAsync_OrphanOrgWithNullParentOrgId_EmptyParentChain()
+    {
+        // Org at level 2 but with no parent — an orphan, non-root
+        SeedOrg(50, "Orphan Sub-Tier", type: "Sub-Tier", level: 2, parentOrgId: null);
+
+        var result = await _service.GetDetailAsync(50);
+
+        result.Should().NotBeNull();
+        result!.FhOrgId.Should().Be(50);
+        result.ParentChain.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetDetailAsync_OrgWithDanglingParentRef_ParentChainStopsGracefully()
+    {
+        // Org references parent that doesn't exist in the database
+        SeedOrg(60, "Dangling Child", type: "Sub-Tier", level: 2, parentOrgId: 9999);
+
+        var result = await _service.GetDetailAsync(60);
+
+        result.Should().NotBeNull();
+        result!.ParentChain.Should().BeEmpty();
+    }
+
+    // ===========================
+    // Negative / edge-case: GetChildrenAsync
+    // ===========================
+
+    [Fact]
+    public async Task GetChildrenAsync_WhitespaceOnlyStatus_TreatedAsNoFilter()
+    {
+        SeedOrg(1, "Department", level: 1);
+        SeedOrg(2, "Active Child", type: "Sub-Tier", status: "Active", level: 2, parentOrgId: 1);
+        SeedOrg(3, "Inactive Child", type: "Sub-Tier", status: "Inactive", level: 2, parentOrgId: 1);
+
+        var result = await _service.GetChildrenAsync(1, status: "   ");
+
+        result.Should().HaveCount(2);
+    }
+
+    // ===========================
+    // Negative / edge-case: GetTreeAsync
+    // ===========================
+
+    // ===========================
+    // Negative / edge-case: GetOpportunitiesAsync
+    // ===========================
+
+    [Fact]
+    public async Task GetOpportunitiesAsync_OrgWithNullName_DoesNotCrash()
+    {
+        // Org has null name so it contributes no name to the match set
+        SeedOrg(1, null!, level: 1);
+        SeedOpportunity("OPP-1", departmentName: "Some Agency");
+
+        var result = await _service.GetOpportunitiesAsync(1, new PagedRequest());
+
+        // Should not throw; null name means no opportunities match
+        result.TotalCount.Should().Be(0);
+        result.Items.Should().BeEmpty();
+    }
+
+    // ===========================
+    // Negative / edge-case: GetRefreshStatusAsync
+    // ===========================
+
+    [Fact]
+    public async Task GetRefreshStatusAsync_MultipleRunningLoads_IsRunningBasedOnLatest()
+    {
+        // Older load is "completed", latest is "running"
+        SeedLoadLog("fedhier", "completed",
+            startedAt: new DateTime(2024, 6, 10, 10, 0, 0, DateTimeKind.Utc),
+            completedAt: new DateTime(2024, 6, 10, 11, 0, 0, DateTimeKind.Utc),
+            inserted: 100);
+        SeedLoadLog("fedhier", "running",
+            startedAt: new DateTime(2024, 6, 15, 10, 0, 0, DateTimeKind.Utc));
+
+        var result = await _service.GetRefreshStatusAsync();
+
+        result.IsRunning.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetRefreshStatusAsync_LatestIsCompleted_EvenIfOlderWasRunning_NotRunning()
+    {
+        // Older load stuck in "running", but latest is "completed"
+        SeedLoadLog("fedhier", "running",
+            startedAt: new DateTime(2024, 6, 10, 10, 0, 0, DateTimeKind.Utc));
+        SeedLoadLog("fedhier", "completed",
+            startedAt: new DateTime(2024, 6, 15, 10, 0, 0, DateTimeKind.Utc),
+            completedAt: new DateTime(2024, 6, 15, 11, 0, 0, DateTimeKind.Utc),
+            inserted: 50);
+
+        var result = await _service.GetRefreshStatusAsync();
+
+        result.IsRunning.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetRefreshStatusAsync_LoadWithAllZeroCounts_ReturnsZeroNotNull()
+    {
+        SeedLoadLog("fedhier", "completed",
+            startedAt: new DateTime(2024, 6, 15, 10, 0, 0, DateTimeKind.Utc),
+            completedAt: new DateTime(2024, 6, 15, 11, 0, 0, DateTimeKind.Utc),
+            inserted: 0, updated: 0, unchanged: 0);
+
+        var result = await _service.GetRefreshStatusAsync();
+
+        result.LastRefreshRecordCount.Should().NotBeNull();
+        result.LastRefreshRecordCount.Should().Be(0);
+    }
 }

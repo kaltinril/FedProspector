@@ -1394,6 +1394,11 @@ export interface HierarchyRefreshRequest {
   apiKey: 1 | 2;
 }
 
+export interface OrgRefreshQueuedResponse {
+  requestId: number;
+  message: string;
+}
+
 export interface HierarchyRefreshStatus {
   isRunning: boolean;
   lastRefreshAt: string | null;
