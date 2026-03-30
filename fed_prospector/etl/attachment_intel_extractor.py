@@ -43,7 +43,6 @@ _HEADING_KEYWORDS = {
     "period_of_performance": {"period of performance", "duration", "term", "ordering period", "option"},
     "naics_code": {"naics", "size standard", "product service code", "psc", "classification"},
     "wage_determination": {"wage", "labor", "compensation", "service contract act", "davis-bacon"},
-    "contract_value": {"value", "ceiling", "estimated", "price", "cost", "budget", "funding"},
 }
 
 # Raw pattern definitions — compiled at module load
@@ -170,12 +169,6 @@ _RAW_PATTERNS = {
         {"pattern": r"\bFAR\s+52\.222-41\b", "value": "SCA", "confidence": "high", "name": "wage_far_sca"},
         {"pattern": r"\bFAR\s+52\.222-6\b", "value": "Davis-Bacon", "confidence": "high", "name": "wage_far_dba"},
         {"pattern": r"\bprevailing\s+wage\b", "value": None, "confidence": "medium", "name": "wage_prevailing"},
-    ],
-    "contract_value": [
-        {"pattern": r"\$\s*\d+(?:\.\d+)?\s*(?:million|billion|M|B)\b", "value": None, "confidence": "high", "name": "value_shorthand"},
-        {"pattern": r"\b(?:ceiling|maximum)\s+(?:value|price|amount|contract\s+value)\b", "value": None, "confidence": "medium", "name": "value_ceiling"},
-        {"pattern": r"\b(?:estimated|total|aggregate)\s+(?:value|amount|price|cost)\b", "value": None, "confidence": "medium", "name": "value_estimated"},
-        {"pattern": r"\bnot[- ]to[- ]exceed\b(?=.{0,30}\$)", "value": None, "confidence": "medium", "name": "value_nte"},
     ],
 }
 
@@ -1049,11 +1042,6 @@ class AttachmentIntelExtractor:
                 tagged = f"[WAGE] {tag_value}"
                 if tagged not in intel["key_requirements"]:
                     intel["key_requirements"].append(tagged)
-            elif category == "contract_value":
-                tag_value = value if value else info["matched_text"]
-                tagged = f"[VALUE] {tag_value}"
-                if tagged not in intel["key_requirements"]:
-                    intel["key_requirements"].append(tagged)
 
         # --- Occurrence-based incumbent name consolidation (Phase 110D) ---
         # Count occurrences and track max confidence per name.
@@ -1122,7 +1110,7 @@ class AttachmentIntelExtractor:
             intel["confidence_details"]["period_of_performance"] = _rank_to_conf(rank)
 
         # Track confidence for JSON array categories
-        for json_cat in ("compliance_certs", "bonding_insurance", "subcontracting_oci", "set_aside_type", "naics_code", "wage_determination", "contract_value"):
+        for json_cat in ("compliance_certs", "bonding_insurance", "subcontracting_oci", "set_aside_type", "naics_code", "wage_determination"):
             if json_cat in best:
                 rank, _, _ = best[json_cat]
                 intel["confidence_details"][json_cat] = _rank_to_conf(rank)
