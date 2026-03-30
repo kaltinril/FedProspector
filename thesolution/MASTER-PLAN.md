@@ -138,18 +138,21 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 112 | Opportunity Description Backfill | COMPLETE | [112-DESCRIPTION-BACKFILL.md](phases/completed/112-DESCRIPTION-BACKFILL.md) |
 | 113 | Federal Hierarchy Browser | COMPLETE | [113-FEDERAL-HIERARCHY-BROWSER.md](phases/completed/113-FEDERAL-HIERARCHY-BROWSER.md) |
 | 113B | Hierarchy Cross-Reference Links | COMPLETE | [113B-HIERARCHY-CROSS-REFERENCE-LINKS.md](phases/completed/113B-HIERARCHY-CROSS-REFERENCE-LINKS.md) |
-| 113C | Intel Display — Keyword vs AI Side-by-Side | PLANNED | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
-| 114 | Project Documentation Suite | PLANNED | [114-PROJECT-DOCUMENTATION.md](phases/114-PROJECT-DOCUMENTATION.md) |
+| 113C | Intel Display — Keyword vs AI Side-by-Side | IN PROGRESS | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
+| 114 | Project Documentation Suite | COMPLETE | [114-PROJECT-DOCUMENTATION.md](phases/completed/114-PROJECT-DOCUMENTATION.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
-| 121 | Description Intel Extraction | PLANNED | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/121-DESCRIPTION-INTEL-EXTRACTION.md) |
-| 122 | Opportunity POC Extraction | PLANNED | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/122-OPPORTUNITY-POC-EXTRACTION.md) |
+| 121 | Description Intel Extraction | IN PROGRESS | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/121-DESCRIPTION-INTEL-EXTRACTION.md) |
+| 122 | Opportunity POC Extraction | COMPLETE | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/122-OPPORTUNITY-POC-EXTRACTION.md) |
 | 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
 | 124 | Attachment Hash-Level Deduplication | PLANNED | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
 | 125 | Full Document Viewer with Highlights | PLANNED | [125-FULL-DOCUMENT-VIEWER.md](phases/125-FULL-DOCUMENT-VIEWER.md) |
 | 126 | AI Contradiction Detection | PLANNED | [126-AI-CONTRADICTION-DETECTION.md](phases/126-AI-CONTRADICTION-DETECTION.md) |
 | 127 | Expiring Contracts — USASpending Integration | PLANNED | [Phase 127](phases/127-EXPIRING-CONTRACTS-USASPENDING.md) |
-| 128 | Federal Identifier Extraction | PLANNED | [128-IDENTIFIER-EXTRACTION.md](phases/128-IDENTIFIER-EXTRACTION.md) |
+| 128 | Federal Identifier Extraction | IN PROGRESS | [128-IDENTIFIER-EXTRACTION.md](phases/128-IDENTIFIER-EXTRACTION.md) |
+| 129 | NAICS Code Intelligence & SBA Size Standards | PLANNED | [129-NAICS-SIZE-STANDARDS.md](phases/129-NAICS-SIZE-STANDARDS.md) |
 | 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |
+| 131 | Per-Attachment Re-Analysis | PLANNED | [131-PER-ATTACHMENT-REANALYSIS.md](phases/131-PER-ATTACHMENT-REANALYSIS.md) |
+| 132 | Identifier Dash-Normalization | PLANNED | [132-IDENTIFIER-DASH-NORMALIZATION.md](phases/132-IDENTIFIER-DASH-NORMALIZATION.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 300 | Comprehensive Review & Tech Debt Registry | PLANNED | [300-COMPREHENSIVE-REVIEW.md](phases/300-COMPREHENSIVE-REVIEW.md) |

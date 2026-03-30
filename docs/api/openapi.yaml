@@ -38,6 +38,8 @@ tags:
     description: Reference data lookups (NAICS, certifications)
   - name: Admin
     description: System administration (ETL status, user management, organizations)
+  - name: FederalHierarchy
+    description: Federal agency hierarchy browsing, tree navigation, and refresh
   - name: Health
     description: System health checks
 
@@ -664,6 +666,40 @@ paths:
                 $ref: "#/components/schemas/LoadRequestStatusDto"
         "401":
           description: Not authenticated
+
+  /v1/opportunities/{noticeId}/fetch-description:
+    post:
+      tags: [Opportunities]
+      summary: Fetch missing description from SAM.gov
+      description: >
+        Fetch a missing opportunity description from SAM.gov on demand. If already
+        populated, returns the cached text without making an API call. Includes SSRF
+        protection (blocks private IPs), HTML stripping, and DB caching.
+      operationId: fetchDescription
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Description text (cached or freshly fetched)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  noticeId:
+                    type: string
+                  descriptionText:
+                    type: string
+        "401":
+          description: Not authenticated
+        "404":
+          description: Opportunity not found or not found on SAM.gov
+        "502":
+          description: Upstream SAM.gov call failed
 
   # ---------------------------------------------------------------------------
   # Awards
@@ -1768,6 +1804,271 @@ paths:
                 type: array
                 items:
                   type: object
+        "401":
+          description: Not authenticated
+
+  # ---------------------------------------------------------------------------
+  # Federal Hierarchy
+  # ---------------------------------------------------------------------------
+  /v1/hierarchy:
+    get:
+      tags: [FederalHierarchy]
+      summary: Search federal organizations
+      description: >
+        Search or list federal organizations with filters and pagination.
+        Supports filtering by name, type, status, and agency code.
+      operationId: searchHierarchy
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: Search in organization name and agency code
+        - name: type
+          in: query
+          schema:
+            type: string
+          description: Organization type (DEPARTMENT, AGENCY, OFFICE)
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Status filter (ACTIVE, INACTIVE)
+        - name: agencyCode
+          in: query
+          schema:
+            type: string
+          description: Agency code filter
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+        - $ref: "#/components/parameters/sortBy"
+        - $ref: "#/components/parameters/sortDescending"
+      responses:
+        "200":
+          description: Paginated list of federal organizations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse"
+        "401":
+          description: Not authenticated
+
+  /v1/hierarchy/tree:
+    get:
+      tags: [FederalHierarchy]
+      summary: Get top-level departments
+      description: >
+        Get top-level departments with child and descendant counts for tree root display.
+      operationId: getHierarchyTree
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: Filter departments by name keyword
+      responses:
+        "200":
+          description: List of top-level departments with counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fhOrgId:
+                      type: integer
+                    name:
+                      type: string
+                    childCount:
+                      type: integer
+                    descendantCount:
+                      type: integer
+        "401":
+          description: Not authenticated
+
+  /v1/hierarchy/refresh/status:
+    get:
+      tags: [FederalHierarchy]
+      summary: Get refresh job status
+      description: Check the status of the last hierarchy refresh job.
+      operationId: getHierarchyRefreshStatus
+      responses:
+        "200":
+          description: Refresh status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lastRefresh:
+                    type: string
+                    format: date-time
+                  status:
+                    type: string
+                  recordsUpdated:
+                    type: integer
+                  errors:
+                    type: integer
+        "401":
+          description: Not authenticated
+
+  /v1/hierarchy/{fhOrgId}:
+    get:
+      tags: [FederalHierarchy]
+      summary: Get organization detail
+      description: >
+        Get a single organization's detail including parent breadcrumb chain.
+      operationId: getHierarchyDetail
+      parameters:
+        - name: fhOrgId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Organization detail with parent chain
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fhOrgId:
+                    type: integer
+                  name:
+                    type: string
+                  agencyCode:
+                    type: string
+                  orgType:
+                    type: string
+                  status:
+                    type: string
+                  parentChain:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fhOrgId:
+                          type: integer
+                        name:
+                          type: string
+        "401":
+          description: Not authenticated
+        "404":
+          description: Organization not found
+
+  /v1/hierarchy/{fhOrgId}/children:
+    get:
+      tags: [FederalHierarchy]
+      summary: Get direct children
+      description: Get direct children of an organization for tree expansion.
+      operationId: getHierarchyChildren
+      parameters:
+        - name: fhOrgId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+          description: Filter children by status
+        - name: keyword
+          in: query
+          schema:
+            type: string
+          description: Filter children by name keyword
+      responses:
+        "200":
+          description: List of child organizations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    fhOrgId:
+                      type: integer
+                    name:
+                      type: string
+                    orgType:
+                      type: string
+                    status:
+                      type: string
+                    childCount:
+                      type: integer
+        "401":
+          description: Not authenticated
+
+  /v1/hierarchy/{fhOrgId}/opportunities:
+    get:
+      tags: [FederalHierarchy]
+      summary: Get related opportunities
+      description: >
+        Get opportunities linked to this organization and its descendants with pagination.
+      operationId: getHierarchyOpportunities
+      parameters:
+        - name: fhOrgId
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: active
+          in: query
+          schema:
+            type: string
+          description: Filter by active status
+        - name: type
+          in: query
+          schema:
+            type: string
+          description: Opportunity type filter
+        - name: setAsideCode
+          in: query
+          schema:
+            type: string
+          description: Set-aside code filter
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/pageSize"
+      responses:
+        "200":
+          description: Paginated list of related opportunities
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PagedResponse"
+        "401":
+          description: Not authenticated
+
+  /v1/hierarchy/{fhOrgId}/refresh:
+    post:
+      tags: [FederalHierarchy]
+      summary: Refresh single organization
+      description: >
+        Queue a refresh request for a single organization via the data load poller.
+        Triggers a re-fetch of the organization's data from SAM.gov.
+      operationId: refreshHierarchyOrg
+      parameters:
+        - name: fhOrgId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Refresh request queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId:
+                    type: integer
+                  message:
+                    type: string
         "401":
           description: Not authenticated
 

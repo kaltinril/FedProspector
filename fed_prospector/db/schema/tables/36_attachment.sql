@@ -111,6 +111,27 @@ CREATE TABLE IF NOT EXISTS document_intel_evidence (
     INDEX idx_field (field_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Phase 128: Federal Identifier Extraction
+CREATE TABLE IF NOT EXISTS document_identifier_ref (
+    ref_id              INT AUTO_INCREMENT PRIMARY KEY,
+    document_id         INT NOT NULL,
+    identifier_type     VARCHAR(30) NOT NULL,
+    identifier_value    VARCHAR(200) NOT NULL,
+    raw_text            VARCHAR(500),
+    context             TEXT,
+    char_offset_start   INT,
+    char_offset_end     INT,
+    confidence          ENUM('high','medium','low') DEFAULT 'medium',
+    matched_table       VARCHAR(50),
+    matched_column      VARCHAR(50),
+    matched_id          VARCHAR(200),
+    last_load_id        INT,
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_docid_ref (document_id, identifier_type),
+    INDEX idx_identifier (identifier_type, identifier_value),
+    INDEX idx_matched (matched_table, matched_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS opportunity_attachment_summary (
     summary_id             INT AUTO_INCREMENT PRIMARY KEY,
     notice_id              VARCHAR(100) NOT NULL,

@@ -1,6 +1,6 @@
 # Phase 113C: Intel Display — Keyword vs AI Side-by-Side
 
-**Status:** PLANNED
+**Status:** IN PROGRESS
 **Priority:** Medium — AI analysis results exist but aren't visually distinguished from keyword results
 **Dependencies:** Phase 110ZZZ (table merge complete)
 
@@ -59,8 +59,25 @@ The `document_intel_summary` table has `extraction_method` (keyword vs ai_haiku 
 - `labor_categories` — JSON array (AI extracts structured labor cat data)
 - Richer detail text in clearance_details, eval_details, etc.
 
-## Open Questions
+## Decisions
 
-1. **Preferred approach:** Show the "winner" value in large font, and the other method's value smaller below/beside it. When they agree it reinforces confidence; when they differ the user spots it immediately.
-2. How to handle cases where keyword found something but AI didn't (or vice versa)?
-3. Should the scope summary be per-document or aggregated across all documents?
+1. **Side-by-side approach:** Show the aggregated "winner" value as primary. Below it, show per-method values in a compact row (e.g., `Keyword: Secret | AI: Top Secret`). When they agree, show a single value with a green checkmark. When they differ, show both with amber highlight.
+2. **Missing method:** Show "—" for the method that didn't find a value. This makes gaps visible.
+3. **Scope summary:** Show aggregated (longest from best confidence) at the top as a dedicated card. Per-document scope summaries available in the per-attachment accordion.
+
+## Implementation Plan
+
+### API Changes (C#)
+
+1. **New DTO**: `MethodIntelDto` — per-method field values (clearance, eval, vehicle, etc. + scopeSummary, laborCategories)
+2. **Add to `DocumentIntelligenceDto`**: `Dictionary<string, MethodIntelDto> MethodBreakdown` — keyed by extraction_method
+3. **Update `AttachmentIntelService`**: Group intel records by method, aggregate within each group, populate `MethodBreakdown`
+4. **Update `AttachmentIntelBreakdownDto`**: Add `scopeSummary` field; return one entry per attachment+method combo so UI can group
+
+### UI Changes (React/TypeScript)
+
+1. **Types**: Add `MethodIntelDto` interface, update `DocumentIntelligenceDto` and `AttachmentIntelBreakdownDto`
+2. **Scope Summary Card**: New card at top of intel section showing aggregated scope summary with AI badge
+3. **IntelCard enhancement**: Below primary value, add per-method comparison row; highlight agreement/disagreement
+4. **Enhance button**: Use `analyzedCount` vs `attachmentCount` + `availableMethods` to show smart state
+5. **Per-Attachment accordion**: Group entries by filename, show method rows within each group

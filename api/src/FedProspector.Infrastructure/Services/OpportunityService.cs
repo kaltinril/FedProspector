@@ -281,6 +281,23 @@ public partial class OpportunityService : IOpportunityService
             }
         }
 
+        // Points of contact
+        var pocs = await _context.OpportunityPocs.AsNoTracking()
+            .Where(p => p.NoticeId == noticeId)
+            .Join(_context.ContractingOfficers.AsNoTracking(),
+                p => p.OfficerId,
+                o => o.OfficerId,
+                (p, o) => new PointOfContactDto
+                {
+                    FullName = o.FullName,
+                    Email = o.Email,
+                    Phone = o.Phone,
+                    Fax = o.Fax,
+                    Title = o.Title,
+                    PocType = p.PocType
+                })
+            .ToListAsync();
+
         // Amendment history: other notices with the same solicitation number
         var amendments = new List<AmendmentSummaryDto>();
         if (!string.IsNullOrWhiteSpace(opp.SolicitationNumber))
@@ -356,6 +373,7 @@ public partial class OpportunityService : IOpportunityService
             FirstLoadedAt = opp.FirstLoadedAt,
             LastLoadedAt = opp.LastLoadedAt,
             RelatedAwards = relatedAwards,
+            PointsOfContact = pocs,
             Prospect = prospect,
             UsaspendingAward = usaAward,
             Amendments = amendments

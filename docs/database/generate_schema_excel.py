@@ -294,6 +294,15 @@ COLUMN_DESCRIPTIONS = {
     "error_count": "Number of health errors",
     "stale_source_count": "Number of stale data sources",
 
+    # AI usage tracking
+    "usage_id": "Auto-increment usage log identifier",
+    "model": "AI model name (e.g. claude-3-haiku)",
+    "input_tokens": "Number of input tokens consumed",
+    "output_tokens": "Number of output tokens generated",
+    "cache_read_tokens": "Tokens read from prompt cache",
+    "cache_write_tokens": "Tokens written to prompt cache",
+    "cost_usd": "Estimated cost in USD",
+
     # Application tables
     "organization_id": "FK to organization (multi-tenant isolation)",
     "user_id": "FK to app_user",
@@ -651,6 +660,7 @@ def create_workbook():
         ]),
         ("Award", [
             ("fpds_contract", "fpds_contract"),
+            ("federal_organization", "federal_organization"),
             ("usaspending_award", "usaspending_award"),
             ("usaspending_transaction", "usaspending_transaction"),
             ("usaspending_load_checkpoint", "usaspending_load_checkpoint"),
@@ -689,6 +699,7 @@ def create_workbook():
             ("etl_rate_limit", "etl_rate_limit"),
             ("etl_health_snapshot", "etl_health_snapshot"),
             ("data_load_request", "data_load_request"),
+            ("ai_usage_log", "ai_usage_log"),
         ]),
         ("Application", [
             ("organization", "organization"),

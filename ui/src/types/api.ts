@@ -87,6 +87,7 @@ export interface OpportunityDetail {
   firstLoadedAt?: string | null;
   lastLoadedAt?: string | null;
   relatedAwards: RelatedAwardDto[];
+  pointsOfContact?: PointOfContactDto[];
   amendments?: AmendmentSummary[];
   prospect?: OpportunityProspectSummary | null;
   usaspendingAward?: UsaspendingSummaryDto | null;
@@ -117,6 +118,15 @@ export interface RelatedAwardDto {
   baseAndAllOptions?: number | null;
   typeOfContract?: string | null;
   numberOfOffers?: number | null;
+}
+
+export interface PointOfContactDto {
+  fullName: string;
+  email?: string | null;
+  phone?: string | null;
+  fax?: string | null;
+  title?: string | null;
+  pocType: string;
 }
 
 export interface OpportunityProspectSummary {
@@ -1241,6 +1251,7 @@ export interface DocumentIntelligenceDto {
   mergedPassages: MergedSourcePassageDto[];
   attachments: AttachmentSummaryDto[];
   perAttachmentIntel?: AttachmentIntelBreakdownDto[];
+  methodBreakdown?: Record<string, MethodIntelDto>;
 }
 
 export interface IntelSourceDto {
@@ -1268,6 +1279,23 @@ export interface AttachmentSummaryDto {
   resourceGuid?: string;
 }
 
+export interface MethodIntelDto {
+  clearanceRequired?: string;
+  clearanceLevel?: string;
+  clearanceScope?: string;
+  evalMethod?: string;
+  vehicleType?: string;
+  isRecompete?: string;
+  incumbentName?: string;
+  scopeSummary?: string;
+  periodOfPerformance?: string;
+  pricingStructure?: string;
+  placeOfPerformance?: string;
+  laborCategories: string[];
+  keyRequirements: string[];
+  overallConfidence?: string;
+}
+
 export interface AttachmentIntelBreakdownDto {
   attachmentId: number;
   filename: string;
@@ -1281,6 +1309,7 @@ export interface AttachmentIntelBreakdownDto {
   incumbentName?: string;
   pricingStructure?: string;
   placeOfPerformance?: string;
+  scopeSummary?: string;
 }
 
 export interface MergedSourcePassageDto {
@@ -1298,6 +1327,39 @@ export interface HighlightSpan {
   start: number;
   end: number;
   matchedText: string;
+}
+
+// ============================================================
+// Federal Identifier Extraction types (Phase 128)
+// ============================================================
+
+export interface IdentifierRefDto {
+  identifierType: string;
+  identifierValue: string;
+  rawText?: string;
+  confidence: string;
+  matchedTable?: string;
+  matchedColumn?: string;
+  matchedId?: string;
+  mentionCount: number;
+}
+
+export interface PredecessorCandidateDto {
+  noticeId: string;
+  predecessorPiid: string;
+  predecessorVendorName?: string;
+  predecessorVendorUei?: string;
+  predecessorAwardAmount?: number;
+  predecessorSetAsideType?: string;
+  predecessorNaics?: string;
+  confidence: string;
+  documentMentions: number;
+}
+
+export interface OpportunityIdentifiersDto {
+  noticeId: string;
+  identifiers: IdentifierRefDto[];
+  predecessorCandidates: PredecessorCandidateDto[];
 }
 
 export interface LoadRequestStatusDto {

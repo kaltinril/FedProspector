@@ -41,8 +41,10 @@ Modules:
     cli/schedule_setup.py setup-schedule
     cli/update.py         link-metadata, fetch-descriptions, build-relationships
     cli/attachments.py    download-attachments, extract-attachment-text,
-                          extract-attachment-intel, extract-attachment-ai
-    cli/backfill.py       backfill-opportunity-intel
+                          extract-attachment-intel, extract-attachment-ai,
+                          extract-description-ai, extract-identifiers,
+                          cross-ref-identifiers, search-identifiers
+    cli/backfill.py       backfill-opportunity-intel, backfill-pocs
     cli/demand.py         process-requests  (registered under 'job' group)
 """
 
@@ -181,14 +183,16 @@ from cli.update import enrich_link_metadata, fetch_descriptions, build_relations
 from cli.attachments import (
     download_attachments, extract_attachment_text,
     extract_attachment_intel, analyze_attachments,
-    cleanup_attachment_files, attachment_pipeline_status,
+    analyze_descriptions, cleanup_attachment_files,
+    attachment_pipeline_status,
     migrate_dedup, migrate_files,
+    extract_identifiers, cross_ref_identifiers, search_identifiers,
 )
 from cli.bulk_spending import usaspending_bulk
 from cli.schema import check_schema
 from cli.setup import verify_setup
 from cli.schedule_setup import setup_schedule
-from cli.backfill import backfill_opportunity_intel
+from cli.backfill import backfill_opportunity_intel, backfill_pocs
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +232,7 @@ search.add_command(search_awards, name="awards")
 search.add_command(search_agencies, name="agencies")
 search.add_command(search_subawards, name="subawards")
 search.add_command(check_exclusion, name="exclusions")
+search.add_command(search_identifiers, name="identifiers")
 
 # ---------------------------------------------------------------------------
 # prospect group commands
@@ -302,6 +307,9 @@ download.add_command(download_attachments, name="attachments")
 extract.add_command(extract_attachment_text, name="attachment-text")
 extract.add_command(extract_attachment_intel, name="attachment-intel")
 extract.add_command(analyze_attachments, name="attachment-ai")
+extract.add_command(analyze_descriptions, name="description-ai")
+extract.add_command(extract_identifiers, name="identifiers")
+extract.add_command(cross_ref_identifiers, name="cross-ref-identifiers")
 
 # ---------------------------------------------------------------------------
 # maintain group commands
@@ -318,6 +326,7 @@ maintain.add_command(migrate_files, name="migrate-files")
 # ---------------------------------------------------------------------------
 
 backfill.add_command(backfill_opportunity_intel, name="opportunity-intel")
+backfill.add_command(backfill_pocs, name="pocs")
 
 # ---------------------------------------------------------------------------
 # health group commands

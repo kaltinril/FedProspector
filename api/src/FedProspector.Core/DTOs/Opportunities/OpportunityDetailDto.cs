@@ -57,6 +57,7 @@ public class OpportunityDetailDto
 
     // Nested
     public List<RelatedAwardDto> RelatedAwards { get; set; } = [];
+    public List<PointOfContactDto> PointsOfContact { get; set; } = [];
     public ProspectSummaryDto? Prospect { get; set; }
     public UsaspendingSummaryDto? UsaspendingAward { get; set; }
     public List<AmendmentSummaryDto> Amendments { get; set; } = [];
@@ -105,4 +106,14 @@ public class UsaspendingSummaryDto
     public decimal? BaseAndAllOptionsValue { get; set; }
     public DateOnly? StartDate { get; set; }
     public DateOnly? EndDate { get; set; }
+}
+
+public class PointOfContactDto
+{
+    public string FullName { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+    public string? Fax { get; set; }
+    public string? Title { get; set; }
+    public string PocType { get; set; } = "PRIMARY";
 }

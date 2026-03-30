@@ -23,7 +23,10 @@ public class OpportunityPoc
 
     public DateTime? CreatedAt { get; set; }
 
-    // Navigation property
+    // Navigation properties
     [ForeignKey("NoticeId")]
     public Opportunity? Opportunity { get; set; }
+
+    [ForeignKey("OfficerId")]
+    public ContractingOfficer? Officer { get; set; }
 }

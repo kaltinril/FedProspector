@@ -89,7 +89,7 @@ def build_document():
         "   ref_country_code, ref_state_code, ref_fips_county",
         "5. ETL / Operations Tables",
         "   etl_load_log, etl_load_error, etl_data_quality_rule, etl_rate_limit,",
-        "   etl_health_snapshot, data_load_request, usaspending_load_checkpoint",
+        "   etl_health_snapshot, data_load_request, usaspending_load_checkpoint, ai_usage_log",
         "6. Staging Tables",
         "   stg_entity_raw, stg_opportunity_raw, stg_fpds_award_raw, stg_usaspending_raw,",
         "   stg_exclusion_raw, stg_fedhier_raw, stg_subaward_raw",
@@ -970,6 +970,29 @@ def build_document():
         relationships="References: etl_load_log (load_id FK).",
         change_detection="None. Operational state tracking.",
         growth="100-500 rows. One per CSV file per bulk load."
+    )
+
+    add_table_section(doc,
+        name="ai_usage_log",
+        purpose="Tracks AI API usage (token counts, costs) for attachment intel extraction and other AI-powered features. Enables cost monitoring and budget controls.",
+        ownership="Python DDL (tables/75_ai_usage.sql)",
+        data_source="Created by attachment_intel_loader.py when calling Anthropic API for document analysis.",
+        columns=[
+            ("usage_id", "INT PK AUTO_INCREMENT", "Surrogate primary key"),
+            ("notice_id", "VARCHAR(100)", "Opportunity notice ID the AI call relates to"),
+            ("attachment_id", "INT", "FK to sam_attachment (if analyzing a specific document)"),
+            ("model", "VARCHAR(50)", "AI model identifier (e.g. claude-3-haiku-20240307)"),
+            ("input_tokens", "INT", "Number of input tokens consumed"),
+            ("output_tokens", "INT", "Number of output tokens generated"),
+            ("cache_read_tokens", "INT", "Tokens read from Anthropic prompt cache"),
+            ("cache_write_tokens", "INT", "Tokens written to Anthropic prompt cache"),
+            ("cost_usd", "DECIMAL(10,6)", "Estimated cost in USD"),
+            ("requested_by", "INT", "FK to app_user who triggered the analysis"),
+            ("created_at", "DATETIME", "Timestamp of the API call"),
+        ],
+        relationships="References: opportunity (notice_id), sam_attachment (attachment_id), app_user (requested_by).",
+        change_detection="None (append-only log).",
+        growth="10,000-100,000 rows per year. One row per AI API call."
     )
 
     # =========================================================================

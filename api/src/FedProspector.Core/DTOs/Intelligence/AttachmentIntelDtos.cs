@@ -109,3 +109,35 @@ public class HighlightSpan
     public int End { get; set; }
     public string MatchedText { get; set; } = "";
 }
+
+public class IdentifierRefDto
+{
+    public string IdentifierType { get; set; } = "";
+    public string IdentifierValue { get; set; } = "";
+    public string? RawText { get; set; }
+    public string Confidence { get; set; } = "medium";
+    public string? MatchedTable { get; set; }
+    public string? MatchedColumn { get; set; }
+    public string? MatchedId { get; set; }
+    public int MentionCount { get; set; }
+}
+
+public class PredecessorCandidateDto
+{
+    public string NoticeId { get; set; } = "";
+    public string PredecessorPiid { get; set; } = "";
+    public string? PredecessorVendorName { get; set; }
+    public string? PredecessorVendorUei { get; set; }
+    public decimal? PredecessorAwardAmount { get; set; }
+    public string? PredecessorSetAsideType { get; set; }
+    public string? PredecessorNaics { get; set; }
+    public string Confidence { get; set; } = "medium";
+    public int DocumentMentions { get; set; }
+}
+
+public class OpportunityIdentifiersDto
+{
+    public string NoticeId { get; set; } = "";
+    public List<IdentifierRefDto> Identifiers { get; set; } = new();
+    public List<PredecessorCandidateDto> PredecessorCandidates { get; set; } = new();
+}

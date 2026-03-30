@@ -258,7 +258,41 @@ def build_presentation():
     ], font_size=12, line_spacing=1.3)
 
     # ====================================================================
-    # Slide 6: On-Demand Loading
+    # Slide 6: Description Backfill
+    # ====================================================================
+    slide = prs.slides.add_slide(blank_layout)
+    add_title_bar(slide, "Description Backfill Pipeline")
+    add_body_text(slide, [
+        "## Data Flow",
+        "",
+        "CLI: update fetch-descriptions  -->  Query opportunity table (description_text IS NULL)",
+        "   --> Two-pass priority:",
+        "       Pass 1: WOSB/8(a)/SBA + target NAICS (high-value opportunities first)",
+        "       Pass 2: General backlog (remaining budget)",
+        "   --> GET description_url from SAM.gov (1 API call per opportunity)",
+        "   --> Parse HTML response to plain text",
+        "   --> UPDATE opportunity.description_text + description_fetched_at",
+        "",
+        "## Key Details",
+        "",
+        "Source:           SAM.gov Opportunity Description URLs (individual GET requests)",
+        "Target column:    opportunity.description_text (+ description_fetched_at)",
+        "API key:          Key 2 (1,000/day), 1 call per description",
+        "Daily budget:     100 descriptions/day (via --limit 100 in daily_load.bat)",
+        "CLI command:      python main.py update fetch-descriptions [--key 2] [--limit 100]",
+        "",
+        "## Priority Strategy",
+        "",
+        "High-value first: --naics and --set-aside filters identify WOSB/8(a)/SBA opportunities",
+        "Remaining budget: after priority pass, fetches general backlog",
+        "Integrated:       Step 2 of daily_load.bat (after opportunity load, before awards)",
+        "",
+        ">> One API call per description. Rate-limited by Key 2 daily quota.",
+        ">> Backlog clears over days/weeks as 100/day accumulates.",
+    ], font_size=13, line_spacing=1.3)
+
+    # ====================================================================
+    # Slide 7: On-Demand Loading
     # ====================================================================
     slide = prs.slides.add_slide(blank_layout)
     add_title_bar(slide, "On-Demand Loading (UI-Triggered)")
@@ -269,27 +303,30 @@ def build_presentation():
         "   --> INSERT into data_load_request (status = PENDING)",
         "   --> Python DemandLoader polls for PENDING rows (up to 10 per cycle)",
         "   --> Route to appropriate loader based on request_type:",
-        "       USASPENDING_AWARD  -->  USASpendingClient + USASpendingLoader",
-        "       FPDS_AWARD         -->  SAMAwardsClient (key 2) + AwardsLoader",
+        "       USASPENDING_AWARD   -->  USASpendingClient + USASpendingLoader",
+        "       FPDS_AWARD          -->  SAMAwardsClient (key 2) + AwardsLoader",
+        "       REFRESH_FEDHIER_ORG -->  SAMFedHierClient + FedHierLoader (single org)",
+        "       ATTACHMENT_ANALYSIS -->  Local AI analysis pipeline",
         "   --> UPDATE data_load_request (status = COMPLETED / FAILED)",
-        "   --> UI notification on completion",
         "",
         "## Key Details",
         "",
         "Request table:    data_load_request (PK: request_id)",
         "Status values:    PENDING -> PROCESSING -> COMPLETED | FAILED",
         "Polling:          Python CLI process, periodic poll cycle",
-        "API key:          Uses SAM.gov API key 2 (1000/day limit) for FPDS lookups",
-        "CLI command:      python main.py demand process",
+        "API key:          SAM.gov key 2 (1000/day) for FPDS + Fed Hierarchy lookups",
+        "CLI command:      python main.py job process-requests [--watch]",
         "",
-        "## Architecture",
+        "## Request Types",
         "",
-        "Decoupled design: C# API writes request, Python processor reads and executes",
-        "Reuses existing ETL loaders -- no duplicate data transformation logic",
-        "Error handling: per-request try/catch, failed requests logged with error message",
+        "USASPENDING_AWARD:   Fetch award + transactions by generated_unique_award_id",
+        "FPDS_AWARD:          Fetch FPDS contract data by PIID",
+        "REFRESH_FEDHIER_ORG: Refresh single agency/office from SAM.gov Fed Hierarchy API",
+        "ATTACHMENT_ANALYSIS: Run AI analysis on attachments for a specific notice_id",
         "",
-        ">> Enables users to trigger targeted data refreshes without running full ETL pipelines.",
-    ])
+        ">> Decoupled: C# API writes request, Python processor reads and executes.",
+        ">> Reuses existing loaders -- no duplicate transformation logic.",
+    ], font_size=13, line_spacing=1.3)
 
     return prs
 

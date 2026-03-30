@@ -31,6 +31,7 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import DescriptionIcon from '@mui/icons-material/Description';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import ImageIcon from '@mui/icons-material/Image';
+import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
 
 import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -65,7 +66,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 
-import type { OpportunityDetail, QScoreFactorDto, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
+import type { OpportunityDetail, PointOfContactDto, QScoreFactorDto, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -409,6 +410,53 @@ function OverviewTab({
           <ResourceLinksSection resourceLinks={resourceLinks} />
         )}
       </Paper>
+
+      {/* Points of Contact */}
+      {opp.pointsOfContact && opp.pointsOfContact.length > 0 && (
+        <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+            <ContactPhoneIcon fontSize="small" color="action" />
+            <Typography variant="subtitle2">
+              Points of Contact
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {opp.pointsOfContact.map((poc, i) => (
+              <Box key={i} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="body2" fontWeight="bold">
+                    {poc.fullName}
+                  </Typography>
+                  <Chip label={poc.pocType} size="small" variant="outlined" />
+                  {poc.title && (
+                    <Typography variant="body2" color="text.secondary">
+                      {poc.title}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                  {poc.email && (
+                    <Link href={`mailto:${poc.email}`} variant="body2">
+                      {poc.email}
+                    </Link>
+                  )}
+                  {poc.phone && (
+                    <Typography variant="body2" color="text.secondary">
+                      {poc.phone}
+                    </Typography>
+                  )}
+                  {poc.fax && (
+                    <Typography variant="body2" color="text.secondary">
+                      Fax: {poc.fax}
+                    </Typography>
+                  )}
+                </Box>
+                {i < opp.pointsOfContact!.length - 1 && <Divider sx={{ mt: 1 }} />}
+              </Box>
+            ))}
+          </Box>
+        </Paper>
+      )}
 
       {/* qScore (passed from Recommended page) */}
       {qScoreState && (

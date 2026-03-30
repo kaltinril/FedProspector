@@ -57,34 +57,41 @@ public class AttachmentIntelService : IAttachmentIntelService
             .Where(m => m.NoticeId == noticeId)
             .ToListAsync();
 
-        if (mappings.Count == 0)
-            return null;
-
         var attachmentIds = mappings.Select(m => m.AttachmentId).Distinct().ToList();
 
         // Fetch SamAttachment details for these attachments
-        var samAttachments = await _context.SamAttachments.AsNoTracking()
-            .Where(a => attachmentIds.Contains(a.AttachmentId))
-            .ToListAsync();
+        var samAttachments = attachmentIds.Count > 0
+            ? await _context.SamAttachments.AsNoTracking()
+                .Where(a => attachmentIds.Contains(a.AttachmentId))
+                .ToListAsync()
+            : new List<SamAttachment>();
 
         var samAttachmentLookup = samAttachments.ToDictionary(a => a.AttachmentId);
 
         // Fetch documents for these attachments
-        var documents = await _context.AttachmentDocuments.AsNoTracking()
-            .Where(d => attachmentIds.Contains(d.AttachmentId))
-            .ToListAsync();
+        var documents = attachmentIds.Count > 0
+            ? await _context.AttachmentDocuments.AsNoTracking()
+                .Where(d => attachmentIds.Contains(d.AttachmentId))
+                .ToListAsync()
+            : new List<AttachmentDocument>();
 
         var documentIds = documents.Select(d => d.DocumentId).ToList();
 
         // Fetch per-document intel summaries
-        var intelRecords = await _context.DocumentIntelSummaries.AsNoTracking()
-            .Where(i => documentIds.Contains(i.DocumentId))
-            .ToListAsync();
+        var intelRecords = documentIds.Count > 0
+            ? await _context.DocumentIntelSummaries.AsNoTracking()
+                .Where(i => documentIds.Contains(i.DocumentId))
+                .ToListAsync()
+            : new List<DocumentIntelSummary>();
 
-        // Fetch per-opportunity rollup summaries
+        // Fetch per-opportunity rollup summaries (includes description-only intel)
         var summaryRecords = await _context.OpportunityAttachmentSummaries.AsNoTracking()
             .Where(s => s.NoticeId == noticeId)
             .ToListAsync();
+
+        // If no attachments AND no summary records, there is no intel to return
+        if (mappings.Count == 0 && summaryRecords.Count == 0)
+            return null;
 
         // Fetch evidence from per-document intel records
         List<DocumentIntelEvidence> evidence = [];
@@ -683,6 +690,94 @@ public class AttachmentIntelService : IAttachmentIntelService
         }
 
         return passages;
+    }
+
+    public async Task<OpportunityIdentifiersDto> GetIdentifierRefsAsync(string noticeId)
+    {
+        var dto = new OpportunityIdentifiersDto { NoticeId = noticeId };
+
+        // Get attachment IDs for this opportunity
+        var attachmentIds = await _context.OpportunityAttachments.AsNoTracking()
+            .Where(oa => oa.NoticeId == noticeId)
+            .Select(oa => oa.AttachmentId)
+            .ToListAsync();
+
+        if (attachmentIds.Count == 0)
+            return dto;
+
+        // Get document IDs for those attachments
+        var documentIds = await _context.AttachmentDocuments.AsNoTracking()
+            .Where(ad => attachmentIds.Contains(ad.AttachmentId))
+            .Select(ad => ad.DocumentId)
+            .ToListAsync();
+
+        if (documentIds.Count == 0)
+            return dto;
+
+        // Get identifier refs grouped by type+value
+        var refs = await _context.DocumentIdentifierRefs.AsNoTracking()
+            .Where(r => documentIds.Contains(r.DocumentId))
+            .ToListAsync();
+
+        // Group and build DTOs
+        var grouped = refs
+            .GroupBy(r => new { r.IdentifierType, r.IdentifierValue })
+            .Select(g =>
+            {
+                var first = g.OrderByDescending(r => r.Confidence == "high" ? 3 : r.Confidence == "medium" ? 2 : 1).First();
+                return new IdentifierRefDto
+                {
+                    IdentifierType = first.IdentifierType,
+                    IdentifierValue = first.IdentifierValue,
+                    RawText = first.RawText,
+                    Confidence = first.Confidence ?? "medium",
+                    MatchedTable = first.MatchedTable,
+                    MatchedColumn = first.MatchedColumn,
+                    MatchedId = first.MatchedId,
+                    MentionCount = g.Count()
+                };
+            })
+            .OrderBy(r => r.IdentifierType)
+            .ThenBy(r => r.IdentifierValue)
+            .ToList();
+
+        dto.Identifiers = grouped;
+
+        // Build predecessor candidates from PIID/SOLICITATION refs that matched fpds_contract
+        var predecessorRefs = grouped
+            .Where(r => r.IdentifierType is "PIID" or "SOLICITATION"
+                        && r.MatchedTable == "fpds_contract"
+                        && r.MatchedColumn == "contract_id")
+            .ToList();
+
+        if (predecessorRefs.Count > 0)
+        {
+            var piids = predecessorRefs.Select(r => r.MatchedId!).Distinct().ToList();
+
+            // Query fpds_contract for predecessor details (base award only)
+            var contracts = await _context.FpdsContracts.AsNoTracking()
+                .Where(fc => piids.Contains(fc.ContractId) && fc.ModificationNumber == "0")
+                .ToListAsync();
+
+            foreach (var fc in contracts)
+            {
+                var refDto = predecessorRefs.FirstOrDefault(r => r.MatchedId == fc.ContractId);
+                dto.PredecessorCandidates.Add(new PredecessorCandidateDto
+                {
+                    NoticeId = noticeId,
+                    PredecessorPiid = fc.ContractId,
+                    PredecessorVendorName = fc.VendorName,
+                    PredecessorVendorUei = fc.VendorUei,
+                    PredecessorAwardAmount = fc.BaseAndAllOptions,
+                    PredecessorSetAsideType = fc.SetAsideType,
+                    PredecessorNaics = fc.NaicsCode,
+                    Confidence = refDto?.Confidence ?? "medium",
+                    DocumentMentions = refDto?.MentionCount ?? 0
+                });
+            }
+        }
+
+        return dto;
     }
 
     private static List<string> DeserializeJsonList(string? json)

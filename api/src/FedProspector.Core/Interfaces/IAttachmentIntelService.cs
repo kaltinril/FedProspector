@@ -9,4 +9,5 @@ public interface IAttachmentIntelService
     Task<LoadRequestStatusDto> RequestAnalysisAsync(string noticeId, string tier, int? userId);
     Task<LoadRequestStatusDto?> GetAnalysisStatusAsync(string noticeId);
     Task<AnalysisEstimateDto> GetAnalysisEstimateAsync(string noticeId, string model = "haiku");
+    Task<OpportunityIdentifiersDto> GetIdentifierRefsAsync(string noticeId);
 }

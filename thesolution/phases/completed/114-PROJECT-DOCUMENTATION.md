@@ -1,6 +1,6 @@
 # Phase 114: Project Documentation Suite
 
-**Status:** PLANNED
+**Status:** COMPLETE (2026-03-29) — all 10 deliverables generated and regenerated with Phase 112–113 content
 **Priority:** Medium — essential for onboarding, maintenance, and eventual handoff
 **Dependencies:** None (documents current state)
 
@@ -241,6 +241,37 @@ Produce a complete set of professional documentation covering every layer of the
 
 ---
 
+## Current State (as of 2026-03-29)
+
+All 10 deliverables were initially generated on **March 22, 2026** with Python generator scripts in each `docs/` subdirectory. However, Phases 112 and 113 landed after generation:
+
+### Gaps to Address in Regeneration
+
+**Phase 112 — Opportunity Description Backfill (March 28):**
+- **API Guide (1B):** Add `POST /api/v1/opportunities/{noticeId}/fetch-description` endpoint
+- **OpenAPI (1A):** Add fetch-description endpoint schema
+- **User Guide (2):** Add "Fetch Description from SAM.gov" button on Opportunity Detail Overview tab
+- **Admin Guide (3):** Add `update fetch-descriptions` CLI command, daily_load.bat integration
+- **Loader Reference (5B):** Add description backfill loader documentation
+
+**Phase 113 — Federal Hierarchy Browser (March 29):**
+- **API Guide (1B):** Add all `FederalHierarchyController` endpoints (search, detail, children, tree, opportunities, refresh, refresh/status)
+- **OpenAPI (1A):** Add hierarchy endpoint schemas
+- **User Guide (2):** Add Federal Hierarchy Browse page, Organization Detail page, tree navigation, search
+- **Admin Guide (3):** Add hierarchy refresh panel (admin-only), API key selection, refresh status monitoring
+- **Schema Reference (4A):** Verify `federal_hierarchy` and `data_load_request` tables documented
+- **Data Dictionary (4C):** Add `data_load_request` table documentation if missing
+- **ERD (4B):** Verify hierarchy relationships shown
+- **ETL Architecture (5A):** Add on-demand refresh flow (data_load_request → poller → hierarchy API)
+- **Data Flows (5C):** Add hierarchy refresh data flow slide
+
+### Regeneration Strategy
+
+For each deliverable:
+1. Update the generator script (`generate_*.py`) to include new content
+2. Re-run the generator to produce updated output file
+3. Verify the output includes Phase 112/113 content
+
 ## Implementation Notes
 
 - All output goes to `docs/` at project root (not in `thesolution/`)
@@ -250,6 +281,7 @@ Produce a complete set of professional documentation covering every layer of the
 - Source all content from actual code, not assumptions — read controllers, models, CLI commands, DDL files
 - Include screenshots or placeholder references for UI documentation where relevant
 - Version-stamp each document with generation date
+- Generator scripts live alongside their output in `docs/` subdirectories
 
 ---
 

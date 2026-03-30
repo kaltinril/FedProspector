@@ -21,17 +21,16 @@ from db.connection import get_connection
 logger = logging.getLogger("fed_prospector.etl.attachment_ai_analyzer")
 
 # Model mapping
+# opus excluded — add 'ai_opus' to extraction_method ENUM in 36_attachment.sql before enabling
 MODELS = {
     "haiku": "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-4-6",
-    "opus": "claude-opus-4-6",
 }
 
 # Per-million-token pricing by model family
 MODEL_PRICING = {
     "haiku": {"input": 1.00, "output": 5.00, "cache_read": 0.10, "cache_write": 1.25},
     "sonnet": {"input": 3.00, "output": 15.00, "cache_read": 0.30, "cache_write": 3.75},
-    "opus": {"input": 15.00, "output": 75.00, "cache_read": 1.50, "cache_write": 18.75},
 }
 
 SYSTEM_PROMPT = """You are an expert federal contracting analyst. Analyze the following government solicitation document and extract structured intelligence.
@@ -293,6 +292,321 @@ class AttachmentAIAnalyzer:
             dict with analysis stats
         """
         return self.analyze(notice_id=notice_id, batch_size=1000, force=force)
+
+    # ------------------------------------------------------------------
+    # Description-text AI analysis (Phase 121)
+    # ------------------------------------------------------------------
+
+    def analyze_descriptions(self, notice_id=None, batch_size=50, force=False):
+        """Analyze opportunity description_text using Claude AI.
+
+        For each eligible opportunity, gathers description_text and (optionally)
+        attachment text into a combined prompt. Results are stored as an AI row
+        in opportunity_attachment_summary (the per-notice rollup table).
+
+        Args:
+            notice_id: Optional single notice to analyze.
+            batch_size: Max notices to process in one run.
+            force: Re-analyze even if AI summary already exists.
+
+        Returns:
+            dict with keys: processed, analyzed, skipped, failed, dry_run
+        """
+        stats = {"processed": 0, "analyzed": 0, "skipped": 0, "failed": 0, "dry_run": self.dry_run}
+
+        notices = self._fetch_eligible_descriptions(notice_id, batch_size, force)
+        if not notices:
+            logger.info("No eligible descriptions found for AI analysis")
+            return stats
+
+        logger.info("Found %d notices eligible for description AI analysis", len(notices))
+
+        for notice in notices:
+            stats["processed"] += 1
+            try:
+                result = self._analyze_description_notice(notice)
+                if result:
+                    if self.dry_run:
+                        stats["analyzed"] += 1
+                        logger.info(
+                            "DRY RUN: analyzed description for %s (no intel written)",
+                            notice["notice_id"],
+                        )
+                    else:
+                        self._save_description_intel(notice, result)
+                        stats["analyzed"] += 1
+                        logger.info(
+                            "Analyzed description for %s (%s confidence)",
+                            notice["notice_id"],
+                            result.get("overall_confidence", "unknown"),
+                        )
+                else:
+                    stats["failed"] += 1
+            except Exception as e:
+                stats["failed"] += 1
+                logger.error(
+                    "Failed to analyze description for %s: %s",
+                    notice["notice_id"], e,
+                )
+
+        logger.info(
+            "Description AI analysis complete: %d processed, %d analyzed, %d skipped, %d failed",
+            stats["processed"], stats["analyzed"], stats["skipped"], stats["failed"],
+        )
+        return stats
+
+    def _fetch_eligible_descriptions(self, notice_id, batch_size, force):
+        """Fetch notices with description_text that need AI analysis.
+
+        Returns list of dicts: {notice_id, description_text, attachment_texts}.
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            conditions = [
+                "o.description_text IS NOT NULL",
+                "o.description_text != ''",
+            ]
+            params = []
+
+            if notice_id:
+                conditions.append("o.notice_id = %s")
+                params.append(notice_id)
+
+            if not force:
+                # Exclude notices that already have an AI summary row
+                conditions.append("""
+                    NOT EXISTS (
+                        SELECT 1 FROM opportunity_attachment_summary oas
+                        WHERE oas.notice_id = o.notice_id
+                          AND oas.extraction_method IN ('ai_haiku', 'ai_sonnet')
+                    )
+                """)
+
+            where = " AND ".join(conditions)
+            cursor.execute(f"""
+                SELECT o.notice_id, o.description_text
+                FROM opportunity o
+                WHERE {where}
+                ORDER BY o.notice_id
+                LIMIT %s
+            """, params + [batch_size])
+
+            notices = cursor.fetchall()
+
+            # For each notice, also gather any attachment text
+            for notice in notices:
+                cursor.execute("""
+                    SELECT ad.extracted_text
+                    FROM opportunity_attachment m
+                    JOIN attachment_document ad ON ad.attachment_id = m.attachment_id
+                    WHERE m.notice_id = %s
+                      AND ad.extraction_status = 'extracted'
+                      AND ad.extracted_text IS NOT NULL
+                    ORDER BY ad.document_id
+                """, (notice["notice_id"],))
+                att_rows = cursor.fetchall()
+                notice["attachment_texts"] = [r["extracted_text"] for r in att_rows]
+
+            return notices
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _analyze_description_notice(self, notice):
+        """Build combined text from description + attachments and send to Claude.
+
+        Description text is prepended as context. If attachments also exist,
+        they are appended (truncated to fit within budget).
+        """
+        desc_text = notice["description_text"].strip()
+        attachment_texts = notice.get("attachment_texts", [])
+
+        # Build combined text: description first, then attachments
+        parts = [f"=== OPPORTUNITY DESCRIPTION ===\n{desc_text}"]
+        for i, att_text in enumerate(attachment_texts):
+            parts.append(f"\n\n=== ATTACHMENT {i + 1} ===\n{att_text}")
+
+        combined = "\n".join(parts)
+
+        # Truncate to avoid excessive costs
+        max_chars = 100_000  # ~25k tokens
+        if len(combined) > max_chars:
+            combined = combined[:max_chars] + "\n\n[Document truncated at 100,000 characters]"
+            logger.debug(
+                "Truncated combined text for %s from %d to %d chars",
+                notice["notice_id"], len("\n".join(parts)), max_chars,
+            )
+
+        user_message = f"Analyze this federal solicitation document:\n\n{combined}"
+
+        if self.dry_run:
+            logger.info(
+                "DRY RUN: Would send %d chars to %s for notice %s (%d attachments + description)",
+                len(user_message), self.model_id, notice["notice_id"],
+                len(attachment_texts),
+            )
+            return {
+                "clearance_required": None,
+                "clearance_level": None,
+                "clearance_scope": None,
+                "clearance_details": None,
+                "eval_method": None,
+                "eval_details": None,
+                "vehicle_type": None,
+                "vehicle_details": None,
+                "pricing_structure": None,
+                "place_of_performance": None,
+                "is_recompete": None,
+                "incumbent_name": None,
+                "recompete_details": None,
+                "scope_summary": "[DRY RUN] No actual analysis performed",
+                "period_of_performance": None,
+                "labor_categories": [],
+                "key_requirements": [],
+                "overall_confidence": "low",
+                "confidence_details": {
+                    "clearance": "low",
+                    "evaluation": "low",
+                    "vehicle": "low",
+                    "recompete": "low",
+                    "scope": "low",
+                },
+            }
+
+        # Real API call
+        response = self.client.messages.create(
+            model=self.model_id,
+            max_tokens=4096,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+        )
+
+        # Log token usage and cost (document_id=None for description-based analysis)
+        self._log_usage(notice["notice_id"], None, response.usage)
+
+        # Parse JSON from response
+        response_text = response.content[0].text.strip()
+
+        # Handle markdown-wrapped JSON
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            response_text = "\n".join(lines)
+
+        # Extract JSON object if model added extra text before/after
+        brace_start = response_text.find("{")
+        brace_end = response_text.rfind("}")
+        if brace_start != -1 and brace_end != -1:
+            response_text = response_text[brace_start:brace_end + 1]
+
+        try:
+            result = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(
+                "Failed to parse JSON response for notice %s: %s\nResponse: %s",
+                notice["notice_id"], e, response_text[:500],
+            )
+            return None
+
+        if "overall_confidence" not in result:
+            result["overall_confidence"] = "low"
+        if result["overall_confidence"] not in ("high", "medium", "low"):
+            result["overall_confidence"] = "low"
+
+        return result
+
+    def _save_description_intel(self, notice, result):
+        """Save AI analysis of description text to opportunity_attachment_summary.
+
+        This creates/updates the per-notice AI rollup row, which the API
+        uses as the primary source for intel display.
+        """
+        notice_id = notice["notice_id"]
+        text_hash = hashlib.sha256(
+            notice["description_text"].encode("utf-8")
+        ).hexdigest()
+
+        pricing_structure = self._extract_pricing_structure(result)
+        place_of_performance = self._extract_place_of_performance(result)
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO opportunity_attachment_summary "
+                "(notice_id, extraction_method, source_text_hash, "
+                " clearance_required, clearance_level, clearance_scope, clearance_details, "
+                " eval_method, eval_details, vehicle_type, vehicle_details, "
+                " is_recompete, incumbent_name, recompete_details, "
+                " pricing_structure, place_of_performance, "
+                " scope_summary, period_of_performance, labor_categories, key_requirements, "
+                " overall_confidence, confidence_details, citation_offsets, "
+                " last_load_id, extracted_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE "
+                "source_text_hash = VALUES(source_text_hash), "
+                "clearance_required = VALUES(clearance_required), "
+                "clearance_level = VALUES(clearance_level), "
+                "clearance_scope = VALUES(clearance_scope), "
+                "clearance_details = VALUES(clearance_details), "
+                "eval_method = VALUES(eval_method), "
+                "eval_details = VALUES(eval_details), "
+                "vehicle_type = VALUES(vehicle_type), "
+                "vehicle_details = VALUES(vehicle_details), "
+                "is_recompete = VALUES(is_recompete), "
+                "incumbent_name = VALUES(incumbent_name), "
+                "recompete_details = VALUES(recompete_details), "
+                "pricing_structure = VALUES(pricing_structure), "
+                "place_of_performance = VALUES(place_of_performance), "
+                "scope_summary = VALUES(scope_summary), "
+                "period_of_performance = VALUES(period_of_performance), "
+                "labor_categories = VALUES(labor_categories), "
+                "key_requirements = VALUES(key_requirements), "
+                "overall_confidence = VALUES(overall_confidence), "
+                "confidence_details = VALUES(confidence_details), "
+                "citation_offsets = VALUES(citation_offsets), "
+                "last_load_id = VALUES(last_load_id), "
+                "extracted_at = VALUES(extracted_at)",
+                (
+                    notice_id,
+                    self.extraction_method,
+                    text_hash,
+                    result.get("clearance_required"),
+                    result.get("clearance_level"),
+                    result.get("clearance_scope"),
+                    result.get("clearance_details"),
+                    result.get("eval_method"),
+                    result.get("eval_details"),
+                    result.get("vehicle_type"),
+                    result.get("vehicle_details"),
+                    result.get("is_recompete"),
+                    (result.get("incumbent_name") or "")[:200] or None,
+                    result.get("recompete_details"),
+                    pricing_structure,
+                    (place_of_performance or "")[:200] or None,
+                    result.get("scope_summary"),
+                    (result.get("period_of_performance") or "")[:200] or None,
+                    json.dumps(result.get("labor_categories")) if result.get("labor_categories") else None,
+                    json.dumps(result.get("key_requirements")) if result.get("key_requirements") else None,
+                    result.get("overall_confidence", "low"),
+                    json.dumps(result.get("confidence_details")) if result.get("confidence_details") else None,
+                    None,  # citation_offsets — not applicable for description-level analysis
+                    None,  # last_load_id
+                    datetime.now(),
+                ),
+            )
+            conn.commit()
+            logger.debug(
+                "Saved description AI intel for %s (method=%s)",
+                notice_id, self.extraction_method,
+            )
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
 
     def _fetch_eligible_documents(self, notice_id, batch_size, force):
         """Fetch documents that have extracted text but no AI intel row yet.

@@ -200,6 +200,17 @@ public class OpportunitiesController : ApiControllerBase
     }
 
     /// <summary>
+    /// Get federal identifiers extracted from opportunity attachments (PIIDs, UEIs, CAGE codes, etc.)
+    /// and predecessor contract candidates.
+    /// </summary>
+    [HttpGet("{noticeId}/identifier-refs")]
+    public async Task<IActionResult> GetIdentifierRefs(string noticeId)
+    {
+        var result = await _attachmentIntelService.GetIdentifierRefsAsync(noticeId);
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Get a cost estimate for AI analysis of opportunity attachments.
     /// </summary>
     [HttpGet("{noticeId}/analyze/estimate")]

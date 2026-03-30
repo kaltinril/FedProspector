@@ -1,10 +1,11 @@
-"""CLI commands for backfilling opportunity columns from extracted intel (Phase 110H).
+"""CLI commands for backfilling opportunity columns from extracted intel.
 
 Per-field, frequency-weighted intel backfill.  Each opportunity column is
 resolved independently using the best available evidence rather than picking
-a single winner row.
+a single winner row.  Also includes POC backfill from raw staging JSON.
 """
 
+import json
 import re
 
 import click
@@ -560,6 +561,215 @@ def backfill_opportunity_intel(notice_id, dry_run, verbose):
                 f"  Skipped: {total_skipped} "
                 f"(no relevant intel or no matching opportunity)"
             )
+
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        cursor.close()
+        conn.close()
+
+
+# ---------------------------------------------------------------------------
+# POC backfill from stg_opportunity_raw
+# ---------------------------------------------------------------------------
+
+def _parse_pocs_from_raw(raw_json):
+    """Extract POC dicts from a raw opportunity JSON object.
+
+    Returns list of dicts with keys: full_name, email, phone, fax, title, officer_type.
+    Mirrors the extraction logic in opportunity_loader._normalize_opportunity.
+    """
+    pocs = []
+    for poc in (raw_json.get("pointOfContact") or []):
+        if not isinstance(poc, dict):
+            continue
+        full_name = (poc.get("fullName") or "").strip()
+        if not full_name:
+            continue
+        pocs.append({
+            "full_name":    full_name[:500],
+            "email":        ((poc.get("email") or "").strip()[:200]) or None,
+            "phone":        ((poc.get("phone") or "").strip()[:100]) or None,
+            "fax":          ((poc.get("fax") or "").strip()[:100]) or None,
+            "title":        ((poc.get("title") or "").strip()[:200]) or None,
+            "officer_type": ((poc.get("type") or "").strip()[:50]) or None,
+        })
+    return pocs
+
+
+def _upsert_pocs(cursor, notice_id, pocs):
+    """Upsert POC records — mirrors opportunity_loader._upsert_pocs."""
+    officer_sql = (
+        "INSERT INTO contracting_officer "
+        "(full_name, email, phone, fax, title, officer_type) "
+        "VALUES (%s, %s, %s, %s, %s, %s) "
+        "ON DUPLICATE KEY UPDATE "
+        "phone = COALESCE(VALUES(phone), phone), "
+        "fax = COALESCE(VALUES(fax), fax), "
+        "title = COALESCE(VALUES(title), title), "
+        "officer_type = COALESCE(VALUES(officer_type), officer_type)"
+    )
+    poc_link_sql = (
+        "INSERT INTO opportunity_poc (notice_id, officer_id, poc_type) "
+        "VALUES (%s, %s, %s) "
+        "ON DUPLICATE KEY UPDATE poc_type = VALUES(poc_type)"
+    )
+
+    for poc in pocs:
+        cursor.execute(officer_sql, (
+            poc["full_name"], poc["email"], poc["phone"],
+            poc["fax"], poc["title"], poc["officer_type"],
+        ))
+        officer_id = cursor.lastrowid
+        if officer_id == 0:
+            cursor.execute(
+                "SELECT officer_id FROM contracting_officer "
+                "WHERE full_name = %s AND email = %s",
+                (poc["full_name"], poc["email"]),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                continue
+            officer_id = row["officer_id"]
+
+        poc_type = (poc["officer_type"] or "PRIMARY").upper()
+        cursor.execute(poc_link_sql, (notice_id, officer_id, poc_type))
+
+
+@click.command("pocs")
+@click.option("--notice-id", type=str, default=None,
+              help="Backfill POCs for a single opportunity")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Show what would be backfilled without writing")
+@click.option("--force", is_flag=True, default=False,
+              help="Re-extract POCs even for opportunities that already have them")
+def backfill_pocs(notice_id, dry_run, force):
+    """Backfill Point of Contact data from raw staging JSON.
+
+    Extracts pointOfContact data from stg_opportunity_raw.raw_json and
+    populates the contracting_officer and opportunity_poc tables.
+
+    By default, only processes opportunities that have no POC records yet.
+    Use --force to re-extract for all opportunities.
+
+    Examples:
+        python main.py backfill pocs
+        python main.py backfill pocs --notice-id abc123
+        python main.py backfill pocs --dry-run
+        python main.py backfill pocs --force
+    """
+    logger = setup_logging()
+
+    from db.connection import get_connection
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    try:
+        # Find opportunities to process
+        if notice_id:
+            if force:
+                cursor.execute(
+                    "SELECT DISTINCT notice_id FROM stg_opportunity_raw "
+                    "WHERE notice_id = %s",
+                    [notice_id],
+                )
+            else:
+                cursor.execute(
+                    "SELECT DISTINCT s.notice_id FROM stg_opportunity_raw s "
+                    "LEFT JOIN opportunity_poc p ON s.notice_id = p.notice_id "
+                    "WHERE s.notice_id = %s AND p.poc_id IS NULL",
+                    [notice_id],
+                )
+        else:
+            if force:
+                cursor.execute(
+                    "SELECT DISTINCT notice_id FROM stg_opportunity_raw"
+                )
+            else:
+                cursor.execute(
+                    "SELECT DISTINCT s.notice_id FROM stg_opportunity_raw s "
+                    "LEFT JOIN opportunity_poc p ON s.notice_id = p.notice_id "
+                    "WHERE p.poc_id IS NULL"
+                )
+
+        target_ids = [r["notice_id"] for r in cursor.fetchall()]
+
+        if not target_ids:
+            click.echo("No opportunities need POC backfill.")
+            return
+
+        click.echo(f"Processing {len(target_ids)} opportunities...")
+
+        BATCH_SIZE = 500
+        total_processed = 0
+        total_pocs = 0
+        total_skipped = 0
+
+        for batch_start in range(0, len(target_ids), BATCH_SIZE):
+            batch_ids = target_ids[batch_start:batch_start + BATCH_SIZE]
+            batch_num = batch_start // BATCH_SIZE + 1
+            total_batches = (len(target_ids) + BATCH_SIZE - 1) // BATCH_SIZE
+
+            click.echo(
+                f"  Batch {batch_num}/{total_batches}...",
+                nl=False,
+            )
+
+            # Get the latest raw_json for each notice_id in this batch
+            placeholders = ", ".join(["%s"] * len(batch_ids))
+            cursor.execute(f"""
+                SELECT s1.notice_id, s1.raw_json
+                FROM stg_opportunity_raw s1
+                INNER JOIN (
+                    SELECT notice_id, MAX(id) AS max_id
+                    FROM stg_opportunity_raw
+                    WHERE notice_id IN ({placeholders})
+                    GROUP BY notice_id
+                ) s2 ON s1.id = s2.max_id
+            """, batch_ids)
+
+            rows = cursor.fetchall()
+
+            for row in rows:
+                nid = row["notice_id"]
+                raw = row["raw_json"]
+                if isinstance(raw, str):
+                    raw = json.loads(raw)
+
+                pocs = _parse_pocs_from_raw(raw)
+                if not pocs:
+                    total_skipped += 1
+                    continue
+
+                if dry_run:
+                    for poc in pocs:
+                        click.echo(
+                            f"\n    {nid}: {poc['full_name']} "
+                            f"<{poc['email'] or 'no email'}> "
+                            f"({poc['officer_type'] or 'PRIMARY'})"
+                        )
+                    total_processed += 1
+                    total_pocs += len(pocs)
+                    continue
+
+                _upsert_pocs(cursor, nid, pocs)
+                total_processed += 1
+                total_pocs += len(pocs)
+
+            if not dry_run:
+                conn.commit()
+
+            click.echo(f" {total_processed} opps, {total_pocs} POCs so far")
+
+        verb = "Would process" if dry_run else "Processed"
+        click.echo(
+            f"\nDone. {verb} {total_processed} opportunities, "
+            f"{total_pocs} POC records."
+        )
+        if total_skipped:
+            click.echo(f"  Skipped: {total_skipped} (no POC data in raw JSON)")
 
     except Exception:
         conn.rollback()

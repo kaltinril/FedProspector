@@ -364,6 +364,14 @@ endpoint("POST", "/api/v1/opportunities/{noticeId}/analyze",
          response_body='{\n  "requestId": 42,\n  "status": "PENDING",\n  "message": "Analysis request queued"\n}',
          notes="Inserts a data_load_request for the Python pipeline to process. Rate limited at 30/min.")
 
+endpoint("POST", "/api/v1/opportunities/{noticeId}/fetch-description",
+         "Fetch a missing opportunity description from SAM.gov on demand. "
+         "If the description is already populated, returns the cached text without making an API call. "
+         "Includes SSRF protection (blocks private IPs), HTML stripping, and DB caching.",
+         response_body='{\n  "noticeId": "abc123",\n  "descriptionText": "The contractor shall provide..."\n}',
+         notes="Returns 404 if the opportunity does not exist or is not found on SAM.gov. "
+               "Returns 502 if the upstream SAM.gov call fails. Rate limited under 'write' policy (30/min).")
+
 # =========================================================================
 # CHAPTER 5: Awards
 # =========================================================================
@@ -743,9 +751,72 @@ endpoint("GET", "/health", "Get system health status including database connecti
          notes="Status values: Healthy, Degraded, Unhealthy. A source is considered stale after 168 hours (7 days).")
 
 # =========================================================================
-# CHAPTER 12: Error Handling
+# CHAPTER 12: Federal Hierarchy
 # =========================================================================
-doc.add_heading("Chapter 12: Error Handling", level=1)
+doc.add_heading("Chapter 12: Federal Hierarchy", level=1)
+doc.add_paragraph(
+    "Federal hierarchy endpoints provide access to the government agency organization tree "
+    "sourced from SAM.gov. Use these endpoints to browse departments, agencies, and offices, "
+    "view parent chains, find related opportunities, and request data refreshes."
+)
+doc.add_paragraph("Base path: /api/v1/hierarchy")
+
+endpoint("GET", "/api/v1/hierarchy", "Search or list federal organizations with filters and pagination.",
+         params=[
+             ["keyword", "string", "No", "Search in organization name and agency code"],
+             ["type", "string", "No", "Organization type filter (e.g., DEPARTMENT, AGENCY, OFFICE)"],
+             ["status", "string", "No", "Status filter (e.g., ACTIVE, INACTIVE)"],
+             ["agencyCode", "string", "No", "Agency code filter"],
+             ["page", "int", "No", "Page number (default: 1)"],
+             ["pageSize", "int", "No", "Results per page (default: 25, max: 100)"],
+             ["sortBy", "string", "No", "Sort field"],
+             ["sortDescending", "bool", "No", "Sort direction (default: false)"],
+         ],
+         response_body='{\n  "items": [\n    {\n      "fhOrgId": 100000000,\n      "name": "Department of Defense",\n      "agencyCode": "097",\n      "orgType": "DEPARTMENT",\n      "status": "ACTIVE",\n      "childCount": 42\n    }\n  ],\n  "page": 1,\n  "pageSize": 25,\n  "totalCount": 850,\n  "totalPages": 34\n}')
+
+endpoint("GET", "/api/v1/hierarchy/{fhOrgId}", "Get a single organization's detail including parent breadcrumb chain.",
+         response_body='{\n  "fhOrgId": 100006688,\n  "name": "U.S. Army Contracting Command",\n  "agencyCode": "021",\n  "orgType": "AGENCY",\n  "status": "ACTIVE",\n  "parentChain": [\n    { "fhOrgId": 100000000, "name": "Department of Defense" },\n    { "fhOrgId": 100000200, "name": "Department of the Army" }\n  ]\n}',
+         notes="Returns 404 if the organization ID does not exist.")
+
+endpoint("GET", "/api/v1/hierarchy/{fhOrgId}/children", "Get direct children of an organization for tree expansion.",
+         params=[
+             ["status", "string", "No", "Filter children by status (e.g., ACTIVE)"],
+             ["keyword", "string", "No", "Filter children by name keyword"],
+         ],
+         response_body='[\n  {\n    "fhOrgId": 100006690,\n    "name": "ACC-APG",\n    "orgType": "OFFICE",\n    "status": "ACTIVE",\n    "childCount": 5\n  }\n]')
+
+endpoint("GET", "/api/v1/hierarchy/tree", "Get top-level departments with child and descendant counts for the tree root.",
+         params=[
+             ["keyword", "string", "No", "Filter departments by name keyword"],
+         ],
+         response_body='[\n  {\n    "fhOrgId": 100000000,\n    "name": "Department of Defense",\n    "childCount": 42,\n    "descendantCount": 1250\n  },\n  {\n    "fhOrgId": 100000100,\n    "name": "Department of Homeland Security",\n    "childCount": 18,\n    "descendantCount": 320\n  }\n]')
+
+endpoint("GET", "/api/v1/hierarchy/{fhOrgId}/opportunities",
+         "Get opportunities linked to this organization and its descendants with pagination.",
+         params=[
+             ["page", "int", "No", "Page number (default: 1)"],
+             ["pageSize", "int", "No", "Results per page (default: 25, max: 100)"],
+             ["active", "string", "No", "Filter by active status"],
+             ["type", "string", "No", "Opportunity type filter"],
+             ["setAsideCode", "string", "No", "Set-aside code filter"],
+         ],
+         response_body='{\n  "items": [\n    {\n      "noticeId": "abc123",\n      "title": "IT Support Services",\n      "postedDate": "2026-03-01",\n      "responseDeadLine": "2026-04-15",\n      "setAsideDescription": "WOSB"\n    }\n  ],\n  "page": 1,\n  "pageSize": 25,\n  "totalCount": 28\n}')
+
+endpoint("POST", "/api/v1/hierarchy/{fhOrgId}/refresh",
+         "Queue a refresh request for a single organization via the data load poller. "
+         "Triggers a re-fetch of the organization's data from SAM.gov.",
+         response_body='{\n  "requestId": 42,\n  "message": "Refresh request queued. The poller will process it shortly."\n}',
+         notes="Requires authentication. Returns 401 if the user is not logged in.")
+
+endpoint("GET", "/api/v1/hierarchy/refresh/status",
+         "Check the status of the last hierarchy refresh job.",
+         response_body='{\n  "lastRefresh": "2026-03-22T06:00:00Z",\n  "status": "COMPLETE",\n  "recordsUpdated": 4500,\n  "errors": 0\n}')
+
+# =========================================================================
+# CHAPTER 13: Error Handling
+# =========================================================================
+doc.add_heading("Chapter 13: Error Handling", level=1)
+
 
 doc.add_heading("Standard Error Response", level=2)
 doc.add_paragraph(
@@ -808,9 +879,9 @@ add_code_block(
 )
 
 # =========================================================================
-# CHAPTER 13: Pagination
+# CHAPTER 14: Pagination
 # =========================================================================
-doc.add_heading("Chapter 13: Pagination", level=1)
+doc.add_heading("Chapter 14: Pagination", level=1)
 
 doc.add_heading("Offset-Based Pagination", level=2)
 doc.add_paragraph(

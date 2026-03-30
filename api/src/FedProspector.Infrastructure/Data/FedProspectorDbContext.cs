@@ -77,6 +77,7 @@ public class FedProspectorDbContext : DbContext
     public DbSet<DocumentIntelSummary> DocumentIntelSummaries { get; set; }
     public DbSet<DocumentIntelEvidence> DocumentIntelEvidence { get; set; }
     public DbSet<OpportunityAttachmentSummary> OpportunityAttachmentSummaries { get; set; }
+    public DbSet<DocumentIdentifierRef> DocumentIdentifierRefs { get; set; }
 
     // -----------------------------------------------------------------------
     // Federal / Awards Tables (5)

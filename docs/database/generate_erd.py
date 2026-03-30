@@ -218,7 +218,7 @@ ref_box = add_domain_box(slide1, Inches(6.8), Inches(4.3), Inches(2.8), Inches(2
 etl_box = add_domain_box(slide1, Inches(10.1), Inches(4.3), Inches(2.4), Inches(2.8),
     "ETL Operational", GRAY_LIGHT, GRAY,
     "etl_load_log\netl_load_error\netl_data_quality_rule\netl_rate_limit\n"
-    "etl_health_snapshot\ndata_load_request\nfederal_organization\nstg_entity_raw")
+    "etl_health_snapshot\ndata_load_request\nai_usage_log\nfederal_organization\nstg_entity_raw")
 
 # Arrows between domains
 # Opportunities <-> Awards (solicitation_identifier, notice_id linkage)
@@ -897,6 +897,18 @@ add_table_box(slide6, Inches(0.5), Inches(4.6), Inches(3.0), Inches(2.5),
         "created_date / last_modified_date",
         "record_hash CHAR(64)",
     ], TEAL, TEAL_LIGHT, pk_col="fh_org_id")
+
+add_table_box(slide6, Inches(3.9), Inches(5.3), Inches(2.8), Inches(1.6),
+    "ai_usage_log", [
+        "usage_id INT AUTO_INCREMENT",
+        "notice_id VARCHAR(100)",
+        "attachment_id INT",
+        "model VARCHAR(50)",
+        "input_tokens / output_tokens",
+        "cache_read / cache_write tokens",
+        "cost_usd DECIMAL(10,6)",
+        "requested_by INT",
+    ], GRAY, GRAY_LIGHT, pk_col="usage_id")
 
 add_table_box(slide6, Inches(10.3), Inches(1.3), Inches(2.5), Inches(2.0),
     "stg_entity_raw", [

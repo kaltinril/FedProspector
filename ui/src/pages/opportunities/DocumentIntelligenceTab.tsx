@@ -24,10 +24,12 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import DescriptionIcon from '@mui/icons-material/Description';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import SummarizeIcon from '@mui/icons-material/Summarize';
 
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
@@ -36,6 +38,7 @@ import { getDocumentIntelligence, getAnalysisEstimate, requestAnalysis, getAnaly
 import { queryKeys } from '@/queries/queryKeys';
 import type {
   DocumentIntelligenceDto,
+  MethodIntelDto,
   IntelSourceDto,
   MergedSourcePassageDto,
   AttachmentSummaryDto,
@@ -96,6 +99,41 @@ function formatFileSize(bytes: number | undefined | null): string {
 
 function formatTokens(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : `${n}`;
+}
+
+const getMethodFieldValue = (methodIntel: MethodIntelDto, fieldKey: string): string | undefined => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (methodIntel as any)[fieldKey] as string | undefined;
+};
+
+// ---------------------------------------------------------------------------
+// Scope Summary Card — prominent display of AI scope summary
+// ---------------------------------------------------------------------------
+
+function ScopeSummaryCard({ summary, methods }: { summary: string; methods: string[] }) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: expanded ? 1 : 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <SummarizeIcon color="primary" fontSize="small" />
+          <Typography variant="subtitle2">Scope Summary</Typography>
+          {methods.filter(m => m !== 'keyword').map(m => (
+            <Chip key={m} label={METHOD_LABELS[m] || m} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+          ))}
+        </Box>
+        <IconButton size="small" onClick={() => setExpanded(!expanded)}>
+          {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        </IconButton>
+      </Box>
+      <Collapse in={expanded}>
+        <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+          {summary}
+        </Typography>
+      </Collapse>
+    </Paper>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -222,12 +260,13 @@ function AISourceItem({ src }: { src: IntelSourceDto }) {
 interface IntelCardProps {
   label: string;
   fieldName: string;
+  fieldKey?: string;
   value: string | null | undefined;
   sources: IntelSourceDto[];
   intel: DocumentIntelligenceDto;
 }
 
-function IntelCard({ label, fieldName, value, sources, intel }: IntelCardProps) {
+function IntelCard({ label, fieldName, fieldKey, value, sources, intel }: IntelCardProps) {
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
   const [detailExpanded, setDetailExpanded] = useState(false);
   if (!value) return null;
@@ -250,20 +289,46 @@ function IntelCard({ label, fieldName, value, sources, intel }: IntelCardProps) 
   return (
     <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardContent sx={{ flexGrow: 1, pb: 1 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-          <Typography variant="caption" color="text.secondary">
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
             {label}
           </Typography>
-          <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
-            {fieldMethods.map((m) => (
-              <Chip
-                key={m}
-                label={METHOD_LABELS[m] ?? m}
-                size="small"
-                variant="outlined"
-                sx={{ fontSize: '0.65rem', height: 20 }}
-              />
-            ))}
+          <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'nowrap', justifyContent: 'flex-end', overflow: 'hidden', minWidth: 0 }}>
+            {/* Per-method values inline — only show values when methods disagree */}
+            {fieldKey && intel.methodBreakdown && Object.keys(intel.methodBreakdown).length > 1
+              ? (() => {
+                  const entries = Object.entries(intel.methodBreakdown);
+                  const vals = entries.map(([, d]) => getMethodFieldValue(d, fieldKey)).filter(Boolean);
+                  const allAgree = vals.length > 1 && vals.every(v => v === vals[0]);
+                  if (allAgree) {
+                    return entries.map(([method]) => (
+                      <Chip key={method} label={METHOD_LABELS[method] || method} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18 }} />
+                    ));
+                  }
+                  return entries.map(([method, methodData]) => {
+                    const methodValue = getMethodFieldValue(methodData, fieldKey);
+                    return (
+                      <Tooltip key={method} title={methodValue || ''}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flexShrink: 1 }}>
+                          <Chip label={METHOD_LABELS[method] || method} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18, flexShrink: 0 }} />
+                          <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 120 }}>
+                            {methodValue || '\u2014'}
+                          </Typography>
+                        </Box>
+                      </Tooltip>
+                    );
+                  });
+                })()
+              : fieldMethods.map((m) => (
+                  <Chip
+                    key={m}
+                    label={METHOD_LABELS[m] ?? m}
+                    size="small"
+                    variant="outlined"
+                    sx={{ fontSize: '0.65rem', height: 20 }}
+                  />
+                ))
+            }
             <Chip
               label={confidence}
               size="small"
@@ -451,6 +516,16 @@ function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[
     return chips;
   };
 
+  // Group by filename
+  const groups = items.reduce((acc, item) => {
+    const key = item.filename;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {} as Record<string, AttachmentIntelBreakdownDto[]>);
+
+  const fileCount = Object.keys(groups).length;
+
   return (
     <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
       <Box
@@ -458,7 +533,7 @@ function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[
         onClick={() => setExpanded((prev) => !prev)}
       >
         <Typography variant="subtitle2">
-          Per-Attachment Breakdown ({items.length} attachment{items.length !== 1 ? 's' : ''})
+          Per-Attachment Breakdown ({fileCount} file{fileCount !== 1 ? 's' : ''}, {items.length} result{items.length !== 1 ? 's' : ''})
         </Typography>
         <IconButton size="small" sx={{ ml: 'auto', transform: expanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
           <ExpandMoreIcon fontSize="small" />
@@ -466,49 +541,63 @@ function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[
       </Box>
       <Collapse in={expanded}>
         <Box sx={{ mt: 2 }}>
-          {items.map((item) => {
-            const chips = getFieldChips(item);
-            return (
-              <Box
-                key={item.attachmentId}
-                sx={{ p: 1.5, mb: 1, bgcolor: 'action.hover', borderRadius: 1 }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: chips.length > 0 ? 1 : 0 }}>
-                  <DescriptionIcon fontSize="small" color="action" />
-                  <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
-                    {item.filename}
-                  </Typography>
-                  <Chip
-                    label={METHOD_LABELS[item.extractionMethod] ?? item.extractionMethod}
-                    size="small"
-                    variant="outlined"
-                    sx={{ fontSize: '0.6rem', height: 18 }}
-                  />
-                  {item.confidence && (
-                    <Chip
-                      label={item.confidence}
-                      size="small"
-                      color={getConfidenceColor(item.confidence)}
-                      sx={{ fontSize: '0.6rem', height: 18 }}
-                    />
-                  )}
-                </Box>
-                {chips.length > 0 && (
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, ml: 4 }}>
-                    {chips.map((c) => (
+          {Object.entries(groups).map(([filename, groupItems]) => (
+            <Box key={filename} sx={{ mb: 2 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <DescriptionIcon fontSize="small" color="action" />
+                <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word' }}>
+                  {filename}
+                </Typography>
+              </Box>
+              {groupItems.map((item, idx) => {
+                const chips = getFieldChips(item);
+                const scopeText = item.scopeSummary
+                  ? item.scopeSummary.length > 200 ? item.scopeSummary.slice(0, 200) + '...' : item.scopeSummary
+                  : undefined;
+                return (
+                  <Box
+                    key={`${item.attachmentId}-${item.extractionMethod}-${idx}`}
+                    sx={{ p: 1.5, mb: 0.5, ml: 4, bgcolor: 'action.hover', borderRadius: 1 }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: chips.length > 0 || scopeText ? 1 : 0 }}>
                       <Chip
-                        key={c.label}
-                        label={`${c.label}: ${c.value}`}
+                        label={METHOD_LABELS[item.extractionMethod] ?? item.extractionMethod}
                         size="small"
                         variant="outlined"
-                        sx={{ fontSize: '0.7rem' }}
+                        sx={{ fontSize: '0.6rem', height: 18 }}
                       />
-                    ))}
+                      {item.confidence && (
+                        <Chip
+                          label={item.confidence}
+                          size="small"
+                          color={getConfidenceColor(item.confidence)}
+                          sx={{ fontSize: '0.6rem', height: 18 }}
+                        />
+                      )}
+                    </Box>
+                    {chips.length > 0 && (
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                        {chips.map((c) => (
+                          <Chip
+                            key={c.label}
+                            label={`${c.label}: ${c.value}`}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontSize: '0.7rem' }}
+                          />
+                        ))}
+                      </Box>
+                    )}
+                    {scopeText && (
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                        {scopeText}
+                      </Typography>
+                    )}
                   </Box>
-                )}
-              </Box>
-            );
-          })}
+                );
+              })}
+            </Box>
+          ))}
         </Box>
       </Collapse>
     </Paper>
@@ -903,20 +992,20 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
   const availableMethods = intel.availableMethods ?? [];
 
   // Build intel card entries
-  type IntelField = { label: string; fieldName: string; value: string | null | undefined };
+  type IntelField = { label: string; fieldName: string; fieldKey?: string; value: string | null | undefined };
   const intelFields: IntelField[] = [
-    { label: 'Security Clearance', fieldName: 'clearance_level', value: [intel.clearanceLevel, intel.clearanceScope].filter(Boolean).join(' - ') || intel.clearanceRequired || null },
-    { label: 'Evaluation Method', fieldName: 'eval_method', value: intel.evalMethod },
-    { label: 'Contract Vehicle', fieldName: 'vehicle_type', value: intel.vehicleType },
+    { label: 'Security Clearance', fieldName: 'clearance_level', fieldKey: 'clearanceLevel', value: [intel.clearanceLevel, intel.clearanceScope].filter(Boolean).join(' - ') || intel.clearanceRequired || null },
+    { label: 'Evaluation Method', fieldName: 'eval_method', fieldKey: 'evalMethod', value: intel.evalMethod },
+    { label: 'Contract Vehicle', fieldName: 'vehicle_type', fieldKey: 'vehicleType', value: intel.vehicleType },
     {
       label: 'Recompete Status',
       fieldName: 'is_recompete',
+      fieldKey: 'isRecompete',
       value: intel.isRecompete != null
         ? `${intel.isRecompete}${intel.incumbentName ? ` (Incumbent: ${intel.incumbentName})` : ''}`
         : null,
     },
-    { label: 'Scope Summary', fieldName: 'scope_summary', value: intel.scopeSummary },
-    { label: 'Period of Performance', fieldName: 'period_of_performance', value: intel.periodOfPerformance },
+    { label: 'Period of Performance', fieldName: 'period_of_performance', fieldKey: 'periodOfPerformance', value: intel.periodOfPerformance },
   ];
 
   const hasAnyIntel = intelFields.some((f) => f.value) || intel.laborCategories.length > 0 || intel.keyRequirements.length > 0;
@@ -952,27 +1041,50 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
               variant="outlined"
             />
           ) : null}
-          <Box sx={{ ml: 'auto' }}>
+          <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
             <Button
               variant="outlined"
               size="small"
-              startIcon={estimateLoading || analyzeMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
-              disabled={estimateLoading || analyzeMutation.isPending || analysisProcessing}
-              onClick={handleEnhanceWithAI}
+              startIcon={basicAnalysisMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+              disabled={basicAnalysisMutation.isPending || analysisProcessing}
+              onClick={() => basicAnalysisMutation.mutate()}
             >
-              {estimateLoading
-                ? 'Estimating...'
-                : analyzeMutation.isPending
-                  ? 'Requesting...'
-                  : analysisProcessing
-                    ? 'Processing...'
-                    : intel.latestExtractionMethod === 'keyword'
-                      ? 'Enhance with AI'
-                      : 'Re-analyze'}
+              {basicAnalysisMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Re-extract Keywords'}
             </Button>
+            {(() => {
+              const hasAiMethod = availableMethods.some(m => m.startsWith('ai_'));
+              const remainingCount = intel.attachmentCount - intel.analyzedCount;
+              const buttonText = !hasAiMethod
+                ? 'Enhance with AI'
+                : remainingCount > 0
+                  ? `Enhance remaining (${remainingCount} left)`
+                  : 'Re-analyze with AI';
+              return (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={estimateLoading || analyzeMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
+                  disabled={estimateLoading || analyzeMutation.isPending || analysisProcessing}
+                  onClick={handleEnhanceWithAI}
+                >
+                  {estimateLoading
+                    ? 'Estimating...'
+                    : analyzeMutation.isPending
+                      ? 'Requesting...'
+                      : analysisProcessing
+                        ? 'Processing...'
+                        : buttonText}
+                </Button>
+              );
+            })()}
           </Box>
         </Box>
       </Paper>
+
+      {/* Scope Summary — prominent AI-generated summary */}
+      {intel.scopeSummary && (
+        <ScopeSummaryCard summary={intel.scopeSummary} methods={availableMethods} />
+      )}
 
       {/* Intel Summary Cards */}
       {hasAnyIntel ? (
@@ -981,7 +1093,7 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             (field) =>
               field.value && (
                 <Grid key={field.label} size={{ xs: 12, sm: 6, md: 4 }}>
-                  <IntelCard label={field.label} fieldName={field.fieldName} value={field.value} sources={sources} intel={intel} />
+                  <IntelCard label={field.label} fieldName={field.fieldName} fieldKey={field.fieldKey} value={field.value} sources={sources} intel={intel} />
                 </Grid>
               ),
           )}

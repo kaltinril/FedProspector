@@ -107,9 +107,10 @@ add_para(
     'Chapter 4: Opportunity Detail\n'
     'Chapter 5: Award Search & Detail\n'
     'Chapter 6: Entity Search & Detail\n'
-    'Chapter 7: Prospect Pipeline\n'
-    'Chapter 8: Notifications & Saved Searches\n'
-    'Chapter 9: Tips & Best Practices'
+    'Chapter 7: Federal Hierarchy Browser\n'
+    'Chapter 8: Prospect Pipeline\n'
+    'Chapter 9: Notifications & Saved Searches\n'
+    'Chapter 10: Tips & Best Practices'
 )
 doc.add_page_break()
 
@@ -180,6 +181,8 @@ add_bullets([
     'Awards -- Search historical contract awards from FPDS and USASpending.',
     'Entities -- Look up contractors, vendors, and competitors registered in SAM.gov.',
     'Teaming -- Find potential teaming partners based on subaward history.',
+    'Federal Hierarchy -- Browse and search the federal government '
+    'organization structure (departments, sub-tiers, and offices).',
 ])
 
 doc.add_heading('Tools', level=3)
@@ -400,7 +403,11 @@ add_bullets([
     'Place of Performance -- City, state, ZIP, and country.',
     'Contract Value -- Estimated contract value and award information '
     'if already awarded.',
-    'Description -- The full opportunity description text.',
+    'Description -- The full opportunity description text. Some '
+    'opportunities initially show only a SAM.gov URL reference instead '
+    'of inline text. When this happens, you will see a '
+    '"Fetch Description from SAM.gov" button that retrieves the full '
+    'description on demand.',
     'Resource Links -- Downloadable attachments and external links '
     'associated with the solicitation (PDFs, Word docs, spreadsheets).',
     'Related Awards -- If this is a re-compete, shows the prior contract '
@@ -413,6 +420,12 @@ add_tip(
     'The deadline countdown at the top of the page shows how many days '
     'remain until the response is due. Red means less than 7 days -- '
     'act fast!'
+)
+add_tip(
+    'If you see "No description loaded" on the Overview tab, click the '
+    '"Fetch Description from SAM.gov" button. The system will retrieve '
+    'the full description text and display it inline, saving you a trip '
+    'to the SAM.gov website.'
 )
 
 doc.add_heading('Qualification & pWin Tab', level=2)
@@ -762,10 +775,109 @@ add_tip(
 doc.add_page_break()
 
 # ============================================================
-# Chapter 7: Prospect Pipeline
+# Chapter 7: Federal Hierarchy Browser
 # ============================================================
 
-doc.add_heading('Chapter 7: Prospect Pipeline', level=1)
+doc.add_heading('Chapter 7: Federal Hierarchy Browser', level=1)
+
+add_para(
+    'The Federal Hierarchy Browser lets you explore the organizational '
+    'structure of the federal government -- departments, sub-tier '
+    'agencies, and offices. This is useful for understanding which '
+    'office issues the solicitations you care about, and for '
+    'discovering related offices within a department.'
+)
+
+doc.add_heading('Accessing the Hierarchy', level=2)
+add_para(
+    'Navigate to Federal Hierarchy in the Research section of the '
+    'sidebar. You can also reach it by clicking any agency name that '
+    'appears as a link in opportunity or award search results.'
+)
+
+doc.add_heading('Tree View', level=2)
+add_para(
+    'The default view is a tree that shows the federal government '
+    'organization structure. Top-level departments appear as expandable '
+    'nodes. Click a node to expand it and reveal its sub-tier agencies '
+    'and offices. Click any organization name to open its detail page.'
+)
+add_para(
+    'The tree view supports filtering by keyword and by status '
+    '(Active, Inactive, or All). Type in the search box at the top '
+    'to filter the tree to organizations whose names match your query.'
+)
+
+doc.add_heading('List View', level=2)
+add_para(
+    'Toggle to List View using the list icon in the toolbar. The list '
+    'view shows all federal organizations in a sortable data grid with '
+    'columns for Name, Type, Status, Agency Code, CGAC, and Level.'
+)
+add_para(
+    'In list mode, you can also filter by organization level '
+    '(Level 1 for departments, Level 2 for sub-tiers, Level 3 for '
+    'offices) using the toggle buttons in the toolbar.'
+)
+
+doc.add_heading('Organization Detail Page', level=2)
+add_para(
+    'Click any organization in the tree or list to open its detail '
+    'page. At the top of the page, a breadcrumb trail shows the '
+    'full parent chain (e.g., Hierarchy > Department of Defense > '
+    'Department of the Army > your selected office). Click any '
+    'breadcrumb link to navigate up the hierarchy.'
+)
+add_para(
+    'The detail page has three tabs:'
+)
+
+doc.add_heading('Overview Tab', level=3)
+add_bullets([
+    'Organization type (Department, Sub-Tier, or Office), status, '
+    'and hierarchy level.',
+    'Agency Code, CGAC code, and FPDS Office Code.',
+    'Parent organization (clickable link to navigate up).',
+    'Description, created date, and last modified date.',
+])
+
+doc.add_heading('Child Organizations Tab', level=3)
+add_para(
+    'Shows all organizations directly below this one in the hierarchy. '
+    'The tab label includes a count (e.g., "Children (12)"). You can '
+    'filter children by name, type, and status. Click any child row to '
+    'drill down further.'
+)
+
+doc.add_heading('Opportunities Tab', level=3)
+add_para(
+    'Lists all opportunities associated with this organization. You '
+    'can filter by status (Open or All), notice type, and set-aside '
+    'code. Click any opportunity row to open its full detail page.'
+)
+
+doc.add_heading('Refreshing Hierarchy Data', level=2)
+add_para(
+    'System administrators can refresh hierarchy data from SAM.gov. '
+    'On the Organization Detail page, an admin will see a '
+    '"Refresh from SAM.gov" button that fetches updated data for '
+    'that specific organization. For bulk hierarchy refreshes, see '
+    'the Admin Guide.'
+)
+
+add_tip(
+    'Agency names in opportunity and award search results are '
+    'clickable links. Click any agency name to navigate directly to '
+    'that organization in the Federal Hierarchy Browser.'
+)
+
+doc.add_page_break()
+
+# ============================================================
+# Chapter 8: Prospect Pipeline
+# ============================================================
+
+doc.add_heading('Chapter 8: Prospect Pipeline', level=1)
 
 add_para(
     'The Prospect Pipeline is where you manage the opportunities you '
@@ -863,10 +975,10 @@ add_bullets([
 doc.add_page_break()
 
 # ============================================================
-# Chapter 8: Notifications & Saved Searches
+# Chapter 9: Notifications & Saved Searches
 # ============================================================
 
-doc.add_heading('Chapter 8: Notifications & Saved Searches', level=1)
+doc.add_heading('Chapter 9: Notifications & Saved Searches', level=1)
 
 doc.add_heading('Notifications', level=2)
 add_para(
@@ -921,10 +1033,10 @@ add_tip(
 doc.add_page_break()
 
 # ============================================================
-# Chapter 9: Tips & Best Practices
+# Chapter 10: Tips & Best Practices
 # ============================================================
 
-doc.add_heading('Chapter 9: Tips & Best Practices', level=1)
+doc.add_heading('Chapter 10: Tips & Best Practices', level=1)
 
 doc.add_heading('WOSB & 8(a) Search Strategies', level=2)
 add_para(

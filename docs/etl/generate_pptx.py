@@ -249,36 +249,38 @@ add_title_bar(slide, "Daily Load Pipeline (daily_load.bat)")
 
 steps = [
     ("1", "Load Opportunities", "31 days back, key 2, max 300 calls, --force"),
-    ("2", "Load USASpending Bulk", "5 days back, award + transaction data"),
-    ("3", "Load Awards - 8(a)", "10 days back, 24 NAICS codes, key 2"),
-    ("4", "Load Awards - WOSB", "10 days back, 24 NAICS codes, key 2"),
-    ("5", "Load Awards - SBA", "10 days back, 24 NAICS codes, key 2"),
-    ("6", "Enrich Link Metadata", "Filenames, content types for resource links"),
-    ("7", "Download Attachments", "Active opps, missing only, batch 5000"),
-    ("8", "Extract Attachment Text", "PDF/DOCX/XLSX text extraction, batch 5000"),
-    ("9", "Extract Attachment Intel", "Keyword intelligence from text, batch 5000"),
-    ("10", "Cleanup Attachment Files", "Delete files after all stages complete"),
+    ("2", "Fetch Descriptions", "Priority NAICS+set-aside first, limit 100/day"),
+    ("3", "Load USASpending Bulk", "5 days back, award + transaction data"),
+    ("4", "Load Awards - 8(a)", "10 days back, 24 NAICS codes, key 2"),
+    ("5", "Load Awards - WOSB", "10 days back, 24 NAICS codes, key 2"),
+    ("6", "Load Awards - SBA", "10 days back, 24 NAICS codes, key 2"),
+    ("7", "Enrich Link Metadata", "Filenames, content types for resource links"),
+    ("8", "Download Attachments", "Active opps, missing only, batch 5000"),
+    ("9", "Extract Text", "PDF/DOCX/XLSX text extraction, batch 5000"),
+    ("10", "Extract Intel", "Keyword intelligence from text, batch 5000"),
+    ("11", "Backfill Opp Intel", "Propagate intel findings to opportunity table"),
+    ("12", "Cleanup Files", "Delete files after all stages complete"),
 ]
 
-# Left column (steps 1-5)
-for i, (num, title, desc) in enumerate(steps[:5]):
-    y = Inches(1.4 + i * 1.1)
-    add_flow_box(slide, Inches(0.3), y, Inches(0.6), Inches(0.6),
-                 num, fill_color=DARK_BLUE, font_size=18)
-    add_flow_box(slide, Inches(1.0), y, Inches(2.0), Inches(0.6),
-                 title, fill_color=ACCENT_BLUE, font_size=12)
-    add_text_box(slide, Inches(3.1), y + Inches(0.1), Inches(3.2), Inches(0.5),
-                 desc, font_size=11, color=BLACK)
+# Left column (steps 1-6)
+for i, (num, title, desc) in enumerate(steps[:6]):
+    y = Inches(1.4 + i * 0.95)
+    add_flow_box(slide, Inches(0.3), y, Inches(0.6), Inches(0.55),
+                 num, fill_color=DARK_BLUE, font_size=16)
+    add_flow_box(slide, Inches(1.0), y, Inches(2.0), Inches(0.55),
+                 title, fill_color=ACCENT_BLUE, font_size=11)
+    add_text_box(slide, Inches(3.1), y + Inches(0.05), Inches(3.2), Inches(0.5),
+                 desc, font_size=10, color=BLACK)
 
-# Right column (steps 6-10)
-for i, (num, title, desc) in enumerate(steps[5:]):
-    y = Inches(1.4 + i * 1.1)
-    add_flow_box(slide, Inches(6.8), y, Inches(0.6), Inches(0.6),
-                 num, fill_color=DARK_BLUE, font_size=18)
-    add_flow_box(slide, Inches(7.5), y, Inches(2.3), Inches(0.6),
-                 title, fill_color=ACCENT_BLUE, font_size=12)
-    add_text_box(slide, Inches(9.9), y + Inches(0.1), Inches(3.2), Inches(0.5),
-                 desc, font_size=11, color=BLACK)
+# Right column (steps 7-12)
+for i, (num, title, desc) in enumerate(steps[6:]):
+    y = Inches(1.4 + i * 0.95)
+    add_flow_box(slide, Inches(6.8), y, Inches(0.6), Inches(0.55),
+                 num, fill_color=DARK_BLUE, font_size=16)
+    add_flow_box(slide, Inches(7.5), y, Inches(2.3), Inches(0.55),
+                 title, fill_color=ACCENT_BLUE, font_size=11)
+    add_text_box(slide, Inches(9.9), y + Inches(0.05), Inches(3.2), Inches(0.5),
+                 desc, font_size=10, color=BLACK)
 
 add_text_box(slide, Inches(0.3), Inches(6.9), Inches(12), Inches(0.4),
              "NAICS filter: 336611, 488190, 519210, 541219, 541330, 541511-541990, 561110-561990, 611430-624190, 812910",
@@ -616,8 +618,10 @@ type_data = [
     ["Request Type", "Source", "Loader Used", "Description"],
     ["USASPENDING_AWARD", "USASpending.gov", "USASpendingLoader", "Fetch award + transactions by ID"],
     ["FPDS_AWARD", "SAM.gov Awards", "AwardsLoader", "Fetch FPDS contract data by ID"],
+    ["REFRESH_FEDHIER_ORG", "SAM.gov Fed Hierarchy", "FedHierLoader", "Refresh single agency/office org"],
+    ["ATTACHMENT_ANALYSIS", "Local processing", "AttachmentPipeline", "AI analysis of opp attachments"],
 ]
-add_table(slide, Inches(0.3), Inches(3.4), Inches(12), Inches(1.5), type_data,
+add_table(slide, Inches(0.3), Inches(3.4), Inches(12), Inches(2.2), type_data,
           col_widths=[Inches(2.5), Inches(2.0), Inches(2.5), Inches(5.0)])
 
 # Status flow
@@ -641,7 +645,7 @@ details = [
     "DemandLoader processes up to 10 pending requests per poll cycle",
     "Uses existing ETL loaders and API clients (no duplicate logic)",
     "Failed requests store error message for debugging",
-    "SAM Awards client uses Key 2 (1000/day) for on-demand loads",
+    "SAM APIs use Key 2 (1000/day); Fed Hierarchy refresh = 1 API call per org",
 ]
 for i, item in enumerate(details):
     add_text_box(slide, Inches(0.5), Inches(6.5 + i * 0.3), Inches(12), Inches(0.3),

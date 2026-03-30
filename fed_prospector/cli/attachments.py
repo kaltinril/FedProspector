@@ -177,7 +177,8 @@ def extract_attachment_intel(notice_id, batch_size, method, force, dump):
               help="Process a single opportunity by notice ID")
 @click.option("--batch-size", type=int, default=50, show_default=True,
               help="Number of attachments to process per batch")
-@click.option("--model", type=click.Choice(["haiku", "sonnet", "opus"]),
+@click.option("--model", type=click.Choice(["haiku", "sonnet"]),
+              # opus excluded — add 'ai_opus' to extraction_method ENUM in 36_attachment.sql before enabling
               default="haiku", show_default=True,
               help="Claude model to use for analysis")
 @click.option("--force", is_flag=True, default=False,
@@ -230,6 +231,73 @@ def analyze_attachments(notice_id, batch_size, model, force, dry_run):
 
     click.echo(
         f"Done. Analyzed {stats['analyzed']} documents, "
+        f"skipped {stats['skipped']}, "
+        f"failed {stats['failed']}"
+    )
+
+
+@click.command("descriptions")
+@click.option("--notice-id", type=str, default=None,
+              help="Process a single opportunity by notice ID")
+@click.option("--batch-size", type=int, default=50, show_default=True,
+              help="Number of notices to process per batch")
+@click.option("--model", type=click.Choice(["haiku", "sonnet"]),
+              # opus excluded — add 'ai_opus' to extraction_method ENUM in 36_attachment.sql before enabling
+              default="haiku", show_default=True,
+              help="Claude model to use for analysis")
+@click.option("--force", is_flag=True, default=False,
+              help="Re-analyze even if already analyzed")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Run full pipeline without calling the API (no ANTHROPIC_API_KEY needed)")
+def analyze_descriptions(notice_id, batch_size, model, force, dry_run):
+    """Analyze opportunity description text using Claude AI (Phase 121).
+
+    Sends opportunity description_text (and any available attachment text)
+    to Claude for structured intelligence extraction. Results are stored
+    in opportunity_attachment_summary as AI-method rows.
+
+    Useful for opportunities that have descriptions but no downloadable
+    attachments, or to enhance attachment-based intel with description context.
+
+    Use --dry-run to test the full pipeline without an API key.
+
+    Examples:
+        python main.py extract description-ai
+        python main.py extract description-ai --model sonnet
+        python main.py extract description-ai --notice-id abc123
+        python main.py extract description-ai --dry-run
+    """
+    logger = setup_logging()
+
+    from etl.attachment_ai_analyzer import AttachmentAIAnalyzer
+
+    if dry_run:
+        click.echo("DRY RUN — no API calls will be made, mock results will be saved with method 'ai_dry_run'")
+
+    analyzer = AttachmentAIAnalyzer(model=model, dry_run=dry_run)
+
+    logger.info(
+        "Starting description AI analysis (model=%s, batch_size=%d, force=%s, dry_run=%s)",
+        model, batch_size, force, dry_run,
+    )
+    click.echo(
+        f"Analyzing descriptions with Claude {model} "
+        f"(batch_size={batch_size}{', dry_run' if dry_run else ''})..."
+    )
+
+    try:
+        stats = analyzer.analyze_descriptions(
+            notice_id=notice_id,
+            batch_size=batch_size,
+            force=force,
+        )
+    except RuntimeError as e:
+        # Missing API key
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+    click.echo(
+        f"Done. Analyzed {stats['analyzed']} descriptions, "
         f"skipped {stats['skipped']}, "
         f"failed {stats['failed']}"
     )
@@ -362,6 +430,25 @@ def attachment_pipeline_status():
     """)
     real_names, generic_names = cursor.fetchone()
 
+    # Description intel (Phase 121)
+    cursor.execute("""
+        SELECT
+            (SELECT COUNT(*) FROM opportunity
+             WHERE description_text IS NOT NULL AND description_text != '') as desc_total,
+            (SELECT COUNT(DISTINCT notice_id) FROM opportunity_attachment_summary
+             WHERE extraction_method IN ('keyword', 'heuristic')) as desc_keyword_done,
+            (SELECT COUNT(DISTINCT notice_id) FROM opportunity_attachment_summary
+             WHERE extraction_method IN ('ai_haiku', 'ai_sonnet')) as desc_ai_done
+    """)
+    desc_row = cursor.fetchone()
+    desc_total, desc_keyword_done, desc_ai_done = desc_row
+
+    click.echo()
+    click.echo(f"  STAGE 4B: Description Intel ({desc_total:,} with descriptions)")
+    click.echo(f"    keyword done    {desc_keyword_done:>8,}")
+    click.echo(f"    AI done         {desc_ai_done:>8,}")
+    click.echo(f"    AI remaining    {desc_total - desc_ai_done:>8,}")
+
     click.echo()
     click.echo(f"  STAGE 5: File Cleanup")
     click.echo(f"    eligible        {cleanup_eligible:>8,}")
@@ -377,6 +464,131 @@ def attachment_pipeline_status():
 
     cursor.close()
     conn.close()
+
+
+@click.command("extract-identifiers")
+@click.option("--notice-id", type=str, default=None,
+              help="Process a single opportunity by notice ID")
+@click.option("--batch-size", type=int, default=500, show_default=True,
+              help="Number of documents to process per batch")
+@click.option("--force", is_flag=True, default=False,
+              help="Re-extract even if already processed")
+def extract_identifiers(notice_id, batch_size, force):
+    """Extract federal identifiers (PIIDs, UEIs, CAGE codes, FAR clauses) from attachment text.
+
+    Scans extracted document text for federal contract identifiers and
+    stores them in document_identifier_ref for cross-referencing.
+
+    Examples:
+        python main.py extract identifiers
+        python main.py extract identifiers --notice-id abc123 --force
+        python main.py extract identifiers --batch-size 1000
+    """
+    logger = setup_logging()
+
+    from etl.attachment_identifier_extractor import AttachmentIdentifierExtractor
+
+    extractor = AttachmentIdentifierExtractor()
+    logger.info(
+        "Starting identifier extraction (batch_size=%d, force=%s)",
+        batch_size, force,
+    )
+    click.echo(f"Extracting identifiers from attachments (batch_size={batch_size})...")
+
+    stats = extractor.extract_identifiers(
+        notice_id=notice_id,
+        batch_size=batch_size,
+        force=force,
+    )
+
+    click.echo(
+        f"Done. Processed {stats['documents_processed']} documents, "
+        f"found {stats['identifiers_found']} identifiers, "
+        f"inserted {stats['identifiers_inserted']} unique refs"
+    )
+
+
+@click.command("cross-ref-identifiers")
+@click.option("--notice-id", type=str, default=None,
+              help="Only cross-reference identifiers for this opportunity")
+@click.option("--batch-size", type=int, default=5000, show_default=True,
+              help="Maximum identifiers to check per run")
+def cross_ref_identifiers(notice_id, batch_size):
+    """Cross-reference extracted identifiers against known DB records.
+
+    Matches PIIDs against fpds_contract, UEIs against entity, CAGE codes
+    against entity, etc. Populates matched_table/matched_column/matched_id
+    on document_identifier_ref rows.
+
+    Examples:
+        python main.py extract cross-ref-identifiers
+        python main.py extract cross-ref-identifiers --notice-id abc123
+    """
+    logger = setup_logging()
+
+    from etl.attachment_identifier_extractor import AttachmentIdentifierExtractor
+
+    extractor = AttachmentIdentifierExtractor()
+    logger.info("Starting identifier cross-reference (batch_size=%d)", batch_size)
+    click.echo(f"Cross-referencing identifiers (batch_size={batch_size})...")
+
+    stats = extractor.cross_reference(
+        notice_id=notice_id,
+        batch_size=batch_size,
+    )
+
+    click.echo(
+        f"Done. Checked {stats['identifiers_checked']} identifiers, "
+        f"found {stats['matches_found']} matches"
+    )
+
+
+@click.command("identifiers")
+@click.option("--type", "identifier_type", type=str, default=None,
+              help="Filter by identifier type (PIID, UEI, CAGE, FAR_CLAUSE, etc.)")
+@click.option("--value", "identifier_value", type=str, default=None,
+              help="Filter by identifier value (exact or prefix match)")
+@click.option("--limit", type=int, default=50, show_default=True,
+              help="Maximum results to return")
+def search_identifiers(identifier_type, identifier_value, limit):
+    """Search for opportunities referencing a specific federal identifier.
+
+    Find which opportunities/documents mention a given PIID, UEI, CAGE
+    code, or other federal identifier.
+
+    Examples:
+        python main.py search identifiers --type PIID --value 70LGLY21CGLB00003
+        python main.py search identifiers --type UEI --value ABCD1234EFG5
+        python main.py search identifiers --type FAR_CLAUSE --value 52.219-9
+    """
+    setup_logging()
+
+    from etl.attachment_identifier_extractor import AttachmentIdentifierExtractor
+
+    extractor = AttachmentIdentifierExtractor()
+    results = extractor.search_identifier(
+        identifier_type=identifier_type,
+        identifier_value=identifier_value,
+        limit=limit,
+    )
+
+    if not results:
+        click.echo("No matching identifiers found.")
+        return
+
+    click.echo(f"Found {len(results)} identifier references:\n")
+    for row in results:
+        matched = ""
+        if row.get("matched_table"):
+            matched = f" -> {row['matched_table']}.{row['matched_column']}={row['matched_id']}"
+        click.echo(
+            f"  [{row['identifier_type']}] {row['identifier_value']} "
+            f"({row['confidence']}) in {row.get('filename', '?')}"
+            f" | notice={row.get('notice_id', '?')}"
+            f"{matched}"
+        )
+        if row.get("opportunity_title"):
+            click.echo(f"    Title: {row['opportunity_title'][:100]}")
 
 
 @click.command("migrate-dedup")

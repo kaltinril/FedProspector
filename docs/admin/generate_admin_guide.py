@@ -237,9 +237,10 @@ def ch3_daily_loading(doc):
 
     doc.add_heading("3.1 Overview", level=2)
     doc.add_paragraph(
-        "The daily load script (daily_load.bat) runs a 10-step pipeline that fetches "
-        "data from government APIs, downloads attachments, extracts text, and performs "
-        "intelligence extraction. It is designed to run once per day."
+        "The daily load script (daily_load.bat) runs a 13-step pipeline that fetches "
+        "data from government APIs, backfills descriptions, downloads attachments, "
+        "extracts text, and performs intelligence extraction. It is designed to run "
+        "once per day."
     )
 
     doc.add_heading("3.2 Automated Batch Loads", level=2)
@@ -273,7 +274,17 @@ def ch3_daily_loading(doc):
             "2-10 minutes depending on volume."
         ),
         (
-            "Step 2: Load USASpending Bulk",
+            "Step 2: Fetch Missing Descriptions",
+            "python main.py update fetch-descriptions --key 2 --limit 100 --naics <NAICS> --set-aside WOSB,8A,SBA",
+            "Backfills opportunity description text from SAM.gov. Uses a two-pass "
+            "prioritized approach: first fetches descriptions for high-value opportunities "
+            "(matching target NAICS codes and WOSB/8(a)/SBA set-asides), then uses remaining "
+            "budget for the general backlog. Limited to 100 descriptions per daily run to "
+            "stay within Key 2's 1,000/day quota (shared with other steps).",
+            "1-5 minutes."
+        ),
+        (
+            "Step 3: Load USASpending Bulk",
             "python main.py load usaspending-bulk --days-back 5",
             "Downloads bulk award data from USASpending.gov for the last 5 days. "
             "No API rate limits (USASpending has no daily quotas). Loads contract "
@@ -281,27 +292,27 @@ def ch3_daily_loading(doc):
             "5-15 minutes depending on data volume."
         ),
         (
-            "Step 3: Load Awards - 8(a) Set-Aside",
-            "python main.py load awards --naics <NAICS> --days-back 10 --max-calls 300 --key 2 --set-aside 8a",
+            "Step 4: Load Awards - 8(a) Set-Aside",
+            "python main.py load awards --naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside 8a",
             "Fetches 8(a) set-aside contract awards from SAM.gov for the configured "
             "NAICS codes (24 codes covering IT, consulting, logistics, etc.) signed "
             "in the last 10 days.",
             "5-15 minutes."
         ),
         (
-            "Step 4: Load Awards - WOSB Set-Aside",
-            "python main.py load awards --naics <NAICS> --days-back 10 --max-calls 300 --key 2 --set-aside WOSB",
-            "Same as Step 3 but for WOSB (Women-Owned Small Business) set-aside awards.",
+            "Step 5: Load Awards - WOSB Set-Aside",
+            "python main.py load awards --naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside WOSB",
+            "Same as Step 4 but for WOSB (Women-Owned Small Business) set-aside awards.",
             "5-15 minutes."
         ),
         (
-            "Step 5: Load Awards - SBA Set-Aside",
-            "python main.py load awards --naics <NAICS> --days-back 10 --max-calls 300 --key 2 --set-aside SBA",
-            "Same as Step 3 but for SBA (Small Business Administration) set-aside awards.",
+            "Step 6: Load Awards - SBA Set-Aside",
+            "python main.py load awards --naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside SBA",
+            "Same as Step 4 but for SBA (Small Business Administration) set-aside awards.",
             "5-15 minutes."
         ),
         (
-            "Step 6: Enrich Resource Link Metadata",
+            "Step 7: Enrich Resource Link Metadata",
             "python main.py update link-metadata",
             "HEAD-requests SAM.gov resource link URLs to extract filenames and content "
             "types. Updates the resource_links JSON column with enriched data. This enables "
@@ -309,7 +320,7 @@ def ch3_daily_loading(doc):
             "1-5 minutes."
         ),
         (
-            "Step 7: Download Attachments",
+            "Step 8: Download Attachments",
             "python main.py download attachments --missing-only --active-only --batch-size 5000",
             "Downloads attachment files (PDFs, DOCXs, etc.) for active opportunities. "
             "The --missing-only flag skips already-downloaded files. The --active-only flag "
@@ -318,15 +329,15 @@ def ch3_daily_loading(doc):
             "10-30 minutes depending on volume."
         ),
         (
-            "Step 8: Extract Attachment Text",
-            "python main.py extract attachment-text --batch-size 5000",
+            "Step 9: Extract Attachment Text",
+            "python main.py extract attachment-text --batch-size 5000 --workers 10",
             "Parses downloaded documents (PDF, DOCX, DOC, XLSX, etc.) to extract raw "
             "text content. Uses parallel processing with multiple worker threads. "
             "Extracted text is stored in the database for downstream intelligence extraction.",
             "5-20 minutes."
         ),
         (
-            "Step 9: Extract Attachment Intelligence",
+            "Step 10: Extract Attachment Intelligence",
             "python main.py extract attachment-intel --batch-size 5000",
             "Analyzes extracted text using keyword/heuristic methods to identify "
             "requirements, evaluation criteria, set-aside details, incumbent information, "
@@ -334,8 +345,23 @@ def ch3_daily_loading(doc):
             "2-10 minutes."
         ),
         (
-            "Step 10: Clean Up Attachment Files",
-            "python main.py cleanup attachment-files",
+            "Step 11: AI Analysis (Disabled)",
+            "python main.py extract attachment-ai --model haiku --batch-size 50",
+            "Runs Claude AI deep analysis on attachment text. Currently disabled in "
+            "daily_load.bat to save on costs. Can be run on demand for specific "
+            "opportunities when needed.",
+            "5-30 minutes (when enabled)."
+        ),
+        (
+            "Step 12: Backfill Opportunity Intel",
+            "python main.py backfill opportunity-intel",
+            "Backfills opportunity-level intelligence columns from attachment analysis "
+            "results. Aggregates extracted data across all attachments for each opportunity.",
+            "1-5 minutes."
+        ),
+        (
+            "Step 13: Clean Up Attachment Files",
+            "python main.py maintain attachment-files",
             "Removes original attachment files from disk after they have completed the "
             "full analysis pipeline (downloaded, text extracted, keyword intel extracted, "
             "and AI analyzed). All extracted data remains in the database. Only files that "
@@ -582,7 +608,6 @@ def ch4_cli_reference(doc):
     doc.add_heading("4.7 update - Data Enrichment", level=2)
     cmds = [
         ("update link-metadata", "Enrich opportunity resource links with filenames and content types. Options: --missing-only, --batch-size"),
-        ("update fetch-descriptions", "Fetch and cache opportunity description text from SAM.gov. Options: --missing-only/--all, --batch-size"),
         ("update build-relationships", "Detect opportunity lifecycle relationships (RFI->RFP, PRESOL->SOL, SOL->AWARD)"),
     ]
     for cmd, desc in cmds:
@@ -590,6 +615,40 @@ def ch4_cli_reference(doc):
         run = p.add_run(cmd)
         run.bold = True
         p.add_run(f" - {desc}")
+
+    doc.add_heading("update fetch-descriptions", level=3)
+    doc.add_paragraph(
+        "Fetch and cache opportunity description text from SAM.gov. Each description "
+        "requires one API call. Supports a two-pass prioritized fetch: first fetches "
+        "descriptions for high-value opportunities matching target NAICS codes and "
+        "set-aside types (WOSB/8(a)/SBA), then uses remaining budget for the general "
+        "backlog. Integrated into daily_load.bat (100 descriptions/day)."
+    )
+    add_code_block(doc,
+        "Options:\n"
+        "  --missing-only/--all     Only fetch for opportunities without description_text (default: missing-only)\n"
+        "  --batch-size N           Commit batch size (default: 100)\n"
+        "  --days-back N            Only fetch for opportunities posted in the last N days\n"
+        "  --notice-id ID           Fetch description for a single notice ID\n"
+        "  --key 1|2                SAM API key (default: 2). Key 2 has 1,000/day quota.\n"
+        "  --naics CODES            Priority NAICS codes (comma-separated). Fetches these first.\n"
+        "  --set-aside CODES        Priority set-aside codes (e.g. WOSB,8A,SBA). Fetches these first.\n"
+        "  --limit N                Max total descriptions to fetch (default: unlimited)\n"
+        "\n"
+        "Examples:\n"
+        "  python main.py update fetch-descriptions --days-back 7\n"
+        "  python main.py update fetch-descriptions --notice-id abc123\n"
+        "  python main.py update fetch-descriptions --key 2 --limit 100 --naics 541511,541512 --set-aside WOSB,8A\n"
+        "  python main.py update fetch-descriptions --all --batch-size 900"
+    )
+    doc.add_paragraph(
+        "On-demand fetch via the C# API is also available. If the description is "
+        "already cached, the cached text is returned without making an API call:"
+    )
+    add_code_block(doc,
+        "POST /api/v1/opportunities/{noticeId}/fetch-description\n"
+        "Authorization: (authenticated user cookie)"
+    )
 
     # -- download --
     doc.add_heading("4.8 download - File Downloads", level=2)
@@ -839,7 +898,62 @@ def ch7_data_management(doc):
         table2.rows[i].cells[2].text = limit
         table2.rows[i].cells[3].text = cmd
 
-    doc.add_heading("7.2 API Key Management", level=2)
+    doc.add_heading("7.2 Federal Hierarchy Management", level=2)
+    doc.add_paragraph(
+        "The federal hierarchy (departments, sub-tiers, and offices) is loaded from "
+        "the SAM.gov Federal Hierarchy API. This data powers the hierarchy browser "
+        "in the UI and provides agency context for opportunities and awards."
+    )
+
+    doc.add_heading("CLI Hierarchy Commands", level=3)
+    add_code_block(doc,
+        "python main.py load hierarchy                    # Load departments + sub-tiers (levels 1-2)\n"
+        "python main.py load hierarchy --full-refresh     # Truncate and reload all hierarchy data\n"
+        "python main.py load offices                      # Load offices (level 3) under existing sub-tiers\n"
+        "python main.py load offices --max-calls 300      # Limit API calls for office loading\n"
+        "python main.py load offices --days-back 30       # Incremental: only recently updated offices"
+    )
+
+    doc.add_heading("Admin UI Refresh Panel (Phase 113)", level=3)
+    doc.add_paragraph(
+        "System admins can refresh hierarchy data from the Federal Hierarchy Browser "
+        "page in the UI. The Hierarchy Data Refresh panel provides:"
+    )
+    items = [
+        "API Key Selection: Choose Key 1 (10/day) or Key 2 (1,000/day) for the refresh",
+        "Refresh Hierarchy: Reloads departments and sub-tiers (levels 1-2)",
+        "Refresh Offices: Reloads all offices (level 3). May use ~738 API calls.",
+        "Full Refresh: Truncates and reloads ALL hierarchy levels (destructive operation)",
+        "Status Polling: Shows progress while a refresh job is running",
+        "Last Refresh: Displays timestamp, total record count, and per-level breakdown",
+    ]
+    for item in items:
+        doc.add_paragraph(item, style="List Bullet")
+
+    doc.add_paragraph(
+        "The refresh is executed by the C# API, which invokes the Python CLI in "
+        "the background. The UI polls the refresh status endpoint until the job completes."
+    )
+
+    doc.add_heading("Hierarchy Refresh API Endpoints", level=3)
+    table = doc.add_table(rows=4, cols=4, style="Light Grid Accent 1")
+    headers = ["Method", "Endpoint", "Access", "Description"]
+    for i, h in enumerate(headers):
+        table.rows[0].cells[i].text = h
+    endpoints = [
+        ("POST", "/api/v1/federal-hierarchy/refresh", "System Admin", "Trigger a full hierarchy refresh (body: {level, apiKey})"),
+        ("GET", "/api/v1/federal-hierarchy/refresh/status", "Authenticated", "Check status of last refresh job"),
+        ("POST", "/api/v1/federal-hierarchy/{fhOrgId}/refresh", "Authenticated", "Queue a single-org refresh via the data load poller"),
+    ]
+    for i, (method, ep, access, desc) in enumerate(endpoints, 1):
+        table.rows[i].cells[0].text = method
+        table.rows[i].cells[1].text = ep
+        table.rows[i].cells[2].text = access
+        table.rows[i].cells[3].text = desc
+
+    doc.add_paragraph()
+
+    doc.add_heading("7.3 API Key Management", level=2)
     doc.add_paragraph("SAM.gov supports two API keys, configured in fed_prospector/.env:")
     add_code_block(doc,
         "SAM_API_KEY=<key-1>           # Free tier: 10 calls/day\n"
@@ -856,7 +970,7 @@ def ch7_data_management(doc):
         "expiry warnings in health checks."
     )
 
-    doc.add_heading("7.3 Attachment Pipeline", level=2)
+    doc.add_heading("7.4 Attachment Pipeline", level=2)
     doc.add_paragraph(
         "The attachment intelligence pipeline processes opportunity documents through "
         "a 7-stage state machine:"
@@ -873,7 +987,7 @@ def ch7_data_management(doc):
     for stage in stages:
         doc.add_paragraph(stage, style="List Number")
 
-    doc.add_heading("7.4 Pipeline Status", level=2)
+    doc.add_heading("7.5 Pipeline Status", level=2)
     add_code_block(doc, "python main.py health pipeline-status")
     doc.add_paragraph(
         "Shows counts for each stage: downloads (pending/downloaded/failed/skipped), "
@@ -881,7 +995,7 @@ def ch7_data_management(doc):
         "cleanup eligibility, and total disk usage."
     )
 
-    doc.add_heading("7.5 Change Detection", level=2)
+    doc.add_heading("7.6 Change Detection", level=2)
     doc.add_paragraph(
         "All ETL loaders use SHA-256 record hashing to detect changes between loads. "
         "When a record is loaded, a hash of its key fields is computed and stored. On "
@@ -890,7 +1004,7 @@ def ch7_data_management(doc):
         "enables accurate insert/update/unchanged counts in load reports."
     )
 
-    doc.add_heading("7.6 Data Quality Rules", level=2)
+    doc.add_heading("7.7 Data Quality Rules", level=2)
     doc.add_paragraph(
         "Data quality rules are stored in the etl_data_quality_rule table. They are "
         "not hardcoded -- add new rules via SQL or the seed-rules setup command. "
@@ -984,7 +1098,7 @@ def ch8_monitoring(doc):
         "The C# API provides admin endpoints at /api/v1/admin (requires AdminAccess "
         "or SystemAdmin authorization):"
     )
-    table = doc.add_table(rows=9, cols=3, style="Light Grid Accent 1")
+    table = doc.add_table(rows=13, cols=3, style="Light Grid Accent 1")
     table.rows[0].cells[0].text = "Method"
     table.rows[0].cells[1].text = "Endpoint"
     table.rows[0].cells[2].text = "Access"
@@ -997,6 +1111,10 @@ def ch8_monitoring(doc):
         ("GET", "/api/v1/admin/users", "Org Admin"),
         ("PATCH", "/api/v1/admin/users/{id}", "Org Admin"),
         ("POST", "/api/v1/admin/users/{id}/reset-password", "Org Admin"),
+        ("POST", "/api/v1/federal-hierarchy/refresh", "System Admin"),
+        ("GET", "/api/v1/federal-hierarchy/refresh/status", "Authenticated"),
+        ("POST", "/api/v1/opportunities/{noticeId}/fetch-description", "Authenticated"),
+        ("POST", "/api/v1/federal-hierarchy/{fhOrgId}/refresh", "Authenticated"),
     ]
     for i, (method, ep, access) in enumerate(endpoints, 1):
         table.rows[i].cells[0].text = method

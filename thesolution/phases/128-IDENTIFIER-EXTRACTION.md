@@ -1,6 +1,6 @@
 # Phase 128: Federal Identifier Extraction from Attachments
 
-## Status: PLANNED
+## Status: IN PROGRESS
 
 ## Context
 
@@ -33,104 +33,51 @@ Only identifiers with patterns distinctive enough to extract from free text with
 
 NOT extracting (too short/ambiguous): NAICS (6 digits -- too many false positives), PSC (4 chars), agency codes (3-4 digits), state codes (2 chars), business type codes (2 chars).
 
-## Storage Design
+## Implementation Summary
 
-New table: `document_identifier_ref`
+### Task 1: DDL -- DONE
+- Added `document_identifier_ref` table to `fed_prospector/db/schema/tables/36_attachment.sql`
+- Added views `v_opportunity_identifier_refs` and `v_predecessor_candidates` to `fed_prospector/db/schema/views/80_identifier_refs.sql`
+- **User must apply DDL to live database** (table create + view creates)
 
-```sql
-CREATE TABLE document_identifier_ref (
-    ref_id              INT AUTO_INCREMENT PRIMARY KEY,
-    document_id         INT NOT NULL,                    -- FK to attachment_document
-    identifier_type     VARCHAR(30) NOT NULL,            -- 'PIID', 'UEI', 'CAGE', 'DUNS', 'FAR_CLAUSE', 'DFARS_CLAUSE', 'WAGE_DET', 'GSA_SCHEDULE', 'SOLICITATION'
-    identifier_value    VARCHAR(200) NOT NULL,           -- the extracted value (normalized: uppercase, no dashes)
-    raw_text            VARCHAR(500),                    -- the exact text as found in the document
-    context             TEXT,                            -- ±150 chars surrounding context
-    char_offset_start   INT,                             -- position in source text
-    char_offset_end     INT,
-    confidence          ENUM('high','medium','low') DEFAULT 'medium',
-    matched_table       VARCHAR(50),                     -- table where cross-ref match found (NULL if no match)
-    matched_column      VARCHAR(50),                     -- column matched
-    matched_id          VARCHAR(200),                    -- the PK value of matched record
-    last_load_id        INT,
-    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_docid_ref (document_id, identifier_type),
-    INDEX idx_identifier (identifier_type, identifier_value),
-    INDEX idx_matched (matched_table, matched_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-```
+### Task 2-3: Identifier Extraction Engine -- DONE
+- New module: `fed_prospector/etl/attachment_identifier_extractor.py`
+- `AttachmentIdentifierExtractor.extract_identifiers()` scans all documents
+- Deduplicates within each document (same type+value = 1 row)
+- Stores char offsets and surrounding context
 
-Also a rollup view per opportunity:
-
-```sql
-CREATE OR REPLACE VIEW v_opportunity_identifier_refs AS
-SELECT
-    oa.notice_id,
-    dir.identifier_type,
-    dir.identifier_value,
-    dir.confidence,
-    dir.matched_table,
-    dir.matched_id,
-    COUNT(*) as mention_count
-FROM document_identifier_ref dir
-JOIN attachment_document ad ON ad.document_id = dir.document_id
-JOIN opportunity_attachment oa ON oa.attachment_id = ad.attachment_id
-GROUP BY oa.notice_id, dir.identifier_type, dir.identifier_value,
-         dir.confidence, dir.matched_table, dir.matched_id;
-```
-
-## Tasks
-
-### Task 1: DDL -- `document_identifier_ref` table
-- Add table to `fed_prospector/db/schema/tables/36_attachment.sql`
-- Add view `v_opportunity_identifier_refs` to a new or existing view file
-- Apply DDL to live database
-
-### Task 2: Identifier pattern definitions
-- Add new `_IDENTIFIER_PATTERNS` dict to `attachment_intel_extractor.py` (or a new module `attachment_identifier_extractor.py` if cleaner)
-- Each pattern: regex, identifier_type, normalization function (strip dashes, uppercase), confidence rules
-- Context-dependent patterns (DUNS, wage determination) require nearby keyword anchors to avoid false positives
-- PIID patterns need word boundary matching and length validation
-
-### Task 3: Extraction engine
-- Scan each attachment_document's extracted_text for all identifier patterns
-- Normalize extracted values (strip dashes, uppercase)
-- Deduplicate within a document (same identifier mentioned 50 times = 1 row with mention_count or just 1 row)
-- Store in `document_identifier_ref` with char offsets and context
-
-### Task 4: Cross-reference matching
-- After extraction, attempt to match each identifier against known records:
-  - PIID -> `fpds_contract.contract_id` (also check with/without dashes)
-  - UEI -> `entity.uei_sam` and `fpds_contract.vendor_uei`
+### Task 4: Cross-reference Matching -- DONE
+- `AttachmentIdentifierExtractor.cross_reference()` matches against:
+  - PIID/SOLICITATION -> `fpds_contract.contract_id`, `fpds_contract.solicitation_number`, `opportunity.solicitation_number`
+  - UEI -> `entity.uei_sam`, `fpds_contract.vendor_uei`
   - CAGE -> `entity.cage_code`
-  - Solicitation -> `opportunity.solicitation_number` and `fpds_contract.solicitation_number`
-  - GSA Schedule -> `fpds_contract.idv_piid`
-- Populate `matched_table`, `matched_column`, `matched_id` on matched rows
-- This is the key deliverable: discovering that attachment text references contract X which exists in our `fpds_contract` table
+  - GSA_SCHEDULE -> `fpds_contract.idv_piid`
+- Populates `matched_table`, `matched_column`, `matched_id`
 
-### Task 5: CLI commands
-- `python main.py analyze extract-identifiers [--notice-id X] [--force] [--limit N]`
-  - Runs extraction on all documents (or specific opportunity)
-  - `--force` re-extracts even if already done
+### Task 5: CLI Commands -- DONE
+- `python main.py extract identifiers [--notice-id X] [--force] [--batch-size N]`
+- `python main.py extract cross-ref-identifiers [--notice-id X] [--batch-size N]`
 - `python main.py search identifiers --type PIID --value 70LGLY21CGLB00003`
-  - Find which documents/opportunities reference a given identifier
-- `python main.py analyze cross-ref-identifiers [--notice-id X]`
-  - Runs cross-reference matching against known DB records
 
-### Task 6: Integration with daily load
-- After `analyze extract-intel` runs, also run identifier extraction on new/updated documents
-- Cross-reference step runs after extraction
+### Task 6: C# API Endpoint -- DONE
+- EF Core model: `DocumentIdentifierRef.cs`
+- DTOs: `IdentifierRefDto`, `PredecessorCandidateDto`, `OpportunityIdentifiersDto`
+- Service: `IAttachmentIntelService.GetIdentifierRefsAsync(noticeId)`
+- Endpoint: `GET /api/opportunities/{noticeId}/identifier-refs`
 
-### Task 7: Predecessor contract detection view
-- New view `v_predecessor_candidates` that:
-  - For each opportunity, finds PIID-type identifiers extracted from its attachments
-  - Joins to fpds_contract to find the actual prior contract
-  - Returns: notice_id, predecessor_contract_id, predecessor_vendor_name, predecessor_vendor_uei, predecessor_award_amount, predecessor_set_aside_type, confidence
-  - This is the payoff: automatic "this recompete references that prior contract"
+### Task 7: UI Types -- DONE
+- TypeScript interfaces added to `ui/src/types/api.ts`
 
-### Task 8: Update reference doc
-- Add "Regex Patterns for Text Extraction" section to `thesolution/reference/10-FEDERAL-IDENTIFIERS.md`
-- Document which identifiers are extractable vs too ambiguous
-- Include the regex patterns used
+### Task 8: Predecessor Contract View -- DONE
+- `v_predecessor_candidates` view joins identifier refs to fpds_contract
+- Returns predecessor PIID, vendor name, UEI, award amount, set-aside type
+
+## Remaining Work
+
+- Apply DDL to live database (user action)
+- Run extraction on all documents
+- Run cross-reference matching
+- Integration with daily load (future)
 
 ## Dependencies
 

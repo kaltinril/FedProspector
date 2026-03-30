@@ -88,7 +88,7 @@ def build_document():
     desc = doc.add_paragraph()
     desc.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = desc.add_run(
-        "Comprehensive reference for all 14 ETL loaders in the "
+        "Comprehensive reference for all 15 ETL loaders in the "
         "Federal Contract Prospecting System."
     )
     run.font.size = Pt(11)
@@ -113,7 +113,8 @@ def build_document():
         "11. Attachment Downloader",
         "12. Attachment Text Extractor",
         "13. Attachment Intel Extractor",
-        "14. On-Demand Award Loader",
+        "14. Description Backfill Loader",
+        "15. On-Demand Loader",
         "A.  Daily Load Sequence",
         "B.  Batch Load Commands",
     ]
@@ -1108,15 +1109,101 @@ def build_document():
 
     doc.add_page_break()
 
-    # ----- 14. On-Demand Award Loader -----
-    doc.add_heading("14. On-Demand Award Loader", level=1)
+    # ----- 14. Description Backfill Loader -----
+    doc.add_heading("14. Description Backfill Loader", level=1)
+
+    doc.add_heading("Overview", level=2)
+    doc.add_paragraph(
+        "Fetches and caches full description text for opportunities from SAM.gov. "
+        "Opportunities are loaded with a description_url but not the full HTML text; "
+        "this loader backfills the description_text column by fetching each URL individually. "
+        "Uses a two-pass priority strategy: high-value opportunities (matching target NAICS "
+        "and WOSB/8(a)/SBA set-asides) are fetched first, then remaining budget is used "
+        "for the general backlog."
+    )
+
+    doc.add_heading("CLI Command", level=2)
+    add_code_block(doc, "python main.py update fetch-descriptions [OPTIONS]")
+
+    doc.add_heading("Data Source", level=2)
+    doc.add_paragraph("SAM.gov Opportunity Description URLs (one GET request per opportunity)")
+    doc.add_paragraph("API Client: SAMOpportunityClient (api_clients/sam_opportunity_client.py)")
+
+    doc.add_heading("Tables Populated", level=2)
+    add_table(doc,
+        ["Table", "Type", "Description"],
+        [
+            ["opportunity", "Target", "Updates description_text and description_fetched_at columns"],
+            ["etl_load_log", "Tracking", "Load progress and statistics"],
+        ]
+    )
+
+    doc.add_heading("Load Strategy", level=2)
+    doc.add_paragraph(
+        "Two-pass priority fetch:\n"
+        "  Pass 1 (priority): Fetch descriptions for opportunities matching --naics and "
+        "--set-aside filters (e.g., WOSB, 8A, SBA + target NAICS codes).\n"
+        "  Pass 2 (general): Use remaining budget for all other opportunities missing descriptions.\n\n"
+        "Each description is fetched individually (1 API call per opportunity). "
+        "HTML response is parsed and stored as plain text. "
+        "Integrated into daily_load.bat as step 2 with --limit 100."
+    )
+
+    doc.add_heading("Rate Limits", level=2)
+    doc.add_paragraph(
+        "SAM.gov API key 2 (default): 1,000 calls/day. "
+        "Each description = 1 API call. Daily batch limited to 100 via --limit. "
+        "Uses --key 2 by default."
+    )
+
+    doc.add_heading("Change Detection", level=2)
+    doc.add_paragraph(
+        "Processes only opportunities where description_text IS NULL (--missing-only default). "
+        "Use --all to re-fetch previously cached descriptions."
+    )
+
+    doc.add_heading("CLI Options", level=2)
+    add_table(doc,
+        ["Option", "Default", "Description"],
+        [
+            ["--missing-only/--all", "missing-only", "Only fetch for rows missing description_text"],
+            ["--batch-size", "100", "Opportunities per commit batch"],
+            ["--days-back", "None", "Only fetch for opps posted in the last N days"],
+            ["--notice-id", "None", "Fetch for a single notice ID"],
+            ["--key", "2", "SAM API key (1 or 2)"],
+            ["--naics", "None", "Priority NAICS codes (comma-separated, fetched first)"],
+            ["--set-aside", "None", "Priority set-aside codes (e.g., WOSB,8A,SBA)"],
+            ["--limit", "None", "Max total descriptions to fetch"],
+        ]
+    )
+
+    doc.add_heading("Example Usage", level=2)
+    add_code_block(doc, "python main.py update fetch-descriptions")
+    add_code_block(doc, "python main.py update fetch-descriptions --days-back 7")
+    add_code_block(doc, "python main.py update fetch-descriptions --notice-id abc123 --key 1")
+    add_code_block(doc, "python main.py update fetch-descriptions --naics 541511,541512 --set-aside WOSB,8A --limit 100")
+
+    doc.add_heading("Common Issues", level=2)
+    doc.add_paragraph(
+        "- Each description = 1 API call; use --limit to control daily budget consumption.\n"
+        "- Priority pass ensures WOSB/8(a)/SBA opportunities are filled first.\n"
+        "- Some opportunities have no description URL (description_url IS NULL); these are skipped.\n"
+        "- Integrated into daily_load.bat as step 2 (100/day batch)."
+    )
+
+    doc.add_page_break()
+
+    # ----- 15. On-Demand Loader -----
+    doc.add_heading("15. On-Demand Loader", level=1)
 
     doc.add_heading("Overview", level=2)
     doc.add_paragraph(
         "Processes pending on-demand data load requests inserted by the C# API. "
-        "Polls the data_load_request table for PENDING rows and fetches data from "
-        "USASpending or SAM.gov APIs. Supports two request types: "
-        "USASPENDING_AWARD (award + transactions) and FPDS_AWARD (FPDS contract data)."
+        "Polls the data_load_request table for PENDING rows and routes to the "
+        "appropriate loader. Supports four request types: "
+        "USASPENDING_AWARD, FPDS_AWARD, REFRESH_FEDHIER_ORG (single org refresh "
+        "from SAM.gov Federal Hierarchy API), and ATTACHMENT_ANALYSIS (AI analysis "
+        "of opportunity attachments)."
     )
 
     doc.add_heading("CLI Command", level=2)
@@ -1124,10 +1211,11 @@ def build_document():
 
     doc.add_heading("Data Source", level=2)
     doc.add_paragraph(
-        "USASpending.gov API and SAM.gov Awards API, triggered by rows in data_load_request."
+        "USASpending.gov API, SAM.gov Awards API, SAM.gov Federal Hierarchy API, "
+        "and local attachment processing, triggered by rows in data_load_request."
     )
     doc.add_paragraph(
-        "API Clients: USASpendingClient, SAMAwardsClient"
+        "API Clients: USASpendingClient, SAMAwardsClient, SAMFedHierClient"
     )
 
     doc.add_heading("Tables Populated", level=2)
@@ -1138,6 +1226,8 @@ def build_document():
             ["usaspending_award", "Target", "USASpending award records (for USASPENDING_AWARD type)"],
             ["usaspending_transaction", "Target", "Transaction records (for USASPENDING_AWARD type)"],
             ["fpds_contract", "Target", "FPDS contract records (for FPDS_AWARD type)"],
+            ["federal_organization", "Target", "Agency/office org records (for REFRESH_FEDHIER_ORG type)"],
+            ["opportunity_attachment_intel", "Target", "AI analysis results (for ATTACHMENT_ANALYSIS type)"],
             ["etl_load_log", "Tracking", "Load progress and statistics"],
         ]
     )
@@ -1146,19 +1236,21 @@ def build_document():
     doc.add_paragraph(
         "Polls data_load_request for up to 10 PENDING rows per invocation. "
         "For each request, determines the request type and delegates to the appropriate "
-        "loader (USASpendingLoader or AwardsLoader). Updates request status to COMPLETE "
-        "or FAILED. Use --watch for continuous polling (5-second interval)."
+        "loader: USASpendingLoader, AwardsLoader, FedHierLoader, or AttachmentPipeline. "
+        "Updates request status to COMPLETE or FAILED. "
+        "Use --watch for continuous polling (5-second interval)."
     )
 
     doc.add_heading("Rate Limits", level=2)
     doc.add_paragraph(
-        "USASpending: no rate limits. SAM.gov: uses API key 2 (1,000/day)."
+        "USASpending: no rate limits. SAM.gov (FPDS + Fed Hierarchy): uses API key 2 (1,000/day). "
+        "ATTACHMENT_ANALYSIS: no API calls (local processing)."
     )
 
     doc.add_heading("Change Detection", level=2)
     doc.add_paragraph(
-        "Delegates to underlying loaders (USASpendingLoader, AwardsLoader) which use "
-        "SHA-256 change detection."
+        "Delegates to underlying loaders (USASpendingLoader, AwardsLoader, FedHierLoader) "
+        "which use SHA-256 change detection."
     )
 
     doc.add_heading("CLI Options", level=2)
@@ -1178,7 +1270,9 @@ def build_document():
         "- Requests are inserted by the C# API backend.\n"
         "- Failed requests are marked FAILED with an error message.\n"
         "- Use --watch for background service mode (Ctrl+C to stop).\n"
-        "- Processes at most 10 requests per poll cycle."
+        "- Processes at most 10 requests per poll cycle.\n"
+        "- REFRESH_FEDHIER_ORG: lookup_key = fh_org_id; refreshes single org from SAM.gov.\n"
+        "- ATTACHMENT_ANALYSIS: lookup_key = notice_id; runs AI analysis on attachments."
     )
 
     doc.add_page_break()
@@ -1188,29 +1282,33 @@ def build_document():
     # =========================================================================
     doc.add_heading("Appendix A: Daily Load Sequence", level=1)
     doc.add_paragraph(
-        "The daily_load.bat script runs the following 10 steps in order:"
+        "The daily_load.bat script runs the following 13 steps in order:"
     )
 
     steps = [
         ("1", "load opportunities", "--max-calls 300 --key 2 --days-back 31 --force",
          "Fetch recent opportunities from SAM.gov"),
-        ("2", "load usaspending-bulk", "--days-back 5",
+        ("2", "update fetch-descriptions", "--key 2 --limit 100 --naics <NAICS> --set-aside WOSB,8A,SBA",
+         "Backfill description text (priority NAICS+set-aside first)"),
+        ("3", "load usaspending-bulk", "--days-back 5",
          "Bulk load recent USASpending data"),
-        ("3", "load awards", "--naics <NAICS> --days-back 10 --max-calls 300 --key 2 --set-aside 8a",
+        ("4", "load awards", "--naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside 8a",
          "Load 8(a) set-aside awards"),
-        ("4", "load awards", "--naics <NAICS> --days-back 10 --max-calls 300 --key 2 --set-aside WOSB",
+        ("5", "load awards", "--naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside WOSB",
          "Load WOSB set-aside awards"),
-        ("5", "load awards", "--naics <NAICS> --days-back 10 --max-calls 300 --key 2 --set-aside SBA",
+        ("6", "load awards", "--naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside SBA",
          "Load SBA set-aside awards"),
-        ("6", "update link-metadata", "",
+        ("7", "update link-metadata", "",
          "Enrich resource link filenames and content types"),
-        ("7", "download attachments", "--missing-only --active-only --batch-size 5000",
+        ("8", "download attachments", "--missing-only --active-only --batch-size 5000",
          "Download attachment files for active opportunities"),
-        ("8", "extract attachment-text", "--batch-size 5000",
+        ("9", "extract attachment-text", "--batch-size 5000 --workers 10",
          "Extract text from downloaded attachments"),
-        ("9", "extract attachment-intel", "--batch-size 5000",
+        ("10", "extract attachment-intel", "--batch-size 5000",
          "Extract structured intelligence from text"),
-        ("10", "cleanup attachment-files", "",
+        ("11", "backfill opportunity-intel", "",
+         "Propagate intel findings to opportunity table"),
+        ("12", "maintain attachment-files", "",
          "Remove fully-analyzed attachment files from disk"),
     ]
 
