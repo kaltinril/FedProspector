@@ -1,6 +1,6 @@
 # Phase 113C: Intel Display — Keyword vs AI Side-by-Side
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 **Priority:** Medium — AI analysis results exist but aren't visually distinguished from keyword results
 **Dependencies:** Phase 110ZZZ (table merge complete)
 
@@ -81,3 +81,10 @@ The `document_intel_summary` table has `extraction_method` (keyword vs ai_haiku 
 3. **IntelCard enhancement**: Below primary value, add per-method comparison row; highlight agreement/disagreement
 4. **Enhance button**: Use `analyzedCount` vs `attachmentCount` + `availableMethods` to show smart state
 5. **Per-Attachment accordion**: Group entries by filename, show method rows within each group
+
+## Delivered
+
+- **API**: `MethodIntelDto` + `methodBreakdown` dictionary in `DocumentIntelligenceDto` response; per-attachment breakdown returns per-method rows with `scopeSummary`
+- **UI**: Scope Summary card showing AI narrative above intel fields; per-method values in intel card headers (hidden when methods agree, truncated with tooltip when they disagree); smart "Re-extract Keywords" and "Re-analyze with AI" buttons; per-attachment accordion grouped by file with method rows
+- **Python ETL**: AI analyzer writes `opportunity_attachment_summary` rollup rows after analysis; `rollup-intel` CLI command with `--method`, `--refresh`, `--notice-id` flags; backfilled all existing data
+- **Deferred**: Created Phase 131 (Per-Attachment Re-Analysis) for single-attachment analysis controls
