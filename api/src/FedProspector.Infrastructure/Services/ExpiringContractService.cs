@@ -59,30 +59,146 @@ public class ExpiringContractService : IExpiringContractService
             query = query.Where(c => c.SetAsideType == request.SetAsideType);
         }
 
-        // 6. Join entity for incumbent registration status, exclusion for debarment
-        var joined = from c in query
-            join e in _context.Entities.AsNoTracking()
-                on c.VendorUei equals e.UeiSam into entityJoin
-            from e in entityJoin.DefaultIfEmpty()
-            join ex in _context.SamExclusions.AsNoTracking()
-                .Where(x => x.TerminationDate == null)
-                on c.VendorUei equals ex.Uei into exclusionJoin
-            from ex in exclusionJoin.DefaultIfEmpty()
-            select new { Contract = c, Entity = e, Exclusion = ex };
+        // 6. Query USASpending contracts expiring in the window
+        var usaQuery = _context.UsaspendingAwards.AsNoTracking()
+            .Where(u => u.AwardType != null && new[] { "DELIVERY ORDER", "PURCHASE ORDER", "BPA CALL", "DEFINITIVE CONTRACT", "DO", "DCA", "PO", "BPA" }.Contains(u.AwardType))
+            .Where(u => u.EndDate != null && u.EndDate >= now && u.EndDate <= cutoff);
 
-        // 7. Order by completion date ascending (soonest expiring first)
-        var ordered = joined.OrderBy(x => x.Contract.UltimateCompletionDate);
+        if (!string.IsNullOrWhiteSpace(request.NaicsCode))
+        {
+            usaQuery = usaQuery.Where(u => u.NaicsCode == request.NaicsCode);
+        }
+        else
+        {
+            usaQuery = usaQuery.Where(u => u.NaicsCode != null && orgNaics.Contains(u.NaicsCode));
+        }
 
-        // 8. Apply offset/limit
-        var results = await ordered
-            .Skip(request.Offset)
-            .Take(request.Limit)
+        if (!string.IsNullOrWhiteSpace(request.SetAsideType))
+        {
+            usaQuery = usaQuery.Where(u => u.TypeOfSetAside == request.SetAsideType);
+        }
+
+        // 7. Execute both queries (no joins — entity lookup deferred to after pagination)
+        var fpdsResults = await query
+            .OrderBy(c => c.UltimateCompletionDate)
             .ToListAsync();
 
-        // 9. Check for re-solicitation: match solicitation_number to opportunity
-        var solicitationNumbers = results
-            .Where(r => !string.IsNullOrWhiteSpace(r.Contract.SolicitationNumber))
-            .Select(r => r.Contract.SolicitationNumber!)
+        var usaResults = await usaQuery
+            .OrderBy(u => u.EndDate)
+            .Take(request.Offset + request.Limit + 50) // ceiling: only fetch what we might need
+            .ToListAsync();
+
+        // Build solicitation number lookup for re-solicitation enrichment
+        var solicitationByPiid = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var c in fpdsResults)
+        {
+            if (!string.IsNullOrWhiteSpace(c.SolicitationNumber))
+                solicitationByPiid[c.ContractId] = c.SolicitationNumber;
+        }
+        foreach (var u in usaResults)
+        {
+            var piid = u.Piid ?? u.GeneratedUniqueAwardId;
+            if (!solicitationByPiid.ContainsKey(piid) && !string.IsNullOrWhiteSpace(u.SolicitationIdentifier))
+                solicitationByPiid[piid] = u.SolicitationIdentifier;
+        }
+
+        // 8. Map both to DTOs, then dedup by PIID (FPDS preferred)
+        var utcNow = DateTime.UtcNow;
+
+        var fpdsDtos = fpdsResults.Select(c => new ExpiringContractDto
+        {
+            Piid = c.ContractId,
+            Description = c.Description,
+            NaicsCode = c.NaicsCode,
+            SetAsideType = c.SetAsideType,
+            VendorUei = c.VendorUei,
+            VendorName = c.VendorName,
+            AgencyName = c.AgencyName,
+            OfficeName = c.ContractingOfficeName,
+            ContractValue = c.BaseAndAllOptions,
+            DollarsObligated = c.DollarsObligated,
+            CompletionDate = c.UltimateCompletionDate?.ToDateTime(TimeOnly.MinValue),
+            DateSigned = c.DateSigned?.ToDateTime(TimeOnly.MinValue),
+            MonthsRemaining = c.UltimateCompletionDate.HasValue
+                ? (c.UltimateCompletionDate.Value.Year - now.Year) * 12
+                  + (c.UltimateCompletionDate.Value.Month - now.Month)
+                : null,
+            MonthlyBurnRate = CalculateMonthlyBurnRate(c.DateSigned, c.DollarsObligated),
+            PercentSpent = c.BaseAndAllOptions > 0 && c.DollarsObligated.HasValue
+                ? Math.Round(c.DollarsObligated.Value / c.BaseAndAllOptions.Value * 100m, 1)
+                : null,
+            Source = "FPDS"
+        }).ToList();
+
+        var usaDtos = usaResults.Select(u => new ExpiringContractDto
+        {
+            Piid = u.Piid ?? u.GeneratedUniqueAwardId,
+            Description = u.AwardDescription,
+            NaicsCode = u.NaicsCode,
+            SetAsideType = u.TypeOfSetAside,
+            VendorUei = u.RecipientUei,
+            VendorName = u.RecipientName,
+            AgencyName = u.AwardingAgencyName,
+            OfficeName = u.AwardingSubAgencyName,
+            ContractValue = u.BaseAndAllOptionsValue,
+            DollarsObligated = u.TotalObligation,
+            CompletionDate = u.EndDate?.ToDateTime(TimeOnly.MinValue),
+            DateSigned = u.StartDate?.ToDateTime(TimeOnly.MinValue),
+            MonthsRemaining = u.EndDate.HasValue
+                ? (u.EndDate.Value.Year - now.Year) * 12
+                  + (u.EndDate.Value.Month - now.Month)
+                : null,
+            MonthlyBurnRate = CalculateMonthlyBurnRate(u.StartDate, u.TotalObligation),
+            PercentSpent = u.BaseAndAllOptionsValue > 0 && u.TotalObligation.HasValue
+                ? Math.Round(u.TotalObligation.Value / u.BaseAndAllOptionsValue.Value * 100m, 1)
+                : null,
+            Source = "USASpending"
+        }).ToList();
+
+        // Dedup: FPDS wins when same PIID exists in both
+        var fpdsPiids = new HashSet<string>(fpdsDtos.Select(d => d.Piid), StringComparer.OrdinalIgnoreCase);
+        var merged = fpdsDtos
+            .Concat(usaDtos.Where(d => !fpdsPiids.Contains(d.Piid)))
+            .OrderBy(d => d.CompletionDate)
+            .ToList();
+
+        _logger.LogInformation("Expiring contracts: {FpdsCount} FPDS + {UsaCount} USASpending = {MergedCount} merged (after dedup)",
+            fpdsDtos.Count, usaDtos.Count, merged.Count);
+
+        // Apply offset/limit to merged set
+        var results = merged
+            .Skip(request.Offset)
+            .Take(request.Limit)
+            .ToList();
+
+        // Batch-fetch entity data for just the page results
+        var pageUeis = results
+            .Select(d => d.VendorUei)
+            .Where(u => !string.IsNullOrEmpty(u))
+            .Distinct()
+            .ToList();
+
+        var entityByUei = pageUeis.Count > 0
+            ? await _context.Entities.AsNoTracking()
+                .Where(e => pageUeis.Contains(e.UeiSam))
+                .ToDictionaryAsync(e => e.UeiSam)
+            : new Dictionary<string, Core.Models.Entity>();
+
+        // Enrich with entity data
+        foreach (var dto in results)
+        {
+            if (dto.VendorUei != null && entityByUei.TryGetValue(dto.VendorUei, out var entity))
+            {
+                dto.RegistrationStatus = entity.RegistrationStatus;
+                dto.RegistrationExpiration = entity.RegistrationExpirationDate?.ToDateTime(TimeOnly.MinValue);
+            }
+        }
+
+        // 9. Re-solicitation matching
+        var resultPiids = results.Select(r => r.Piid).ToList();
+        var solicitationNumbers = resultPiids
+            .Where(p => solicitationByPiid.ContainsKey(p))
+            .Select(p => solicitationByPiid[p])
             .Distinct()
             .ToList();
 
@@ -113,60 +229,26 @@ public class ExpiringContractService : IExpiringContractService
                 .ToDictionaryAsync(s => s.NoticeId)
             : new Dictionary<string, Core.Models.Views.SetAsideShiftView>();
 
-        // 10. Map to DTOs
-        var utcNow = DateTime.UtcNow;
-        return results.Select(r =>
+        // 10. Enrich DTOs with re-solicitation and set-aside shift data
+        foreach (var dto in results)
         {
-            var c = r.Contract;
-            var dto = new ExpiringContractDto
-            {
-                Piid = c.ContractId,
-                Description = c.Description,
-                NaicsCode = c.NaicsCode,
-                SetAsideType = c.SetAsideType,
-                VendorUei = c.VendorUei,
-                VendorName = c.VendorName,
-                AgencyName = c.AgencyName,
-                OfficeName = c.ContractingOfficeName,
-                ContractValue = c.BaseAndAllOptions,
-                DollarsObligated = c.DollarsObligated,
-                CompletionDate = c.UltimateCompletionDate?.ToDateTime(TimeOnly.MinValue),
-                DateSigned = c.DateSigned?.ToDateTime(TimeOnly.MinValue),
-                MonthsRemaining = c.UltimateCompletionDate.HasValue
-                    ? (c.UltimateCompletionDate.Value.Year - now.Year) * 12
-                      + (c.UltimateCompletionDate.Value.Month - now.Month)
-                    : null,
-                // Incumbent health
-                RegistrationStatus = r.Entity?.RegistrationStatus,
-                RegistrationExpiration = r.Entity?.RegistrationExpirationDate?.ToDateTime(TimeOnly.MinValue),
-                IsExcluded = r.Exclusion != null,
-                ExclusionType = r.Exclusion?.ExclusionType,
-                // Burn rate
-                MonthlyBurnRate = CalculateMonthlyBurnRate(c.DateSigned, c.DollarsObligated),
-                PercentSpent = c.BaseAndAllOptions > 0 && c.DollarsObligated.HasValue
-                    ? Math.Round(c.DollarsObligated.Value / c.BaseAndAllOptions.Value * 100m, 1)
-                    : null
-            };
-
-            // Re-solicitation status + set-aside shift
-            if (!string.IsNullOrWhiteSpace(c.SolicitationNumber)
-                && opportunityBySolicitation.TryGetValue(c.SolicitationNumber, out var opp))
+            if (solicitationByPiid.TryGetValue(dto.Piid, out var solNum)
+                && opportunityBySolicitation.TryGetValue(solNum, out var opp))
             {
                 dto.ResolicitationNoticeId = opp.NoticeId;
                 dto.ResolicitationStatus = opp.ResponseDeadline.HasValue && opp.ResponseDeadline > utcNow
                     ? "Solicitation Active"
                     : "Pre-Solicitation Posted";
 
-                // Enrich with set-aside shift data from the linked opportunity
                 if (shiftByNoticeId.TryGetValue(opp.NoticeId, out var shift))
                 {
                     dto.PredecessorSetAsideType = shift.PredecessorSetAsideType;
                     dto.ShiftDetected = shift.ShiftDetected;
                 }
             }
+        }
 
-            return dto;
-        }).ToList();
+        return results;
     }
 
     private static decimal? CalculateMonthlyBurnRate(DateOnly? dateSigned, decimal? dollarsObligated)

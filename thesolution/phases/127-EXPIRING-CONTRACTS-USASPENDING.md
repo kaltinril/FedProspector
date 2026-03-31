@@ -1,6 +1,6 @@
 # Phase 127: Expiring Contracts — USASpending Data Integration
 
-**Status:** PLANNED
+**Status:** DONE
 **Priority:** Medium — significantly increases expiring contract visibility with data already loaded
 **Dependencies:** None — `usaspending_award` table and data already exist
 
@@ -92,3 +92,15 @@ Contracts may appear in both `fpds_contract` and `usaspending_award`. Deduplicat
 
 ## Estimated Effort
 - Small-medium: ~2-3 hours of implementation + testing
+
+---
+
+## Implementation Notes (Completed)
+
+- SQL view updated with UNION ALL + ROW_NUMBER dedup (FPDS preferred)
+- Award type filter uses descriptive names (DELIVERY ORDER, PURCHASE ORDER, etc.) not letter codes
+- C# service queries both FpdsContracts and UsaspendingAwards in parallel, merges with FPDS priority dedup
+- DTO and UI TypeScript type updated with `source` field
+- UI shows Source column with color-coded chips
+- Added index `idx_usa_end_date_type_naics` for query performance (9s with NAICS filter on 28M rows)
+- Result: 185 FPDS + 415,967 USASpending contracts available (filtered by org NAICS in practice)

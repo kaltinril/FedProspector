@@ -71,6 +71,9 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     INDEX idx_usa_enrich (fpds_enriched_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Phase 127: optimize expiring contracts query (end_date range + award_type + naics filter)
+CREATE INDEX IF NOT EXISTS idx_usa_end_date_type_naics ON usaspending_award (end_date, award_type, naics_code);
+
 -- Transaction-level spending detail for burn rate analysis
 CREATE TABLE IF NOT EXISTS usaspending_transaction (
     id                          BIGINT AUTO_INCREMENT PRIMARY KEY,

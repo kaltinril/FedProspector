@@ -155,7 +155,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 124 | Attachment Hash-Level Deduplication | PLANNED | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
 | 125 | Full Document Viewer with Highlights | PLANNED | [125-FULL-DOCUMENT-VIEWER.md](phases/125-FULL-DOCUMENT-VIEWER.md) |
 | 126 | AI Contradiction Detection | PLANNED | [126-AI-CONTRADICTION-DETECTION.md](phases/126-AI-CONTRADICTION-DETECTION.md) |
-| 127 | Expiring Contracts — USASpending Integration | PLANNED | [127-EXPIRING-CONTRACTS-USASPENDING.md](phases/127-EXPIRING-CONTRACTS-USASPENDING.md) |
+| 127 | Expiring Contracts — USASpending Integration | DONE | [127-EXPIRING-CONTRACTS-USASPENDING.md](phases/127-EXPIRING-CONTRACTS-USASPENDING.md) |
 | 128 | Federal Identifier Extraction | COMPLETE | [128-IDENTIFIER-EXTRACTION.md](phases/completed/128-IDENTIFIER-EXTRACTION.md) |
 | 129 | NAICS Code Intelligence & SBA Size Standards | PLANNED | [129-NAICS-SIZE-STANDARDS.md](phases/129-NAICS-SIZE-STANDARDS.md) |
 | 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |

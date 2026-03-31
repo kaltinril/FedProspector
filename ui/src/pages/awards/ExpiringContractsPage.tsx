@@ -13,7 +13,6 @@ import type { SelectChangeEvent } from '@mui/material/Select';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import SwapHorizOutlined from '@mui/icons-material/SwapHorizOutlined';
-import WarningAmberOutlined from '@mui/icons-material/WarningAmberOutlined';
 
 import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -115,6 +114,19 @@ function buildColumns(navigate: ReturnType<typeof useNavigate>): GridColDef<Expi
         >
           {params.value}
         </Link>
+      ),
+    },
+    {
+      field: 'source',
+      headerName: 'Source',
+      width: 120,
+      renderCell: (params) => (
+        <Chip
+          label={params.value}
+          size="small"
+          color={params.value === 'FPDS' ? 'primary' : 'secondary'}
+          variant="outlined"
+        />
       ),
     },
     {
@@ -221,20 +233,6 @@ function buildColumns(navigate: ReturnType<typeof useNavigate>): GridColDef<Expi
       sortable: false,
     },
     {
-      field: 'isExcluded',
-      headerName: 'Excluded',
-      width: 90,
-      align: 'center',
-      headerAlign: 'center',
-      renderCell: (params) => {
-        if (params.value === true) {
-          return <WarningAmberOutlined color="error" fontSize="small" />;
-        }
-        return null;
-      },
-      sortable: false,
-    },
-    {
       field: 'resolicitationStatus',
       headerName: 'Re-solicitation',
       width: 190,
@@ -267,7 +265,6 @@ const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
   monthlyBurnRate: 'lg',
   percentSpent: 'lg',
   registrationStatus: 'lg',
-  isExcluded: 'lg',
   resolicitationStatus: 'md',
 };
 
@@ -354,7 +351,7 @@ export default function ExpiringContractsPage() {
           rows={data ?? []}
           loading={false}
           onRowClick={handleRowClick}
-          getRowId={(row: ExpiringContractDto) => row.piid}
+          getRowId={(row: ExpiringContractDto) => `${row.source}-${row.piid}`}
           columnVisibilityModel={columnVisibility}
           sx={{ minHeight: 400 }}
         />

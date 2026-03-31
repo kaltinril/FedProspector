@@ -18,8 +18,6 @@ public class ExpiringContractDto
     // Incumbent health
     public string? RegistrationStatus { get; set; }
     public DateTime? RegistrationExpiration { get; set; }
-    public bool IsExcluded { get; set; }
-    public string? ExclusionType { get; set; }
     // Burn rate
     public decimal? MonthlyBurnRate { get; set; }
     public decimal? PercentSpent { get; set; }
@@ -29,6 +27,8 @@ public class ExpiringContractDto
     // Set-aside shift (enriched from v_set_aside_shift)
     public string? PredecessorSetAsideType { get; set; }
     public bool? ShiftDetected { get; set; }
+    // Data source (Phase 127)
+    public string Source { get; set; } = "FPDS";
 }
 
 public class ExpiringContractSearchRequest

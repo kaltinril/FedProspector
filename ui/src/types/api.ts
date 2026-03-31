@@ -1115,14 +1115,13 @@ export interface ExpiringContractDto {
   monthsRemaining: number | null;
   registrationStatus: string | null;
   registrationExpiration: string | null;
-  isExcluded: boolean;
-  exclusionType: string | null;
   monthlyBurnRate: number | null;
   percentSpent: number | null;
   resolicitationNoticeId: string | null;
   resolicitationStatus: string;
   predecessorSetAsideType: string | null;
   shiftDetected: boolean | null;
+  source: string;
 }
 
 // ============================================================

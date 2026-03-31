@@ -66,7 +66,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 
-import type { OpportunityDetail, PointOfContactDto, QScoreFactorDto, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
+import type { OpportunityDetail, QScoreFactorDto, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
