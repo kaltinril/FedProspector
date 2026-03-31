@@ -3,7 +3,7 @@
 **Status:** IDEA — from brainstorm analysis, not yet prioritized
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 38-44, 50)
-**Dependencies:** Awards data (loaded), FPDS data (loaded), Entity data (loaded)
+**Dependencies:** FPDS awards (`fpds_contract`), Entity data (`entity`), Subawards (`sam_subaward`), Contracting officers (`contracting_officer` + `opportunity_poc`), Opportunities (`opportunity`), USASpending (`usaspending_award`)
 
 ---
 
@@ -17,10 +17,10 @@ We have basic competitive intelligence (market share, top vendors by NAICS, comp
 
 | Idea | Status | What Exists |
 |------|--------|-------------|
-| Re-compete Early Warning | **PARTIAL** | `ExpiringContractService` finds contracts by completion date (12-month window). `v_expiring_contracts` view joins opportunity+FPDS+USASpending+exclusions. Missing: option exercise analysis, spend pattern modeling, agency behavior prediction. |
+| Re-compete Early Warning | **PARTIAL** | `ExpiringContractService` finds contracts by completion date (configurable `MonthsAhead` window). `v_expiring_contracts` view joins FPDS+entity+exclusions (18-month window, includes burn rate). Missing: option exercise analysis, spend pattern modeling, agency behavior prediction. |
 | Agency Re-compete Patterns | **NEW** — data ready | All 7 behavioral metrics are computable from existing FPDS data. No aggregation service yet. |
 | Competitor Dossier | **PARTIAL** | `EntityDetailPage` has entity overview, competitor analysis tab (`v_competitor_analysis` view), NAICS codes, business types, SBA certs, past performance aggregates. Missing: unified one-click PDF export, head-to-head encounters, teaming network. |
-| Enhanced CO Profiles | **PARTIAL** | `contracting_officer` table stores name, email, phone, title, department, office. `opportunity_poc` links officers to opportunities. Missing: award history, set-aside preferences, procurement timelines, retention rates. |
+| Enhanced CO Profiles | **PARTIAL** | `contracting_officer` table stores name, email, phone, title, department, office. `opportunity_poc` links officers to opportunities. Missing: award history, set-aside preferences, procurement timelines, retention rates. **Note:** `fpds_contract` has no CO name/email — linking COs to awards requires indirect matching via `solicitation_number` (lossy). |
 | Agency Buying Patterns | **NEW** — data ready | FPDS/USASpending data exists. `v_set_aside_trend` provides yearly set-aside trends by NAICS. Missing: full agency profile with volume trends, NAICS distribution, seasonal patterns, contract type distribution. |
 | Congressional Appropriations | **NEW** — needs Congress.gov API | No government funding/budget data loaded |
 | Procurement Wave Forecasting | **NEW** | Composite of re-compete prediction + appropriations + seasonal patterns |
@@ -142,9 +142,21 @@ Interactive force-directed network visualization:
 
 ---
 
+## Ideas Not Covered Above
+
+These are buildable on existing data but not mentioned in the brainstorm:
+
+- **Price Competitiveness Benchmarking**: `gsa_labor_rate` has contractor-level pricing by labor category, schedule, and business size. Could benchmark user's rates against market and show where they're above/below median for their NAICS/schedule.
+- **Competition Intensity by NAICS/Office**: `fpds_contract.number_of_offers` is loaded. Could aggregate average number of bidders by NAICS code, contracting office, and set-aside type to show where competition is thinnest.
+- **Incumbent Vulnerability Scoring**: Combine exclusion status (`sam_exclusion`), registration expiration (`entity.registration_expiration_date`), spend burn rate (already in `v_expiring_contracts`), and option exercise patterns to score how vulnerable an incumbent is on expiring contracts.
+- **Attachment/SOW Pattern Analysis**: Extracted attachment text and document intel (`attachment_document`, `document_intel_summary`) could feed into requirements clustering — identifying which SOWs share similar language and thus which competitors likely bid on similar work.
+
+---
+
 ## Implementation Notes
 
-- Features 1-5 are buildable entirely on existing data (awards, FPDS, entities, subawards)
+- Features 1-3, 5 are buildable entirely on existing data (`fpds_contract`, `entity`, `sam_subaward`, `usaspending_award`)
+- Feature 4 (CO Profiles) has a data gap: `fpds_contract` stores `contracting_office_id/name` but not individual CO identity. CO-to-award linking requires indirect matching via `solicitation_number` between `opportunity_poc` and `fpds_contract`, which is lossy. Full CO award history would need FPDS data enhancements or a new data source.
 - Feature 6 needs Congress.gov API integration
 - Feature 7 combines multiple signals (some new, some existing)
 - Feature 8 is a visualization challenge — data exists, presentation is the work

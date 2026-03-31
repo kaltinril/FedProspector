@@ -3,7 +3,7 @@
 **Status:** IDEA — from brainstorm analysis, not yet prioritized
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 24-30, metrics-framework)
-**Dependencies:** Existing pWin infrastructure (Phase 45)
+**Dependencies:** Existing pWin infrastructure (Phase 45). OQS Strategic Alignment factor would require a new "growth targets" data model (new tables + UI). IVS nightly batch would require a scheduled job infrastructure.
 
 ---
 
@@ -18,11 +18,11 @@ The brainstorm project designed several scoring models beyond our current pWin a
 | Idea | Status | What Exists |
 |------|--------|-------------|
 | Opportunity Quality Score (OQS) | **NEW** | Nothing measures opportunity desirability independent of org fit |
-| Pursuit Priority Score | **NEW** | `RecommendedOpportunityService` has a basic 60-point score (set-aside + NAICS + time + value), but not a unified pWin+OQS composite |
+| Pursuit Priority Score | **NEW** | `RecommendedOpportunityService` has a basic 4-factor qScore (set-aside + NAICS + time + value, normalized to 0-100), but not a unified pWin+OQS composite |
 | Incumbent Vulnerability Score (IVS) | **PARTIAL** | `MarketIntelService.GetIncumbentAnalysisAsync()` returns `VulnerabilitySignals` (string list) + burn rate + percent spent. No formal 0-100 scored model. |
 | Competitor Strength Index (CSI) | **NEW** | Market share exists (top 10 vendors by $ in `MarketIntelService.GetMarketShareAsync()`), but no per-competitor scoring model |
 | Partner Compatibility Score (PCS) | **NEW** | pWin has a "teaming strength" factor but it's just a subaward partner count, not quality/fit scoring |
-| Open Door Score | **NEW** | No prime engagement scoring. `sam_subaward` data is loaded but only used for basic teaming search. |
+| Open Door Score | **NEW** | No prime engagement scoring. `sam_subaward` data is used for teaming partner search and pWin teaming strength (partner count), but no prime-level engagement quality scoring. |
 
 ---
 
@@ -35,8 +35,8 @@ A 7-factor model measuring opportunity desirability independent of win probabili
 - Estimated Value Alignment (0.15) — is the contract size in your sweet spot?
 - Competition Level (0.10) — fewer competitors = better opportunity
 - Timeline Feasibility (0.15) — do you have time to respond?
-- Strategic Alignment (0.15) — does this advance your growth goals?
-- Reuse Potential (0.10) — can you reuse existing proposals/past performance?
+- Strategic Alignment (0.15) — does this advance your growth goals? *(requires new user-defined growth targets — no such data structure exists yet)*
+- Reuse Potential (0.10) — can you reuse existing proposals/past performance? *(requires proposal tracking — not in scope; past performance records exist via `organization_past_performance`)*
 - Growth Potential (0.15) — is this a foothold into a new agency/NAICS?
 
 **Key insight:** Creates a 2D decision matrix — OQS ("should I want this?") vs pWin ("can I win this?"). High OQS + High pWin = must pursue. Low OQS + High pWin = easy win but not strategic. High OQS + Low pWin = invest in capture. Low both = skip.
@@ -55,7 +55,7 @@ Combined metric: `(pWin × 0.6) + (OQS × 0.4)` as default pipeline sort order. 
 
 We have vulnerability signals, but the brainstorm designed a formal scored model:
 - Contract Age (0.15) — older contracts more vulnerable
-- Option Exercise History (0.25) — non-exercised options = major signal
+- Option Exercise History (0.25) — non-exercised options = major signal *(must be inferred from FPDS modification records; no explicit option-exercise column exists)*
 - Spend Anomalies (0.15) — declining spend suggests dissatisfaction
 - Certification Risk (0.15) — incumbent losing small biz status
 - Agency Re-compete Pattern (0.15) — does this agency typically re-compete or sole-source?
@@ -69,7 +69,7 @@ Computed nightly for all active contracts in user-relevant NAICS codes. Trend tr
 
 5-factor model per competitor:
 - Federal Revenue (0.25)
-- Win Rate (0.20)
+- Win Rate (0.20) *(NOT computable — we only have FPDS wins, not unsuccessful bids/offers)*
 - Agency Penetration (0.20) — how many offices they've won at
 - Team Stability (0.15) — do they keep the same subs?
 - Certification Portfolio (0.20) — breadth of set-aside eligibility
@@ -116,6 +116,6 @@ Rates prime contractors on how much they actually engage small business subs:
 
 ## Implementation Notes
 
-- All scoring factors use data we already have (awards, entities, subawards, NAICS, set-asides)
+- Most scoring factors use data we already have (awards, entities, subawards, NAICS, set-asides). Exceptions: CSI Win Rate (no bid data, only wins), OQS Strategic Alignment (needs new user-defined goals), OQS Reuse Potential (needs proposal tracking or scoping down to past performance only)
 - The brainstorm designed a pluggable factor engine with configurable weights — our current pWin implementation could be extended
 - pWin calibration/backtesting (AUC-ROC target >0.70, Bayesian weight optimization) was a separate brainstorm phase — worth considering once we have enough historical win/loss data

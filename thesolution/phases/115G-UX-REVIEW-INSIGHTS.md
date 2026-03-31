@@ -16,12 +16,12 @@ The brainstorm project included several professional reviews (UX, QA, project ma
 
 | Idea | Status | What Exists |
 |------|--------|-------------|
-| Score Proliferation Risk | **APPLICABLE** | Currently have pWin (0-100) and qScore/Go-No-Go (0-40). Adding more scores from 115A would compound this. |
+| Score Proliferation Risk | **APPLICABLE** | Currently have pWin (0-100), qScore on recommendations (0-100 normalized), and Go/No-Go on prospects (0-40 raw + percentage). Adding more scores from 115A would compound this. |
 | Onboarding → First Pipeline | **PARTIAL** | `CompanySetupWizard` exists. `RecommendedOpportunitiesPage` shows top matches. Missing: guided bridge from setup completion to adding first prospect. |
-| Navigation Footprint | **APPLICABLE** | Current sidebar has ~10 items grouped into Pipeline and Research sections. Will grow as features are added. |
+| Navigation Footprint | **APPLICABLE** | Current sidebar has 12 items (13 with Admin) grouped into Main, Pipeline, Research, Tools, and Settings sections. Will grow as features are added. |
 | "More Like This" | **PARTIAL** | `RecommendedOpportunityService` scores by org profile match (set-aside + NAICS + time + value). Not similarity-based from a specific opportunity. |
-| Multi-Client Consultant | **PARTIAL** | Multi-tenancy works, users can be invited to multiple orgs. Roles: member, admin, SYSTEM_ADMIN. Missing: consultant role, cross-org dashboard, client switching UX. |
-| Inline Competitor on Cards | **NEW** | Kanban cards show title, status, deadline, value, pWin. Competitive data only on detail page `CompetitiveIntelTab`. |
+| Multi-Client Consultant | **PARTIAL** | Multi-tenancy works, but each user belongs to exactly one org (`AppUser.OrganizationId`). Roles: member, admin, SYSTEM_ADMIN. Missing: multi-org membership, consultant role, cross-org dashboard, client switching UX. |
+| Inline Competitor on Cards | **NEW** | Kanban cards show title, deadline, value, assignee, priority flag, and Go/No-Go score. Competitive data only on detail page `CompetitiveIntelTab`. |
 | Cross-Source Validation | **NEW** | ETL has per-source data quality rules (`etl_data_quality_rule`). No cross-source reconciliation (SAM↔FPDS↔USASpending). |
 | Notification Simplification | **APPLICABLE** | Current system is already simple (4 types, in-app only). Good baseline — keep it simple as we add features. |
 
@@ -32,7 +32,7 @@ The brainstorm project included several professional reviews (UX, QA, project ma
 ### 1. Score Proliferation Risk
 
 The brainstorm defined 9 distinct 0-100 scores. Even with fewer, the risk applies to us:
-- **Recommendation:** pWin is the headline metric. qScore is the gate. Everything else should be supporting detail, not a separate number on the grid.
+- **Recommendation:** pWin is the headline metric on opportunity detail. Go/No-Go is the gate for prospects. qScore ranks recommendations. Everything else should be supporting detail, not a separate number on the grid.
 - Don't let scoring become confusing — users want "what should I pursue?" not "here are 7 numbers to interpret."
 
 ### 2. Bridge Onboarding to First Pipeline Entry
@@ -44,8 +44,8 @@ After onboarding, don't just dump users on the search page. Guide them:
 ### 3. Navigation Footprint
 
 The brainstorm ended up with 10+ top-level nav items. Review noted this is too many for non-technical users.
-- Our current sidebar is reasonable but will grow as we add features
-- Consider grouping: Research (Opportunities, Awards, Entities, Teaming) | Pipeline (Prospects, Recommended, Expiring) | Intelligence (new features) | Admin
+- Our current sidebar already has 12 items across 5 sections (Main, Pipeline, Research, Tools, Settings) and will grow as we add features
+- Current grouping is reasonable: Research (Opportunities, Awards, Entities, Teaming, Federal Hierarchy) | Pipeline (Recommended, Expiring, Prospects) | Tools (Saved Searches) | Settings (Profile, Organization, Admin)
 
 ### 4. "More Like This" Discovery
 
@@ -55,9 +55,9 @@ On any opportunity, a "More Like This" button that finds similar opportunities b
 
 ### 5. Multi-Client Consultant Workflow
 
-The brainstorm identified a user persona (Sarah Martinez) who is a proposal consultant managing 3 clients. Our current multi-tenant model supports one org per user.
-- Consider: can a user belong to multiple organizations?
-- Or: a "consultant" role that can switch between client orgs?
+The brainstorm identified a user persona (Sarah Martinez) who is a proposal consultant managing 3 clients. Our current model enforces one org per user (`AppUser.OrganizationId` is a single FK).
+- Would require schema change: either a join table (`user_organization`) for multi-org membership, or a "consultant" role with cross-org access
+- UI would need org switcher in TopBar or sidebar
 - This is a market segment decision, not just a feature decision
 
 ### 6. Inline Competitor Data on Pipeline Cards

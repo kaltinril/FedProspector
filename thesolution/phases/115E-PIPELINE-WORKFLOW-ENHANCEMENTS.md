@@ -3,26 +3,26 @@
 **Status:** IDEA — from brainstorm analysis, not yet prioritized
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 20-22, 48-49, 51)
-**Dependencies:** Existing prospect pipeline (Phase 40+)
+**Dependencies:** Existing prospect pipeline (Phases 4, 50), Capture Management (Phase 50), Dashboard (Phase 70)
 
 ---
 
 ## Summary
 
-Our pipeline works (Kanban + list view, 6 statuses, drag-and-drop). The brainstorm designed a more feature-rich pipeline with analytics, automation, and proposal support. Some of these are genuinely useful additions.
+Our pipeline works (Kanban + list view, 8 statuses with 6 shown on Kanban board, drag-and-drop). The brainstorm designed a more feature-rich pipeline with analytics, automation, and proposal support. Some of these are genuinely useful additions.
 
 ## Overlap with Existing Features
 
 | Idea | Status | What Exists |
 |------|--------|-------------|
-| Calendar/Gantt views | **NEW** | `ProspectPipelinePage` has Kanban (6 status columns) + list view. No calendar or Gantt. |
-| Reverse Timeline Generator | **NEW** | `proposal_milestone` table tracks due dates per proposal, but no auto-generation from response deadline. |
-| Pipeline Analytics | **PARTIAL** | Dashboard shows pipeline value, status chart, due-this-week, workload by assignee. `prospect.outcome` and `prospect.outcome_date` track win/loss. Missing: funnel visualization, stage conversion rates, revenue forecasting, win/loss reason analysis. |
+| Calendar/Gantt views | **NEW** | `ProspectPipelinePage` has Kanban (6 columns: NEW, REVIEWING, PURSUING, BID_SUBMITTED, WON, LOST) + list view. Backend also supports DECLINED and NO_BID statuses. No calendar or Gantt. |
+| Reverse Timeline Generator | **NEW** | `proposal_milestone` table has `due_date` field; default milestones auto-created on proposal creation (Draft Due, Internal Review, Final Submission, Q&A Period, Award Decision) but dates are not auto-calculated from response deadline. |
+| Pipeline Analytics | **PARTIAL** | Dashboard has: pipeline value card, win rate card, auto-matches card, pipeline overview bar chart (by status), due-this-week table, workload-by-assignee chart, win/loss metrics bar chart, top recommendations list, expiring contracts list. `prospect.outcome` / `prospect.outcome_date` / `prospect.outcome_notes` track win/loss. Missing: funnel visualization, stage conversion rates, revenue forecasting, win/loss *reason* analysis (outcome_notes exists but no aggregated reporting). |
 | Morning Brief Email | **NEW** | `NotificationService` handles in-app notifications only (4 types: new_match, deadline_approaching, status_changed, score_recalculated). No email backend, no scheduled digests. |
 | Webhooks | **NEW** | No webhook infrastructure. Notifications are in-app only. |
 | Calendar Integration | **NEW** | No external calendar sync. `proposal_milestone.due_date` exists but no iCal/Outlook/Google export. |
-| Sources-Sought Drafter | **NEW** | Phase 110 attachment intelligence will extract text from solicitation docs. No response drafting. |
-| Proposal Reuse KB | **NEW** | `proposal_document` table stores files. No content extraction, no templates, no semantic search. Explicitly out of scope in Phase 110. |
+| Sources-Sought Drafter | **NEW** | Phase 110 (complete) extracts text and intel from solicitation attachments. No response drafting. |
+| Proposal Reuse KB | **NEW** | `proposal_document` table stores file metadata (name, path, type, size). No content extraction, no templates, no semantic search. Explicitly out of scope in Phase 110. |
 
 ---
 
@@ -55,7 +55,7 @@ Given a response deadline, auto-generate working-backward milestones:
 - **Activity metrics** — cards created/moved/closed per week, team workload trends
 - **Multi-format export** — CSV, Excel, PDF summary reports
 
-We have basic pipeline value on the dashboard, but not this level of analytics.
+We have pipeline value, win rate, status breakdown, win/loss chart, and workload charts on the dashboard, but not this level of deeper analytics.
 
 **Source:** brainstorm phase-22
 
@@ -117,9 +117,22 @@ Upload past proposals (PDF/DOCX/PPTX):
 
 ---
 
+## Ideas Not Covered Above
+
+These are pipeline/workflow gaps not mentioned in the brainstorm phases:
+
+- **Bulk prospect operations** — multi-select for batch status change, reassignment, or archival. Currently all prospect actions are one-at-a-time.
+- **Pipeline data export** — CSV/Excel export of prospects and pipeline metrics. No export capability exists today.
+- **Stale prospect detection** — flag prospects sitting in the same status beyond a configurable threshold (e.g., REVIEWING > 14 days). Could surface on dashboard.
+- **Custom status workflows** — status transitions are hardcoded in `ProspectService.cs` (e.g., REVIEWING can move to PURSUING, DECLINED, NO_BID). Orgs may want configurable workflows.
+- **Prospect templates** — pre-fill notes, priority, and assignment rules based on opportunity type (e.g., auto-assign 8(a) opportunities to a specific team member).
+
+---
+
 ## Implementation Notes
 
 - Morning Brief email (#4) is probably the highest-impact item here — it's a retention/engagement driver
 - Pipeline analytics (#3) builds on existing data, just needs UI
 - Reverse timeline (#2) is a relatively simple feature with high perceived value
 - Proposal reuse KB (#8) is complex (needs vector search) but was called out as extremely high-value
+- Bulk operations and pipeline export are low-complexity, high-utility additions that could be bundled with other work

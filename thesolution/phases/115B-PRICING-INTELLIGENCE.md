@@ -3,7 +3,7 @@
 **Status:** IDEA — from brainstorm analysis, not yet prioritized
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 31-37)
-**Dependencies:** GSA CALC+ data (loaded), USASpending awards (loaded), FPDS contracts (loaded)
+**Dependencies:** GSA CALC+ data (loaded), USASpending awards (loaded), FPDS contracts (loaded), Phase 110 attachment intel (complete — scope summaries, labor categories, pricing structure extracted)
 
 ---
 
@@ -21,11 +21,11 @@ The brainstorm project designed an entire pricing intelligence suite. We current
 | Price-to-Win Estimator | **NEW** — data ready | FPDS has 15+ years of `base_and_all_options` and `dollars_obligated` by NAICS/agency/vendor. Goldmine data, completely unused for pricing. |
 | Bid Scenario Modeler | **NEW** | Pure frontend calculator — no new data needed |
 | Rate Escalation Forecasting | **NEW** — needs BLS data | GSA CALC+ has `next_year_price` and `second_year_price` fields but no historical trend analysis or BLS integration |
-| IGCE Reverse Engineering | **NEW** — partially data ready | Incumbent contract values available via FPDS. SOW extraction coming in Phase 110. No estimate ensemble. |
+| IGCE Reverse Engineering | **NEW** — data ready | Incumbent contract values via FPDS. SOW scope summaries + labor categories already extracted (Phase 110 complete). No estimate ensemble. |
 | Subcontracting Cost Benchmarking | **NEW** — data ready | `sam_subaward` has `sub_amount`, prime/sub UEIs, NAICS, dates. Completely untapped for benchmarking. |
 | Labor Category Normalization | **NEW** | 230K labor category strings loaded but highly inconsistent. No NLP pipeline. Would unlock features above. |
 
-**Key insight:** The data foundation is strong — GSA CALC+, FPDS awards, and subawards are all loaded. The gap is entirely in the analysis/presentation layer.
+**Key insight:** The data foundation is strong — GSA CALC+, FPDS awards, subawards, and attachment-extracted intel (scope summaries, labor categories, pricing structure) are all loaded. `v_procurement_intelligence` already joins opportunities to FPDS contracts and USASpending awards with burn rate and contract ceiling. The gap is in the analysis/presentation layer.
 
 ---
 
@@ -114,8 +114,23 @@ Government labor categories are wildly inconsistent ("Sr. Java Dev", "Senior Jav
 
 ## Implementation Notes
 
+### Existing Foundation
+
+These views and tables already provide building blocks:
+
+| Asset | What It Does |
+|-------|-------------|
+| `v_procurement_intelligence` | Joins opportunity -> FPDS -> USASpending with burn rate, contract ceiling, bidder count, incumbent |
+| `v_expiring_contracts` | Expiring contracts with burn rate, percent spent, incumbent health signals |
+| `v_monthly_spend` | Monthly spending breakdown per award from `usaspending_transaction` |
+| `document_intel_summary` | Extracted `scope_summary`, `labor_categories`, `pricing_structure`, `period_of_performance` per document |
+| `fpds_contract.number_of_offers` | Historical bidder counts per contract — useful for pWin modeling |
+| `fpds_contract.type_of_contract_pricing` | FFP vs T&M vs Cost-Plus classification |
+
+### Build Order
+
 - Features 1, 2, 6 can be built entirely on data we already have (GSA CALC+, awards, subawards)
 - Feature 3 (bid scenario modeler) is a standalone calculator — no new data needed
 - Feature 4 needs BLS data integration
-- Feature 5 needs document analysis from Phase 110 (SOW extraction)
+- Feature 5 benefits from Phase 110 attachment intelligence (scope summaries, labor categories already extracted)
 - Feature 7 (labor category normalization) is a data quality project that unlocks features 1-6
