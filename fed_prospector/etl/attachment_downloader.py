@@ -217,6 +217,88 @@ class AttachmentDownloader:
         return stats
 
     # =================================================================
+    # Single-attachment re-download
+    # =================================================================
+
+    def redownload_single(self, attachment_id):
+        """Re-download a single attachment by its sam_attachment.attachment_id.
+
+        Looks up the URL and resource_guid, re-downloads the file, and
+        updates the sam_attachment row.
+
+        Returns:
+            dict with keys: processed, downloaded, failed
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT attachment_id, resource_guid, url, file_path "
+                "FROM sam_attachment WHERE attachment_id = %s",
+                (attachment_id,),
+            )
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if not row:
+            raise ValueError(f"No sam_attachment found for attachment_id {attachment_id}")
+
+        url = row["url"]
+        if not url:
+            raise ValueError(f"No URL stored for attachment_id {attachment_id}")
+
+        # Use the existing _download_single method with a dummy load_id
+        load_id = self.load_manager.start_load(
+            source_system="ATTACHMENT_DOWNLOAD",
+            load_type="INCREMENTAL",
+            parameters={"attachment_id": attachment_id, "redownload": True},
+        )
+
+        # Find the notice_id for this attachment (needed by _download_single)
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT notice_id FROM opportunity_attachment "
+                "WHERE attachment_id = %s LIMIT 1",
+                (attachment_id,),
+            )
+            mapping = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        notice_id = mapping[0] if mapping else "unknown"
+
+        try:
+            result = self._download_single(
+                notice_id, url,
+                max_file_size_bytes=50 * 1024 * 1024,
+                check_changed=False,
+                load_id=load_id,
+            )
+
+            stats = {"processed": 1, "downloaded": 0, "failed": 0}
+            if result == "downloaded":
+                stats["downloaded"] = 1
+            else:
+                stats["failed"] = 1
+
+            self.load_manager.complete_load(
+                load_id,
+                records_read=1,
+                records_inserted=stats["downloaded"],
+                records_errored=stats["failed"],
+            )
+            return stats
+
+        except Exception as exc:
+            self.load_manager.fail_load(load_id, str(exc))
+            raise
+
+    # =================================================================
     # Internal methods
     # =================================================================
 

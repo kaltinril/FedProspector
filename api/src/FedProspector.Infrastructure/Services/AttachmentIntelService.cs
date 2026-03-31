@@ -188,6 +188,24 @@ public class AttachmentIntelService : IAttachmentIntelService
         var documentLookup = documents.ToDictionary(d => d.DocumentId);
         var perAttachmentIntel = BuildPerAttachmentBreakdown(intelRecords, documents, samAttachmentLookup);
 
+        // Count non-null intel fields per attachment
+        var attachmentIntelCounts = new Dictionary<int, (int keyword, int ai)>();
+        foreach (var intel in intelRecords)
+        {
+            if (!documentLookup.TryGetValue(intel.DocumentId, out var docRec)) continue;
+            var attId = docRec.AttachmentId;
+            int fieldCount = CountNonNullFields(intel);
+
+            if (!attachmentIntelCounts.TryGetValue(attId, out var counts))
+                counts = (0, 0);
+
+            if (intel.ExtractionMethod == "keyword")
+                counts.keyword = fieldCount;
+            else if (intel.ExtractionMethod?.StartsWith("ai_") == true)
+                counts.ai = Math.Max(counts.ai, fieldCount);
+
+            attachmentIntelCounts[attId] = counts;
+        }
 
         var analyzedCount = documents.Count(d =>
             d.ExtractionStatus == "extracted");
@@ -236,6 +254,7 @@ public class AttachmentIntelService : IAttachmentIntelService
             Attachments = samAttachments.Select(a =>
             {
                 var doc = documents.FirstOrDefault(d => d.AttachmentId == a.AttachmentId);
+                var intelCounts = attachmentIntelCounts.GetValueOrDefault(a.AttachmentId);
                 return new AttachmentSummaryDto
                 {
                     AttachmentId = a.AttachmentId,
@@ -250,7 +269,9 @@ public class AttachmentIntelService : IAttachmentIntelService
                     DownloadedAt = a.DownloadedAt,
                     ExtractedAt = doc?.ExtractedAt,
                     KeywordAnalyzedAt = doc?.KeywordAnalyzedAt,
-                    AiAnalyzedAt = doc?.AiAnalyzedAt
+                    AiAnalyzedAt = doc?.AiAnalyzedAt,
+                    KeywordFieldCount = intelCounts.keyword,
+                    AiFieldCount = intelCounts.ai
                 };
             }).ToList(),
             MergedPassages = mergedPassages,
@@ -852,6 +873,24 @@ public class AttachmentIntelService : IAttachmentIntelService
         }
 
         return dto;
+    }
+
+    private static int CountNonNullFields(DocumentIntelSummary intel)
+    {
+        int count = 0;
+        if (!string.IsNullOrEmpty(intel.ClearanceRequired)) count++;
+        if (!string.IsNullOrEmpty(intel.ClearanceLevel)) count++;
+        if (!string.IsNullOrEmpty(intel.EvalMethod)) count++;
+        if (!string.IsNullOrEmpty(intel.VehicleType)) count++;
+        if (!string.IsNullOrEmpty(intel.IsRecompete)) count++;
+        if (!string.IsNullOrEmpty(intel.PricingStructure)) count++;
+        if (!string.IsNullOrEmpty(intel.PlaceOfPerformance)) count++;
+        if (!string.IsNullOrEmpty(intel.ScopeSummary)) count++;
+        if (!string.IsNullOrEmpty(intel.PeriodOfPerformance)) count++;
+        if (!string.IsNullOrEmpty(intel.IncumbentName)) count++;
+        if (!string.IsNullOrEmpty(intel.LaborCategories)) count++;
+        if (!string.IsNullOrEmpty(intel.KeyRequirements)) count++;
+        return count;
     }
 
     private static List<string> DeserializeJsonList(string? json)

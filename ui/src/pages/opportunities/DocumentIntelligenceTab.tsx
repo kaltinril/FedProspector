@@ -30,6 +30,7 @@ import AnalyticsIcon from '@mui/icons-material/Analytics';
 import DescriptionIcon from '@mui/icons-material/Description';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 
 import { LoadingState } from '@/components/shared/LoadingState';
@@ -637,7 +638,7 @@ function AttachmentAnalysisPoller({
 }: {
   noticeId: string;
   attachmentId: number;
-  tier: 'keyword' | 'ai';
+  tier: string;
   onComplete: (resultSummary?: string | null) => void;
   onFailed: (msg?: string) => void;
 }) {
@@ -668,7 +669,7 @@ function AttachmentsTable({ attachments, noticeId }: { attachments: AttachmentSu
 
   if (attachments.length === 0) return null;
 
-  const handleAnalyze = async (attachmentId: number, tier: 'keyword' | 'ai') => {
+  const handleAnalyze = async (attachmentId: number, tier: string) => {
     const key = `${attachmentId}-${tier}`;
     try {
       const result = await requestAttachmentAnalysis(noticeId, attachmentId, tier);
@@ -680,14 +681,14 @@ function AttachmentsTable({ attachments, noticeId }: { attachments: AttachmentSu
     }
   };
 
-  const handleComplete = (attachmentId: number, tier: 'keyword' | 'ai', resultSummary?: string | null) => {
+  const handleComplete = (attachmentId: number, tier: string, resultSummary?: string | null) => {
     const key = `${attachmentId}-${tier}`;
     setPendingAnalysis((prev) => {
       const next = new Map(prev);
       next.delete(key);
       return next;
     });
-    const label = tier === 'keyword' ? 'Keyword' : 'AI';
+    const label = tier === 'keyword' ? 'Keyword' : tier === 'redownload' ? 'Re-download' : tier === 'reextract' ? 'Re-extract' : 'AI';
     let found = true;
     if (resultSummary) {
       try {
@@ -705,17 +706,18 @@ function AttachmentsTable({ attachments, noticeId }: { attachments: AttachmentSu
     });
   };
 
-  const handleFailed = (attachmentId: number, tier: 'keyword' | 'ai', msg?: string) => {
+  const handleFailed = (attachmentId: number, tier: string, msg?: string) => {
     const key = `${attachmentId}-${tier}`;
     setPendingAnalysis((prev) => {
       const next = new Map(prev);
       next.delete(key);
       return next;
     });
-    enqueueSnackbar(`${tier === 'keyword' ? 'Keyword' : 'AI'} analysis failed${msg ? `: ${msg}` : ''}`, { variant: 'error' });
+    const failLabel = tier === 'keyword' ? 'Keyword' : tier === 'redownload' ? 'Re-download' : tier === 'reextract' ? 'Re-extract' : 'AI';
+    enqueueSnackbar(`${failLabel} failed${msg ? `: ${msg}` : ''}`, { variant: 'error' });
   };
 
-  const renderAnalysisCell = (att: AttachmentSummaryDto, tier: 'keyword' | 'ai') => {
+  const renderAnalysisCell = (att: AttachmentSummaryDto, tier: string) => {
     const isGone = att.downloadStatus === 'skipped' && !!att.skipReason;
     const key = `${att.attachmentId}-${tier}`;
     const isPending = pendingAnalysis.has(key);
@@ -729,31 +731,44 @@ function AttachmentsTable({ attachments, noticeId }: { attachments: AttachmentSu
     }
 
     const wasAnalyzed = tier === 'keyword' ? att.keywordAnalyzedAt : att.aiAnalyzedAt;
-    const button = (
-      <Button
-        size="small"
-        variant="text"
-        sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.8125rem' }}
-        onClick={() => handleAnalyze(att.attachmentId, tier)}
-      >
-        {wasAnalyzed ? 'Re-analyze' : 'Analyze'}
-      </Button>
-    );
-    if (wasAnalyzed) {
+    const fieldCount = tier === 'keyword' ? att.keywordFieldCount : att.aiFieldCount;
+    if (!wasAnalyzed) {
       return (
-        <Tooltip title={`Last analyzed: ${new Date(wasAnalyzed).toLocaleString()}`}>
-          {button}
-        </Tooltip>
+        <Chip
+          label="analyze"
+          size="small"
+          variant="outlined"
+          onClick={() => handleAnalyze(att.attachmentId, tier)}
+          deleteIcon={<RefreshIcon />}
+          onDelete={() => handleAnalyze(att.attachmentId, tier)}
+        />
       );
     }
-    return button;
+    const hasResults = fieldCount > 0;
+    const tooltip = hasResults
+      ? `${fieldCount} of 12 fields found on ${new Date(wasAnalyzed).toLocaleString()}`
+      : `No results found on ${new Date(wasAnalyzed).toLocaleString()}`;
+    return (
+      <Tooltip title={tooltip}>
+        <Chip
+          label={hasResults ? `✓ ${fieldCount}` : '-'}
+          size="small"
+          color={hasResults ? 'success' : 'default'}
+          variant={hasResults ? 'filled' : 'outlined'}
+          deleteIcon={<RefreshIcon />}
+          onDelete={() => handleAnalyze(att.attachmentId, tier)}
+        />
+      </Tooltip>
+    );
   };
 
   return (
     <>
       {/* Invisible pollers for pending analyses */}
       {Array.from(pendingAnalysis.entries()).map(([key]) => {
-        const [idStr, tier] = key.split('-') as [string, 'keyword' | 'ai'];
+        const dashIdx = key.indexOf('-');
+        const idStr = key.slice(0, dashIdx);
+        const tier = key.slice(dashIdx + 1);
         const attachmentId = Number(idStr);
         return (
           <AttachmentAnalysisPoller
@@ -830,6 +845,10 @@ function AttachmentsTable({ attachments, noticeId }: { attachments: AttachmentSu
                             label={att.downloadStatus}
                             size="small"
                             color={DOWNLOAD_STATUS_COLOR[att.downloadStatus.toLowerCase()] ?? 'default'}
+                            {...(att.downloadStatus === 'downloaded' ? {
+                              deleteIcon: <DownloadIcon />,
+                              onDelete: () => handleAnalyze(att.attachmentId, 'redownload'),
+                            } : {})}
                           />
                         </Tooltip>
                       )}
@@ -840,6 +859,10 @@ function AttachmentsTable({ attachments, noticeId }: { attachments: AttachmentSu
                           label={att.extractionStatus}
                           size="small"
                           color={EXTRACTION_STATUS_COLOR[att.extractionStatus.toLowerCase()] ?? 'default'}
+                          {...((att.extractionStatus === 'extracted' || att.extractionStatus === 'failed') ? {
+                            deleteIcon: <RefreshIcon />,
+                            onDelete: () => handleAnalyze(att.attachmentId, 'reextract'),
+                          } : {})}
                         />
                       </Tooltip>
                     </TableCell>

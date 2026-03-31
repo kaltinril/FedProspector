@@ -109,7 +109,7 @@ export function getAnalysisEstimate(noticeId: string, model: string = 'haiku'): 
 }
 
 export function requestAttachmentAnalysis(
-  noticeId: string, attachmentId: number, tier: 'keyword' | 'ai'
+  noticeId: string, attachmentId: number, tier: string
 ): Promise<LoadRequestStatusDto> {
   return apiClient.post(
     `/opportunities/${encodeURIComponent(noticeId)}/attachments/${attachmentId}/analyze?tier=${tier}`

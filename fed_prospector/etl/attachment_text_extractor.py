@@ -1024,6 +1024,64 @@ class AttachmentTextExtractor:
         return stats
 
     # ------------------------------------------------------------------
+    # Single-attachment re-extraction
+    # ------------------------------------------------------------------
+
+    def reextract_single(self, attachment_id):
+        """Re-extract text from a single attachment by sam_attachment.attachment_id.
+
+        Looks up the attachment's file path, re-runs text extraction, and
+        updates the attachment_document row.
+
+        Returns:
+            dict with keys: processed, extracted, failed
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT ad.document_id, ad.attachment_id, "
+                "COALESCE(ad.filename, sa.filename) AS filename, "
+                "ad.content_type, sa.file_path "
+                "FROM attachment_document ad "
+                "JOIN sam_attachment sa ON sa.attachment_id = ad.attachment_id "
+                "WHERE sa.attachment_id = %s",
+                (attachment_id,),
+            )
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if not row:
+            raise ValueError(f"No attachment_document found for attachment_id {attachment_id}")
+
+        load_id = self.load_manager.start_load(
+            source_system="ATTACHMENT_TEXT",
+            load_type="INCREMENTAL",
+            parameters={"attachment_id": attachment_id, "reextract": True},
+        )
+
+        stats = {"processed": 1, "extracted": 0, "failed": 0}
+
+        try:
+            # Use document_id as attachment_id (same convention as _fetch_pending)
+            row["attachment_id"] = row["document_id"]
+            self._extract_one(row, load_id)
+            stats["extracted"] = 1
+        except Exception as e:
+            stats["failed"] = 1
+            logger.error("Re-extraction failed for attachment %d: %s", attachment_id, e)
+
+        self.load_manager.complete_load(
+            load_id,
+            records_read=1,
+            records_inserted=stats["extracted"],
+            records_errored=stats["failed"],
+        )
+        return stats
+
+    # ------------------------------------------------------------------
     # Internal: query and dispatch
     # ------------------------------------------------------------------
 

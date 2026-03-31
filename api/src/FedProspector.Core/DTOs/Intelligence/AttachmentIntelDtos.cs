@@ -76,6 +76,8 @@ public class AttachmentSummaryDto
     public DateTime? ExtractedAt { get; set; }
     public DateTime? KeywordAnalyzedAt { get; set; }
     public DateTime? AiAnalyzedAt { get; set; }
+    public int KeywordFieldCount { get; set; }
+    public int AiFieldCount { get; set; }
 }
 
 public class AttachmentIntelBreakdownDto

@@ -379,6 +379,16 @@ class DemandLoader:
             from etl.attachment_intel_extractor import AttachmentIntelExtractor
             extractor = AttachmentIntelExtractor(get_connection(), self.load_manager)
             stats = extractor.extract_single(attachment_id)
+        elif tier == "redownload":
+            logger.info("Request %d: re-download attachment %d", request_id, attachment_id)
+            from etl.attachment_downloader import AttachmentDownloader
+            downloader = AttachmentDownloader(load_manager=self.load_manager)
+            stats = downloader.redownload_single(attachment_id)
+        elif tier == "reextract":
+            logger.info("Request %d: re-extract attachment %d", request_id, attachment_id)
+            from etl.attachment_text_extractor import AttachmentTextExtractor
+            extractor = AttachmentTextExtractor(load_manager=self.load_manager)
+            stats = extractor.reextract_single(attachment_id)
         else:
             model = tier if tier in ("haiku", "sonnet") else "haiku"
             logger.info("Request %d: AI analysis (%s) for attachment %d", request_id, model, attachment_id)

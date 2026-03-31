@@ -1279,6 +1279,8 @@ export interface AttachmentSummaryDto {
   extractedAt?: string | null;
   keywordAnalyzedAt?: string | null;
   aiAnalyzedAt?: string | null;
+  keywordFieldCount: number;
+  aiFieldCount: number;
 }
 
 export interface MethodIntelDto {
