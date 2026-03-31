@@ -1,6 +1,6 @@
 # Phase 128: Federal Identifier Extraction from Attachments
 
-## Status: IN PROGRESS
+## Status: COMPLETE
 
 ## Context
 
@@ -72,12 +72,12 @@ NOT extracting (too short/ambiguous): NAICS (6 digits -- too many false positive
 - `v_predecessor_candidates` view joins identifier refs to fpds_contract
 - Returns predecessor PIID, vendor name, UEI, award amount, set-aside type
 
-## Remaining Work
+## Completed Operational Steps
 
-- Apply DDL to live database (user action)
-- Run extraction on all documents
-- Run cross-reference matching
-- Integration with daily load (future)
+- [x] Apply DDL to live database (table + views)
+- [x] Added to daily_load.bat (steps 12-13/17)
+- [ ] Run initial extraction on all documents (next daily load)
+- [ ] Run initial cross-reference matching (next daily load)
 
 ## Dependencies
 

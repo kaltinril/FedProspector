@@ -389,12 +389,13 @@ class AttachmentIntelExtractor:
         self.db_connection = db_connection
         self.load_manager = load_manager or LoadManager()
         self.dump_on_error = dump_on_error
+        self._description_only = False
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def extract_intel(self, notice_id=None, batch_size=100, method="keyword", force=False):
+    def extract_intel(self, notice_id=None, batch_size=100, method="keyword", force=False, description_only=False):
         """Extract intelligence from attachment text and opportunity descriptions.
 
         Args:
@@ -402,11 +403,14 @@ class AttachmentIntelExtractor:
             batch_size: Max notices to process per run.
             method: Extraction method label (default 'keyword').
             force: If True, re-extract even if already processed.
+            description_only: If True, only process description_text (no attachments).
 
         Returns:
             dict with keys: notices_processed, intel_rows_upserted,
                             source_rows_inserted
         """
+        self._description_only = description_only
+
         load_id = self.load_manager.start_load(
             source_system="ATTACHMENT_INTEL",
             load_type="INCREMENTAL",
@@ -415,6 +419,7 @@ class AttachmentIntelExtractor:
                 "batch_size": batch_size,
                 "method": method,
                 "force": force,
+                "description_only": description_only,
             },
         )
 
@@ -493,12 +498,37 @@ class AttachmentIntelExtractor:
 
         A notice is eligible if it has at least one attachment with
         extraction_status='extracted' OR has description_text.
+        When self._description_only is True, only considers description_text.
         """
         conn = get_connection()
         cursor = conn.cursor()
         try:
             if notice_id:
                 return [notice_id]
+
+            if self._description_only:
+                # Description-only mode: only notices with description_text
+                if force:
+                    sql = (
+                        "SELECT notice_id FROM opportunity "
+                        "WHERE description_text IS NOT NULL AND description_text != '' "
+                        "ORDER BY notice_id "
+                        "LIMIT %s"
+                    )
+                    params = [batch_size]
+                else:
+                    sql = (
+                        "SELECT o.notice_id FROM opportunity o "
+                        "LEFT JOIN opportunity_attachment_summary s "
+                        "  ON o.notice_id = s.notice_id AND s.extraction_method = %s "
+                        "WHERE o.description_text IS NOT NULL AND o.description_text != '' "
+                        "  AND s.summary_id IS NULL "
+                        "ORDER BY o.notice_id "
+                        "LIMIT %s"
+                    )
+                    params = [method, batch_size]
+                cursor.execute(sql, params)
+                return [row[0] for row in cursor.fetchall()]
 
             # Find notices with extracted attachments or descriptions
             if force:
@@ -546,6 +576,25 @@ class AttachmentIntelExtractor:
         conn = get_connection()
         cursor = conn.cursor()
         try:
+            if self._description_only:
+                # Description-only mode
+                if force:
+                    sql = (
+                        "SELECT COUNT(*) FROM opportunity "
+                        "WHERE description_text IS NOT NULL AND description_text != ''"
+                    )
+                    cursor.execute(sql)
+                else:
+                    sql = (
+                        "SELECT COUNT(*) FROM opportunity o "
+                        "LEFT JOIN opportunity_attachment_summary s "
+                        "  ON o.notice_id = s.notice_id AND s.extraction_method = %s "
+                        "WHERE o.description_text IS NOT NULL AND o.description_text != '' "
+                        "  AND s.summary_id IS NULL"
+                    )
+                    cursor.execute(sql, [method])
+                return cursor.fetchone()[0]
+
             if force:
                 sql = (
                     "SELECT COUNT(DISTINCT n.notice_id) FROM ("
@@ -648,11 +697,23 @@ class AttachmentIntelExtractor:
 
         Returns list of (document_id_or_None, filename, text).
         Joins through opportunity_attachment map to find documents for this notice.
+        When self._description_only is True, only returns description_text.
         """
         sources = []
         conn = get_connection()
         cursor = conn.cursor(dictionary=True)
         try:
+            if self._description_only:
+                # Only fetch description_text, skip attachments
+                cursor.execute(
+                    "SELECT description_text FROM opportunity WHERE notice_id = %s",
+                    (notice_id,),
+                )
+                opp = cursor.fetchone()
+                if opp and opp.get("description_text") and opp["description_text"].strip():
+                    sources.append((None, "description_text", opp["description_text"]))
+                return sources
+
             # Extracted attachments via map table
             cursor.execute(
                 "SELECT ad.document_id, COALESCE(ad.filename, sa.filename) AS filename, "

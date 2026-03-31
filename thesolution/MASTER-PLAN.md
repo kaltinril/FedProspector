@@ -141,14 +141,15 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 113C | Intel Display — Keyword vs AI Side-by-Side | COMPLETE | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/completed/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
 | 114 | Project Documentation Suite | COMPLETE | [114-PROJECT-DOCUMENTATION.md](phases/completed/114-PROJECT-DOCUMENTATION.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
-| 121 | Description Intel Extraction | IN PROGRESS | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/121-DESCRIPTION-INTEL-EXTRACTION.md) |
-| 122 | Opportunity POC Extraction | COMPLETE | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/122-OPPORTUNITY-POC-EXTRACTION.md) |
+| 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
+| 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |
+| 122 | Opportunity POC Extraction | COMPLETE | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/completed/122-OPPORTUNITY-POC-EXTRACTION.md) |
 | 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
 | 124 | Attachment Hash-Level Deduplication | PLANNED | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
 | 125 | Full Document Viewer with Highlights | PLANNED | [125-FULL-DOCUMENT-VIEWER.md](phases/125-FULL-DOCUMENT-VIEWER.md) |
 | 126 | AI Contradiction Detection | PLANNED | [126-AI-CONTRADICTION-DETECTION.md](phases/126-AI-CONTRADICTION-DETECTION.md) |
 | 127 | Expiring Contracts — USASpending Integration | PLANNED | [Phase 127](phases/127-EXPIRING-CONTRACTS-USASPENDING.md) |
-| 128 | Federal Identifier Extraction | IN PROGRESS | [128-IDENTIFIER-EXTRACTION.md](phases/128-IDENTIFIER-EXTRACTION.md) |
+| 128 | Federal Identifier Extraction | COMPLETE | [128-IDENTIFIER-EXTRACTION.md](phases/completed/128-IDENTIFIER-EXTRACTION.md) |
 | 129 | NAICS Code Intelligence & SBA Size Standards | PLANNED | [129-NAICS-SIZE-STANDARDS.md](phases/129-NAICS-SIZE-STANDARDS.md) |
 | 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |
 | 131 | Per-Attachment Re-Analysis | PLANNED | [131-PER-ATTACHMENT-REANALYSIS.md](phases/131-PER-ATTACHMENT-REANALYSIS.md) |

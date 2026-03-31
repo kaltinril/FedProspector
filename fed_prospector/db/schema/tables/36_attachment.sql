@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS opportunity_attachment (
 CREATE TABLE IF NOT EXISTS document_intel_summary (
     intel_id               INT AUTO_INCREMENT PRIMARY KEY,
     document_id            INT NOT NULL,
-    extraction_method      ENUM('keyword','heuristic','ai_haiku','ai_sonnet') NOT NULL,
+    extraction_method      ENUM('keyword','heuristic','ai_haiku','ai_sonnet','description_keyword') NOT NULL,
     source_text_hash       CHAR(64),
     clearance_required     CHAR(1),
     clearance_level        VARCHAR(50),
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS document_intel_evidence (
     matched_text           VARCHAR(500),
     surrounding_context    TEXT,
     pattern_name           VARCHAR(100),
-    extraction_method      ENUM('keyword','heuristic','ai_haiku','ai_sonnet') NOT NULL,
+    extraction_method      ENUM('keyword','heuristic','ai_haiku','ai_sonnet','description_keyword') NOT NULL,
     confidence             ENUM('high','medium','low') NOT NULL,
     created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_intel (intel_id),
@@ -135,7 +135,7 @@ CREATE TABLE IF NOT EXISTS document_identifier_ref (
 CREATE TABLE IF NOT EXISTS opportunity_attachment_summary (
     summary_id             INT AUTO_INCREMENT PRIMARY KEY,
     notice_id              VARCHAR(100) NOT NULL,
-    extraction_method      ENUM('keyword','heuristic','ai_haiku','ai_sonnet') NOT NULL,
+    extraction_method      ENUM('keyword','heuristic','ai_haiku','ai_sonnet','description_keyword') NOT NULL,
     clearance_required     CHAR(1),
     clearance_level        VARCHAR(50),
     clearance_scope        VARCHAR(50),

@@ -172,6 +172,57 @@ def extract_attachment_intel(notice_id, batch_size, method, force, dump):
     )
 
 
+@click.command("description-intel")
+@click.option("--notice-id", type=str, default=None,
+              help="Process a single opportunity by notice ID")
+@click.option("--batch-size", type=int, default=500, show_default=True,
+              help="Number of notices to process per batch")
+@click.option("--force", is_flag=True, default=False,
+              help="Re-extract intel even if already extracted")
+def extract_description_intel(notice_id, batch_size, force):
+    """Extract structured intelligence from opportunity description text.
+
+    Runs keyword/regex patterns against opportunity description_text to
+    extract clearance requirements, evaluation criteria, vehicle type,
+    recompete signals, and other bid-relevant intelligence.
+
+    Only processes opportunities with description_text. Does not touch
+    attachment documents. Results stored separately from attachment intel
+    using extraction_method='description_keyword'.
+
+    Examples:
+        python main.py extract description-intel
+        python main.py extract description-intel --notice-id abc123
+        python main.py extract description-intel --batch-size 1000 --force
+    """
+    logger = setup_logging()
+
+    from etl.attachment_intel_extractor import AttachmentIntelExtractor
+
+    extractor = AttachmentIntelExtractor()
+    logger.info(
+        "Starting description intel extraction (batch_size=%d, force=%s)",
+        batch_size, force,
+    )
+    click.echo(
+        f"Extracting intelligence from descriptions "
+        f"(batch_size={batch_size})..."
+    )
+
+    stats = extractor.extract_intel(
+        notice_id=notice_id,
+        batch_size=batch_size,
+        method="description_keyword",
+        force=force,
+        description_only=True,
+    )
+
+    click.echo(
+        f"Done. Processed {stats.get('notices_processed', 0)} notices, "
+        f"extracted {stats.get('intel_rows_upserted', 0)} intel records"
+    )
+
+
 @click.command("attachments")
 @click.option("--notice-id", type=str, default=None,
               help="Process a single opportunity by notice ID")

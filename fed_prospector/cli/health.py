@@ -396,16 +396,12 @@ def run_job(job_name, list_jobs):
     from etl.scheduler import JobRunner, JOBS
 
     if list_jobs:
-        from cli.load_batch import DAILY_SEQUENCE, FULL_SEQUENCE, WEEKLY_SEQUENCE, MONTHLY_SEQUENCE
+        from cli.load_batch import DAILY_SEQUENCE, WEEKLY_SEQUENCE, MONTHLY_SEQUENCE
         batch_map = {}
         for name in JOBS:
             batches = []
-            in_daily = name in DAILY_SEQUENCE
-            in_full = name in FULL_SEQUENCE
-            if in_daily:
+            if name in DAILY_SEQUENCE:
                 batches.append("daily")
-            elif in_full:
-                batches.append("daily --full")
             if name in WEEKLY_SEQUENCE:
                 batches.append("weekly")
             if name in MONTHLY_SEQUENCE:

@@ -41,9 +41,10 @@ Modules:
     cli/schedule_setup.py setup-schedule
     cli/update.py         link-metadata, fetch-descriptions, build-relationships
     cli/attachments.py    download-attachments, extract-attachment-text,
-                          extract-attachment-intel, extract-attachment-ai,
-                          extract-description-ai, extract-identifiers,
-                          cross-ref-identifiers, search-identifiers
+                          extract-attachment-intel, extract-description-intel,
+                          extract-attachment-ai, extract-description-ai,
+                          extract-identifiers, cross-ref-identifiers,
+                          search-identifiers
     cli/backfill.py       backfill-opportunity-intel, backfill-pocs
     cli/demand.py         process-requests  (registered under 'job' group)
 """
@@ -182,7 +183,8 @@ from cli.demand import process_requests
 from cli.update import enrich_link_metadata, fetch_descriptions, build_relationships
 from cli.attachments import (
     download_attachments, extract_attachment_text,
-    extract_attachment_intel, analyze_attachments,
+    extract_attachment_intel, extract_description_intel,
+    analyze_attachments,
     analyze_descriptions, cleanup_attachment_files,
     attachment_pipeline_status,
     migrate_dedup, migrate_files,
@@ -306,6 +308,7 @@ download.add_command(download_attachments, name="attachments")
 
 extract.add_command(extract_attachment_text, name="attachment-text")
 extract.add_command(extract_attachment_intel, name="attachment-intel")
+extract.add_command(extract_description_intel, name="description-intel")
 extract.add_command(analyze_attachments, name="attachment-ai")
 extract.add_command(analyze_descriptions, name="description-ai")
 extract.add_command(extract_identifiers, name="identifiers")
