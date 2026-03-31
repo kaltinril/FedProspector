@@ -285,7 +285,7 @@ public class OrganizationService : IOrganizationService
             Role = "USER",
             OrgRole = "owner",
             IsActive = "Y",
-            IsOrgAdmin = "N",
+            IsOrgAdmin = "Y",
             MfaEnabled = "N",
             ForcePasswordChange = "Y",
             FailedLoginAttempts = 0,
@@ -296,6 +296,81 @@ public class OrganizationService : IOrganizationService
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Owner user {UserId} created for organization {OrgId}", user.UserId, orgId);
+
+        return new OrganizationMemberDto
+        {
+            UserId = user.UserId,
+            Email = user.Email,
+            DisplayName = user.DisplayName,
+            OrgRole = user.OrgRole,
+            IsActive = true,
+            CreatedAt = user.CreatedAt
+        };
+    }
+
+    public async Task<OrganizationMemberDto> CreateUserAsync(int orgId, string email, string password, string displayName, string orgRole, int createdBy)
+    {
+        var org = await _context.Organizations.FindAsync(orgId)
+            ?? throw new KeyNotFoundException($"Organization {orgId} not found.");
+
+        // Check email uniqueness (global — no two users share an email)
+        var emailExists = await _context.AppUsers
+            .AnyAsync(u => u.Email != null && u.Email.ToLower() == email.ToLower());
+
+        if (emailExists)
+        {
+            throw new InvalidOperationException("Email already registered.");
+        }
+
+        // Check max users limit
+        var currentUserCount = await _context.AppUsers
+            .CountAsync(u => u.OrganizationId == orgId && u.IsActive == "Y");
+
+        if (currentUserCount >= org.MaxUsers)
+        {
+            throw new InvalidOperationException($"Organization has reached its maximum user limit ({org.MaxUsers}).");
+        }
+
+        // Generate username from email (prefix before @)
+        var username = email.Split('@')[0].ToLowerInvariant();
+
+        // Ensure username uniqueness
+        var baseUsername = username;
+        var counter = 1;
+        while (await _context.AppUsers.AnyAsync(u => u.Username.ToLower() == username.ToLower()))
+        {
+            username = $"{baseUsername}{counter}";
+            counter++;
+        }
+
+        var isAdmin = orgRole == "admin";
+
+        var user = new AppUser
+        {
+            OrganizationId = orgId,
+            Username = username,
+            DisplayName = displayName,
+            Email = email,
+            PasswordHash = _authService.HashPassword(password),
+            Role = "USER",
+            OrgRole = orgRole,
+            IsActive = "Y",
+            IsOrgAdmin = isAdmin ? "Y" : "N",
+            MfaEnabled = "N",
+            ForcePasswordChange = "Y",
+            FailedLoginAttempts = 0,
+            InvitedBy = createdBy,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.AppUsers.Add(user);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} created in org {OrgId} by user {CreatedBy} with role {OrgRole}",
+            user.UserId, orgId, createdBy, orgRole);
+
+        await _activityLogService.LogAsync(createdBy, "USER_CREATED", "USER", user.UserId.ToString(),
+            new { Email = email, OrgRole = orgRole });
 
         return new OrganizationMemberDto
         {

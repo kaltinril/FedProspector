@@ -7,6 +7,7 @@ import {
   resetUserPassword,
   createOrganization,
   createOrganizationOwner,
+  createUserForOrg,
   listOrganizations,
   getLoadHistory,
   getHealth,
@@ -73,6 +74,18 @@ export function useCreateOrganizationOwner() {
     mutationFn: ({ orgId, data }: { orgId: number; data: CreateOwnerRequest }) =>
       createOrganizationOwner(orgId, data),
     retry: 0,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.organizations });
+    },
+  });
+}
+
+export function useCreateUserForOrg() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ orgId, data }: { orgId: number; data: { email: string; displayName: string; password: string; orgRole: string } }) =>
+      createUserForOrg(orgId, data),
+    retry: 1,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.admin.organizations });
     },

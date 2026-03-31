@@ -153,6 +153,10 @@ public class AuthService : IAuthService
         _db.AppSessions.Add(session);
         await _db.SaveChangesAsync();
 
+        // Clear in-memory revocation so the new session is accepted immediately
+        // (password change / admin deactivation revokes all sessions, but a fresh login is valid)
+        _revokedUsers.TryRemove(user.UserId, out _);
+
         await _activityLogService.LogAsync(user.UserId, "LOGIN_SUCCESS", "USER", user.UserId.ToString());
 
         _logger.LogInformation("User {UserId} logged in successfully", user.UserId);
@@ -505,6 +509,9 @@ public class AuthService : IAuthService
         _db.AppSessions.Add(newSession);
         await _db.SaveChangesAsync();
 
+        // Clear in-memory revocation so the refreshed session is accepted
+        _revokedUsers.TryRemove(user.UserId, out _);
+
         _logger.LogInformation("User {UserId} refreshed token, old session {OldSessionId} rotated",
             user.UserId, session.SessionId);
 
@@ -614,7 +621,7 @@ public class AuthService : IAuthService
             Username = user.Username,
             DisplayName = user.DisplayName,
             Email = user.Email,
-            Role = user.Role ?? "USER",
+            Role = user.OrgRole,
             IsOrgAdmin = user.IsOrgAdmin == "Y",
             IsSystemAdmin = user.IsSystemAdmin,
             LastLoginAt = user.LastLoginAt,

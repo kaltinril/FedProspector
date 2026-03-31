@@ -40,6 +40,14 @@ export interface CreateInviteRequest {
   orgRole?: string | null;
 }
 
+/** Create user request matching C# CreateUserRequest */
+export interface CreateUserRequest {
+  email: string;
+  displayName: string;
+  password: string;
+  orgRole: string;
+}
+
 /** Org profile matching C# OrgProfileDto */
 export interface OrgProfileDto {
   id: number;

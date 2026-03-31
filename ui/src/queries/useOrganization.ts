@@ -6,6 +6,7 @@ import {
   getMembers,
   getInvites,
   createInvite,
+  createUser,
   revokeInvite,
   getProfile,
   updateProfile,
@@ -24,6 +25,7 @@ import {
 import type {
   UpdateOrganizationRequest,
   CreateInviteRequest,
+  CreateUserRequest,
   UpdateOrgProfileRequest,
   OrgNaicsDto,
   OrgCertificationDto,
@@ -75,6 +77,17 @@ export function useCreateInvite() {
     retry: 1,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.organization.invites });
+    },
+  });
+}
+
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateUserRequest) => createUser(data),
+    retry: 1,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.members });
     },
   });
 }

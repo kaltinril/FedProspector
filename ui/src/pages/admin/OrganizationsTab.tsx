@@ -23,7 +23,7 @@ import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useSnackbar } from 'notistack';
 import axios from 'axios';
 
-import { useCreateOrganization, useCreateOrganizationOwner, useListOrganizations } from '@/queries/useAdmin';
+import { useCreateOrganization, useCreateOrganizationOwner, useListOrganizations, useCreateUserForOrg } from '@/queries/useAdmin';
 import type { CreateOrganizationRequest, CreateOwnerRequest } from '@/types/api';
 
 export default function OrganizationsTab() {
@@ -35,6 +35,13 @@ export default function OrganizationsTab() {
   // Create Organization dialog
   const [orgDialogOpen, setOrgDialogOpen] = useState(false);
   const [orgForm, setOrgForm] = useState<CreateOrganizationRequest>({ name: '', slug: '' });
+
+  const createUser = useCreateUserForOrg();
+
+  // Add User dialog
+  const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [userOrgId, setUserOrgId] = useState<number | null>(null);
+  const [userForm, setUserForm] = useState({ email: '', displayName: '', password: '', orgRole: 'member' });
 
   // Create Owner dialog
   const [ownerDialogOpen, setOwnerDialogOpen] = useState(false);
@@ -81,6 +88,27 @@ export default function OrganizationsTab() {
       },
     );
   }, [ownerOrgId, ownerForm, createOwner, enqueueSnackbar]);
+
+  const handleCreateUser = useCallback(() => {
+    if (userOrgId == null) return;
+    createUser.mutate(
+      { orgId: userOrgId, data: userForm },
+      {
+        onSuccess: () => {
+          enqueueSnackbar('User created successfully', { variant: 'success' });
+          setUserDialogOpen(false);
+          setUserForm({ email: '', displayName: '', password: '', orgRole: 'member' });
+          setUserOrgId(null);
+        },
+        onError: (error: Error) => {
+          const msg = axios.isAxiosError<{ error?: string }>(error)
+            ? error.response?.data?.error || 'Failed to create user'
+            : 'Failed to create user';
+          enqueueSnackbar(msg, { variant: 'error' });
+        },
+      },
+    );
+  }, [userOrgId, userForm, createUser, enqueueSnackbar]);
 
   return (
     <Box>
@@ -152,6 +180,16 @@ export default function OrganizationsTab() {
                         }}
                       >
                         Add Owner
+                      </Button>
+                      <Button
+                        size="small"
+                        startIcon={<PersonAddIcon />}
+                        onClick={() => {
+                          setUserOrgId(org.id);
+                          setUserDialogOpen(true);
+                        }}
+                      >
+                        Add User
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -281,6 +319,90 @@ export default function OrganizationsTab() {
             }
           >
             Create Owner
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add User to Organization Dialog */}
+      <Dialog
+        open={userDialogOpen}
+        onClose={() => setUserDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Add User to Organization</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="Organization"
+            select
+            value={userOrgId ?? ''}
+            onChange={(e) => setUserOrgId(e.target.value ? Number(e.target.value) : null)}
+            fullWidth
+            margin="normal"
+            required
+          >
+            {orgs?.map((org) => (
+              <MenuItem key={org.id} value={org.id}>
+                {org.name} ({org.slug})
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Email"
+            type="email"
+            value={userForm.email}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, email: e.target.value }))}
+            fullWidth
+            margin="normal"
+            required
+          />
+          <TextField
+            label="Display Name"
+            value={userForm.displayName}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, displayName: e.target.value }))}
+            fullWidth
+            margin="normal"
+            required
+            inputProps={{ minLength: 2, maxLength: 100 }}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            value={userForm.password}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, password: e.target.value }))}
+            fullWidth
+            margin="normal"
+            required
+            inputProps={{ minLength: 8 }}
+            helperText="User will be required to change this on first login"
+          />
+          <TextField
+            label="Role"
+            select
+            value={userForm.orgRole}
+            onChange={(e) => setUserForm((prev) => ({ ...prev, orgRole: e.target.value }))}
+            fullWidth
+            margin="normal"
+          >
+            <MenuItem value="member">Member</MenuItem>
+            <MenuItem value="admin">Admin</MenuItem>
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUserDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateUser}
+            disabled={
+              userOrgId == null ||
+              !userForm.email ||
+              !userForm.displayName ||
+              !userForm.password ||
+              userForm.password.length < 8 ||
+              createUser.isPending
+            }
+          >
+            Add User
           </Button>
         </DialogActions>
       </Dialog>

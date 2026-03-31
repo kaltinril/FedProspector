@@ -13,4 +13,5 @@ public interface IOrganizationService
     Task<List<OrganizationDto>> ListOrganizationsAsync();
     Task<OrganizationDto> CreateOrganizationAsync(string name, string slug);
     Task<OrganizationMemberDto> CreateOwnerAsync(int orgId, string email, string password, string displayName);
+    Task<OrganizationMemberDto> CreateUserAsync(int orgId, string email, string password, string displayName, string orgRole, int createdBy);
 }

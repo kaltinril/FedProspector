@@ -44,6 +44,13 @@ export function createOrganizationOwner(
   return apiClient.post(`/admin/organizations/${orgId}/owner`, data).then((r) => r.data);
 }
 
+export function createUserForOrg(
+  orgId: number,
+  data: { email: string; displayName: string; password: string; orgRole: string },
+): Promise<void> {
+  return apiClient.post(`/admin/organizations/${orgId}/users`, data).then((r) => r.data);
+}
+
 export function listOrganizations(): Promise<OrganizationDto[]> {
   return apiClient.get<OrganizationDto[]>('/admin/organizations').then((r) => r.data);
 }

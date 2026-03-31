@@ -5,6 +5,7 @@ import type {
   OrganizationMemberDto,
   InviteDto,
   CreateInviteRequest,
+  CreateUserRequest,
   OrgProfileDto,
   UpdateOrgProfileRequest,
   OrgNaicsDto,
@@ -42,6 +43,10 @@ export function createInvite(data: CreateInviteRequest): Promise<InviteDto> {
 
 export function revokeInvite(id: number): Promise<void> {
   return apiClient.delete(`/org/invites/${id}`).then((r) => r.data);
+}
+
+export function createUser(data: CreateUserRequest): Promise<OrganizationMemberDto> {
+  return apiClient.post('/org/members', data).then((r) => r.data);
 }
 
 // Company profile

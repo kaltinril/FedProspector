@@ -17,12 +17,14 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import CircularProgress from '@mui/material/CircularProgress';
 import AddIcon from '@mui/icons-material/Add';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import { useSnackbar } from 'notistack';
+import axios from 'axios';
 
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { useOrgMembers, useCreateInvite } from '@/queries/useOrganization';
+import { useOrgMembers, useCreateInvite, useCreateUser } from '@/queries/useOrganization';
 import { useAuth } from '@/auth/useAuth';
 import { formatDate } from '@/utils/dateFormatters';
 
@@ -42,6 +44,13 @@ export function OrgMembersTab() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
 
+  const createUserMutation = useCreateUser();
+  const [addUserOpen, setAddUserOpen] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState('member');
+
   const canManage = user?.role === 'owner' || user?.role === 'admin' || user?.isOrgAdmin === true;
 
   function handleInvite() {
@@ -56,6 +65,28 @@ export function OrgMembersTab() {
         },
         onError: () => {
           enqueueSnackbar('Failed to send invitation', { variant: 'error' });
+        },
+      },
+    );
+  }
+
+  function handleAddUser() {
+    createUserMutation.mutate(
+      { email: newUserEmail.trim(), displayName: newUserName.trim(), password: newUserPassword, orgRole: newUserRole },
+      {
+        onSuccess: () => {
+          enqueueSnackbar('User added successfully — they must change their password on first login', { variant: 'success' });
+          setAddUserOpen(false);
+          setNewUserEmail('');
+          setNewUserName('');
+          setNewUserPassword('');
+          setNewUserRole('member');
+        },
+        onError: (error) => {
+          const msg = axios.isAxiosError<{ error?: string }>(error)
+            ? error.response?.data?.error || 'Failed to add user'
+            : 'Failed to add user';
+          enqueueSnackbar(msg, { variant: 'error' });
         },
       },
     );
@@ -78,9 +109,16 @@ export function OrgMembersTab() {
   return (
     <Box>
       {canManage && (
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mb: 2 }}>
           <Button
             variant="contained"
+            startIcon={<PersonAddIcon />}
+            onClick={() => setAddUserOpen(true)}
+          >
+            Add User
+          </Button>
+          <Button
+            variant="outlined"
             startIcon={<AddIcon />}
             onClick={() => setInviteDialogOpen(true)}
           >
@@ -179,6 +217,69 @@ export function OrgMembersTab() {
             startIcon={createInviteMutation.isPending ? <CircularProgress size={16} /> : undefined}
           >
             Send Invite
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Add User Dialog */}
+      <Dialog
+        open={addUserOpen}
+        onClose={() => setAddUserOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Add User</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <TextField
+              label="Email Address"
+              type="email"
+              value={newUserEmail}
+              onChange={(e) => setNewUserEmail(e.target.value)}
+              fullWidth
+              size="small"
+              autoFocus
+            />
+            <TextField
+              label="Display Name"
+              value={newUserName}
+              onChange={(e) => setNewUserName(e.target.value)}
+              fullWidth
+              size="small"
+            />
+            <TextField
+              label="Temporary Password"
+              type="password"
+              value={newUserPassword}
+              onChange={(e) => setNewUserPassword(e.target.value)}
+              fullWidth
+              size="small"
+              helperText="User will be required to change this on first login"
+            />
+            <TextField
+              label="Role"
+              select
+              value={newUserRole}
+              onChange={(e) => setNewUserRole(e.target.value)}
+              fullWidth
+              size="small"
+            >
+              <MenuItem value="member">Member</MenuItem>
+              <MenuItem value="admin">Admin</MenuItem>
+            </TextField>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAddUserOpen(false)} disabled={createUserMutation.isPending}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleAddUser}
+            disabled={!newUserEmail.trim() || !newUserName.trim() || !newUserPassword || newUserPassword.length < 8 || createUserMutation.isPending}
+            startIcon={createUserMutation.isPending ? <CircularProgress size={16} /> : undefined}
+          >
+            Add User
           </Button>
         </DialogActions>
       </Dialog>

@@ -186,4 +186,25 @@ public class AdminController : ApiControllerBase
             return Conflict(new { error = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Add a user to any organization. System Admin only.
+    /// </summary>
+    [HttpPost("organizations/{id:int}/users")]
+    [Authorize(Policy = "SystemAdmin")]
+    public async Task<IActionResult> CreateUserForOrg(int id, [FromBody] CreateUserRequest request)
+    {
+        var adminUserId = GetCurrentUserId();
+        if (adminUserId == null) return Unauthorized();
+
+        try
+        {
+            var result = await _orgService.CreateUserAsync(id, request.Email, request.Password, request.DisplayName, request.OrgRole, adminUserId.Value);
+            return StatusCode(201, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
+    }
 }

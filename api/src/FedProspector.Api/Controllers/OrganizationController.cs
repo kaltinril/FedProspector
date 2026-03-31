@@ -113,6 +113,30 @@ public class OrganizationController : ApiControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Add a user directly to the current user's organization. Requires OrgAdmin role.
+    /// </summary>
+    [HttpPost("members")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var userId = GetCurrentUserId();
+        if (userId is null) return Unauthorized();
+
+        try
+        {
+            var result = await _service.CreateUserAsync(orgId.Value, request.Email, request.Password, request.DisplayName, request.OrgRole, userId.Value);
+            return StatusCode(201, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new { error = ex.Message });
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Company Profile Endpoints (Phase 20.8)
     // -----------------------------------------------------------------------
