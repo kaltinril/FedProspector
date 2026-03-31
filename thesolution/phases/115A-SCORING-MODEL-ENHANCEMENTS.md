@@ -7,9 +7,52 @@
 
 ---
 
+## Existing Scoring Models
+
+We currently have 3 scoring models in production. GoNoGo and qScore work adequately for their purpose. pWin needs a ground-up rethink.
+
+### GoNoGo Score (Prospect Qualification)
+
+- **Files**: `GoNoGoScoringService.cs`, `prospect_manager.py`
+- **Output**: 0-40 raw, displayed as percentage
+- **Factors** (4, unweighted, additive):
+  1. **Set-Aside Favorability** (0-10): WOSB/EDWOSB→10, 8A→8, SBA/HZC/SDVOSB→5, None→0
+  2. **Time Remaining** (0-10): >30d→10, 15-30d→7, 7-14d→4, <7d→1, past→0
+  3. **NAICS Match** (0 or 10): binary — org entity with WOSB business type matches opp NAICS
+  4. **Award Value** (0-10): ≥$1M→10, ≥$500K→8, ≥$100K→6, ≥$50K→4, <$50K→2
+- **Used for**: Quick qualification decision when creating/reviewing prospects
+
+### pWin (Probability of Win)
+
+- **File**: `PWinService.cs`
+- **Output**: 0-100
+- **Factors** (7, weighted):
+  1. **Set-Aside Match** (weight 0.20): org has required cert→100, related cert→50, none→0
+  2. **NAICS Experience** (weight 0.20): ≥5 past perf records→100, ≥3→75, ≥1→50, 0→10
+  3. **Competition Level** (weight 0.15): ≤3 vendors in NAICS→100, 4-6→70, 7-10→40, >10→20
+  4. **Incumbent Advantage** (weight 0.15): org is incumbent→100, no incumbent→70, other→30
+  5. **Teaming Strength** (weight 0.10): ≥3 partners→100, 1-2→60, 0→30
+  6. **Time to Respond** (weight 0.10): ≥31d→100, 15-30d→70, 7-14d→40, <7d→10
+  7. **Contract Value Fit** (weight 0.10): within 2x avg→100, within 5x→60, >5x→30
+- **Categories**: ≥70 High, 40-69 Medium, 15-39 Low, <15 VeryLow
+- **Known issues**: Current model is not accurate or effective. Factors use crude thresholds and don't account for agency-specific patterns, proposal quality, past performance relevance, or competitive dynamics. The NAICS experience factor treats all past performance equally regardless of relevance. Competition level uses a simple vendor count rather than analyzing actual competitive positioning. Incumbent advantage is binary (you are or aren't) rather than considering vulnerability signals. This phase aims to replace or significantly enhance pWin.
+
+### qScore (Opportunity Quality / Recommendation Score)
+
+- **File**: `RecommendedOpportunityService.cs`
+- **Output**: 0-100 (normalized from 60-point raw)
+- **Factors** (4, unweighted, additive):
+  1. **Set-Aside Match** (0-20): org has cert→20, related cert→10, filtered out if missing required
+  2. **NAICS Match** (0-20): primary NAICS→20, secondary→15
+  3. **Time Remaining** (0-10): ≥30d→10, 14-29d→7, 7-13d→4, <7d→1
+  4. **Contract Value** (0-10): >$1M→10, >$500K→8, >$100K→6, >$50K→4, ≤$50K→2
+- **Used for**: Recommendation engine, computed on-demand (not stored on prospects)
+
+---
+
 ## Summary
 
-The brainstorm project designed several scoring models beyond our current pWin and qScore. These would give users richer decision-making tools. The UX review from the brainstorm flagged "score proliferation" as a risk — 9 distinct 0-100 scores is confusing. Recommendation: keep pWin as the headline metric, add only the most impactful new scores, and present others as supporting detail.
+The brainstorm project designed several scoring models beyond our current GoNoGo, pWin, and qScore. These would give users richer decision-making tools. The UX review from the brainstorm flagged "score proliferation" as a risk — 9 distinct 0-100 scores is confusing. Recommendation: keep pWin as the headline metric, add only the most impactful new scores, and present others as supporting detail.
 
 ---
 
@@ -17,8 +60,8 @@ The brainstorm project designed several scoring models beyond our current pWin a
 
 | Idea | Status | What Exists |
 |------|--------|-------------|
-| Opportunity Quality Score (OQS) | **NEW** | Nothing measures opportunity desirability independent of org fit |
-| Pursuit Priority Score | **NEW** | `RecommendedOpportunityService` has a basic 4-factor qScore (set-aside + NAICS + time + value, normalized to 0-100), but not a unified pWin+OQS composite |
+| Opportunity Quality Score (OQS) | **ENHANCEMENT** | Extends existing qScore from 4 unweighted factors to 7 weighted factors; would replace `RecommendedOpportunityService` scoring |
+| Pursuit Priority Score | **NEW** | Combines pWin + OQS into a single pipeline sort metric; no equivalent exists today |
 | Incumbent Vulnerability Score (IVS) | **PARTIAL** | `MarketIntelService.GetIncumbentAnalysisAsync()` returns `VulnerabilitySignals` (string list) + burn rate + percent spent. No formal 0-100 scored model. |
 | Competitor Strength Index (CSI) | **NEW** | Market share exists (top 10 vendors by $ in `MarketIntelService.GetMarketShareAsync()`), but no per-competitor scoring model |
 | Partner Compatibility Score (PCS) | **NEW** | pWin has a "teaming strength" factor but it's just a subaward partner count, not quality/fit scoring |
@@ -26,11 +69,11 @@ The brainstorm project designed several scoring models beyond our current pWin a
 
 ---
 
-## New Scores We Don't Have
+## Proposed Scores
 
-### 1. Opportunity Quality Score (OQS) — "Should I Want This?"
+### 1. Opportunity Quality Score (OQS) — "Should I Want This?" [ENHANCEMENT of existing qScore]
 
-A 7-factor model measuring opportunity desirability independent of win probability:
+Enhances the existing qScore (see above) from 4 unweighted factors to a 7-factor weighted model measuring opportunity desirability independent of win probability. Would replace `RecommendedOpportunityService`'s current scoring logic:
 - Profile Match Strength (0.20) — how well the opp matches your NAICS/PSC/certs
 - Estimated Value Alignment (0.15) — is the contract size in your sweet spot?
 - Competition Level (0.10) — fewer competitors = better opportunity
@@ -43,17 +86,17 @@ A 7-factor model measuring opportunity desirability independent of win probabili
 
 **Source:** brainstorm phase-29
 
-### 2. Pursuit Priority Score
+### 2. Pursuit Priority Score [NEW — combines existing pWin + proposed OQS]
 
-Combined metric: `(pWin × 0.6) + (OQS × 0.4)` as default pipeline sort order. Low-confidence scores discounted by 15%.
+Combined metric: `(pWin × 0.6) + (OQS × 0.4)` as default pipeline sort order. Low-confidence scores discounted by 15%. Depends on both an enhanced pWin and the OQS enhancement above.
 
 **Value:** Single number for "what should I work on next?" — replaces manual prioritization.
 
 **Source:** brainstorm metrics-framework
 
-### 3. Incumbent Vulnerability Score (IVS) — Formal 6-Factor Model
+### 3. Incumbent Vulnerability Score (IVS) — Formal 6-Factor Model [NEW — formalizes existing signals]
 
-We have vulnerability signals, but the brainstorm designed a formal scored model:
+`MarketIntelService.GetIncumbentAnalysisAsync()` already returns vulnerability signals as a string list, burn rate, and percent spent, but has no formal scored model. This would replace those ad-hoc signals with a scored 0-100 model:
 - Contract Age (0.15) — older contracts more vulnerable
 - Option Exercise History (0.25) — non-exercised options = major signal *(must be inferred from FPDS modification records; no explicit option-exercise column exists)*
 - Spend Anomalies (0.15) — declining spend suggests dissatisfaction
@@ -65,7 +108,7 @@ Computed nightly for all active contracts in user-relevant NAICS codes. Trend tr
 
 **Source:** brainstorm phase-26
 
-### 4. Competitor Strength Index (CSI)
+### 4. Competitor Strength Index (CSI) [NEW]
 
 5-factor model per competitor:
 - Federal Revenue (0.25)
@@ -78,7 +121,7 @@ Has both a general-purpose variant and a context-specific variant (scored agains
 
 **Source:** brainstorm phase-30
 
-### 5. Partner Compatibility Score (PCS)
+### 5. Partner Compatibility Score (PCS) [NEW]
 
 6-factor model for teaming partner evaluation:
 - Capability Complement (0.25) — do they fill your gaps?
@@ -90,7 +133,7 @@ Has both a general-purpose variant and a context-specific variant (scored agains
 
 **Source:** brainstorm phase-45, metrics-framework
 
-### 6. Open Door Score
+### 6. Open Door Score [NEW]
 
 Rates prime contractors on how much they actually engage small business subs:
 - Small business sub spend %
@@ -116,6 +159,7 @@ Rates prime contractors on how much they actually engage small business subs:
 
 ## Implementation Notes
 
+- **Existing models**: GoNoGo and qScore work adequately for their purposes. pWin specifically needs a ground-up rethink — it is not accurate, not effective, and uses crude thresholds that don't reflect real-world win probability. Any work in this phase should start with pWin.
 - Most scoring factors use data we already have (awards, entities, subawards, NAICS, set-asides). Exceptions: CSI Win Rate (no bid data, only wins), OQS Strategic Alignment (needs new user-defined goals), OQS Reuse Potential (needs proposal tracking or scoping down to past performance only)
-- The brainstorm designed a pluggable factor engine with configurable weights — our current pWin implementation could be extended
+- The brainstorm designed a pluggable factor engine with configurable weights — our current pWin implementation could be extended or replaced entirely
 - pWin calibration/backtesting (AUC-ROC target >0.70, Bayesian weight optimization) was a separate brainstorm phase — worth considering once we have enough historical win/loss data
