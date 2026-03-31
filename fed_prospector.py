@@ -90,7 +90,7 @@ def port_in_use(port: int) -> bool:
     """Check if a TCP port is already in use."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.bind(("127.0.0.1", port))
+            s.bind(("0.0.0.0", port))
             return False
         except OSError:
             return True
