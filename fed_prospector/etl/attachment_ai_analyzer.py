@@ -262,6 +262,7 @@ class AttachmentAIAnalyzer:
                             intel_id, doc["document_id"],
                             doc.get("filename"), result,
                         )
+                        self._stamp_ai_analyzed_by_doc(doc["document_id"])
                         stats["analyzed"] += 1
                         logger.info(
                             "Analyzed %s document_id=%s (%s confidence)",
@@ -292,6 +293,107 @@ class AttachmentAIAnalyzer:
             dict with analysis stats
         """
         return self.analyze(notice_id=notice_id, batch_size=1000, force=force)
+
+    def analyze_single(self, attachment_id):
+        """Analyze a single attachment document with AI (on-demand).
+
+        Used by the demand loader for per-attachment [Analyze] / [Re-analyze]
+        buttons in the UI.
+
+        Args:
+            attachment_id: The attachment_id to analyze.
+
+        Returns:
+            dict with keys: processed, analyzed, skipped, failed
+        """
+        stats = {"processed": 0, "analyzed": 0, "skipped": 0, "failed": 0}
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT ad.document_id, "
+                "       (SELECT MIN(m.notice_id) FROM opportunity_attachment m "
+                "        WHERE m.attachment_id = sa.attachment_id) AS notice_id, "
+                "       COALESCE(ad.filename, sa.filename) AS filename, "
+                "       ad.extracted_text, ad.text_hash "
+                "FROM attachment_document ad "
+                "JOIN sam_attachment sa ON sa.attachment_id = ad.attachment_id "
+                "WHERE ad.attachment_id = %s "
+                "  AND ad.extraction_status = 'extracted' "
+                "  AND ad.extracted_text IS NOT NULL",
+                (attachment_id,),
+            )
+            doc = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if not doc:
+            logger.info("No extracted text for attachment %d, skipping", attachment_id)
+            stats["skipped"] = 1
+            return stats
+
+        stats["processed"] = 1
+        try:
+            result = self._analyze_document(doc)
+            if result:
+                intel_id = self._save_intel(doc, result)
+                self._save_ai_sources(
+                    intel_id, doc["document_id"],
+                    doc.get("filename"), result,
+                )
+                self._stamp_ai_analyzed(attachment_id)
+                stats["analyzed"] = 1
+                logger.info(
+                    "Analyzed attachment %d document_id=%s (%s confidence)",
+                    attachment_id, doc["document_id"],
+                    result.get("overall_confidence", "unknown"),
+                )
+            else:
+                stats["failed"] = 1
+        except Exception as e:
+            stats["failed"] = 1
+            logger.error(
+                "Failed to analyze attachment %d document_id=%s: %s",
+                attachment_id, doc["document_id"], e,
+            )
+
+        return stats
+
+    # ------------------------------------------------------------------
+    # Internal: stamp ai_analyzed_at
+    # ------------------------------------------------------------------
+
+    def _stamp_ai_analyzed(self, attachment_id):
+        """Set ai_analyzed_at = NOW() on attachment_document."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE attachment_document SET ai_analyzed_at = NOW() "
+                "WHERE attachment_id = %s",
+                (attachment_id,),
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _stamp_ai_analyzed_by_doc(self, document_id):
+        """Set ai_analyzed_at = NOW() on attachment_document by document_id."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE attachment_document SET ai_analyzed_at = NOW() "
+                "WHERE document_id = %s",
+                (document_id,),
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
 
     # ------------------------------------------------------------------
     # Description-text AI analysis (Phase 121)

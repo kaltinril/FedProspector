@@ -405,24 +405,29 @@ ALL_SERVICES = ["db", "api", "ui", "poller"]
 
 def cmd_build(service: str):
     targets = ALL_SERVICES if service == "all" else [service]
-    # Stop services in reverse order before building (UI first, then API)
-    stop_targets = [s for s in reversed(targets) if SERVICE_MAP[s]["build"]]
+    build_targets = [s for s in targets if SERVICE_MAP[s]["build"]]
+    # Stop services that need building, plus the poller (it loads Python
+    # modules that may change).  Stop in reverse order (poller/UI before API).
+    stop_targets = [s for s in reversed(targets)
+                    if SERVICE_MAP[s]["build"] or s == "poller"]
+    poller_was_running = _poller_is_running() if "poller" in stop_targets else False
     for svc in stop_targets:
         SERVICE_MAP[svc]["stop"]() if svc != "db" else None
     # Build
     failures = []
-    for svc in targets:
-        fn = SERVICE_MAP[svc]["build"]
-        if fn:
-            success = fn()
-            if success is False:
-                failures.append(svc)
+    for svc in build_targets:
+        success = SERVICE_MAP[svc]["build"]()
+        if success is False:
+            failures.append(svc)
     if failures:
         print(f"\n  Build failed for: {', '.join(failures)}")
         sys.exit(1)
-    # Start services back up (API first, then UI)
+    # Start services back up (API first, then UI, then poller)
     for svc in targets:
-        if SERVICE_MAP[svc]["build"] and svc not in failures:
+        if svc == "poller":
+            if poller_was_running:
+                start_poller()
+        elif SERVICE_MAP[svc]["build"] and svc not in failures:
             SERVICE_MAP[svc]["start"]()
 
 

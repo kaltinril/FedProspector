@@ -115,6 +115,7 @@ public class AwardsController : ApiControllerBase
         return Ok(result);
     }
 
+    [DisableRateLimiting]
     [HttpGet("{contractId}/load-status")]
     public async Task<IActionResult> GetLoadStatus(string contractId)
     {

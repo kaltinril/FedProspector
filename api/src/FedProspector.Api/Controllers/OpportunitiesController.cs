@@ -224,6 +224,7 @@ public class OpportunitiesController : ApiControllerBase
     /// <summary>
     /// Get the status of the most recent analysis request for an opportunity.
     /// </summary>
+    [DisableRateLimiting]
     [HttpGet("{noticeId}/analyze/status")]
     public async Task<ActionResult<LoadRequestStatusDto>> GetAnalysisStatus(string noticeId)
     {
@@ -242,5 +243,30 @@ public class OpportunitiesController : ApiControllerBase
         var userId = GetCurrentUserId();
         var result = await _attachmentIntelService.RequestAnalysisAsync(noticeId, tier, userId);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Request analysis of a single attachment (keyword extraction or AI).
+    /// </summary>
+    [HttpPost("{noticeId}/attachments/{attachmentId:int}/analyze")]
+    [EnableRateLimiting("write")]
+    public async Task<ActionResult<LoadRequestStatusDto>> RequestAttachmentAnalysis(
+        string noticeId, int attachmentId, [FromQuery] string tier = "ai")
+    {
+        var userId = GetCurrentUserId();
+        var result = await _attachmentIntelService.RequestAttachmentAnalysisAsync(noticeId, attachmentId, tier, userId);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get status of the most recent single-attachment analysis request.
+    /// </summary>
+    [DisableRateLimiting]
+    [HttpGet("{noticeId}/attachments/{attachmentId:int}/analyze/status")]
+    public async Task<ActionResult<LoadRequestStatusDto>> GetAttachmentAnalysisStatus(
+        string noticeId, int attachmentId)
+    {
+        var result = await _attachmentIntelService.GetAttachmentAnalysisStatusAsync(attachmentId);
+        return result != null ? Ok(result) : Ok(new LoadRequestStatusDto());
     }
 }

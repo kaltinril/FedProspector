@@ -44,7 +44,7 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: '', password: '' },
+    defaultValues: { email: localStorage.getItem('fedprospect_last_email') ?? '', password: '' },
   });
 
   if (authLoading) {
@@ -75,6 +75,7 @@ export default function LoginPage() {
     setSessionExpired(false);
     try {
       await login(data.email, data.password);
+      localStorage.setItem('fedprospect_last_email', data.email);
       // AuthContext.login calls refreshSession which updates user state.
       // The <Navigate> components above (lines 66-72) handle routing on re-render
       // based on isAuthenticated and forcePasswordChange — no imperative navigate needed.

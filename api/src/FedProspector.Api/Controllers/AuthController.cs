@@ -259,7 +259,7 @@ public class AuthController : ApiControllerBase
                 Secure = _secureCookies,
                 SameSite = SameSiteMode.Strict,
                 Path = "/api/v1/auth",
-                Expires = DateTimeOffset.UtcNow.AddDays(7)
+                Expires = DateTimeOffset.UtcNow.AddDays(30)
             });
         }
 

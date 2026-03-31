@@ -108,6 +108,22 @@ export function getAnalysisEstimate(noticeId: string, model: string = 'haiku'): 
   return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/analyze/estimate`, { params: { model } }).then((r) => r.data);
 }
 
+export function requestAttachmentAnalysis(
+  noticeId: string, attachmentId: number, tier: 'keyword' | 'ai'
+): Promise<LoadRequestStatusDto> {
+  return apiClient.post(
+    `/opportunities/${encodeURIComponent(noticeId)}/attachments/${attachmentId}/analyze?tier=${tier}`
+  ).then(r => r.data);
+}
+
+export function getAttachmentAnalysisStatus(
+  noticeId: string, attachmentId: number
+): Promise<LoadRequestStatusDto> {
+  return apiClient.get(
+    `/opportunities/${encodeURIComponent(noticeId)}/attachments/${attachmentId}/analyze/status`
+  ).then(r => r.data);
+}
+
 export function fetchDescription(noticeId: string): Promise<FetchDescriptionResponse> {
   return apiClient.post(`/opportunities/${encodeURIComponent(noticeId)}/fetch-description`).then((r) => r.data);
 }

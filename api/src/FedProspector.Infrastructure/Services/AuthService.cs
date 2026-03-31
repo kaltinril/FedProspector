@@ -40,7 +40,7 @@ public class AuthService : IAuthService
 
     // Token lifetimes
     private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(30);
-    private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(7);
+    private static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(30);
 
     // Session validation cache TTL
     private static readonly TimeSpan SessionCacheTtl = TimeSpan.FromSeconds(30);

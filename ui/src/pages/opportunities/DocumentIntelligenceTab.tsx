@@ -29,12 +29,13 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
 import DescriptionIcon from '@mui/icons-material/Description';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import DownloadIcon from '@mui/icons-material/Download';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getDocumentIntelligence, getAnalysisEstimate, requestAnalysis, getAnalysisStatus } from '@/api/opportunities';
+import { getDocumentIntelligence, getAnalysisEstimate, requestAnalysis, getAnalysisStatus, requestAttachmentAnalysis, getAttachmentAnalysisStatus } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
 import type {
   DocumentIntelligenceDto,
@@ -624,97 +625,234 @@ const EXTRACTION_STATUS_COLOR: Record<string, 'success' | 'warning' | 'error' | 
 };
 
 // ---------------------------------------------------------------------------
-// Attachments Table — with clickable filenames (Problem 4)
+// Attachment Analysis Poller — invisible component that polls for status
 // ---------------------------------------------------------------------------
 
-function AttachmentsTable({ attachments }: { attachments: AttachmentSummaryDto[] }) {
+function AttachmentAnalysisPoller({
+  noticeId,
+  attachmentId,
+  tier,
+  onComplete,
+  onFailed,
+}: {
+  noticeId: string;
+  attachmentId: number;
+  tier: 'keyword' | 'ai';
+  onComplete: (resultSummary?: string | null) => void;
+  onFailed: (msg?: string) => void;
+}) {
+  const { data: status } = useQuery({
+    queryKey: ['attachment-analysis-status', attachmentId, tier],
+    queryFn: () => getAttachmentAnalysisStatus(noticeId, attachmentId),
+    refetchInterval: 4000,
+  });
+
+  useEffect(() => {
+    if (!status?.status) return;
+    if (status.status === 'COMPLETED') onComplete(status.resultSummary);
+    else if (status.status === 'FAILED') onFailed(status.errorMessage ?? undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.status]);
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Attachments Table — with clickable filenames and per-attachment analysis
+// ---------------------------------------------------------------------------
+
+function AttachmentsTable({ attachments, noticeId }: { attachments: AttachmentSummaryDto[]; noticeId: string }) {
+  const { enqueueSnackbar } = useSnackbar();
+  const queryClient = useQueryClient();
+  const [pendingAnalysis, setPendingAnalysis] = useState<Map<string, number>>(new Map());
+
   if (attachments.length === 0) return null;
 
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Typography variant="subtitle2" sx={{ mb: 2 }}>
-        Attachments ({attachments.length})
-      </Typography>
-      <TableContainer sx={{ overflowX: 'auto' }}>
-        <Table size="small" sx={{ minWidth: 640 }}>
-          <TableHead>
-            <TableRow>
-              <TableCell>Filename</TableCell>
-              <TableCell>Type</TableCell>
-              <TableCell align="right">Size</TableCell>
-              <TableCell align="right">Pages</TableCell>
-              <TableCell>Download</TableCell>
-              <TableCell>Extraction</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {attachments.map((att) => {
-              const isGone = att.downloadStatus === 'skipped' && !!att.skipReason;
-              const skipLabel = att.skipReason
-                ? att.skipReason.replace(/_/g, ' ').replace(/^http /, 'HTTP ').replace(/^max retries /, 'Max retries: ')
-                : undefined;
+  const handleAnalyze = async (attachmentId: number, tier: 'keyword' | 'ai') => {
+    const key = `${attachmentId}-${tier}`;
+    try {
+      const result = await requestAttachmentAnalysis(noticeId, attachmentId, tier);
+      if (result.requestId != null) {
+        setPendingAnalysis((prev) => new Map(prev).set(key, result.requestId!));
+      }
+    } catch {
+      enqueueSnackbar(`Failed to request ${tier} analysis`, { variant: 'error' });
+    }
+  };
 
-              return (
-                <TableRow key={att.attachmentId} sx={isGone ? { opacity: 0.45 } : undefined}>
-                  <TableCell>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <DescriptionIcon fontSize="small" color={isGone ? 'disabled' : 'action'} />
-                      {att.url && !isGone ? (
-                        <Link
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener"
-                          variant="body2"
-                          sx={{ wordBreak: 'break-word' }}
-                        >
-                          {att.filename}
-                        </Link>
+  const handleComplete = (attachmentId: number, tier: 'keyword' | 'ai', resultSummary?: string | null) => {
+    const key = `${attachmentId}-${tier}`;
+    setPendingAnalysis((prev) => {
+      const next = new Map(prev);
+      next.delete(key);
+      return next;
+    });
+    const label = tier === 'keyword' ? 'Keyword' : 'AI';
+    let found = true;
+    if (resultSummary) {
+      try {
+        const summary = JSON.parse(resultSummary);
+        const extracted = summary.extracted ?? summary.analyzed ?? 0;
+        found = extracted > 0;
+      } catch { /* ignore parse errors */ }
+    }
+    enqueueSnackbar(
+      found ? `${label} analysis complete.` : `${label} analysis ran but found no results for this attachment.`,
+      { variant: found ? 'success' : 'info' },
+    );
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.opportunities.documentIntelligence(noticeId),
+    });
+  };
+
+  const handleFailed = (attachmentId: number, tier: 'keyword' | 'ai', msg?: string) => {
+    const key = `${attachmentId}-${tier}`;
+    setPendingAnalysis((prev) => {
+      const next = new Map(prev);
+      next.delete(key);
+      return next;
+    });
+    enqueueSnackbar(`${tier === 'keyword' ? 'Keyword' : 'AI'} analysis failed${msg ? `: ${msg}` : ''}`, { variant: 'error' });
+  };
+
+  const renderAnalysisCell = (att: AttachmentSummaryDto, tier: 'keyword' | 'ai') => {
+    const isGone = att.downloadStatus === 'skipped' && !!att.skipReason;
+    const key = `${att.attachmentId}-${tier}`;
+    const isPending = pendingAnalysis.has(key);
+
+    if (isGone || att.extractionStatus.toLowerCase() !== 'extracted') {
+      return <Typography variant="body2" color="text.disabled">&mdash;</Typography>;
+    }
+
+    if (isPending) {
+      return <CircularProgress size={16} />;
+    }
+
+    const wasAnalyzed = tier === 'keyword' ? att.keywordAnalyzedAt : att.aiAnalyzedAt;
+    const button = (
+      <Button
+        size="small"
+        variant="text"
+        sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.8125rem' }}
+        onClick={() => handleAnalyze(att.attachmentId, tier)}
+      >
+        {wasAnalyzed ? 'Re-analyze' : 'Analyze'}
+      </Button>
+    );
+    if (wasAnalyzed) {
+      return (
+        <Tooltip title={`Last analyzed: ${new Date(wasAnalyzed).toLocaleString()}`}>
+          {button}
+        </Tooltip>
+      );
+    }
+    return button;
+  };
+
+  return (
+    <>
+      {/* Invisible pollers for pending analyses */}
+      {Array.from(pendingAnalysis.entries()).map(([key]) => {
+        const [idStr, tier] = key.split('-') as [string, 'keyword' | 'ai'];
+        const attachmentId = Number(idStr);
+        return (
+          <AttachmentAnalysisPoller
+            key={key}
+            noticeId={noticeId}
+            attachmentId={attachmentId}
+            tier={tier}
+            onComplete={(rs) => handleComplete(attachmentId, tier, rs)}
+            onFailed={(msg) => handleFailed(attachmentId, tier, msg)}
+          />
+        );
+      })}
+      <Paper variant="outlined" sx={{ p: 2 }}>
+        <Typography variant="subtitle2" sx={{ mb: 2 }}>
+          Attachments ({attachments.length})
+        </Typography>
+        <TableContainer sx={{ overflowX: 'auto' }}>
+          <Table size="small" sx={{ minWidth: 760 }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Filename</TableCell>
+                <TableCell align="right">Size</TableCell>
+                <TableCell align="right">Pages</TableCell>
+                <TableCell>Download</TableCell>
+                <TableCell>Extraction</TableCell>
+                <TableCell>Keyword</TableCell>
+                <TableCell>AI</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {attachments.map((att) => {
+                const isGone = att.downloadStatus === 'skipped' && !!att.skipReason;
+                const skipLabel = att.skipReason
+                  ? att.skipReason.replace(/_/g, ' ').replace(/^http /, 'HTTP ').replace(/^max retries /, 'Max retries: ')
+                  : undefined;
+
+                return (
+                  <TableRow key={att.attachmentId} sx={isGone ? { opacity: 0.45 } : undefined}>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <DescriptionIcon fontSize="small" color={isGone ? 'disabled' : 'action'} />
+                        {att.url && !isGone ? (
+                          <Link
+                            href={att.url}
+                            target="_blank"
+                            rel="noopener"
+                            variant="body2"
+                            sx={{ wordBreak: 'break-word' }}
+                          >
+                            {att.filename}
+                          </Link>
+                        ) : (
+                          <Typography variant="body2" sx={{ wordBreak: 'break-word' }} color={isGone ? 'text.disabled' : 'text.primary'}>
+                            {att.filename}
+                          </Typography>
+                        )}
+                      </Box>
+                    </TableCell>
+                    <TableCell align="right">{formatFileSize(att.fileSizeBytes)}</TableCell>
+                    <TableCell align="right">{att.pageCount ?? '--'}</TableCell>
+                    <TableCell>
+                      {isGone ? (
+                        <Tooltip title={skipLabel ?? 'Removed upstream'} arrow>
+                          <Chip
+                            label="removed"
+                            size="small"
+                            color="default"
+                            variant="outlined"
+                          />
+                        </Tooltip>
                       ) : (
-                        <Typography variant="body2" sx={{ wordBreak: 'break-word' }} color={isGone ? 'text.disabled' : 'text.primary'}>
-                          {att.filename}
-                        </Typography>
+                        <Tooltip title={att.downloadedAt ? `Downloaded: ${new Date(att.downloadedAt).toLocaleString()}` : ''}>
+                          <Chip
+                            label={att.downloadStatus}
+                            size="small"
+                            color={DOWNLOAD_STATUS_COLOR[att.downloadStatus.toLowerCase()] ?? 'default'}
+                          />
+                        </Tooltip>
                       )}
-                    </Box>
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="body2" color="text.secondary">
-                      {att.contentType ?? '--'}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right">{formatFileSize(att.fileSizeBytes)}</TableCell>
-                  <TableCell align="right">{att.pageCount ?? '--'}</TableCell>
-                  <TableCell>
-                    {isGone ? (
-                      <Tooltip title={skipLabel ?? 'Removed upstream'} arrow>
+                    </TableCell>
+                    <TableCell>
+                      <Tooltip title={att.extractedAt ? `Extracted: ${new Date(att.extractedAt).toLocaleString()}` : ''}>
                         <Chip
-                          label="removed"
+                          label={att.extractionStatus}
                           size="small"
-                          color="default"
-                          variant="outlined"
+                          color={EXTRACTION_STATUS_COLOR[att.extractionStatus.toLowerCase()] ?? 'default'}
                         />
                       </Tooltip>
-                    ) : (
-                      <Chip
-                        label={att.downloadStatus}
-                        size="small"
-                        color={DOWNLOAD_STATUS_COLOR[att.downloadStatus.toLowerCase()] ?? 'default'}
-                      />
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={att.extractionStatus}
-                      size="small"
-                      color={EXTRACTION_STATUS_COLOR[att.extractionStatus.toLowerCase()] ?? 'default'}
-                    />
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </TableContainer>
-    </Paper>
+                    </TableCell>
+                    <TableCell>{renderAnalysisCell(att, 'keyword')}</TableCell>
+                    <TableCell>{renderAnalysisCell(att, 'ai')}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </Paper>
+    </>
   );
 }
 
@@ -787,13 +925,24 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
   });
 
   const basicAnalysisMutation = useMutation({
-    mutationFn: () => requestAnalysis(noticeId, 'basic'),
+    mutationFn: () => requestAnalysis(noticeId, 'keyword'),
     onSuccess: (result) => {
-      enqueueSnackbar('Basic analysis requested. Attachments will be downloaded and analyzed.', { variant: 'success' });
+      enqueueSnackbar('Keyword extraction requested.', { variant: 'success' });
       setAnalysisRequestId(result.requestId ?? null);
     },
     onError: () => {
       enqueueSnackbar('Failed to request analysis', { variant: 'error' });
+    },
+  });
+
+  const redownloadMutation = useMutation({
+    mutationFn: () => requestAnalysis(noticeId, 'redownload'),
+    onSuccess: (result) => {
+      enqueueSnackbar('Attachment re-download requested.', { variant: 'success' });
+      setAnalysisRequestId(result.requestId ?? null);
+    },
+    onError: () => {
+      enqueueSnackbar('Failed to request re-download', { variant: 'error' });
     },
   });
 
@@ -981,7 +1130,7 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             </Button>
           </Box>
         </Paper>
-        <AttachmentsTable attachments={intel.attachments ?? []} />
+        <AttachmentsTable attachments={intel.attachments ?? []} noticeId={noticeId} />
         {estimateDialog}
       </Box>
     );
@@ -1045,38 +1194,30 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             <Button
               variant="outlined"
               size="small"
+              startIcon={redownloadMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+              disabled={redownloadMutation.isPending || analysisProcessing}
+              onClick={() => redownloadMutation.mutate()}
+            >
+              {redownloadMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Re-download Attachments'}
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
               startIcon={basicAnalysisMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
               disabled={basicAnalysisMutation.isPending || analysisProcessing}
               onClick={() => basicAnalysisMutation.mutate()}
             >
               {basicAnalysisMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Re-extract Keywords'}
             </Button>
-            {(() => {
-              const hasAiMethod = availableMethods.some(m => m.startsWith('ai_'));
-              const remainingCount = intel.attachmentCount - intel.analyzedCount;
-              const buttonText = !hasAiMethod
-                ? 'Enhance with AI'
-                : remainingCount > 0
-                  ? `Enhance remaining (${remainingCount} left)`
-                  : 'Re-analyze with AI';
-              return (
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={estimateLoading || analyzeMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
-                  disabled={estimateLoading || analyzeMutation.isPending || analysisProcessing}
-                  onClick={handleEnhanceWithAI}
-                >
-                  {estimateLoading
-                    ? 'Estimating...'
-                    : analyzeMutation.isPending
-                      ? 'Requesting...'
-                      : analysisProcessing
-                        ? 'Processing...'
-                        : buttonText}
-                </Button>
-              );
-            })()}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={estimateLoading || analyzeMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
+              disabled={estimateLoading || analyzeMutation.isPending || analysisProcessing}
+              onClick={handleEnhanceWithAI}
+            >
+              {estimateLoading ? 'Estimating...' : analyzeMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Re-analyze AI'}
+            </Button>
           </Box>
         </Box>
       </Paper>
@@ -1123,7 +1264,7 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
       )}
 
       {/* Attachments Table */}
-      <AttachmentsTable attachments={intel.attachments ?? []} />
+      <AttachmentsTable attachments={intel.attachments ?? []} noticeId={noticeId} />
       {estimateDialog}
     </Box>
   );

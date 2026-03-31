@@ -38,6 +38,10 @@ public class AttachmentDocument
 
     public int ExtractionRetryCount { get; set; }
 
+    public DateTime? KeywordAnalyzedAt { get; set; }
+
+    public DateTime? AiAnalyzedAt { get; set; }
+
     public int? LastLoadId { get; set; }
 
     public DateTime CreatedAt { get; set; }

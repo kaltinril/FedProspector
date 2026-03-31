@@ -231,7 +231,7 @@ builder.Services.AddRateLimiter(options =>
                 QueueLimit = 0
             }));
 
-    // Search/read endpoints: 60/min per user
+    // Search/read endpoints: 300/min per user
     options.AddPolicy("search", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
@@ -240,7 +240,7 @@ builder.Services.AddRateLimiter(options =>
                           ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 60,
+                PermitLimit = 300,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));

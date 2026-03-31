@@ -188,6 +188,7 @@ public class AttachmentIntelService : IAttachmentIntelService
         var documentLookup = documents.ToDictionary(d => d.DocumentId);
         var perAttachmentIntel = BuildPerAttachmentBreakdown(intelRecords, documents, samAttachmentLookup);
 
+
         var analyzedCount = documents.Count(d =>
             d.ExtractionStatus == "extracted");
 
@@ -232,18 +233,25 @@ public class AttachmentIntelService : IAttachmentIntelService
                 ExtractionMethod = e.ExtractionMethod ?? "",
                 Confidence = e.Confidence ?? ""
             }).ToList(),
-            Attachments = samAttachments.Select(a => new AttachmentSummaryDto
+            Attachments = samAttachments.Select(a =>
             {
-                AttachmentId = a.AttachmentId,
-                ResourceGuid = a.ResourceGuid,
-                Filename = a.Filename ?? "",
-                Url = a.Url,
-                ContentType = documents.FirstOrDefault(d => d.AttachmentId == a.AttachmentId)?.ContentType,
-                FileSizeBytes = a.FileSizeBytes,
-                PageCount = documents.FirstOrDefault(d => d.AttachmentId == a.AttachmentId)?.PageCount,
-                DownloadStatus = a.DownloadStatus,
-                ExtractionStatus = documents.FirstOrDefault(d => d.AttachmentId == a.AttachmentId)?.ExtractionStatus ?? "pending",
-                SkipReason = a.SkipReason
+                var doc = documents.FirstOrDefault(d => d.AttachmentId == a.AttachmentId);
+                return new AttachmentSummaryDto
+                {
+                    AttachmentId = a.AttachmentId,
+                    ResourceGuid = a.ResourceGuid,
+                    Filename = a.Filename ?? "",
+                    Url = a.Url,
+                    FileSizeBytes = a.FileSizeBytes,
+                    PageCount = doc?.PageCount,
+                    DownloadStatus = a.DownloadStatus,
+                    ExtractionStatus = doc?.ExtractionStatus ?? "pending",
+                    SkipReason = a.SkipReason,
+                    DownloadedAt = a.DownloadedAt,
+                    ExtractedAt = doc?.ExtractedAt,
+                    KeywordAnalyzedAt = doc?.KeywordAnalyzedAt,
+                    AiAnalyzedAt = doc?.AiAnalyzedAt
+                };
             }).ToList(),
             MergedPassages = mergedPassages,
             PerAttachmentIntel = perAttachmentIntel
@@ -314,6 +322,72 @@ public class AttachmentIntelService : IAttachmentIntelService
             Status = request.Status,
             RequestedAt = request.RequestedAt,
             ErrorMessage = request.ErrorMessage
+        };
+    }
+
+    public async Task<LoadRequestStatusDto> RequestAttachmentAnalysisAsync(
+        string noticeId, int attachmentId, string tier, int? userId)
+    {
+        var requestType = "ATTACHMENT_ANALYSIS_SINGLE";
+
+        // Check for existing pending/processing request for this attachment
+        var existing = await _context.DataLoadRequests.FirstOrDefaultAsync(r =>
+            r.LookupKey == attachmentId.ToString() &&
+            r.RequestType == requestType &&
+            (r.Status == "PENDING" || r.Status == "PROCESSING"));
+
+        if (existing != null)
+        {
+            return new LoadRequestStatusDto
+            {
+                RequestId = existing.RequestId,
+                RequestType = existing.RequestType,
+                Status = existing.Status,
+                RequestedAt = existing.RequestedAt,
+                ErrorMessage = existing.ErrorMessage
+            };
+        }
+
+        var request = new DataLoadRequest
+        {
+            RequestType = requestType,
+            LookupKey = attachmentId.ToString(),
+            LookupKeyType = "ATTACHMENT_ID",
+            Status = "PENDING",
+            RequestedBy = userId,
+            RequestedAt = DateTime.UtcNow,
+            ResultSummary = JsonSerializer.Serialize(new { tier, noticeId })
+        };
+
+        _context.DataLoadRequests.Add(request);
+        await _context.SaveChangesAsync();
+
+        return new LoadRequestStatusDto
+        {
+            RequestId = request.RequestId,
+            RequestType = request.RequestType,
+            Status = request.Status,
+            RequestedAt = request.RequestedAt
+        };
+    }
+
+    public async Task<LoadRequestStatusDto?> GetAttachmentAnalysisStatusAsync(int attachmentId)
+    {
+        var request = await _context.DataLoadRequests.AsNoTracking()
+            .Where(r => r.LookupKey == attachmentId.ToString() && r.RequestType == "ATTACHMENT_ANALYSIS_SINGLE")
+            .OrderByDescending(r => r.RequestedAt)
+            .FirstOrDefaultAsync();
+
+        if (request == null) return null;
+
+        return new LoadRequestStatusDto
+        {
+            RequestId = request.RequestId,
+            RequestType = request.RequestType,
+            Status = request.Status,
+            RequestedAt = request.RequestedAt,
+            ErrorMessage = request.ErrorMessage,
+            ResultSummary = request.ResultSummary
         };
     }
 

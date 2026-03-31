@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS attachment_document (
     text_hash              CHAR(64),
     extracted_at           DATETIME,
     extraction_retry_count INT DEFAULT 0,
+    keyword_analyzed_at    DATETIME     DEFAULT NULL,
+    ai_analyzed_at         DATETIME     DEFAULT NULL,
     last_load_id           INT,
     created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_attachment (attachment_id),

@@ -17,6 +17,7 @@ public class LoadRequestStatusDto
     public string? Status { get; set; }
     public DateTime? RequestedAt { get; set; }
     public string? ErrorMessage { get; set; }
+    public string? ResultSummary { get; set; }
 }
 
 public class RequestLoadDto

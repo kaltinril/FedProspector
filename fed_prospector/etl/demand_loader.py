@@ -5,10 +5,11 @@ by fetching data from external APIs (USASpending, SAM.gov) and loading
 into the local database.
 
 Request types:
-    USASPENDING_AWARD   - Fetch award + transactions from USASpending.gov
-    FPDS_AWARD          - Fetch FPDS contract data from SAM.gov Awards API
-    ATTACHMENT_ANALYSIS - Run Claude AI analysis on attachment documents
-    REFRESH_FEDHIER_ORG - Refresh a single federal organization from SAM.gov Federal Hierarchy
+    USASPENDING_AWARD          - Fetch award + transactions from USASpending.gov
+    FPDS_AWARD                 - Fetch FPDS contract data from SAM.gov Awards API
+    ATTACHMENT_ANALYSIS        - Run Claude AI analysis on attachment documents
+    ATTACHMENT_ANALYSIS_SINGLE - Run keyword or AI analysis on a single attachment
+    REFRESH_FEDHIER_ORG        - Refresh a single federal organization from SAM.gov Federal Hierarchy
 """
 
 import json
@@ -98,6 +99,8 @@ class DemandLoader:
             self._process_fpds(req)
         elif request_type == "ATTACHMENT_ANALYSIS":
             self._process_attachment_analysis(req)
+        elif request_type == "ATTACHMENT_ANALYSIS_SINGLE":
+            self._process_attachment_analysis_single(req)
         elif request_type == "REFRESH_FEDHIER_ORG":
             self._process_refresh_fedhier_org(req)
         else:
@@ -352,6 +355,43 @@ class DemandLoader:
             "Request %d completed: analyzed %d documents for notice '%s'",
             request_id, summary["analyzed"], notice_id,
         )
+
+    # ------------------------------------------------------------------
+    # Single-attachment analysis (keyword or AI)
+    # ------------------------------------------------------------------
+
+    def _process_attachment_analysis_single(self, req):
+        """Run keyword or AI analysis on a single attachment.
+
+        Triggered by per-attachment [Analyze] / [Re-analyze] buttons in the UI.
+        result_summary JSON: {"tier": "keyword"|"ai"|"haiku"|"sonnet", "noticeId": "..."}
+        """
+        request_id = req["request_id"]
+        attachment_id = int(req["lookup_key"])
+
+        params = json.loads(req["result_summary"]) if req.get("result_summary") else {}
+        tier = params.get("tier", "ai")
+
+        self._set_status(request_id, "PROCESSING", started_at=datetime.now())
+
+        if tier == "keyword":
+            logger.info("Request %d: keyword extraction for attachment %d", request_id, attachment_id)
+            from etl.attachment_intel_extractor import AttachmentIntelExtractor
+            extractor = AttachmentIntelExtractor(get_connection(), self.load_manager)
+            stats = extractor.extract_single(attachment_id)
+        else:
+            model = tier if tier in ("haiku", "sonnet") else "haiku"
+            logger.info("Request %d: AI analysis (%s) for attachment %d", request_id, model, attachment_id)
+            from etl.attachment_ai_analyzer import AttachmentAIAnalyzer
+            analyzer = AttachmentAIAnalyzer(model=model, requested_by=req.get("requested_by"))
+            stats = analyzer.analyze_single(attachment_id)
+
+        self._set_status(
+            request_id, "COMPLETED",
+            completed_at=datetime.now(),
+            result_summary=stats,
+        )
+        logger.info("Request %d completed: single attachment %d", request_id, attachment_id)
 
     # ------------------------------------------------------------------
     # Federal Hierarchy org refresh

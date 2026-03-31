@@ -153,15 +153,15 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 122 | Opportunity POC Extraction | COMPLETE | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/completed/122-OPPORTUNITY-POC-EXTRACTION.md) |
 | 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
 | 124 | Attachment Hash-Level Deduplication | PLANNED | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
-| 125 | Full Document Viewer with Highlights | PLANNED | [125-FULL-DOCUMENT-VIEWER.md](phases/125-FULL-DOCUMENT-VIEWER.md) |
 | 126 | AI Contradiction Detection | PLANNED | [126-AI-CONTRADICTION-DETECTION.md](phases/126-AI-CONTRADICTION-DETECTION.md) |
 | 127 | Expiring Contracts — USASpending Integration | DONE | [127-EXPIRING-CONTRACTS-USASPENDING.md](phases/127-EXPIRING-CONTRACTS-USASPENDING.md) |
 | 128 | Federal Identifier Extraction | COMPLETE | [128-IDENTIFIER-EXTRACTION.md](phases/completed/128-IDENTIFIER-EXTRACTION.md) |
 | 129 | NAICS Code Intelligence & SBA Size Standards | PLANNED | [129-NAICS-SIZE-STANDARDS.md](phases/129-NAICS-SIZE-STANDARDS.md) |
 | 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |
-| 131 | Per-Attachment Re-Analysis | PLANNED | [131-PER-ATTACHMENT-REANALYSIS.md](phases/131-PER-ATTACHMENT-REANALYSIS.md) |
+| 131 | Per-Attachment Re-Analysis | DONE | [131-PER-ATTACHMENT-REANALYSIS.md](phases/131-PER-ATTACHMENT-REANALYSIS.md) |
 | 132 | Identifier Dash-Normalization | PLANNED | [132-IDENTIFIER-DASH-NORMALIZATION.md](phases/132-IDENTIFIER-DASH-NORMALIZATION.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
+| 170 | Full Document Viewer with Highlights | PLANNED | [170-FULL-DOCUMENT-VIEWER.md](phases/170-FULL-DOCUMENT-VIEWER.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 300 | Comprehensive Review & Tech Debt Registry | PLANNED | [300-COMPREHENSIVE-REVIEW.md](phases/300-COMPREHENSIVE-REVIEW.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |

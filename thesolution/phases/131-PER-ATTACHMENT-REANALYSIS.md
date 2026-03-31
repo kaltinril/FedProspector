@@ -1,6 +1,6 @@
 # Phase 131: Per-Attachment Re-Analysis
 
-**Status:** PLANNED
+**Status:** DONE
 **Priority:** Low — nice-to-have enhancement for the Document Intel tab
 **Dependencies:** Phase 113C (side-by-side display)
 

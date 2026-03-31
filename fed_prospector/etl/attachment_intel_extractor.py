@@ -489,6 +489,140 @@ class AttachmentIntelExtractor:
 
         return stats
 
+    def extract_single(self, attachment_id, method="keyword"):
+        """Extract keyword intel from a single attachment document.
+
+        Used by the demand loader for per-attachment re-analysis requests.
+
+        Args:
+            attachment_id: The attachment_id to process.
+            method: Extraction method label (default 'keyword').
+
+        Returns:
+            dict with keys: processed, extracted, skipped, failed
+        """
+        stats = {"processed": 0, "extracted": 0, "skipped": 0, "failed": 0}
+
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT ad.document_id, ad.extracted_text, "
+                "       COALESCE(ad.filename, sa.filename) AS filename, "
+                "       oa.notice_id "
+                "FROM attachment_document ad "
+                "JOIN opportunity_attachment oa ON oa.attachment_id = ad.attachment_id "
+                "JOIN sam_attachment sa ON sa.attachment_id = ad.attachment_id "
+                "WHERE oa.attachment_id = %s "
+                "  AND ad.extracted_text IS NOT NULL "
+                "LIMIT 1",
+                (attachment_id,),
+            )
+            row = cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+        if not row:
+            logger.info("No extracted text for attachment %d, skipping", attachment_id)
+            stats["skipped"] = 1
+            return stats
+
+        stats["processed"] = 1
+        document_id = row["document_id"]
+        filename = row["filename"] or "unknown"
+        text = row["extracted_text"]
+        notice_id = row["notice_id"]
+
+        try:
+            # Run patterns on the single document
+            matches = self._run_patterns(text, document_id, filename)
+            if not matches:
+                stats["skipped"] = 1
+                # Still stamp keyword_analyzed_at — patterns ran, just no matches
+                self._stamp_keyword_analyzed(attachment_id)
+                return stats
+
+            intel = self._consolidate_matches(matches)
+            text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+            load_id = self.load_manager.start_load(
+                source_system="ATTACHMENT_INTEL",
+                load_type="INCREMENTAL",
+                parameters={"attachment_id": attachment_id, "method": method, "single": True},
+            )
+
+            try:
+                intel_id = self._upsert_intel_row(
+                    notice_id, document_id, method, text_hash, intel, load_id,
+                )
+                if intel_id:
+                    self._replace_source_rows(intel_id, matches, method)
+                    stats["extracted"] = 1
+
+                # Update opportunity-level summary
+                sources = self._gather_text_sources(notice_id)
+                all_matches = []
+                for src_id, src_filename, src_text in sources:
+                    all_matches.extend(self._run_patterns(src_text, src_id, src_filename))
+
+                combined_intel = self._consolidate_matches(all_matches) if all_matches else intel
+                combined_hash = self._compute_combined_hash(sources) if sources else text_hash
+                self._upsert_summary_row(notice_id, method, combined_hash, combined_intel, load_id)
+
+                self.load_manager.complete_load(
+                    load_id,
+                    records_read=1,
+                    records_inserted=stats["extracted"],
+                    records_updated=0,
+                )
+            except Exception:
+                self.load_manager.fail_load(load_id, "Single attachment extraction failed")
+                raise
+
+            # Stamp keyword_analyzed_at after successful processing
+            self._stamp_keyword_analyzed(attachment_id)
+
+        except Exception as e:
+            stats["failed"] = 1
+            logger.error("Keyword extraction failed for attachment %d: %s", attachment_id, e)
+
+        return stats
+
+    # ------------------------------------------------------------------
+    # Internal: stamp keyword_analyzed_at
+    # ------------------------------------------------------------------
+
+    def _stamp_keyword_analyzed(self, attachment_id):
+        """Set keyword_analyzed_at = NOW() on attachment_document."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE attachment_document SET keyword_analyzed_at = NOW() "
+                "WHERE attachment_id = %s",
+                (attachment_id,),
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _stamp_keyword_analyzed_by_doc(self, document_id):
+        """Set keyword_analyzed_at = NOW() on attachment_document by document_id."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE attachment_document SET keyword_analyzed_at = NOW() "
+                "WHERE document_id = %s",
+                (document_id,),
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
     # ------------------------------------------------------------------
     # Internal: query eligible notices
     # ------------------------------------------------------------------
@@ -664,6 +798,9 @@ class AttachmentIntelExtractor:
         for document_id, filename, text in sources:
             source_matches = [m for m in all_matches if m[1]["attachment_id"] == document_id]
             if not source_matches:
+                # Patterns ran but no matches — still stamp analyzed_at
+                if document_id is not None:
+                    self._stamp_keyword_analyzed_by_doc(document_id)
                 continue
             document_ids_seen.add(document_id)
             source_intel = self._consolidate_matches(source_matches)
@@ -680,6 +817,10 @@ class AttachmentIntelExtractor:
                     intel_id, source_matches, method,
                 )
                 result["sources_inserted"] += source_count
+
+            # Stamp keyword_analyzed_at for this document
+            if document_id is not None:
+                self._stamp_keyword_analyzed_by_doc(document_id)
 
         # Upsert opportunity-level summary row in opportunity_attachment_summary
         self._upsert_summary_row(notice_id, method, text_hash, intel, load_id)

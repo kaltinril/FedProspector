@@ -67,12 +67,15 @@ public class AttachmentSummaryDto
     public string? ResourceGuid { get; set; }
     public string Filename { get; set; } = "";
     public string? Url { get; set; }
-    public string? ContentType { get; set; }
     public long? FileSizeBytes { get; set; }
     public int? PageCount { get; set; }
     public string DownloadStatus { get; set; } = "";
     public string ExtractionStatus { get; set; } = "";
     public string? SkipReason { get; set; }
+    public DateTime? DownloadedAt { get; set; }
+    public DateTime? ExtractedAt { get; set; }
+    public DateTime? KeywordAnalyzedAt { get; set; }
+    public DateTime? AiAnalyzedAt { get; set; }
 }
 
 public class AttachmentIntelBreakdownDto

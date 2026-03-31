@@ -1268,7 +1268,6 @@ export interface IntelSourceDto {
 export interface AttachmentSummaryDto {
   attachmentId: number;
   filename: string;
-  contentType?: string;
   fileSizeBytes?: number;
   pageCount?: number;
   downloadStatus: string;
@@ -1276,6 +1275,10 @@ export interface AttachmentSummaryDto {
   skipReason?: string;
   url?: string;
   resourceGuid?: string;
+  downloadedAt?: string | null;
+  extractedAt?: string | null;
+  keywordAnalyzedAt?: string | null;
+  aiAnalyzedAt?: string | null;
 }
 
 export interface MethodIntelDto {
@@ -1367,6 +1370,7 @@ export interface LoadRequestStatusDto {
   status?: string | null;
   requestedAt?: string | null;
   errorMessage?: string | null;
+  resultSummary?: string | null;
 }
 
 export interface AnalysisEstimateDto {
