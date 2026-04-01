@@ -1,6 +1,6 @@
 # Phase 115E: Pipeline & Workflow Enhancements (Brainstorm Gap Analysis)
 
-**Status:** IDEA — from brainstorm analysis, not yet prioritized
+**Status:** PLANNED
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 20-22, 48-49, 51)
 **Dependencies:** Existing prospect pipeline (Phases 4, 50), Capture Management (Phase 50), Dashboard (Phase 70)

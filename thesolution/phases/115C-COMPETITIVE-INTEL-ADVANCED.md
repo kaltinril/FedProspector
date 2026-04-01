@@ -1,6 +1,6 @@
 # Phase 115C: Advanced Competitive Intelligence (Brainstorm Gap Analysis)
 
-**Status:** IDEA — from brainstorm analysis, not yet prioritized
+**Status:** PLANNED
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 38-44, 50)
 **Dependencies:** FPDS awards (`fpds_contract`), Entity data (`entity`), Subawards (`sam_subaward`), Contracting officers (`contracting_officer` + `opportunity_poc`), Opportunities (`opportunity`), USASpending (`usaspending_award`)

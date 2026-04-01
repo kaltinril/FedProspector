@@ -1,6 +1,6 @@
 # Phase 115G: UX & Review Insights (Brainstorm Gap Analysis)
 
-**Status:** IDEA — from brainstorm analysis, not yet prioritized
+**Status:** PLANNED
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\reviews\ (ux-review, project-manager-review, qa-review)
 

@@ -1,6 +1,6 @@
 # Phase 115D: Teaming & Partnership Intelligence (Brainstorm Gap Analysis)
 
-**Status:** IDEA — from brainstorm analysis, not yet prioritized
+**Status:** PLANNED
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 45-47)
 **Dependencies:** Subaward data (loaded), Entity data (loaded), Exclusions data (loaded), FPDS data (loaded), USASpending data (loaded), Attachment intel (Phase 121+)

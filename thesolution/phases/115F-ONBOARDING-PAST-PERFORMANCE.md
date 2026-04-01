@@ -1,6 +1,6 @@
 # Phase 115F: Onboarding & Past Performance Portfolio (Brainstorm Gap Analysis)
 
-**Status:** IDEA — from brainstorm analysis, not yet prioritized
+**Status:** PLANNED
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 17-19)
 **Dependencies:** Entity data (loaded), FPDS contract data (loaded), USASpending data (loaded), Org profile + wizard (Phase 70+), `ref_sba_size_standard` (loaded). New schema needed: `organization_psc` table for PSC auto-import.

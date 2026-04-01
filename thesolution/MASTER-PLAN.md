@@ -140,13 +140,13 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 113B | Hierarchy Cross-Reference Links | COMPLETE | [113B-HIERARCHY-CROSS-REFERENCE-LINKS.md](phases/completed/113B-HIERARCHY-CROSS-REFERENCE-LINKS.md) |
 | 113C | Intel Display — Keyword vs AI Side-by-Side | COMPLETE | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/completed/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
 | 114 | Project Documentation Suite | COMPLETE | [114-PROJECT-DOCUMENTATION.md](phases/completed/114-PROJECT-DOCUMENTATION.md) |
-| 115A | Scoring Model Enhancements | IDEA | [115A-SCORING-MODEL-ENHANCEMENTS.md](phases/115A-SCORING-MODEL-ENHANCEMENTS.md) |
-| 115B | Pricing Intelligence | IDEA | [115B-PRICING-INTELLIGENCE.md](phases/115B-PRICING-INTELLIGENCE.md) |
-| 115C | Competitive Intel — Advanced | IDEA | [115C-COMPETITIVE-INTEL-ADVANCED.md](phases/115C-COMPETITIVE-INTEL-ADVANCED.md) |
-| 115D | Teaming & Partnerships | IDEA | [115D-TEAMING-PARTNERSHIPS.md](phases/115D-TEAMING-PARTNERSHIPS.md) |
-| 115E | Pipeline & Workflow Enhancements | IDEA | [115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md](phases/115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md) |
-| 115F | Onboarding & Past Performance | IDEA | [115F-ONBOARDING-PAST-PERFORMANCE.md](phases/115F-ONBOARDING-PAST-PERFORMANCE.md) |
-| 115G | UX Review & Insights | IDEA | [115G-UX-REVIEW-INSIGHTS.md](phases/115G-UX-REVIEW-INSIGHTS.md) |
+| 115A | Scoring Model Enhancements | PLANNED | [115A-SCORING-MODEL-ENHANCEMENTS.md](phases/115A-SCORING-MODEL-ENHANCEMENTS.md) |
+| 115B | Pricing Intelligence | PLANNED | [115B-PRICING-INTELLIGENCE.md](phases/115B-PRICING-INTELLIGENCE.md) |
+| 115C | Competitive Intel — Advanced | PLANNED | [115C-COMPETITIVE-INTEL-ADVANCED.md](phases/115C-COMPETITIVE-INTEL-ADVANCED.md) |
+| 115D | Teaming & Partnerships | PLANNED | [115D-TEAMING-PARTNERSHIPS.md](phases/115D-TEAMING-PARTNERSHIPS.md) |
+| 115E | Pipeline & Workflow Enhancements | PLANNED | [115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md](phases/115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md) |
+| 115F | Onboarding & Past Performance | PLANNED | [115F-ONBOARDING-PAST-PERFORMANCE.md](phases/115F-ONBOARDING-PAST-PERFORMANCE.md) |
+| 115G | UX Review & Insights | PLANNED | [115G-UX-REVIEW-INSIGHTS.md](phases/115G-UX-REVIEW-INSIGHTS.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |
@@ -154,11 +154,11 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
 | 124 | Attachment Hash-Level Deduplication | PLANNED | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
 | 126 | AI Contradiction Detection | PLANNED | [126-AI-CONTRADICTION-DETECTION.md](phases/126-AI-CONTRADICTION-DETECTION.md) |
-| 127 | Expiring Contracts — USASpending Integration | DONE | [127-EXPIRING-CONTRACTS-USASPENDING.md](phases/127-EXPIRING-CONTRACTS-USASPENDING.md) |
+| 127 | Expiring Contracts — USASpending Integration | COMPLETE | [127-EXPIRING-CONTRACTS-USASPENDING.md](phases/completed/127-EXPIRING-CONTRACTS-USASPENDING.md) |
 | 128 | Federal Identifier Extraction | COMPLETE | [128-IDENTIFIER-EXTRACTION.md](phases/completed/128-IDENTIFIER-EXTRACTION.md) |
 | 129 | NAICS Code Intelligence & SBA Size Standards | PLANNED | [129-NAICS-SIZE-STANDARDS.md](phases/129-NAICS-SIZE-STANDARDS.md) |
 | 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |
-| 131 | Per-Attachment Re-Analysis | DONE | [131-PER-ATTACHMENT-REANALYSIS.md](phases/131-PER-ATTACHMENT-REANALYSIS.md) |
+| 131 | Per-Attachment Re-Analysis | COMPLETE | [131-PER-ATTACHMENT-REANALYSIS.md](phases/completed/131-PER-ATTACHMENT-REANALYSIS.md) |
 | 132 | Identifier Dash-Normalization | PLANNED | [132-IDENTIFIER-DASH-NORMALIZATION.md](phases/132-IDENTIFIER-DASH-NORMALIZATION.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 170 | Full Document Viewer with Highlights | PLANNED | [170-FULL-DOCUMENT-VIEWER.md](phases/170-FULL-DOCUMENT-VIEWER.md) |

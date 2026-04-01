@@ -1,6 +1,6 @@
 # Phase 115A: Scoring Model Enhancements (Brainstorm Gap Analysis)
 
-**Status:** IDEA — from brainstorm analysis, not yet prioritized
+**Status:** PLANNED
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 24-30, metrics-framework)
 **Dependencies:** Existing pWin infrastructure (Phase 45). OQS Strategic Alignment factor would require a new "growth targets" data model (new tables + UI). IVS nightly batch would require a scheduled job infrastructure.
