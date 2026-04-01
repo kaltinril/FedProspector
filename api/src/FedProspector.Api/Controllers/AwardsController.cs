@@ -54,7 +54,11 @@ public class AwardsController : ApiControllerBase
         [FromQuery] int monthsAhead = 12,
         [FromQuery] string? naicsCode = null,
         [FromQuery] string? setAsideType = null,
-        [FromQuery] int limit = 20,
+        [FromQuery] string? agency = null,
+        [FromQuery] string? piid = null,
+        [FromQuery] string? vendorName = null,
+        [FromQuery] bool onlyMyNaics = true,
+        [FromQuery] int limit = 50,
         [FromQuery] int offset = 0)
     {
         var orgId = await ResolveOrganizationIdAsync();
@@ -64,8 +68,8 @@ public class AwardsController : ApiControllerBase
         if (monthsAhead < 1 || monthsAhead > 24)
             monthsAhead = 12;
 
-        if (limit < 1 || limit > 100)
-            limit = 20;
+        if (limit < 1 || limit > 500)
+            limit = 50;
 
         if (offset < 0 || offset > 10000)
             offset = 0;
@@ -75,6 +79,10 @@ public class AwardsController : ApiControllerBase
             MonthsAhead = monthsAhead,
             NaicsCode = naicsCode,
             SetAsideType = setAsideType,
+            Agency = agency,
+            Piid = piid,
+            VendorName = vendorName,
+            OnlyMyNaics = onlyMyNaics,
             Limit = limit,
             Offset = offset
         };

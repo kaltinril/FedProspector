@@ -39,7 +39,7 @@ export function getIntelMarketShare(naicsCode: string, years: number = 3, limit:
   return apiClient.get('/awards/market-share', { params: { naicsCode, years, limit } }).then((r) => r.data);
 }
 
-export function getExpiringContracts(params: { monthsAhead?: number; naicsCode?: string; setAsideType?: string; limit?: number; offset?: number }): Promise<ExpiringContractDto[]> {
+export function getExpiringContracts(params: { monthsAhead?: number; naicsCode?: string; setAsideType?: string; agency?: string; piid?: string; vendorName?: string; onlyMyNaics?: boolean; limit?: number; offset?: number }): Promise<ExpiringContractDto[]> {
   return apiClient.get('/awards/expiring', { params }).then((r) => r.data);
 }
 

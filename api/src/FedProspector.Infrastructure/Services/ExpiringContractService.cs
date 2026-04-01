@@ -26,7 +26,7 @@ public class ExpiringContractService : IExpiringContractService
             .Select(on => on.NaicsCode)
             .ToListAsync();
 
-        if (orgNaics.Count == 0)
+        if (orgNaics.Count == 0 && request.OnlyMyNaics && string.IsNullOrWhiteSpace(request.NaicsCode))
         {
             _logger.LogWarning("Organization {OrgId} has no NAICS codes configured", orgId);
             return [];
@@ -43,12 +43,12 @@ public class ExpiringContractService : IExpiringContractService
                 && c.UltimateCompletionDate >= now
                 && c.UltimateCompletionDate <= cutoff);
 
-        // 4. Filter by NAICS — use specific naicsCode if provided, otherwise org's codes
+        // 4. Filter by NAICS — use specific naicsCode if provided, org's codes if OnlyMyNaics, or skip
         if (!string.IsNullOrWhiteSpace(request.NaicsCode))
         {
             query = query.Where(c => c.NaicsCode == request.NaicsCode);
         }
-        else
+        else if (request.OnlyMyNaics)
         {
             query = query.Where(c => c.NaicsCode != null && orgNaics.Contains(c.NaicsCode));
         }
@@ -57,6 +57,24 @@ public class ExpiringContractService : IExpiringContractService
         if (!string.IsNullOrWhiteSpace(request.SetAsideType))
         {
             query = query.Where(c => c.SetAsideType == request.SetAsideType);
+        }
+
+        // 5b. Filter by agency if provided
+        if (!string.IsNullOrWhiteSpace(request.Agency))
+        {
+            query = query.Where(c => c.AgencyName != null && c.AgencyName.Contains(request.Agency));
+        }
+
+        // 5c. Filter by PIID if provided
+        if (!string.IsNullOrWhiteSpace(request.Piid))
+        {
+            query = query.Where(c => c.ContractId.Contains(request.Piid));
+        }
+
+        // 5d. Filter by vendor name if provided
+        if (!string.IsNullOrWhiteSpace(request.VendorName))
+        {
+            query = query.Where(c => c.VendorName != null && c.VendorName.Contains(request.VendorName));
         }
 
         // 6. Query USASpending contracts expiring in the window
@@ -68,7 +86,7 @@ public class ExpiringContractService : IExpiringContractService
         {
             usaQuery = usaQuery.Where(u => u.NaicsCode == request.NaicsCode);
         }
-        else
+        else if (request.OnlyMyNaics)
         {
             usaQuery = usaQuery.Where(u => u.NaicsCode != null && orgNaics.Contains(u.NaicsCode));
         }
@@ -76,6 +94,21 @@ public class ExpiringContractService : IExpiringContractService
         if (!string.IsNullOrWhiteSpace(request.SetAsideType))
         {
             usaQuery = usaQuery.Where(u => u.TypeOfSetAside == request.SetAsideType);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Agency))
+        {
+            usaQuery = usaQuery.Where(u => u.AwardingAgencyName != null && u.AwardingAgencyName.Contains(request.Agency));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Piid))
+        {
+            usaQuery = usaQuery.Where(u => (u.Piid != null && u.Piid.Contains(request.Piid)) || (u.GeneratedUniqueAwardId != null && u.GeneratedUniqueAwardId.Contains(request.Piid)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.VendorName))
+        {
+            usaQuery = usaQuery.Where(u => u.RecipientName != null && u.RecipientName.Contains(request.VendorName));
         }
 
         // 7. Execute both queries (no joins — entity lookup deferred to after pagination)

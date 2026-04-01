@@ -3,13 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
 import Box from '@mui/material/Box';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import FormControl from '@mui/material/FormControl';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
 import Link from '@mui/material/Link';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import type { SelectChangeEvent } from '@mui/material/Select';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Tooltip from '@mui/material/Tooltip';
 import SwapHorizOutlined from '@mui/icons-material/SwapHorizOutlined';
@@ -23,6 +26,7 @@ import { getExpiringContracts } from '@/api/awards';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatCurrency } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateFormatters';
+import { useDebounce } from '@/hooks/useDebounce';
 import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
 import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { ExpiringContractDto } from '@/types/api';
@@ -258,6 +262,8 @@ const MONTHS_OPTIONS = [
   { value: 18, label: '18 months' },
 ];
 
+const LIMIT_OPTIONS = [50, 100, 200, 500];
+
 const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
   agencyName: 'md',
   naicsCode: 'lg',
@@ -271,11 +277,39 @@ const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
 export default function ExpiringContractsPage() {
   const navigate = useNavigate();
   const [monthsAhead, setMonthsAhead] = useState(12);
+  const [naicsCode, setNaicsCode] = useState('');
+  const [onlyMyNaics, setOnlyMyNaics] = useState(true);
+  const [agency, setAgency] = useState('');
+  const [piid, setPiid] = useState('');
+  const [vendorName, setVendorName] = useState('');
+  const [limit, setLimit] = useState(50);
   const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
 
+  const debouncedNaics = useDebounce(naicsCode, 400);
+  const debouncedAgency = useDebounce(agency, 400);
+  const debouncedPiid = useDebounce(piid, 400);
+  const debouncedVendor = useDebounce(vendorName, 400);
+
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.awards.expiring({ monthsAhead }),
-    queryFn: () => getExpiringContracts({ monthsAhead, limit: 50 }),
+    queryKey: queryKeys.awards.expiring({
+      monthsAhead,
+      naicsCode: debouncedNaics || undefined,
+      onlyMyNaics,
+      agency: debouncedAgency || undefined,
+      piid: debouncedPiid || undefined,
+      vendorName: debouncedVendor || undefined,
+      limit,
+    }),
+    queryFn: () =>
+      getExpiringContracts({
+        monthsAhead,
+        naicsCode: debouncedNaics || undefined,
+        onlyMyNaics,
+        agency: debouncedAgency || undefined,
+        piid: debouncedPiid || undefined,
+        vendorName: debouncedVendor || undefined,
+        limit,
+      }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -328,6 +362,66 @@ export default function ExpiringContractsPage() {
             {MONTHS_OPTIONS.map((opt) => (
               <MenuItem key={opt.value} value={opt.value}>
                 {opt.label}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TextField
+            size="small"
+            label="NAICS Code"
+            value={naicsCode}
+            onChange={(e) => setNaicsCode(e.target.value)}
+            sx={{ minWidth: 120 }}
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={onlyMyNaics}
+                onChange={(e) => setOnlyMyNaics(e.target.checked)}
+                size="small"
+              />
+            }
+            label="Only my NAICS"
+          />
+        </Box>
+
+        <TextField
+          size="small"
+          label="Agency"
+          value={agency}
+          onChange={(e) => setAgency(e.target.value)}
+          sx={{ minWidth: 180 }}
+        />
+
+        <TextField
+          size="small"
+          label="Contract ID"
+          value={piid}
+          onChange={(e) => setPiid(e.target.value)}
+          sx={{ minWidth: 150 }}
+        />
+
+        <TextField
+          size="small"
+          label="Vendor"
+          value={vendorName}
+          onChange={(e) => setVendorName(e.target.value)}
+          sx={{ minWidth: 150 }}
+        />
+
+        <FormControl size="small" sx={{ minWidth: 90 }}>
+          <InputLabel id="limit-label">Limit</InputLabel>
+          <Select
+            labelId="limit-label"
+            value={limit}
+            label="Limit"
+            onChange={(e: SelectChangeEvent<number>) => setLimit(Number(e.target.value))}
+          >
+            {LIMIT_OPTIONS.map((v) => (
+              <MenuItem key={v} value={v}>
+                {v}
               </MenuItem>
             ))}
           </Select>

@@ -36,6 +36,10 @@ public class ExpiringContractSearchRequest
     public int MonthsAhead { get; set; } = 12;
     public string? NaicsCode { get; set; }
     public string? SetAsideType { get; set; }
-    public int Limit { get; set; } = 20;
+    public string? Agency { get; set; }
+    public string? Piid { get; set; }
+    public string? VendorName { get; set; }
+    public bool OnlyMyNaics { get; set; } = true;
+    public int Limit { get; set; } = 50;
     public int Offset { get; set; } = 0;
 }
