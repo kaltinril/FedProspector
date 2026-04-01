@@ -53,83 +53,23 @@ public class PWinService : IPWinService
             .Select(c => c.CertificationType)
             .ToListAsync();
 
-        var orgNaics = await _context.OrganizationNaics.AsNoTracking()
-            .Where(n => n.OrganizationId == orgId)
-            .Select(n => n.NaicsCode)
-            .ToListAsync();
-
-        // Get all linked entity UEIs for aggregate scoring (Phase 91-A6)
         var linkedUeis = await _orgEntityService.GetLinkedUeisAsync(orgId);
-        // Include org's own UEI if not already in linked list
         if (!string.IsNullOrEmpty(org.UeiSam) && !linkedUeis.Contains(org.UeiSam))
             linkedUeis.Add(org.UeiSam);
 
-        var factors = new List<PWinFactorDto>();
-        var suggestions = new List<string>();
-
-        // 1. Set-aside match (weight 0.20)
-        var setAsideFactor = ScoreSetAsideMatch(opp.SetAsideCode, orgCerts, suggestions);
-        factors.Add(setAsideFactor);
-
-        // 2. NAICS experience (weight 0.20) — uses all linked UEIs
-        var naicsFactor = await ScoreNaicsExperienceAsync(opp.NaicsCode, orgId, linkedUeis, suggestions);
-        factors.Add(naicsFactor);
-
-        // 3. Competition level (weight 0.15)
-        var competitionFactor = await ScoreCompetitionLevelAsync(opp.NaicsCode);
-        factors.Add(competitionFactor);
-
-        // 4. Incumbent advantage (weight 0.15) — uses all linked UEIs
-        var incumbentFactor = await ScoreIncumbentAdvantageAsync(opp, linkedUeis, suggestions);
-        factors.Add(incumbentFactor);
-
-        // 5. Teaming strength (weight 0.10) — uses all linked UEIs
-        var teamingFactor = await ScoreTeamingStrengthAsync(linkedUeis, opp.NaicsCode);
-        factors.Add(teamingFactor);
-
-        // 6. Time to respond (weight 0.10)
-        var timeFactor = ScoreTimeToRespond(opp.ResponseDeadline, suggestions);
-        factors.Add(timeFactor);
-
-        // 7. Contract value fit (weight 0.10) — uses all linked UEIs
-        var valueFactor = await ScoreContractValueFitAsync(opp.EstimatedContractValue, orgId, linkedUeis);
-        factors.Add(valueFactor);
-
-        var totalScore = factors.Sum(f => f.WeightedScore);
-        totalScore = Math.Round(totalScore, 1);
-
-        var category = totalScore switch
-        {
-            >= 70 => "High",
-            >= 40 => "Medium",
-            >= 15 => "Low",
-            _ => "VeryLow"
-        };
-
-        // Look up prospect if one exists and persist the score (Phase 91-C2)
         var prospect = await _context.Prospects
             .FirstOrDefaultAsync(p => p.NoticeId == noticeId && p.OrganizationId == orgId);
 
-        int? prospectId = prospect?.ProspectId;
+        var competitionCache = new Dictionary<string, PWinFactorDto>();
+        var naicsExpCache = new Dictionary<string, NaicsExperienceData>();
+
+        var result = await CalculateWithContextAsync(
+            opp, org, orgCerts, linkedUeis, competitionCache, naicsExpCache, prospect);
+
         if (prospect != null)
-        {
-            prospect.WinProbability = (decimal)totalScore;
-            prospect.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
-        }
 
-        _logger.LogInformation("pWin calculated for opportunity {NoticeId}, org {OrgId}: {Score}% ({Category})",
-            noticeId, orgId, totalScore, category);
-
-        return new PWinResultDto
-        {
-            ProspectId = prospectId,
-            NoticeId = noticeId,
-            Score = totalScore,
-            Category = category,
-            Factors = factors,
-            Suggestions = suggestions
-        };
+        return result;
     }
 
     public async Task<BatchPWinResponse> CalculateBatchAsync(BatchPWinRequest request, int orgId)
@@ -137,13 +77,48 @@ public class PWinService : IPWinService
         if (request.NoticeIds.Count > 25)
             throw new ArgumentException("Batch pWin requests are limited to 25 notice IDs.");
 
+        // Pre-load shared org data once for the entire batch
+        var org = await _context.Organizations.AsNoTracking()
+            .FirstOrDefaultAsync(o => o.OrganizationId == orgId)
+            ?? throw new KeyNotFoundException($"Organization {orgId} not found");
+
+        var orgCerts = await _context.OrganizationCertifications.AsNoTracking()
+            .Where(c => c.OrganizationId == orgId && c.IsActive == "Y")
+            .Select(c => c.CertificationType)
+            .ToListAsync();
+
+        var linkedUeis = await _orgEntityService.GetLinkedUeisAsync(orgId);
+        if (!string.IsNullOrEmpty(org.UeiSam) && !linkedUeis.Contains(org.UeiSam))
+            linkedUeis.Add(org.UeiSam);
+
+        // Pre-load all opportunities in one query
+        var opportunities = await _context.Opportunities.AsNoTracking()
+            .Where(o => request.NoticeIds.Contains(o.NoticeId))
+            .ToDictionaryAsync(o => o.NoticeId);
+
+        // Pre-load all prospects for the batch in one query
+        var prospects = await _context.Prospects
+            .Where(p => request.NoticeIds.Contains(p.NoticeId) && p.OrganizationId == orgId)
+            .ToDictionaryAsync(p => p.NoticeId);
+
+        // Caches shared across all opportunities in the batch
+        var competitionCache = new Dictionary<string, PWinFactorDto>();
+        var naicsExpCache = new Dictionary<string, NaicsExperienceData>();
+
         var results = new Dictionary<string, BatchPWinEntry?>();
 
         foreach (var noticeId in request.NoticeIds)
         {
             try
             {
-                var result = await CalculateAsync(noticeId, orgId);
+                if (!opportunities.TryGetValue(noticeId, out var opp))
+                    throw new KeyNotFoundException($"Opportunity {noticeId} not found");
+
+                prospects.TryGetValue(noticeId, out var prospect);
+
+                var result = await CalculateWithContextAsync(
+                    opp, org, orgCerts, linkedUeis, competitionCache, naicsExpCache, prospect);
+
                 results[noticeId] = new BatchPWinEntry
                 {
                     Score = result.Score,
@@ -157,8 +132,231 @@ public class PWinService : IPWinService
             }
         }
 
+        // Batch save all prospect updates at once
+        await _context.SaveChangesAsync();
+
         return new BatchPWinResponse { Results = results };
     }
+
+    /// <summary>
+    /// Cached NAICS experience data: pre-queried past performance and FPDS records for a NAICS code.
+    /// </summary>
+    private sealed record NaicsExperienceData(
+        int TotalContracts,
+        List<(DateTime? PeriodEnd, string? AgencyName, decimal? ContractValue)> PpRecords,
+        List<(DateOnly? DateSigned, string? AgencyName, decimal? Value)> FpdsRecords);
+
+    /// <summary>
+    /// Core pWin calculation that uses pre-loaded context to avoid redundant queries.
+    /// Competition and NAICS experience results are cached per NAICS code.
+    /// </summary>
+    private async Task<PWinResultDto> CalculateWithContextAsync(
+        Core.Models.Opportunity opp,
+        Core.Models.Organization org,
+        List<string> orgCerts,
+        List<string> linkedUeis,
+        Dictionary<string, PWinFactorDto> competitionCache,
+        Dictionary<string, NaicsExperienceData> naicsExpCache,
+        Core.Models.Prospect? prospect)
+    {
+        var factors = new List<PWinFactorDto>();
+        var suggestions = new List<string>();
+
+        // 1. Set-aside match (weight 0.20)
+        factors.Add(ScoreSetAsideMatch(opp.SetAsideCode, orgCerts, suggestions));
+
+        // 2. NAICS experience with past performance relevance (weight 0.20) — uses cached data
+        factors.Add(await ScoreNaicsExperienceCachedAsync(opp, org.OrganizationId, linkedUeis, naicsExpCache, suggestions));
+
+        // 3. Competition level (weight 0.15) — uses cached data
+        factors.Add(await ScoreCompetitionLevelCachedAsync(opp.NaicsCode, competitionCache));
+
+        // 4. Incumbent advantage with vulnerability signals (weight 0.15) — per-opportunity
+        factors.Add(await ScoreIncumbentAdvantageAsync(opp, linkedUeis, suggestions));
+
+        // 5. Teaming strength (weight 0.10) — per-opportunity (depends on opp NAICS)
+        factors.Add(await ScoreTeamingStrengthAsync(linkedUeis, opp.NaicsCode));
+
+        // 6. Time to respond (weight 0.10) — pure computation
+        factors.Add(ScoreTimeToRespond(opp.ResponseDeadline, suggestions));
+
+        // 7. Contract value fit (weight 0.10) — per-opportunity
+        factors.Add(await ScoreContractValueFitAsync(opp.EstimatedContractValue, org.OrganizationId, linkedUeis));
+
+        var totalScore = Math.Round(factors.Sum(f => f.WeightedScore), 1);
+
+        var category = totalScore switch
+        {
+            >= 70 => "High",
+            >= 40 => "Medium",
+            >= 15 => "Low",
+            _ => "VeryLow"
+        };
+
+        var realDataCount = factors.Count(f => f.HadRealData);
+        var dataCompletenessPercent = (int)Math.Round(100.0 * realDataCount / factors.Count);
+        var confidence = realDataCount >= 6 ? "High" : realDataCount >= 4 ? "Medium" : "Low";
+
+        int? prospectId = prospect?.ProspectId;
+        if (prospect != null)
+        {
+            prospect.WinProbability = (decimal)totalScore;
+            prospect.UpdatedAt = DateTime.UtcNow;
+        }
+
+        _logger.LogInformation("pWin calculated for opportunity {NoticeId}, org {OrgId}: {Score}% ({Category}, confidence={Confidence})",
+            opp.NoticeId, org.OrganizationId, totalScore, category, confidence);
+
+        return new PWinResultDto
+        {
+            ProspectId = prospectId,
+            NoticeId = opp.NoticeId,
+            Score = totalScore,
+            Category = category,
+            Confidence = confidence,
+            DataCompletenessPercent = dataCompletenessPercent,
+            Factors = factors,
+            Suggestions = suggestions
+        };
+    }
+
+    /// <summary>
+    /// Wrapper around ScoreCompetitionLevelAsync that caches results per NAICS code.
+    /// </summary>
+    private async Task<PWinFactorDto> ScoreCompetitionLevelCachedAsync(
+        string? naicsCode, Dictionary<string, PWinFactorDto> cache)
+    {
+        var key = naicsCode ?? "";
+        if (cache.TryGetValue(key, out var cached))
+            return cached;
+
+        var result = await ScoreCompetitionLevelAsync(naicsCode);
+        cache[key] = result;
+        return result;
+    }
+
+    /// <summary>
+    /// Wrapper around ScoreNaicsExperienceAsync that caches the DB query results per NAICS code,
+    /// then computes opportunity-specific bonuses (agency match, value similarity) from the cached data.
+    /// </summary>
+    private async Task<PWinFactorDto> ScoreNaicsExperienceCachedAsync(
+        Core.Models.Opportunity opp, int orgId, List<string> linkedUeis,
+        Dictionary<string, NaicsExperienceData> cache, List<string> suggestions)
+    {
+        const decimal weight = 0.20m;
+        var naicsCode = opp.NaicsCode;
+
+        if (string.IsNullOrEmpty(naicsCode))
+        {
+            return MakeFactor("NAICS Experience", 50, weight, "No NAICS code on opportunity", hadRealData: false);
+        }
+
+        // Load and cache the NAICS-specific DB data
+        if (!cache.TryGetValue(naicsCode, out var data))
+        {
+            var ppRecords = await _context.OrganizationPastPerformances.AsNoTracking()
+                .Where(p => p.OrganizationId == orgId && p.NaicsCode == naicsCode)
+                .Select(p => new { p.PeriodEnd, p.AgencyName, p.ContractValue })
+                .ToListAsync();
+
+            var fpdsRecords = new List<(DateOnly? DateSigned, string? AgencyName, decimal? Value)>();
+            if (linkedUeis.Count > 0)
+            {
+                var fpdsRaw = await _context.FpdsContracts.AsNoTracking()
+                    .Where(c => c.VendorUei != null && linkedUeis.Contains(c.VendorUei) && c.NaicsCode == naicsCode)
+                    .Select(c => new { c.ContractId, c.DateSigned, c.AgencyName, c.BaseAndAllOptions })
+                    .Distinct()
+                    .Take(200)
+                    .ToListAsync();
+
+                fpdsRecords = fpdsRaw
+                    .Select(c => (c.DateSigned, c.AgencyName, c.BaseAndAllOptions))
+                    .ToList();
+            }
+
+            data = new NaicsExperienceData(
+                ppRecords.Count + fpdsRecords.Count,
+                ppRecords.Select(p => (p.PeriodEnd, p.AgencyName, p.ContractValue)).ToList(),
+                fpdsRecords);
+            cache[naicsCode] = data;
+        }
+
+        // Score using cached data (same logic as original ScoreNaicsExperienceAsync)
+        if (data.TotalContracts == 0)
+        {
+            suggestions.Add($"Limited past performance in NAICS {naicsCode}. Consider teaming with experienced partners.");
+            return MakeFactor("NAICS Experience", 10, weight,
+                $"No past performance found in NAICS {naicsCode}", hadRealData: false);
+        }
+
+        var baseScore = Math.Min(100.0, 20.0 + 16.0 * data.TotalContracts);
+
+        var now = DateTime.UtcNow;
+        double recencySum = 0;
+        double recencyMax = 0;
+
+        foreach (var pp in data.PpRecords)
+        {
+            recencyMax += 1.0;
+            recencySum += RecencyWeight(pp.PeriodEnd, now);
+        }
+        foreach (var fpds in data.FpdsRecords)
+        {
+            recencyMax += 1.0;
+            var dt = fpds.DateSigned.HasValue ? fpds.DateSigned.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null;
+            recencySum += RecencyWeight(dt, now);
+        }
+
+        var recencyFactor = recencyMax > 0 ? recencySum / recencyMax : 0.5;
+
+        double agencyBonus = 0;
+        var oppAgency = opp.DepartmentName?.Trim();
+        if (!string.IsNullOrEmpty(oppAgency))
+        {
+            var hasAgencyMatch = data.PpRecords.Any(p =>
+                    !string.IsNullOrEmpty(p.AgencyName) &&
+                    p.AgencyName.Contains(oppAgency, StringComparison.OrdinalIgnoreCase))
+                || data.FpdsRecords.Any(f =>
+                    !string.IsNullOrEmpty(f.AgencyName) &&
+                    f.AgencyName.Contains(oppAgency, StringComparison.OrdinalIgnoreCase));
+            if (hasAgencyMatch)
+                agencyBonus = 10;
+        }
+
+        double valueSimilarityBonus = 0;
+        if (opp.EstimatedContractValue.HasValue && opp.EstimatedContractValue.Value > 0)
+        {
+            var oppVal = (double)opp.EstimatedContractValue.Value;
+            var allValues = data.PpRecords
+                .Where(p => p.ContractValue.HasValue && p.ContractValue.Value > 0)
+                .Select(p => (double)p.ContractValue!.Value)
+                .Concat(data.FpdsRecords
+                    .Where(f => f.Value.HasValue && f.Value.Value > 0)
+                    .Select(f => (double)f.Value!.Value));
+
+            if (allValues.Any(v =>
+            {
+                var ratio = v > oppVal ? v / oppVal : oppVal / v;
+                return ratio <= 2.0;
+            }))
+            {
+                valueSimilarityBonus = 5;
+            }
+        }
+
+        var finalScore = (decimal)Math.Clamp(baseScore * recencyFactor + agencyBonus + valueSimilarityBonus, 10.0, 100.0);
+        finalScore = Math.Round(finalScore, 1);
+
+        var detail = $"NAICS {naicsCode}: {data.TotalContracts} contract(s), recency={recencyFactor:P0}";
+        if (agencyBonus > 0) detail += ", agency match";
+        if (valueSimilarityBonus > 0) detail += ", value fit";
+
+        return MakeFactor("NAICS Experience", finalScore, weight, detail);
+    }
+
+    // -----------------------------------------------------------------------
+    // Factor 1: Set-Aside Match (weight 0.20)
+    // -----------------------------------------------------------------------
 
     private static PWinFactorDto ScoreSetAsideMatch(string? setAsideCode, List<string> orgCerts, List<string> suggestions)
     {
@@ -167,11 +365,13 @@ public class PWinService : IPWinService
 
         decimal score;
         string detail;
+        bool hadRealData = true;
 
         if (string.IsNullOrEmpty(code))
         {
             score = 50;
             detail = "Full and open competition (no set-aside)";
+            hadRealData = false; // No set-aside code to evaluate
         }
         else if (SetAsideCertMap.TryGetValue(code, out var requiredCerts))
         {
@@ -204,123 +404,238 @@ public class PWinService : IPWinService
             // Unknown set-aside code; be neutral
             score = 50;
             detail = $"Set-aside type {code} — unable to match against org certifications";
+            hadRealData = false;
         }
 
-        return new PWinFactorDto
-        {
-            Name = "Set-Aside Match",
-            Score = score,
-            Weight = weight,
-            WeightedScore = Math.Round(score * weight, 2),
-            Detail = detail
-        };
+        return MakeFactor("Set-Aside Match", score, weight, detail, hadRealData);
     }
 
-    private async Task<PWinFactorDto> ScoreNaicsExperienceAsync(string? naicsCode, int orgId, List<string> linkedUeis, List<string> suggestions)
+    // -----------------------------------------------------------------------
+    // Factor 2: NAICS Experience / Past Performance Relevance (weight 0.20)
+    // Uses continuous curve with recency weighting, agency match, and value similarity.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Scores NAICS experience using a continuous curve with bonuses for recency,
+    /// agency match, and contract value similarity to the opportunity.
+    /// </summary>
+    private async Task<PWinFactorDto> ScoreNaicsExperienceAsync(
+        Core.Models.Opportunity opp, int orgId, List<string> linkedUeis, List<string> suggestions)
     {
         const decimal weight = 0.20m;
+        var naicsCode = opp.NaicsCode;
 
         if (string.IsNullOrEmpty(naicsCode))
         {
-            return MakeFactor("NAICS Experience", 50, weight, "No NAICS code on opportunity");
+            return MakeFactor("NAICS Experience", 50, weight, "No NAICS code on opportunity", hadRealData: false);
         }
 
-        // Count past performance records for this NAICS
-        var ppCount = await _context.OrganizationPastPerformances.AsNoTracking()
+        // Gather past performance records for this NAICS
+        var ppRecords = await _context.OrganizationPastPerformances.AsNoTracking()
             .Where(p => p.OrganizationId == orgId && p.NaicsCode == naicsCode)
-            .CountAsync();
+            .Select(p => new { p.PeriodEnd, p.AgencyName, p.ContractValue })
+            .ToListAsync();
 
-        // Count FPDS contracts where any linked entity is vendor
-        var fpdsCount = 0;
+        // Gather FPDS contracts where any linked entity is vendor in this NAICS
+        var fpdsRecords = new List<(DateOnly? dateSigned, string? agencyName, decimal? value)>();
         if (linkedUeis.Count > 0)
         {
-            fpdsCount = await _context.FpdsContracts.AsNoTracking()
+            var fpdsRaw = await _context.FpdsContracts.AsNoTracking()
                 .Where(c => c.VendorUei != null && linkedUeis.Contains(c.VendorUei) && c.NaicsCode == naicsCode)
-                .Select(c => c.ContractId)
+                .Select(c => new { c.ContractId, c.DateSigned, c.AgencyName, c.BaseAndAllOptions })
                 .Distinct()
-                .CountAsync();
+                .Take(200)
+                .ToListAsync();
+
+            fpdsRecords = fpdsRaw
+                .Select(c => (c.DateSigned, c.AgencyName, c.BaseAndAllOptions))
+                .ToList();
         }
 
-        var totalExperience = ppCount + fpdsCount;
-        decimal score;
-        string detail;
-
-        if (totalExperience >= 5)
+        var totalContracts = ppRecords.Count + fpdsRecords.Count;
+        if (totalContracts == 0)
         {
-            score = 100;
-            detail = $"Strong experience in NAICS {naicsCode} ({totalExperience} contracts/records)";
-        }
-        else if (totalExperience >= 3)
-        {
-            score = 75;
-            detail = $"Good experience in NAICS {naicsCode} ({totalExperience} contracts/records)";
-        }
-        else if (totalExperience >= 1)
-        {
-            score = 50;
-            detail = $"Limited experience in NAICS {naicsCode} ({totalExperience} contracts/records)";
-        }
-        else
-        {
-            score = 10;
-            detail = $"No past performance found in NAICS {naicsCode}";
             suggestions.Add($"Limited past performance in NAICS {naicsCode}. Consider teaming with experienced partners.");
+            return MakeFactor("NAICS Experience", 10, weight,
+                $"No past performance found in NAICS {naicsCode}", hadRealData: false);
         }
 
-        return MakeFactor("NAICS Experience", score, weight, detail);
+        // Base score: continuous curve — score = min(100, 20 + 16 * count), clamped to [10, 100]
+        var baseScore = Math.Min(100.0, 20.0 + 16.0 * totalContracts);
+
+        // Recency bonus: contracts in last 2 years get full weight, 2-5 years get 0.5x, >5 years get 0.25x
+        var now = DateTime.UtcNow;
+        double recencySum = 0;
+        double recencyMax = 0; // max possible if all were recent
+
+        foreach (var pp in ppRecords)
+        {
+            recencyMax += 1.0;
+            recencySum += RecencyWeight(pp.PeriodEnd, now);
+        }
+        foreach (var fpds in fpdsRecords)
+        {
+            recencyMax += 1.0;
+            var dt = fpds.dateSigned.HasValue ? fpds.dateSigned.Value.ToDateTime(TimeOnly.MinValue) : (DateTime?)null;
+            recencySum += RecencyWeight(dt, now);
+        }
+
+        // Recency factor: ratio of weighted sum to max possible (1.0 if all recent)
+        var recencyFactor = recencyMax > 0 ? recencySum / recencyMax : 0.5;
+
+        // Agency match bonus: +10 if any past contract was at the same agency
+        double agencyBonus = 0;
+        var oppAgency = opp.DepartmentName?.Trim();
+        if (!string.IsNullOrEmpty(oppAgency))
+        {
+            var hasAgencyMatch = ppRecords.Any(p =>
+                    !string.IsNullOrEmpty(p.AgencyName) &&
+                    p.AgencyName.Contains(oppAgency, StringComparison.OrdinalIgnoreCase))
+                || fpdsRecords.Any(f =>
+                    !string.IsNullOrEmpty(f.agencyName) &&
+                    f.agencyName.Contains(oppAgency, StringComparison.OrdinalIgnoreCase));
+            if (hasAgencyMatch)
+                agencyBonus = 10;
+        }
+
+        // Value similarity bonus: +5 if any past contract is within 2x of opportunity value
+        double valueSimilarityBonus = 0;
+        if (opp.EstimatedContractValue.HasValue && opp.EstimatedContractValue.Value > 0)
+        {
+            var oppVal = (double)opp.EstimatedContractValue.Value;
+            var allValues = ppRecords
+                .Where(p => p.ContractValue.HasValue && p.ContractValue.Value > 0)
+                .Select(p => (double)p.ContractValue!.Value)
+                .Concat(fpdsRecords
+                    .Where(f => f.value.HasValue && f.value.Value > 0)
+                    .Select(f => (double)f.value!.Value));
+
+            if (allValues.Any(v =>
+            {
+                var ratio = v > oppVal ? v / oppVal : oppVal / v;
+                return ratio <= 2.0;
+            }))
+            {
+                valueSimilarityBonus = 5;
+            }
+        }
+
+        // Final score: base * recencyFactor + bonuses, clamped to [10, 100]
+        var finalScore = (decimal)Math.Clamp(baseScore * recencyFactor + agencyBonus + valueSimilarityBonus, 10.0, 100.0);
+        finalScore = Math.Round(finalScore, 1);
+
+        var detail = $"NAICS {naicsCode}: {totalContracts} contract(s), recency={recencyFactor:P0}";
+        if (agencyBonus > 0) detail += ", agency match";
+        if (valueSimilarityBonus > 0) detail += ", value fit";
+
+        return MakeFactor("NAICS Experience", finalScore, weight, detail);
     }
 
+    /// <summary>
+    /// Returns a recency weight for a contract date: 1.0 for &lt;2 years, 0.5 for 2-5 years, 0.25 for older.
+    /// </summary>
+    private static double RecencyWeight(DateTime? endDate, DateTime now)
+    {
+        if (!endDate.HasValue) return 0.25; // Unknown date gets minimal weight
+        var yearsAgo = (now - endDate.Value).TotalDays / 365.25;
+        return yearsAgo switch
+        {
+            <= 2 => 1.0,
+            <= 5 => 0.5,
+            _ => 0.25
+        };
+    }
+
+    // -----------------------------------------------------------------------
+    // Factor 3: Competition Level (weight 0.15)
+    // Uses percentile-based relative scoring against all NAICS codes.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Cache for the NAICS vendor count distribution, populated on first call per service lifetime.
+    /// </summary>
+    private List<int>? _naicsDistributionCache;
+
+    /// <summary>
+    /// Scores competition level using percentile ranking: where does this NAICS fall
+    /// in the overall distribution of vendor counts across all NAICS codes?
+    /// </summary>
     private async Task<PWinFactorDto> ScoreCompetitionLevelAsync(string? naicsCode)
     {
         const decimal weight = 0.15m;
 
         if (string.IsNullOrEmpty(naicsCode))
         {
-            return MakeFactor("Competition Level", 50, weight, "No NAICS code — competition level unknown");
+            return MakeFactor("Competition Level", 50, weight, "No NAICS code — competition level unknown", hadRealData: false);
         }
 
-        var threeYearsAgo = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-3));
-        var distinctVendors = await _context.FpdsContracts.AsNoTracking()
-            .Where(c => c.NaicsCode == naicsCode
-                        && c.DateSigned != null
-                        && c.DateSigned >= threeYearsAgo
-                        && c.VendorUei != null)
-            .Select(c => c.VendorUei)
-            .Distinct()
-            .CountAsync();
+        // Get vendor count for this NAICS from the NAICS-level summary row (agency_name = '*')
+        var naicsVendorCount = await _context.UsaspendingAwardSummaries.AsNoTracking()
+            .Where(s => s.NaicsCode == naicsCode && s.AgencyName == "*")
+            .Select(s => s.VendorCount)
+            .FirstOrDefaultAsync();
 
-        decimal score;
-        string detail;
+        if (naicsVendorCount == 0)
+        {
+            // Fallback to FPDS if no summary data
+            var threeYearsAgo = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-3));
+            naicsVendorCount = await _context.FpdsContracts.AsNoTracking()
+                .Where(c => c.NaicsCode == naicsCode
+                            && c.DateSigned != null
+                            && c.DateSigned >= threeYearsAgo
+                            && c.VendorUei != null)
+                .Select(c => c.VendorUei)
+                .Distinct()
+                .CountAsync();
+        }
 
-        if (distinctVendors == 0)
+        if (naicsVendorCount == 0)
         {
-            score = 50;
-            detail = $"No FPDS contract data found for NAICS {naicsCode} in last 3 years";
+            return MakeFactor("Competition Level", 50, weight,
+                $"No competition data for NAICS {naicsCode}", hadRealData: false);
         }
-        else if (distinctVendors <= 3)
+
+        // Get the distribution across all NAICS codes for percentile scoring (cached)
+        _naicsDistributionCache ??= await _context.UsaspendingAwardSummaries.AsNoTracking()
+            .Where(s => s.AgencyName == "*")
+            .Select(s => s.VendorCount)
+            .ToListAsync();
+
+        if (_naicsDistributionCache.Count == 0)
         {
-            score = 100;
-            detail = $"Low competition: {distinctVendors} vendor(s) in NAICS {naicsCode} (last 3 years)";
+            // Fallback to absolute scoring if no distribution data
+            var rawScore = 100.0 * Math.Exp(-0.15 * (naicsVendorCount - 1));
+            var fallbackScore = (decimal)Math.Clamp(rawScore, 10.0, 100.0);
+            return MakeFactor("Competition Level", Math.Round(fallbackScore, 1), weight,
+                $"{naicsVendorCount} vendors in NAICS {naicsCode}");
         }
-        else if (distinctVendors <= 6)
-        {
-            score = 70;
-            detail = $"Moderate competition: {distinctVendors} vendors in NAICS {naicsCode} (last 3 years)";
-        }
-        else if (distinctVendors <= 10)
-        {
-            score = 40;
-            detail = $"High competition: {distinctVendors} vendors in NAICS {naicsCode} (last 3 years)";
-        }
-        else
-        {
-            score = 20;
-            detail = $"Very high competition: {distinctVendors} vendors in NAICS {naicsCode} (last 3 years)";
-        }
+
+        // Calculate percentile: what % of NAICS codes have MORE vendors than this one?
+        // Higher percentile (fewer have more) = MORE competitive = LOWER score
+        var countWithMore = _naicsDistributionCache.Count(c => c > naicsVendorCount);
+        var percentile = (double)countWithMore / _naicsDistributionCache.Count * 100.0;
+
+        // Convert percentile to score:
+        // If 90% of NAICS have more vendors → this NAICS has LOW competition → score 90
+        // If 10% of NAICS have more vendors → this NAICS has HIGH competition → score 10
+        var score = (decimal)Math.Clamp(percentile, 5.0, 95.0);
+        score = Math.Round(score, 1);
+
+        var detail = $"{naicsVendorCount} vendors in NAICS {naicsCode} — " +
+                     $"less competitive than {percentile:F0}% of NAICS codes";
 
         return MakeFactor("Competition Level", score, weight, detail);
     }
 
+    // -----------------------------------------------------------------------
+    // Factor 4: Incumbent Advantage with vulnerability signals (weight 0.15)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Scores incumbent advantage. When an incumbent is found and is not us,
+    /// checks for vulnerability signals (SAM expiring, exclusions, over-spending)
+    /// that may indicate the incumbent is beatable.
+    /// </summary>
     private async Task<PWinFactorDto> ScoreIncumbentAdvantageAsync(
         Core.Models.Opportunity opp, List<string> linkedUeis, List<string> suggestions)
     {
@@ -345,14 +660,64 @@ public class PWinService : IPWinService
             }
         }
 
+        // Also check Document Intelligence attachment summaries for recompete/incumbent data
+        if (string.IsNullOrEmpty(incumbentUei))
+        {
+            var intelSummary = await _context.OpportunityAttachmentSummaries.AsNoTracking()
+                .Where(s => s.NoticeId == opp.NoticeId && s.IncumbentName != null)
+                .OrderByDescending(s => s.ExtractedAt)
+                .Select(s => new { s.IncumbentName, s.IsRecompete })
+                .FirstOrDefaultAsync();
+
+            if (intelSummary != null)
+            {
+                incumbentName = intelSummary.IncumbentName;
+                // We don't have UEI from intel, but we have a name — try to find the entity
+                if (!string.IsNullOrEmpty(incumbentName))
+                {
+                    var matchedEntity = await _context.Entities.AsNoTracking()
+                        .Where(e => e.LegalBusinessName != null && e.LegalBusinessName == incumbentName)
+                        .Select(e => e.UeiSam)
+                        .FirstOrDefaultAsync();
+                    if (!string.IsNullOrEmpty(matchedEntity))
+                        incumbentUei = matchedEntity;
+                }
+            }
+
+            // Even if we didn't find a UEI, if intel has an incumbent name, score as "other incumbent"
+            if (string.IsNullOrEmpty(incumbentUei) && !string.IsNullOrEmpty(incumbentName))
+            {
+                return MakeFactor("Incumbent Advantage", 30, weight,
+                    $"Incumbent: {incumbentName} (from Document Intel, no UEI match for vulnerability check)");
+            }
+
+            // Check if it's a recompete even without incumbent name
+            if (string.IsNullOrEmpty(incumbentUei) && string.IsNullOrEmpty(incumbentName))
+            {
+                var isRecompete = await _context.OpportunityAttachmentSummaries.AsNoTracking()
+                    .Where(s => s.NoticeId == opp.NoticeId
+                           && s.IsRecompete != null
+                           && s.IsRecompete.ToUpper() == "Y")
+                    .AnyAsync();
+
+                if (isRecompete)
+                {
+                    return MakeFactor("Incumbent Advantage", 50, weight,
+                        "Re-compete identified by Document Intel but no incumbent name found");
+                }
+            }
+        }
+
         decimal score;
         string detail;
+        bool hadRealData = true;
 
         if (string.IsNullOrEmpty(incumbentUei))
         {
             // No incumbent identified — likely new requirement
             score = 70;
             detail = "No incumbent identified — likely a new requirement";
+            hadRealData = false;
         }
         else if (linkedUeis.Count > 0 &&
                  linkedUeis.Any(u => string.Equals(incumbentUei, u, StringComparison.OrdinalIgnoreCase)))
@@ -362,14 +727,91 @@ public class PWinService : IPWinService
         }
         else
         {
-            score = 30;
+            // Incumbent is someone else — check for vulnerability signals
+            var vulnerabilities = await DetectIncumbentVulnerabilitiesAsync(incumbentUei, opp);
             var name = incumbentName ?? incumbentUei;
-            detail = $"Incumbent: {name}";
-            suggestions.Add($"Incumbent {name} has won this contract previously. Differentiation strategy recommended.");
+
+            if (vulnerabilities.Count > 0)
+            {
+                // Incumbent has vulnerability signals — better chance for us
+                // Base score 30 + 10 per vulnerability, capped at 65
+                score = (decimal)Math.Min(65.0, 30.0 + 10.0 * vulnerabilities.Count);
+                detail = $"Incumbent: {name} — vulnerability signals: {string.Join(", ", vulnerabilities)}";
+                suggestions.Add($"Incumbent {name} shows vulnerability ({string.Join("; ", vulnerabilities)}). Competitive opportunity.");
+            }
+            else
+            {
+                // Stable incumbent with no vulnerability signals
+                score = 20;
+                detail = $"Incumbent: {name} — no vulnerability signals detected";
+                suggestions.Add($"Incumbent {name} appears stable. Strong differentiation strategy recommended.");
+            }
         }
 
-        return MakeFactor("Incumbent Advantage", score, weight, detail);
+        return MakeFactor("Incumbent Advantage", score, weight, detail, hadRealData);
     }
+
+    /// <summary>
+    /// Detects vulnerability signals for an incumbent: expiring SAM registration,
+    /// active exclusions, or over-spending on the contract.
+    /// </summary>
+    private async Task<List<string>> DetectIncumbentVulnerabilitiesAsync(string incumbentUei, Core.Models.Opportunity opp)
+    {
+        var signals = new List<string>();
+
+        // Check SAM registration expiration (expiring within 6 months)
+        var entity = await _context.Entities.AsNoTracking()
+            .FirstOrDefaultAsync(e => e.UeiSam == incumbentUei);
+
+        if (entity != null)
+        {
+            if (entity.RegistrationExpirationDate.HasValue)
+            {
+                var daysUntilExpiry = (entity.RegistrationExpirationDate.Value.ToDateTime(TimeOnly.MinValue) - DateTime.UtcNow).Days;
+                if (daysUntilExpiry <= 180)
+                    signals.Add(daysUntilExpiry <= 0
+                        ? "SAM registration expired"
+                        : $"SAM registration expiring in {daysUntilExpiry} days");
+            }
+
+            if (string.Equals(entity.ExclusionStatusFlag, "Y", StringComparison.OrdinalIgnoreCase))
+            {
+                signals.Add("entity has exclusion flag");
+            }
+        }
+
+        // Check for active exclusions
+        var hasExclusion = await _context.SamExclusions.AsNoTracking()
+            .AnyAsync(e => e.Uei == incumbentUei
+                && (e.TerminationDate == null || e.TerminationDate >= DateOnly.FromDateTime(DateTime.UtcNow)));
+        if (hasExclusion)
+            signals.Add("active exclusion record");
+
+        // Check for over-spending: if contract obligations exceed base+all by >20%
+        if (!string.IsNullOrEmpty(opp.SolicitationNumber))
+        {
+            var contractData = await _context.FpdsContracts.AsNoTracking()
+                .Where(c => c.SolicitationNumber == opp.SolicitationNumber && c.VendorUei == incumbentUei)
+                .Select(c => new { c.DollarsObligated, c.BaseAndAllOptions })
+                .ToListAsync();
+
+            if (contractData.Count > 0)
+            {
+                var totalObligated = contractData.Sum(c => c.DollarsObligated ?? 0);
+                var totalBase = contractData.Sum(c => c.BaseAndAllOptions ?? 0);
+                if (totalBase > 0 && totalObligated > totalBase * 1.2m)
+                {
+                    signals.Add($"over-spending ({totalObligated / totalBase:P0} of ceiling)");
+                }
+            }
+        }
+
+        return signals;
+    }
+
+    // -----------------------------------------------------------------------
+    // Factor 5: Teaming Strength (weight 0.10)
+    // -----------------------------------------------------------------------
 
     private async Task<PWinFactorDto> ScoreTeamingStrengthAsync(List<string> linkedUeis, string? naicsCode)
     {
@@ -377,7 +819,7 @@ public class PWinService : IPWinService
 
         if (linkedUeis.Count == 0)
         {
-            return MakeFactor("Teaming Strength", 30, weight, "No UEI on file — teaming data unavailable");
+            return MakeFactor("Teaming Strength", 30, weight, "No UEI on file — teaming data unavailable", hadRealData: false);
         }
 
         // Find teaming partners from subaward data (any linked entity as prime or sub)
@@ -416,19 +858,28 @@ public class PWinService : IPWinService
             detail = "No teaming relationships found in subaward data";
         }
 
-        return MakeFactor("Teaming Strength", score, weight, detail);
+        return MakeFactor("Teaming Strength", score, weight, detail, hadRealData: partnerCount > 0);
     }
 
+    // -----------------------------------------------------------------------
+    // Factor 6: Time to Respond (weight 0.10)
+    // Uses smooth continuous curve instead of hard buckets.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Scores time to respond using a smooth curve: score = min(100, (daysRemaining / 45) * 100),
+    /// clamped to [0, 100].
+    /// </summary>
     private static PWinFactorDto ScoreTimeToRespond(DateTime? responseDeadline, List<string> suggestions)
     {
         const decimal weight = 0.10m;
 
         if (!responseDeadline.HasValue)
         {
-            return MakeFactor("Time to Respond", 50, weight, "No response deadline set");
+            return MakeFactor("Time to Respond", 50, weight, "No response deadline set", hadRealData: false);
         }
 
-        var daysLeft = (responseDeadline.Value - DateTime.UtcNow).Days;
+        var daysLeft = (responseDeadline.Value - DateTime.UtcNow).TotalDays;
 
         decimal score;
         string detail;
@@ -436,40 +887,51 @@ public class PWinService : IPWinService
         if (daysLeft < 0)
         {
             score = 0;
-            detail = $"Deadline passed {Math.Abs(daysLeft)} day(s) ago";
-        }
-        else if (daysLeft < 7)
-        {
-            score = 10;
-            detail = $"Only {daysLeft} day(s) until deadline";
-            suggestions.Add($"Only {daysLeft} day(s) until deadline. Expedite bid/no-bid decision.");
-        }
-        else if (daysLeft < 14)
-        {
-            score = 40;
-            detail = $"{daysLeft} days until deadline";
-        }
-        else if (daysLeft <= 30)
-        {
-            score = 70;
-            detail = $"{daysLeft} days until deadline";
+            detail = $"Deadline passed {Math.Abs((int)daysLeft)} day(s) ago";
         }
         else
         {
-            score = 100;
-            detail = $"{daysLeft} days until deadline — ample time to prepare";
+            // Smooth curve: scales linearly to 100 at 45 days, capped at 100
+            var rawScore = Math.Min(100.0, (daysLeft / 45.0) * 100.0);
+            score = (decimal)Math.Clamp(rawScore, 0.0, 100.0);
+            score = Math.Round(score, 1);
+
+            var daysInt = (int)daysLeft;
+            if (daysInt < 7)
+            {
+                detail = $"Only {daysInt} day(s) until deadline";
+                suggestions.Add($"Only {daysInt} day(s) until deadline. Expedite bid/no-bid decision.");
+            }
+            else if (daysInt <= 45)
+            {
+                detail = $"{daysInt} days until deadline";
+            }
+            else
+            {
+                detail = $"{daysInt} days until deadline — ample time to prepare";
+            }
         }
 
         return MakeFactor("Time to Respond", score, weight, detail);
     }
 
+    // -----------------------------------------------------------------------
+    // Factor 7: Contract Value Fit (weight 0.10)
+    // Uses smooth exponential falloff instead of hard thresholds.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Scores contract value fit using smooth exponential decay based on the ratio
+    /// between opportunity value and historical average: score = 100 * exp(-0.5 * max(0, fitRatio - 1)),
+    /// clamped to [10, 100].
+    /// </summary>
     private async Task<PWinFactorDto> ScoreContractValueFitAsync(decimal? estimatedValue, int orgId, List<string> linkedUeis)
     {
         const decimal weight = 0.10m;
 
         if (!estimatedValue.HasValue || estimatedValue.Value <= 0)
         {
-            return MakeFactor("Contract Value Fit", 50, weight, "No estimated value on opportunity");
+            return MakeFactor("Contract Value Fit", 50, weight, "No estimated value on opportunity", hadRealData: false);
         }
 
         // Get average contract size from past performance + FPDS
@@ -492,7 +954,7 @@ public class PWinService : IPWinService
         if (ppValues.Count == 0)
         {
             return MakeFactor("Contract Value Fit", 50, weight,
-                $"No historical contract values to compare against ${estimatedValue.Value:N0}");
+                $"No historical contract values to compare against ${estimatedValue.Value:N0}", hadRealData: false);
         }
 
         var avgValue = ppValues.Average();
@@ -500,29 +962,24 @@ public class PWinService : IPWinService
         // Use the larger/smaller ratio so direction doesn't matter
         var fitRatio = ratio > 1 ? ratio : 1.0 / ratio;
 
-        decimal score;
-        string detail;
+        // Smooth exponential decay: perfect fit (ratio=1) = 100, decays as ratio grows
+        var rawScore = 100.0 * Math.Exp(-0.5 * Math.Max(0, fitRatio - 1));
+        var score = (decimal)Math.Clamp(rawScore, 10.0, 100.0);
+        score = Math.Round(score, 1);
 
-        if (fitRatio <= 2.0)
-        {
-            score = 100;
-            detail = $"Good fit: opportunity ${estimatedValue.Value:N0} vs. avg contract ${avgValue:N0}";
-        }
-        else if (fitRatio <= 5.0)
-        {
-            score = 60;
-            detail = $"Moderate fit: opportunity ${estimatedValue.Value:N0} vs. avg contract ${avgValue:N0} ({fitRatio:F1}x difference)";
-        }
-        else
-        {
-            score = 30;
-            detail = $"Poor fit: opportunity ${estimatedValue.Value:N0} vs. avg contract ${avgValue:N0} ({fitRatio:F1}x difference)";
-        }
+        var detail = $"Opportunity ${estimatedValue.Value:N0} vs. avg contract ${avgValue:N0} ({fitRatio:F1}x ratio, score {score:F0})";
 
         return MakeFactor("Contract Value Fit", score, weight, detail);
     }
 
-    private static PWinFactorDto MakeFactor(string name, decimal score, decimal weight, string detail)
+    // -----------------------------------------------------------------------
+    // Helpers
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Creates a PWinFactorDto with computed weighted score and data completeness tracking.
+    /// </summary>
+    private static PWinFactorDto MakeFactor(string name, decimal score, decimal weight, string detail, bool hadRealData = true)
     {
         return new PWinFactorDto
         {
@@ -530,7 +987,8 @@ public class PWinService : IPWinService
             Score = score,
             Weight = weight,
             WeightedScore = Math.Round(score * weight, 2),
-            Detail = detail
+            Detail = detail,
+            HadRealData = hadRealData
         };
     }
 }

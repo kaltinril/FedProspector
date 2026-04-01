@@ -66,7 +66,7 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 
-import type { OpportunityDetail, QScoreFactorDto, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
+import type { OpportunityDetail, OqScoreFactorDto, RelatedAwardDto, ResourceLinkDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -246,14 +246,14 @@ function QualificationSummary({
 function OverviewTab({
   opp,
   onViewQualification,
-  qScoreState,
+  oqScoreState,
   pWinScore,
   pWinCategory,
   pWinLoading,
 }: {
   opp: OpportunityDetail;
   onViewQualification: () => void;
-  qScoreState?: { qScore: number; qScoreCategory: string; qScoreFactors: QScoreFactorDto[] };
+  oqScoreState?: { oqScore: number; oqScoreCategory: string; oqScoreFactors: OqScoreFactorDto[]; confidence?: string };
   pWinScore?: number;
   pWinCategory?: string;
   pWinLoading?: boolean;
@@ -458,19 +458,27 @@ function OverviewTab({
         </Paper>
       )}
 
-      {/* qScore (passed from Recommended page) */}
-      {qScoreState && (
+      {/* OQS (passed from Recommended page) */}
+      {oqScoreState && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
-            <Typography variant="subtitle2">qScore</Typography>
+            <Typography variant="subtitle2">OQS</Typography>
             <Chip
-              label={qScoreState.qScore}
+              label={oqScoreState.oqScore}
               size="small"
-              color={qScoreState.qScore >= 70 ? 'success' : qScoreState.qScore >= 40 ? 'warning' : 'error'}
+              color={oqScoreState.oqScore >= 70 ? 'success' : oqScoreState.oqScore >= 40 ? 'warning' : 'error'}
             />
-            {qScoreState.qScoreFactors.length > 0 && (
+            {oqScoreState.confidence && (
+              <Chip
+                label={`Confidence: ${oqScoreState.confidence}`}
+                size="small"
+                variant="outlined"
+                color={oqScoreState.confidence === 'High' ? 'success' : oqScoreState.confidence === 'Medium' ? 'warning' : 'error'}
+              />
+            )}
+            {oqScoreState.oqScoreFactors.length > 0 && (
               <Typography variant="body2" color="text.secondary">
-                {qScoreState.qScoreFactors.map((f) => `${f.name} ${f.points}/${f.maxPoints}`).join(' \u00b7 ')}
+                {oqScoreState.oqScoreFactors.map((f) => `${f.name}: ${f.score} (wt ${(f.weight * 100).toFixed(0)}%)`).join(' \u00b7 ')}
               </Typography>
             )}
           </Box>
@@ -942,10 +950,10 @@ export default function OpportunityDetailPage() {
   const [saveSearchOpen, setSaveSearchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
-  // qScore passed from RecommendedOpportunitiesPage via navigation state
-  const locState = location.state as { qScore?: number; qScoreCategory?: string; qScoreFactors?: QScoreFactorDto[] } | null;
-  const qScoreState = locState?.qScore != null
-    ? { qScore: locState.qScore, qScoreCategory: locState.qScoreCategory ?? '', qScoreFactors: locState.qScoreFactors ?? [] }
+  // OQS passed from RecommendedOpportunitiesPage via navigation state
+  const locState = location.state as { oqScore?: number; oqScoreCategory?: string; oqScoreFactors?: OqScoreFactorDto[]; confidence?: string } | null;
+  const oqScoreState = locState?.oqScore != null
+    ? { oqScore: locState.oqScore, oqScoreCategory: locState.oqScoreCategory ?? '', oqScoreFactors: locState.oqScoreFactors ?? [], confidence: locState.confidence }
     : undefined;
 
   const {
@@ -1030,7 +1038,7 @@ export default function OpportunityDetailPage() {
         <OverviewTab
           opp={opp}
           onViewQualification={() => setActiveTab('qualification')}
-          qScoreState={qScoreState}
+          oqScoreState={oqScoreState}
           pWinScore={pWinData?.score}
           pWinCategory={pWinData?.category}
           pWinLoading={pWinLoading}

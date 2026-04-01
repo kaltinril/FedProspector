@@ -6,6 +6,10 @@ public class PWinResultDto
     public string NoticeId { get; set; } = "";
     public decimal Score { get; set; }
     public string Category { get; set; } = "";
+    /// <summary>High, Medium, or Low — based on how many factors had real data vs. defaults.</summary>
+    public string Confidence { get; set; } = "Medium";
+    /// <summary>Percentage of factors that had real data (0-100).</summary>
+    public int DataCompletenessPercent { get; set; }
     public List<PWinFactorDto> Factors { get; set; } = new();
     public List<string> Suggestions { get; set; } = new();
 }
@@ -17,6 +21,8 @@ public class PWinFactorDto
     public decimal Weight { get; set; }
     public decimal WeightedScore { get; set; }
     public string Detail { get; set; } = "";
+    /// <summary>Whether this factor was scored with real data (true) or fell back to a default (false).</summary>
+    public bool HadRealData { get; set; } = true;
 }
 
 public class BatchPWinRequest

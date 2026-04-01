@@ -1,6 +1,6 @@
 # Phase 115A: Scoring Model Enhancements (Brainstorm Gap Analysis)
 
-**Status:** PLANNED
+**Status:** IN PROGRESS
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 24-30, metrics-framework)
 **Dependencies:** Existing pWin infrastructure (Phase 45). OQS Strategic Alignment factor would require a new "growth targets" data model (new tables + UI). IVS nightly batch would require a scheduled job infrastructure.
@@ -163,3 +163,24 @@ Rates prime contractors on how much they actually engage small business subs:
 - Most scoring factors use data we already have (awards, entities, subawards, NAICS, set-asides). Exceptions: CSI Win Rate (no bid data, only wins), OQS Strategic Alignment (needs new user-defined goals), OQS Reuse Potential (needs proposal tracking or scoping down to past performance only)
 - The brainstorm designed a pluggable factor engine with configurable weights — our current pWin implementation could be extended or replaced entirely
 - pWin calibration/backtesting (AUC-ROC target >0.70, Bayesian weight optimization) was a separate brainstorm phase — worth considering once we have enough historical win/loss data
+
+## Implementation Progress
+
+### Completed
+- [x] Enhanced pWin — continuous scoring curves, confidence levels, past performance relevance, vulnerability-aware incumbent factor
+- [x] Enhanced OQS — 7-factor weighted model replacing 4-factor qScore (profile match, value alignment, competition, timeline, reuse, growth, re-compete advantage)
+- [x] IVS Service — 6-factor incumbent vulnerability model (contract age, option exercise, spend anomalies, cert risk, agency patterns, offers)
+- [x] CSI Service — 5-factor competitor strength model (federal revenue, agency penetration, certs, team stability, NAICS concentration)
+- [x] PCS Service — 6-factor partner compatibility model (capability complement, agency track record, teaming history, size compatibility, cert complement, clean record)
+- [x] Open Door Service — 6-factor prime engagement scoring (small biz sub spend, diversity, avg subaward size, retention, NAICS breadth, YoY trend)
+- [x] Pursuit Priority Score — combined pWin×0.6 + OQS×0.4 with confidence discount
+- [x] API endpoints for all new scores
+- [x] DI registration for all new services
+
+### Remaining
+- [ ] UI components for new scores (IVS, CSI, PCS, Open Door displays)
+- [ ] Pursuit Priority as default pipeline sort
+- [ ] 2D scatter plot visualization (pWin vs OQS)
+- [ ] Unit tests for new scoring services
+- [ ] Integration tests
+- [ ] Python CLI parity (if needed)

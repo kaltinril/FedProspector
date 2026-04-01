@@ -21,15 +21,57 @@ public class RecommendedOpportunityDto
     public string? PopState { get; set; }
     public string? PopCity { get; set; }
     public string? PopCountry { get; set; }
-    // Scoring
-    public decimal QScore { get; set; }
-    public string QScoreCategory { get; set; } = "";
-    public List<QScoreFactorDto> QScoreFactors { get; set; } = new();
+
+    // OQS scoring (new 7-factor weighted model)
+    /// <summary>Opportunity Quality Score (0-100), weighted sum of 7 factors.</summary>
+    public decimal OqScore { get; set; }
+    /// <summary>Category derived from OqScore: High (>=70), Medium (40-69), Low (15-39), VeryLow (&lt;15).</summary>
+    public string OqScoreCategory { get; set; } = "";
+    /// <summary>Breakdown of all OQS factor scores and weights.</summary>
+    public List<OqScoreFactorDto> OqScoreFactors { get; set; } = new();
+    /// <summary>Data confidence: High (>=6 factors with real data), Medium (>=4), Low (&lt;4).</summary>
+    public string Confidence { get; set; } = "Medium";
+
+    // Backward compatibility — delegates to OQS properties
+    [Obsolete("Use OqScore instead")]
+    public decimal QScore { get => OqScore; set => OqScore = value; }
+    [Obsolete("Use OqScoreCategory instead")]
+    public string QScoreCategory { get => OqScoreCategory; set => OqScoreCategory = value; }
+    [Obsolete("Use OqScoreFactors instead")]
+    public List<QScoreFactorDto> QScoreFactors
+    {
+        get => OqScoreFactors.Select(f => new QScoreFactorDto
+        {
+            Name = f.Name,
+            Points = f.WeightedScore,
+            MaxPoints = f.Weight * 100
+        }).ToList();
+        set { } // no-op for deserialization compat
+    }
+
     // Re-compete indicator
     public bool IsRecompete { get; set; }
     public string? IncumbentName { get; set; }
 }
 
+/// <summary>Factor detail for the 7-factor OQS model.</summary>
+public class OqScoreFactorDto
+{
+    /// <summary>Human-readable factor name.</summary>
+    public string Name { get; set; } = "";
+    /// <summary>Raw score for this factor (0-100).</summary>
+    public int Score { get; set; }
+    /// <summary>Weight of this factor (all weights sum to 1.0).</summary>
+    public decimal Weight { get; set; }
+    /// <summary>Score * Weight contribution to final OQS.</summary>
+    public decimal WeightedScore { get; set; }
+    /// <summary>Human-readable explanation of why this score was assigned.</summary>
+    public string Detail { get; set; } = "";
+    /// <summary>True if real data was available; false if a default/fallback was used.</summary>
+    public bool HadRealData { get; set; } = true;
+}
+
+[Obsolete("Use OqScoreFactorDto instead")]
 public class QScoreFactorDto
 {
     public string Name { get; set; } = "";

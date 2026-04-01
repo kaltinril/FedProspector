@@ -974,6 +974,7 @@ export interface PWinFactorDto {
   weight: number;
   weightedScore: number;
   detail: string;
+  hadRealData: boolean;
 }
 
 export interface PWinResultDto {
@@ -981,6 +982,8 @@ export interface PWinResultDto {
   noticeId: string;
   score: number;
   category: string;  // "High" | "Medium" | "Low" | "VeryLow"
+  confidence: string;  // "High" | "Medium" | "Low"
+  dataCompletenessPercent: number;  // 0-100
   factors: PWinFactorDto[];
   suggestions: string[];
 }
@@ -1089,6 +1092,10 @@ export interface RecommendedOpportunityDto {
   qScore: number;
   qScoreCategory: string;
   qScoreFactors: QScoreFactorDto[];
+  oqScore: number;
+  oqScoreCategory: string;
+  oqScoreFactors: OqScoreFactorDto[];
+  confidence: string;
   isRecompete: boolean;
   incumbentName: string | null;
 }
@@ -1097,6 +1104,15 @@ export interface QScoreFactorDto {
   name: string;
   points: number;
   maxPoints: number;
+}
+
+export interface OqScoreFactorDto {
+  name: string;
+  score: number;
+  weight: number;
+  weightedScore: number;
+  detail: string;
+  hadRealData: boolean;
 }
 
 export interface ExpiringContractDto {
@@ -1214,6 +1230,136 @@ export interface SetAsideTrendDto {
   contractCount: number;
   totalValue: number;
   avgValue: number;
+}
+
+// ============================================================
+// Scoring Model Enhancements types (Phase 115A)
+// ============================================================
+
+// Incumbent Vulnerability Score (IVS)
+export interface IvsResultDto {
+  noticeId: string;
+  contractPiid: string | null;
+  incumbentUei: string | null;
+  incumbentName: string | null;
+  score: number;
+  category: string;
+  confidence: string;
+  dataCompletenessPercent: number;
+  factors: IvsFactorDto[];
+  signals: string[];
+}
+
+export interface IvsFactorDto {
+  name: string;
+  score: number;
+  weight: number;
+  weightedScore: number;
+  detail: string;
+  hadRealData: boolean;
+}
+
+// Competitor Strength Index (CSI)
+export interface CompetitorAnalysisDto {
+  naicsCode: string | null;
+  noticeId: string | null;
+  agencyCode: string | null;
+  totalCompetitorsFound: number;
+  competitors: CompetitorScoreDto[];
+}
+
+export interface CompetitorScoreDto {
+  vendorUei: string;
+  vendorName: string;
+  csiScore: number;
+  category: string;
+  confidence: string;
+  dataCompletenessPercent: number;
+  factors: CsiFactorDto[];
+  contractCount: number;
+  totalValue: number;
+  marketSharePercent: number;
+}
+
+export interface CsiFactorDto {
+  name: string;
+  score: number;
+  weight: number;
+  weightedScore: number;
+  detail: string;
+  hadRealData: boolean;
+}
+
+// Partner Compatibility Score (PCS)
+export interface PartnerAnalysisDto {
+  noticeId: string;
+  orgId: number;
+  totalPartnersFound: number;
+  partners: PartnerScoreDto[];
+}
+
+export interface PartnerScoreDto {
+  partnerUei: string;
+  partnerName: string;
+  pcsScore: number;
+  category: string;
+  confidence: string;
+  dataCompletenessPercent: number;
+  factors: PcsFactorDto[];
+  pastTeamingCount: number;
+  agencyAwardCount: number;
+}
+
+export interface PcsFactorDto {
+  name: string;
+  score: number;
+  weight: number;
+  weightedScore: number;
+  detail: string;
+  hadRealData: boolean;
+}
+
+// Open Door Score
+export interface OpenDoorAnalysisDto {
+  naicsCode: string;
+  yearsAnalyzed: number;
+  totalPrimesFound: number;
+  primes: OpenDoorScoreDto[];
+}
+
+export interface OpenDoorScoreDto {
+  primeUei: string;
+  primeName: string;
+  openDoorScore: number;
+  category: string;
+  confidence: string;
+  dataCompletenessPercent: number;
+  factors: OpenDoorFactorDto[];
+  totalSubawards: number;
+  distinctSubs: number;
+  totalSubValue: number;
+}
+
+export interface OpenDoorFactorDto {
+  name: string;
+  score: number;
+  weight: number;
+  weightedScore: number;
+  detail: string;
+  hadRealData: boolean;
+}
+
+// Pursuit Priority Score
+export interface PursuitPriorityDto {
+  noticeId: string;
+  pursuitScore: number;
+  category: string;
+  pWinScore: number;
+  pWinConfidence: string;
+  oqScore: number;
+  oqConfidence: string;
+  confidenceDiscountApplied: boolean;
+  quadrant: string;
 }
 
 // ============================================================

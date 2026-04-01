@@ -15,7 +15,7 @@ import time
 import zipfile
 
 from db.connection import get_connection
-from etl.etl_utils import escape_tsv_value, parse_date, parse_decimal
+from etl.etl_utils import escape_tsv_value, parse_date, parse_decimal, refresh_usaspending_award_summary
 from etl.load_manager import LoadManager
 
 
@@ -275,6 +275,15 @@ class USASpendingBulkLoader:
             f"{aggregate['records_inserted']:,}",
             f"{aggregate['records_errored']:,}",
         )
+
+        # Refresh pre-computed award summary for scoring lookups
+        if aggregate["records_inserted"] > 0:
+            conn = get_connection()
+            try:
+                refresh_usaspending_award_summary(conn)
+            finally:
+                conn.close()
+
         return aggregate
 
     def load_delta(self, zip_path, load_id):
@@ -397,6 +406,15 @@ class USASpendingBulkLoader:
             f"{aggregate['records_deleted']:,}",
             f"{aggregate['records_errored']:,}",
         )
+
+        # Refresh pre-computed award summary for scoring lookups
+        if aggregate["records_inserted"] > 0 or aggregate.get("records_deleted", 0) > 0:
+            conn = get_connection()
+            try:
+                refresh_usaspending_award_summary(conn)
+            finally:
+                conn.close()
+
         return aggregate
 
     # ------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
 import Collapse from '@mui/material/Collapse';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -11,6 +12,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
@@ -26,8 +28,8 @@ import type { OpportunityDetail } from '@/types/api';
 const PWIN_FORMULA = [
   { factor: 'Set-Aside Match', weight: '20%', logic: 'Org certs vs. opp set-aside: exact=100, related=50, none=0, unknown=50' },
   { factor: 'NAICS Experience', weight: '20%', logic: 'Past perf + FPDS contracts in NAICS: >=5=100, >=3=75, >=1=50, 0=10' },
-  { factor: 'Competition Level', weight: '15%', logic: 'Distinct vendors in NAICS (3yr): 0-3=100, 4-6=70, 7-10=40, 10+=20' },
-  { factor: 'Incumbent Advantage', weight: '15%', logic: 'Is org incumbent: yes=100, no incumbent=70, other incumbent=30' },
+  { factor: 'Competition Level', weight: '15%', logic: 'Percentile rank of NAICS vendor count vs. all NAICS codes: fewer vendors = higher score' },
+  { factor: 'Incumbent Advantage', weight: '15%', logic: 'Is org incumbent: yes=100, no incumbent=70, other=20-65 (with vulnerability signals). Checks FPDS + Document Intel' },
   { factor: 'Teaming Strength', weight: '10%', logic: 'Partners with NAICS exp: 3+=100, 1-2=60, 0=30' },
   { factor: 'Time to Respond', weight: '10%', logic: 'Days to deadline: 30+=100, 14-30=70, 7-14=40, <7=10, past=0' },
   { factor: 'Contract Value Fit', weight: '10%', logic: 'Est. value vs. org avg: <=2x=100, 2-5x=60, >5x=30, no history=50' },
@@ -83,6 +85,14 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
               {/* Left: Gauge */}
               <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 200 }}>
                 <PWinGauge score={pwin.score} category={pwin.category} size="large" />
+                {pwin.confidence && (
+                  <Chip
+                    label={`Confidence: ${pwin.confidence}`}
+                    size="small"
+                    color={pwin.confidence === 'High' ? 'success' : pwin.confidence === 'Medium' ? 'warning' : 'error'}
+                    sx={{ mt: 1 }}
+                  />
+                )}
               </Box>
 
               {/* Right: Factor breakdown */}
@@ -91,11 +101,20 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
                   Score Factors
                 </Typography>
                 {pwin.factors.map((factor) => (
-                  <Box key={factor.name} sx={{ mb: 1.5 }}>
+                  <Box key={factor.name} sx={{ mb: 1.5, opacity: factor.hadRealData === false ? 0.55 : 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                      <Typography variant="body2" fontWeight={500}>
-                        {factor.name}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        <Typography variant="body2" fontWeight={500}>
+                          {factor.name}
+                        </Typography>
+                        {factor.hadRealData === false && (
+                          <Tooltip title="Based on default — no data available" arrow>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                              (default)
+                            </Typography>
+                          </Tooltip>
+                        )}
+                      </Box>
                       <Typography variant="body2" color="text.secondary">
                         {factor.score} (wt {Math.round(factor.weight * 100)}%)
                       </Typography>

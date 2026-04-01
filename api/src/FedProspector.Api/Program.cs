@@ -178,6 +178,11 @@ builder.Services.AddScoped<IOrganizationEntityService, OrganizationEntityService
 builder.Services.AddScoped<IAutoProspectService, AutoProspectService>();
 builder.Services.AddScoped<IAttachmentIntelService, AttachmentIntelService>();
 builder.Services.AddScoped<IFederalHierarchyService, FederalHierarchyService>();
+builder.Services.AddScoped<IIncumbentVulnerabilityService, IncumbentVulnerabilityService>();
+builder.Services.AddScoped<ICompetitorStrengthService, CompetitorStrengthService>();
+builder.Services.AddScoped<IPartnerCompatibilityService, PartnerCompatibilityService>();
+builder.Services.AddScoped<IOpenDoorService, OpenDoorService>();
+builder.Services.AddScoped<IPursuitPriorityService, PursuitPriorityService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

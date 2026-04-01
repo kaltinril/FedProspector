@@ -94,6 +94,7 @@ public class FedProspectorDbContext : DbContext
     // -----------------------------------------------------------------------
 
     public DbSet<UsaspendingAward> UsaspendingAwards { get; set; }
+    public DbSet<UsaspendingAwardSummary> UsaspendingAwardSummaries { get; set; }
     public DbSet<UsaspendingTransaction> UsaspendingTransactions { get; set; }
 
     // -----------------------------------------------------------------------
@@ -168,6 +169,9 @@ public class FedProspectorDbContext : DbContext
 
         modelBuilder.Entity<RefStateCode>()
             .HasKey(e => new { e.StateCode, e.CountryCode });
+
+        modelBuilder.Entity<UsaspendingAwardSummary>()
+            .HasKey(s => new { s.NaicsCode, s.AgencyName });
 
         modelBuilder.Entity<FpdsContract>()
             .HasKey(e => new { e.ContractId, e.ModificationNumber });

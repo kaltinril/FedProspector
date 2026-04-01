@@ -20,11 +20,16 @@ public class OpportunitiesControllerTests
     private readonly Mock<IMarketIntelService> _marketIntelServiceMock = new();
     private readonly Mock<IQualificationService> _qualificationServiceMock = new();
     private readonly Mock<IAttachmentIntelService> _attachmentIntelServiceMock = new();
+    private readonly Mock<IIncumbentVulnerabilityService> _ivsServiceMock = new();
+    private readonly Mock<ICompetitorStrengthService> _csiServiceMock = new();
+    private readonly Mock<IPartnerCompatibilityService> _pcsServiceMock = new();
+    private readonly Mock<IOpenDoorService> _openDoorServiceMock = new();
+    private readonly Mock<IPursuitPriorityService> _pursuitPriorityServiceMock = new();
     private readonly OpportunitiesController _controller;
 
     public OpportunitiesControllerTests()
     {
-        _controller = new OpportunitiesController(_serviceMock.Object, _pwinServiceMock.Object, _recommendedServiceMock.Object, _marketIntelServiceMock.Object, _qualificationServiceMock.Object, _attachmentIntelServiceMock.Object);
+        _controller = new OpportunitiesController(_serviceMock.Object, _pwinServiceMock.Object, _recommendedServiceMock.Object, _marketIntelServiceMock.Object, _qualificationServiceMock.Object, _attachmentIntelServiceMock.Object, _ivsServiceMock.Object, _csiServiceMock.Object, _pcsServiceMock.Object, _openDoorServiceMock.Object, _pursuitPriorityServiceMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -326,7 +331,7 @@ public class OpportunitiesControllerTests
         SetAuthenticatedUser(userId: 1, orgId: 10);
         var expected = new List<RecommendedOpportunityDto>
         {
-            new() { NoticeId = "REC-001", QScore = 85.0m, QScoreCategory = "High" }
+            new() { NoticeId = "REC-001", OqScore = 85.0m, OqScoreCategory = "High" }
         };
         _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 10))
             .ReturnsAsync(expected);

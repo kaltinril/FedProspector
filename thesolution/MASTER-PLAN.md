@@ -140,13 +140,15 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 113B | Hierarchy Cross-Reference Links | COMPLETE | [113B-HIERARCHY-CROSS-REFERENCE-LINKS.md](phases/completed/113B-HIERARCHY-CROSS-REFERENCE-LINKS.md) |
 | 113C | Intel Display — Keyword vs AI Side-by-Side | COMPLETE | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/completed/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
 | 114 | Project Documentation Suite | COMPLETE | [114-PROJECT-DOCUMENTATION.md](phases/completed/114-PROJECT-DOCUMENTATION.md) |
-| 115A | Scoring Model Enhancements | PLANNED | [115A-SCORING-MODEL-ENHANCEMENTS.md](phases/115A-SCORING-MODEL-ENHANCEMENTS.md) |
+| 115A | Scoring Model Enhancements | IN PROGRESS | [115A-SCORING-MODEL-ENHANCEMENTS.md](phases/115A-SCORING-MODEL-ENHANCEMENTS.md) |
 | 115B | Pricing Intelligence | PLANNED | [115B-PRICING-INTELLIGENCE.md](phases/115B-PRICING-INTELLIGENCE.md) |
 | 115C | Competitive Intel — Advanced | PLANNED | [115C-COMPETITIVE-INTEL-ADVANCED.md](phases/115C-COMPETITIVE-INTEL-ADVANCED.md) |
 | 115D | Teaming & Partnerships | PLANNED | [115D-TEAMING-PARTNERSHIPS.md](phases/115D-TEAMING-PARTNERSHIPS.md) |
 | 115E | Pipeline & Workflow Enhancements | PLANNED | [115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md](phases/115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md) |
 | 115F | Onboarding & Past Performance | PLANNED | [115F-ONBOARDING-PAST-PERFORMANCE.md](phases/115F-ONBOARDING-PAST-PERFORMANCE.md) |
 | 115G | UX Review & Insights | PLANNED | [115G-UX-REVIEW-INSIGHTS.md](phases/115G-UX-REVIEW-INSIGHTS.md) |
+| 115H | Ignore Opportunity & Pipeline Fixes | PLANNED | [115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md](phases/115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md) |
+| 115I | Pre-computed Scoring Summaries | COMPLETE | [115I-PRECOMPUTED-SCORING-SUMMARIES.md](phases/completed/115I-PRECOMPUTED-SCORING-SUMMARIES.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |

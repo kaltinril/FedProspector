@@ -54,6 +54,10 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **Testing**: Python pytest + C# xUnit (Core, Api, Infrastructure). Run `/run-tests all` or see test paths below.
 - **Schema Ownership**: Python DDL owns ETL/data tables. EF Core owns application tables (app_user, prospect, saved_search, organization, etc.). See Phase 10 plan for details.
 
+### Performance & Data Source Decisions
+
+- **Never replace `usaspending_award` queries with `fpds_contract`** for scoring/analytics. `fpds_contract` has only 225K rows vs 28.7M but lacks historical depth. `usaspending_award` is the authoritative source for market competition, vendor history, and award trend analysis. When queries against it are slow, use pre-computed summary tables refreshed during daily load — not table substitution.
+
 ### Keeping Skills & Agents Current
 
 When changes affect counts, file paths, or conventions referenced by skills or agents, update those files too:

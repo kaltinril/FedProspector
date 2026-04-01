@@ -20,6 +20,11 @@ public class OpportunitiesController : ApiControllerBase
     private readonly IMarketIntelService _marketIntelService;
     private readonly IQualificationService _qualificationService;
     private readonly IAttachmentIntelService _attachmentIntelService;
+    private readonly IIncumbentVulnerabilityService _incumbentVulnerabilityService;
+    private readonly ICompetitorStrengthService _competitorStrengthService;
+    private readonly IPartnerCompatibilityService _partnerCompatibilityService;
+    private readonly IOpenDoorService _openDoorService;
+    private readonly IPursuitPriorityService _pursuitPriorityService;
 
     public OpportunitiesController(
         IOpportunityService service,
@@ -27,7 +32,12 @@ public class OpportunitiesController : ApiControllerBase
         IRecommendedOpportunityService recommendedService,
         IMarketIntelService marketIntelService,
         IQualificationService qualificationService,
-        IAttachmentIntelService attachmentIntelService)
+        IAttachmentIntelService attachmentIntelService,
+        IIncumbentVulnerabilityService incumbentVulnerabilityService,
+        ICompetitorStrengthService competitorStrengthService,
+        IPartnerCompatibilityService partnerCompatibilityService,
+        IOpenDoorService openDoorService,
+        IPursuitPriorityService pursuitPriorityService)
     {
         _service = service;
         _pwinService = pwinService;
@@ -35,6 +45,11 @@ public class OpportunitiesController : ApiControllerBase
         _marketIntelService = marketIntelService;
         _qualificationService = qualificationService;
         _attachmentIntelService = attachmentIntelService;
+        _incumbentVulnerabilityService = incumbentVulnerabilityService;
+        _competitorStrengthService = competitorStrengthService;
+        _partnerCompatibilityService = partnerCompatibilityService;
+        _openDoorService = openDoorService;
+        _pursuitPriorityService = pursuitPriorityService;
     }
 
     [HttpGet]
@@ -268,5 +283,145 @@ public class OpportunitiesController : ApiControllerBase
     {
         var result = await _attachmentIntelService.GetAttachmentAnalysisStatusAsync(attachmentId);
         return result != null ? Ok(result) : Ok(new LoadRequestStatusDto());
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Incumbent Vulnerability Score (IVS)
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Calculate incumbent vulnerability score for an opportunity.
+    /// </summary>
+    [HttpGet("{noticeId}/ivs")]
+    public async Task<ActionResult<IvsResultDto>> GetIncumbentVulnerability(string noticeId)
+    {
+        var result = await _incumbentVulnerabilityService.CalculateAsync(noticeId);
+        return Ok(result);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Competitor Strength
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Get competitor strength analysis for a specific opportunity.
+    /// </summary>
+    [HttpGet("{noticeId}/competitors")]
+    public async Task<ActionResult<CompetitorAnalysisDto>> GetOpportunityCompetitors(string noticeId)
+    {
+        var result = await _competitorStrengthService.GetOpportunityCompetitorsAsync(noticeId);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get competitor strength analysis for a NAICS code (market-level).
+    /// </summary>
+    [HttpGet("market/competitors/{naicsCode}")]
+    public async Task<ActionResult<CompetitorAnalysisDto>> GetMarketCompetitors(
+        string naicsCode, [FromQuery] int years = 3, [FromQuery] int limit = 10)
+    {
+        var result = await _competitorStrengthService.GetMarketCompetitorsAsync(naicsCode, years, limit);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get detailed competitor strength for a single competitor.
+    /// </summary>
+    [HttpGet("competitors/{competitorUei}")]
+    public async Task<IActionResult> GetCompetitorDetail(
+        string competitorUei, [FromQuery] string? naicsCode = null, [FromQuery] string? agencyCode = null)
+    {
+        var result = await _competitorStrengthService.GetCompetitorDetailAsync(competitorUei, naicsCode, agencyCode);
+        return result != null ? Ok(result) : NotFound();
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Partner Compatibility
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Find and score potential partners for an opportunity.
+    /// </summary>
+    [HttpGet("{noticeId}/partners")]
+    public async Task<ActionResult<PartnerAnalysisDto>> FindPartners(string noticeId)
+    {
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _partnerCompatibilityService.FindPartnersAsync(noticeId, orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Score a specific partner for a specific opportunity.
+    /// </summary>
+    [HttpGet("{noticeId}/partners/{partnerUei}")]
+    public async Task<ActionResult<PartnerScoreDto>> ScorePartner(string noticeId, string partnerUei)
+    {
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _partnerCompatibilityService.ScorePartnerAsync(partnerUei, noticeId, orgId.Value);
+        return Ok(result);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Open Door
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Find primes with best Open Door scores in a NAICS code.
+    /// </summary>
+    [HttpGet("market/open-door/{naicsCode}")]
+    public async Task<ActionResult<OpenDoorAnalysisDto>> FindOpenDoorPrimes(
+        string naicsCode, [FromQuery] int years = 3, [FromQuery] int limit = 10)
+    {
+        var result = await _openDoorService.FindOpenDoorPrimesAsync(naicsCode, years, limit);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Score a specific prime contractor's small business engagement.
+    /// </summary>
+    [HttpGet("market/open-door/prime/{primeUei}")]
+    public async Task<ActionResult<OpenDoorScoreDto>> ScorePrime(
+        string primeUei, [FromQuery] int years = 3)
+    {
+        var result = await _openDoorService.ScorePrimeAsync(primeUei, years);
+        return Ok(result);
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Pursuit Priority
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Calculate pursuit priority score for an opportunity (combined pWin + OQS).
+    /// </summary>
+    [HttpGet("{noticeId}/pursuit-priority")]
+    public async Task<ActionResult<PursuitPriorityDto>> GetPursuitPriority(string noticeId)
+    {
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var result = await _pursuitPriorityService.CalculateAsync(noticeId, orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Calculate pursuit priority scores for multiple opportunities.
+    /// </summary>
+    [HttpPost("pursuit-priority/batch")]
+    public async Task<ActionResult<List<PursuitPriorityDto>>> CalculateBatchPursuitPriority(
+        [FromBody] List<string> noticeIds)
+    {
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        if (noticeIds.Count > 200)
+            return BadRequest("Batch pursuit priority requests are limited to 200 notice IDs.");
+
+        var result = await _pursuitPriorityService.CalculateBatchAsync(noticeIds, orgId.Value);
+        return Ok(result);
     }
 }

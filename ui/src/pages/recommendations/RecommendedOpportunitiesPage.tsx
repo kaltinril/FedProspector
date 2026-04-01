@@ -171,34 +171,49 @@ function buildColumns(
       renderCell: (params) => daysRemainingChip(params.value as number | null | undefined),
     },
     {
-      field: 'qScore',
-      headerName: 'qScore',
-      width: 90,
+      field: 'oqScore',
+      headerName: 'OQS',
+      width: 110,
       align: 'center',
       headerAlign: 'center',
-      description: 'Quick Score — rates how well this opportunity matches your profile based on set-aside, NAICS, timeline, and value.',
+      description: 'Opportunity Quality Score — rates how well this opportunity matches your profile based on weighted factors.',
       renderCell: (params) => {
         const row = params.row;
-        const chip = scoreChip(params.value as number | null | undefined);
-        if (params.value == null || !row.qScoreFactors || row.qScoreFactors.length === 0) {
-          return chip;
-        }
-        const lines = row.qScoreFactors.map(
-          (f) => `${f.name.padEnd(20)} ${f.points}/${f.maxPoints}`,
+        const chip = scoreChip(row.oqScore);
+        const content = (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {row.oqScore == null || !row.oqScoreFactors || row.oqScoreFactors.length === 0
+              ? chip
+              : (() => {
+                  const lines = row.oqScoreFactors.map(
+                    (f) => `${f.name.padEnd(20)} ${f.score} (wt ${(f.weight * 100).toFixed(0)}%)`,
+                  );
+                  const tooltipText = `OQS: ${row.oqScore}\n${lines.join('\n')}`;
+                  return (
+                    <Tooltip
+                      title={
+                        <Box sx={{ whiteSpace: 'pre', fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                          {tooltipText}
+                        </Box>
+                      }
+                      arrow
+                    >
+                      {chip}
+                    </Tooltip>
+                  );
+                })()}
+            {row.confidence && (
+              <Chip
+                label={row.confidence[0]}
+                size="small"
+                variant="outlined"
+                color={row.confidence === 'High' ? 'success' : row.confidence === 'Medium' ? 'warning' : 'error'}
+                sx={{ minWidth: 24, height: 20, '& .MuiChip-label': { px: 0.5, fontSize: '0.7rem' } }}
+              />
+            )}
+          </Box>
         );
-        const tooltipText = `qScore: ${params.value}\n${lines.join('\n')}`;
-        return (
-          <Tooltip
-            title={
-              <Box sx={{ whiteSpace: 'pre', fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                {tooltipText}
-              </Box>
-            }
-            arrow
-          >
-            {chip}
-          </Tooltip>
-        );
+        return content;
       },
     },
     {
@@ -295,9 +310,10 @@ export default function RecommendedOpportunitiesPage() {
       const row = params.row;
       navigate(`/opportunities/${encodeURIComponent(row.noticeId)}`, {
         state: {
-          qScore: row.qScore,
-          qScoreCategory: row.qScoreCategory,
-          qScoreFactors: row.qScoreFactors,
+          oqScore: row.oqScore,
+          oqScoreCategory: row.oqScoreCategory,
+          oqScoreFactors: row.oqScoreFactors,
+          confidence: row.confidence,
         },
       });
     },

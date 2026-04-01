@@ -7,6 +7,7 @@ import hashlib
 import json
 import logging
 import re
+import time
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
@@ -211,3 +212,63 @@ def get_tracked_set_asides() -> list[str]:
     fallback = [c.strip() for c in settings.DEFAULT_AWARDS_SET_ASIDES.split(",") if c.strip()]
     logger.info("No org certs configured — using DEFAULT_AWARDS_SET_ASIDES (%d codes)", len(fallback))
     return fallback
+
+
+# ---------------------------------------------------------------------------
+# USASpending award summary refresh (Phase 115I)
+# ---------------------------------------------------------------------------
+
+
+def refresh_usaspending_award_summary(conn):
+    """Refresh the usaspending_award_summary table from usaspending_award.
+
+    Pre-computes vendor count, contract count, and total value per
+    NAICS+agency combination for sub-millisecond scoring lookups.
+    Called after usaspending and awards loads.
+    """
+    logger.info("Refreshing usaspending_award_summary...")
+    t0 = time.time()
+
+    cursor = conn.cursor()
+    cursor.execute("TRUNCATE TABLE usaspending_award_summary")
+    cursor.execute("""
+        INSERT INTO usaspending_award_summary
+            (naics_code, agency_name, vendor_count, contract_count, total_value, computed_at)
+        SELECT
+            naics_code,
+            awarding_agency_name,
+            COUNT(DISTINCT recipient_uei),
+            COUNT(*),
+            COALESCE(SUM(total_obligation), 0),
+            NOW()
+        FROM usaspending_award
+        WHERE naics_code IS NOT NULL
+          AND awarding_agency_name IS NOT NULL
+          AND recipient_uei IS NOT NULL
+        GROUP BY naics_code, awarding_agency_name
+    """)
+    row_count = cursor.rowcount
+
+    # Add NAICS-level totals with true distinct vendor count (agency_name = '*')
+    cursor.execute("""
+        INSERT INTO usaspending_award_summary
+            (naics_code, agency_name, vendor_count, contract_count, total_value, computed_at)
+        SELECT
+            naics_code,
+            '*',
+            COUNT(DISTINCT recipient_uei),
+            COUNT(*),
+            COALESCE(SUM(total_obligation), 0),
+            NOW()
+        FROM usaspending_award
+        WHERE naics_code IS NOT NULL
+          AND recipient_uei IS NOT NULL
+        GROUP BY naics_code
+    """)
+    naics_total_count = cursor.rowcount
+    conn.commit()
+
+    elapsed = time.time() - t0
+    logger.info("usaspending_award_summary refreshed: %d agency rows + %d NAICS totals in %.1fs",
+                row_count, naics_total_count, elapsed)
+    return row_count + naics_total_count

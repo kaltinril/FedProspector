@@ -20,11 +20,14 @@ import SetAsideTrendChart from '@/components/shared/SetAsideTrendChart';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { EmptyState } from '@/components/shared/EmptyState';
-import { getIncumbentAnalysis, getCompetitiveLandscape, getSetAsideShift } from '@/api/opportunities';
+import PartnerCompatibilitySection from './PartnerCompatibilitySection';
+import OpenDoorSection from './OpenDoorSection';
+import { getIncumbentAnalysis, getCompetitiveLandscape, getSetAsideShift, getIvs, getOpportunityCompetitors } from '@/api/opportunities';
 import { getIntelMarketShare, getSetAsideTrends } from '@/api/awards';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateFormatters';
+import Skeleton from '@mui/material/Skeleton';
 import type { OpportunityDetail, CompetitiveLandscapeDto, LikelyCompetitorDto, SetAsideShiftDto } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -230,6 +233,28 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
     enabled: !!opp.naicsCode,
   });
 
+  // Incumbent Vulnerability Score
+  const {
+    data: ivsData,
+    isLoading: ivsLoading,
+  } = useQuery({
+    queryKey: queryKeys.opportunities.ivs(opp.noticeId),
+    queryFn: () => getIvs(opp.noticeId),
+    enabled: !!opp.noticeId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Competitor Strength Index
+  const {
+    data: csiData,
+    isLoading: csiLoading,
+  } = useQuery({
+    queryKey: queryKeys.opportunities.competitors(opp.noticeId),
+    queryFn: () => getOpportunityCompetitors(opp.noticeId),
+    enabled: !!opp.noticeId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   return (
     <Box>
       {/* 1. Competition Level (from competitive landscape endpoint) */}
@@ -346,7 +371,93 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
         )}
       </Paper>
 
-      {/* 3. Scoped Top Competitors (from competitive landscape endpoint) */}
+      {/* 3a. Incumbent Vulnerability Score */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+        <Typography variant="subtitle2" sx={{ mb: 2 }}>
+          Incumbent Vulnerability Score
+        </Typography>
+        {ivsLoading ? (
+          <Box>
+            <Skeleton variant="rectangular" height={40} sx={{ mb: 2 }} />
+            <Skeleton variant="rectangular" height={120} />
+          </Box>
+        ) : !ivsData ? (
+          <Typography variant="body2" color="text.secondary">
+            No incumbent vulnerability data available.
+          </Typography>
+        ) : (
+          <Box>
+            {/* Score display */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+              <Typography variant="h3" sx={{ fontWeight: 700 }}>
+                {ivsData.score}
+              </Typography>
+              <Box>
+                <Chip
+                  label={ivsData.category}
+                  size="small"
+                  color={
+                    ivsData.category === 'HighlyVulnerable' ? 'error'
+                    : ivsData.category === 'Vulnerable' ? 'warning'
+                    : ivsData.category === 'Stable' ? 'info'
+                    : 'success'
+                  }
+                  sx={{ fontWeight: 600, mr: 1 }}
+                />
+                <Chip
+                  label={`${ivsData.confidence} confidence`}
+                  size="small"
+                  variant="outlined"
+                />
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                Data completeness: {ivsData.dataCompletenessPercent}%
+              </Typography>
+            </Box>
+
+            {/* Factor breakdown */}
+            {ivsData.factors.length > 0 && (
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Factor</TableCell>
+                      <TableCell align="right">Score</TableCell>
+                      <TableCell align="right">Weight</TableCell>
+                      <TableCell align="right">Weighted</TableCell>
+                      <TableCell>Detail</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {ivsData.factors.map((f) => (
+                      <TableRow key={f.name} sx={{ opacity: f.hadRealData ? 1 : 0.6 }}>
+                        <TableCell>{f.name}</TableCell>
+                        <TableCell align="right">{f.score}</TableCell>
+                        <TableCell align="right">{(f.weight * 100).toFixed(0)}%</TableCell>
+                        <TableCell align="right">{f.weightedScore.toFixed(1)}</TableCell>
+                        <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>{f.detail}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+
+            {/* Vulnerability signals */}
+            {ivsData.signals.length > 0 && (
+              <Box sx={{ mt: 2 }}>
+                {ivsData.signals.map((signal, idx) => (
+                  <Alert key={idx} severity="info" variant="outlined" sx={{ mb: 1 }}>
+                    {signal}
+                  </Alert>
+                ))}
+              </Box>
+            )}
+          </Box>
+        )}
+      </Paper>
+
+      {/* 3b. Scoped Top Competitors (from competitive landscape endpoint) */}
       {landscape && landscape.topVendors.length > 0 && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
           <MarketShareChart
@@ -365,6 +476,73 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
           )}
         </Paper>
       )}
+
+      {/* 3c. Competitor Strength Index */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          Competitor Strength Index
+        </Typography>
+        {csiLoading ? (
+          <Box>
+            <Skeleton variant="rectangular" height={40} sx={{ mb: 2 }} />
+            <Skeleton variant="rectangular" height={160} />
+          </Box>
+        ) : !csiData || csiData.competitors.length === 0 ? (
+          <Typography variant="body2" color="text.secondary">
+            No competitor strength data available.
+          </Typography>
+        ) : (
+          <Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {csiData.totalCompetitorsFound} competitors found
+            </Typography>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Vendor</TableCell>
+                    <TableCell align="right">CSI</TableCell>
+                    <TableCell align="center">Strength</TableCell>
+                    <TableCell align="right">Contracts</TableCell>
+                    <TableCell align="right">Value</TableCell>
+                    <TableCell align="right">Share</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {csiData.competitors.map((c) => (
+                    <Tooltip
+                      key={c.vendorUei}
+                      title={
+                        c.factors.map((f) => `${f.name}: ${f.score} (${(f.weight * 100).toFixed(0)}%)`).join('\n')
+                      }
+                    >
+                      <TableRow hover>
+                        <TableCell>{c.vendorName}</TableCell>
+                        <TableCell align="right">{c.csiScore}</TableCell>
+                        <TableCell align="center">
+                          <Chip
+                            label={c.category}
+                            size="small"
+                            color={
+                              c.category === 'Dominant' ? 'error'
+                              : c.category === 'Strong' ? 'warning'
+                              : c.category === 'Moderate' ? 'info'
+                              : 'success'
+                            }
+                          />
+                        </TableCell>
+                        <TableCell align="right">{formatNumber(c.contractCount)}</TableCell>
+                        <TableCell align="right">{formatCurrency(c.totalValue)}</TableCell>
+                        <TableCell align="right">{c.marketSharePercent.toFixed(1)}%</TableCell>
+                      </TableRow>
+                    </Tooltip>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
+        )}
+      </Paper>
 
       {/* 4. NAICS-wide Market Context */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
@@ -436,6 +614,18 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
             />
           )}
         </Paper>
+      )}
+
+      {/* 6. Partner Compatibility */}
+      <Box sx={{ mt: 3 }}>
+        <PartnerCompatibilitySection noticeId={opp.noticeId} />
+      </Box>
+
+      {/* 7. Open Door Primes */}
+      {opp.naicsCode && (
+        <Box sx={{ mt: 3 }}>
+          <OpenDoorSection naicsCode={opp.naicsCode} />
+        </Box>
       )}
     </Box>
   );

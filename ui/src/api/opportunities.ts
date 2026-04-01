@@ -17,6 +17,14 @@ import type {
   LoadRequestStatusDto,
   AnalysisEstimateDto,
   FetchDescriptionResponse,
+  IvsResultDto,
+  CompetitorAnalysisDto,
+  CompetitorScoreDto,
+  PartnerAnalysisDto,
+  PartnerScoreDto,
+  OpenDoorAnalysisDto,
+  OpenDoorScoreDto,
+  PursuitPriorityDto,
 } from '@/types/api';
 
 export function searchOpportunities(
@@ -126,4 +134,53 @@ export function getAttachmentAnalysisStatus(
 
 export function fetchDescription(noticeId: string): Promise<FetchDescriptionResponse> {
   return apiClient.post(`/opportunities/${encodeURIComponent(noticeId)}/fetch-description`).then((r) => r.data);
+}
+
+// IVS
+export function getIvs(noticeId: string): Promise<IvsResultDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/ivs`).then((r) => r.data);
+}
+
+// CSI - opportunity scoped
+export function getOpportunityCompetitors(noticeId: string): Promise<CompetitorAnalysisDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/competitors`).then((r) => r.data);
+}
+
+// CSI - market scoped
+export function getMarketCompetitors(naicsCode: string, years: number = 3, limit: number = 10): Promise<CompetitorAnalysisDto> {
+  return apiClient.get(`/opportunities/market/competitors/${encodeURIComponent(naicsCode)}`, { params: { years, limit } }).then((r) => r.data);
+}
+
+// CSI - single competitor
+export function getCompetitorDetail(competitorUei: string, naicsCode?: string, agencyCode?: string): Promise<CompetitorScoreDto> {
+  return apiClient.get(`/opportunities/competitors/${encodeURIComponent(competitorUei)}`, { params: { naicsCode, agencyCode } }).then((r) => r.data);
+}
+
+// PCS - find partners
+export function getPartners(noticeId: string): Promise<PartnerAnalysisDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/partners`).then((r) => r.data);
+}
+
+// PCS - score specific partner
+export function getPartnerScore(noticeId: string, partnerUei: string): Promise<PartnerScoreDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/partners/${encodeURIComponent(partnerUei)}`).then((r) => r.data);
+}
+
+// Open Door - by NAICS
+export function getOpenDoorPrimes(naicsCode: string, years: number = 3, limit: number = 10): Promise<OpenDoorAnalysisDto> {
+  return apiClient.get(`/opportunities/market/open-door/${encodeURIComponent(naicsCode)}`, { params: { years, limit } }).then((r) => r.data);
+}
+
+// Open Door - specific prime
+export function getOpenDoorPrime(primeUei: string, years: number = 3): Promise<OpenDoorScoreDto> {
+  return apiClient.get(`/opportunities/market/open-door/prime/${encodeURIComponent(primeUei)}`, { params: { years } }).then((r) => r.data);
+}
+
+// Pursuit Priority
+export function getPursuitPriority(noticeId: string): Promise<PursuitPriorityDto> {
+  return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/pursuit-priority`).then((r) => r.data);
+}
+
+export function fetchBatchPursuitPriority(noticeIds: string[]): Promise<PursuitPriorityDto[]> {
+  return apiClient.post('/opportunities/pursuit-priority/batch', { noticeIds }).then((r) => r.data);
 }

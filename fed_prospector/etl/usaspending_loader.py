@@ -16,7 +16,7 @@ from decimal import Decimal, InvalidOperation
 from db.connection import get_connection
 from etl.batch_upsert import build_upsert_sql, executemany_upsert
 from etl.change_detector import ChangeDetector
-from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal
+from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal, refresh_usaspending_award_summary
 from etl.load_manager import LoadManager
 from etl.staging_mixin import StagingMixin
 
@@ -272,6 +272,15 @@ class USASpendingLoader(StagingMixin):
             stats["records_unchanged"],
             stats["records_errored"],
         )
+
+        # Refresh pre-computed award summary for scoring lookups
+        if stats["records_inserted"] > 0 or stats["records_updated"] > 0:
+            summary_conn = get_connection()
+            try:
+                refresh_usaspending_award_summary(summary_conn)
+            finally:
+                summary_conn.close()
+
         return stats
 
     # =================================================================
