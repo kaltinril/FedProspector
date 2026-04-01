@@ -1,6 +1,6 @@
 # Tech Stack Reference
 
-Last updated: 2026-03-21
+Last updated: 2026-03-31
 
 ---
 
@@ -10,7 +10,7 @@ Last updated: 2026-03-21
 |-----------|---------|-------|
 | Python | 3.14.3 | Data gathering, ETL pipeline, CLI |
 | .NET | 10.0 | ASP.NET Core Web API backend |
-| Node.js | 22.22.1 | Frontend build tooling (NVM for Windows 1.2.2) |
+| Node.js | 22.22.2 | Frontend build tooling (NVM for Windows 1.2.2) |
 | npm | 10.9.4 | Package manager |
 | MySQL | 8.4.8 LTS | InnoDB, utf8mb4, standalone at `E:\mysql` |
 
