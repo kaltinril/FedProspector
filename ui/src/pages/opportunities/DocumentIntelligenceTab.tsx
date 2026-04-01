@@ -1214,33 +1214,41 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             />
           ) : null}
           <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={redownloadMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
-              disabled={redownloadMutation.isPending || analysisProcessing}
-              onClick={() => redownloadMutation.mutate()}
-            >
-              {redownloadMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Re-download Attachments'}
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={basicAnalysisMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
-              disabled={basicAnalysisMutation.isPending || analysisProcessing}
-              onClick={() => basicAnalysisMutation.mutate()}
-            >
-              {basicAnalysisMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Re-extract Keywords'}
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={estimateLoading || analyzeMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
-              disabled={estimateLoading || analyzeMutation.isPending || analysisProcessing}
-              onClick={handleEnhanceWithAI}
-            >
-              {estimateLoading ? 'Estimating...' : analyzeMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : 'Re-analyze AI'}
-            </Button>
+            {(() => {
+              const anyBusy = redownloadMutation.isPending || basicAnalysisMutation.isPending || estimateLoading || analyzeMutation.isPending || analysisProcessing;
+              const aiLabel = availableMethods.some(m => m.startsWith('ai_')) ? 'Re-analyze AI' : 'Enhance with AI';
+              return (
+                <>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={redownloadMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+                    disabled={anyBusy}
+                    onClick={() => redownloadMutation.mutate()}
+                  >
+                    {redownloadMutation.isPending ? 'Requesting...' : 'Re-download Attachments'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={basicAnalysisMutation.isPending ? <CircularProgress size={16} color="inherit" /> : <PlayArrowIcon />}
+                    disabled={anyBusy}
+                    onClick={() => basicAnalysisMutation.mutate()}
+                  >
+                    {basicAnalysisMutation.isPending ? 'Requesting...' : 'Re-extract Keywords'}
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={estimateLoading || analyzeMutation.isPending || analysisProcessing ? <CircularProgress size={16} color="inherit" /> : <AnalyticsIcon />}
+                    disabled={anyBusy}
+                    onClick={handleEnhanceWithAI}
+                  >
+                    {estimateLoading ? 'Estimating...' : analyzeMutation.isPending ? 'Requesting...' : analysisProcessing ? 'Processing...' : aiLabel}
+                  </Button>
+                </>
+              );
+            })()}
           </Box>
         </Box>
       </Paper>
