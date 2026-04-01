@@ -140,7 +140,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 113B | Hierarchy Cross-Reference Links | COMPLETE | [113B-HIERARCHY-CROSS-REFERENCE-LINKS.md](phases/completed/113B-HIERARCHY-CROSS-REFERENCE-LINKS.md) |
 | 113C | Intel Display — Keyword vs AI Side-by-Side | COMPLETE | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/completed/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
 | 114 | Project Documentation Suite | COMPLETE | [114-PROJECT-DOCUMENTATION.md](phases/completed/114-PROJECT-DOCUMENTATION.md) |
-| 115A | Scoring Model Enhancements | IN PROGRESS | [115A-SCORING-MODEL-ENHANCEMENTS.md](phases/115A-SCORING-MODEL-ENHANCEMENTS.md) |
+| 115A | Scoring Model Enhancements | COMPLETE | [115A-SCORING-MODEL-ENHANCEMENTS.md](phases/completed/115A-SCORING-MODEL-ENHANCEMENTS.md) |
 | 115B | Pricing Intelligence | PLANNED | [115B-PRICING-INTELLIGENCE.md](phases/115B-PRICING-INTELLIGENCE.md) |
 | 115C | Competitive Intel — Advanced | PLANNED | [115C-COMPETITIVE-INTEL-ADVANCED.md](phases/115C-COMPETITIVE-INTEL-ADVANCED.md) |
 | 115D | Teaming & Partnerships | PLANNED | [115D-TEAMING-PARTNERSHIPS.md](phases/115D-TEAMING-PARTNERSHIPS.md) |

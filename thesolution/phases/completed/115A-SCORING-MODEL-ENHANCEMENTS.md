@@ -1,6 +1,6 @@
 # Phase 115A: Scoring Model Enhancements (Brainstorm Gap Analysis)
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 **Priority:** TBD
 **Source:** C:\git\brainstorm\docs\phases\ (phases 24-30, metrics-framework)
 **Dependencies:** Existing pWin infrastructure (Phase 45). OQS Strategic Alignment factor would require a new "growth targets" data model (new tables + UI). IVS nightly batch would require a scheduled job infrastructure.
@@ -177,10 +177,14 @@ Rates prime contractors on how much they actually engage small business subs:
 - [x] API endpoints for all new scores
 - [x] DI registration for all new services
 
-### Remaining
-- [ ] UI components for new scores (IVS, CSI, PCS, Open Door displays)
+- [x] UI components for new scores (IVS, CSI, PCS, Open Door on Competitive Intel tab)
+- [x] OQS column with confidence badges on Recommended page
+- [x] pWin confidence display and factor data quality indicators
+- [x] Percentile-based competition scoring (relative to NAICS distribution)
+- [x] pWin incumbent detection from Document Intel attachment summaries
+- [x] pWin batch optimization (shared org context, NAICS caching)
+
+### Deferred (not blocking close)
 - [ ] Pursuit Priority as default pipeline sort
 - [ ] 2D scatter plot visualization (pWin vs OQS)
 - [ ] Unit tests for new scoring services
-- [ ] Integration tests
-- [ ] Python CLI parity (if needed)
