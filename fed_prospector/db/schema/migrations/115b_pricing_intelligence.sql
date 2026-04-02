@@ -1,6 +1,7 @@
 -- Phase 115B: Pricing Intelligence — schema migration
 -- Date: 2026-04-01
 -- Creates pricing intelligence tables and views.
+-- Indexes: only UNIQUE keys (for upsert) + one JOIN index on labor_category_mapping.
 
 USE fed_contracts;
 
@@ -16,9 +17,7 @@ CREATE TABLE IF NOT EXISTS canonical_labor_category (
     description          TEXT,
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_canonical_name (canonical_name),
-    INDEX idx_clc_group (category_group),
-    INDEX idx_clc_onet (onet_code)
+    UNIQUE KEY uk_canonical_name (canonical_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS labor_category_mapping (
@@ -27,13 +26,11 @@ CREATE TABLE IF NOT EXISTS labor_category_mapping (
     canonical_id         INT,
     match_method         VARCHAR(20) NOT NULL COMMENT 'EXACT, FUZZY, PATTERN, MANUAL, UNMAPPED',
     confidence           DECIMAL(5,2) COMMENT 'Match confidence 0-100',
-    reviewed             TINYINT(1) DEFAULT 0,
+    reviewed             TINYINT(1) NOT NULL DEFAULT 0,
     created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_raw_labor (raw_labor_category),
-    INDEX idx_lcm_canonical (canonical_id),
-    INDEX idx_lcm_method (match_method),
-    INDEX idx_lcm_reviewed (reviewed)
+    INDEX idx_lcm_canonical (canonical_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS labor_rate_summary (
@@ -50,10 +47,7 @@ CREATE TABLE IF NOT EXISTS labor_rate_summary (
     median_rate          DECIMAL(10,2),
     p75_rate             DECIMAL(10,2),
     refreshed_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_summary (canonical_id, category_group, worksite, education_level),
-    INDEX idx_lrs_canonical (canonical_id),
-    INDEX idx_lrs_group (category_group),
-    INDEX idx_lrs_worksite (worksite)
+    UNIQUE KEY uk_summary (canonical_id, category_group, worksite, education_level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
@@ -71,9 +65,7 @@ CREATE TABLE IF NOT EXISTS bls_cost_index (
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     last_load_id         INT,
-    UNIQUE KEY uk_bls_series_period (series_id, year, period),
-    INDEX idx_bls_series (series_id),
-    INDEX idx_bls_year (year)
+    UNIQUE KEY uk_bls_series_period (series_id, year, period)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ============================================================
