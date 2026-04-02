@@ -163,27 +163,57 @@ One-time migration to populate codes for already-loaded records.
 
 CLI: `python main.py maintain normalize-agencies`
 
-Steps:
-1. Build name-to-CGAC mapping using `agency_resolver.py`
-2. Create temporary mapping table with all resolved name->code pairs
-3. UPDATE each target table using JOIN to the mapping table
-4. Report statistics: total rows, resolved, unresolved
+### Opportunity Backfill (two-pass)
+
+**Pass 1: Extract from stored raw JSON (free, fast)**
+
+We store full API responses in `stg_opportunity_raw.raw_json`. The `fullParentPathCode` field is in there — extract segments 1 and 2 without re-downloading:
 
 ```sql
--- Example: backfill opportunity
+UPDATE opportunity o
+JOIN stg_opportunity_raw s ON o.notice_id = s.notice_id
+SET o.department_cgac = SUBSTRING_INDEX(
+        JSON_UNQUOTE(JSON_EXTRACT(s.raw_json, '$.fullParentPathCode')), '.', 1),
+    o.sub_tier_code = SUBSTRING_INDEX(
+        SUBSTRING_INDEX(JSON_UNQUOTE(JSON_EXTRACT(s.raw_json, '$.fullParentPathCode')), '.', 2), '.', -1)
+WHERE o.department_cgac IS NULL;
+```
+
+**Pass 2: Re-fetch from SAM.gov API for records missing from staging**
+
+Some opportunities may have been loaded before `stg_opportunity_raw` existed, or staging may have been purged. For any records still NULL after Pass 1:
+- Query `SELECT notice_id FROM opportunity WHERE department_cgac IS NULL`
+- Batch-fetch from SAM.gov API (uses API key — respect rate limits)
+- Extract `fullParentPathCode` from response, update opportunity row
+- CLI flag: `python main.py maintain normalize-agencies --refetch-missing`
+
+### USASpending Backfill
+
+Same two-pass approach if `stg_usaspending_raw` exists. Otherwise use the resolver approach:
+
+```sql
 CREATE TEMPORARY TABLE tmp_agency_map (
     agency_name VARCHAR(200) PRIMARY KEY,
     cgac VARCHAR(10) NOT NULL
 );
--- Python populates tmp_agency_map using resolver
+-- Python populates tmp_agency_map using agency_resolver.py
 
-UPDATE opportunity o
-JOIN tmp_agency_map m ON o.department_name = m.agency_name
-SET o.department_cgac = m.cgac
-WHERE o.department_cgac IS NULL;
+UPDATE usaspending_award ua
+JOIN tmp_agency_map m ON ua.awarding_agency_name = m.agency_name
+SET ua.awarding_agency_cgac = m.cgac
+WHERE ua.awarding_agency_cgac IS NULL;
 
--- Similar for usaspending_award awarding/funding
+-- Similar for funding_agency_cgac
 ```
+
+### Statistics
+
+Report after backfill:
+- Total rows per table
+- Resolved from raw JSON (Pass 1)
+- Resolved from API re-fetch (Pass 2)
+- Resolved from name mapping (USASpending)
+- Still unresolved (with top unresolved names by frequency)
 
 ---
 
