@@ -508,6 +508,9 @@ public class PricingService : IPricingService
 
     public async Task<IgceResponse> EstimateIgceAsync(IgceRequest request)
     {
+        _logger.LogInformation("IGCE request: NoticeId={NoticeId}, NaicsCode={NaicsCode}, Agency={Agency}",
+            request.NoticeId, request.NaicsCode, request.AgencyName);
+
         // Auto-populate from opportunity if NoticeId provided but NAICS/Agency missing
         if (!string.IsNullOrWhiteSpace(request.NoticeId)
             && string.IsNullOrWhiteSpace(request.NaicsCode))
@@ -516,6 +519,9 @@ public class PricingService : IPricingService
             var opp = await _context.Opportunities.AsNoTracking()
                 .FirstOrDefaultAsync(o => o.NoticeId == request.NoticeId
                     || o.SolicitationNumber == request.NoticeId);
+
+            _logger.LogInformation("IGCE opportunity lookup: found={Found}, NAICS={Naics}, Agency={Agency}",
+                opp != null, opp?.NaicsCode, opp?.DepartmentName);
 
             if (opp != null)
             {
@@ -526,25 +532,35 @@ public class PricingService : IPricingService
             }
         }
 
+        _logger.LogInformation("IGCE after lookup: NaicsCode={NaicsCode}, Agency={Agency}",
+            request.NaicsCode, request.AgencyName);
+
         var methods = new List<IgceMethodResult>();
 
         // Method 1: Historical analog -- average of comparable past awards
         var analogEstimate = await EstimateByHistoricalAnalogAsync(request);
+        _logger.LogInformation("IGCE method 1 (historical analog): {Result}",
+            analogEstimate != null ? $"${analogEstimate.Estimate}" : "null");
         if (analogEstimate != null)
             methods.Add(analogEstimate);
 
         // Method 2: Labor bottoms-up -- labor categories x median GSA rates x hours
         var laborEstimate = await EstimateByLaborBottomsUpAsync(request);
+        _logger.LogInformation("IGCE method 2 (labor bottoms-up): {Result}",
+            laborEstimate != null ? $"${laborEstimate.Estimate}" : "null");
         if (laborEstimate != null)
             methods.Add(laborEstimate);
 
         // Method 3: Burn rate extrapolation -- incumbent monthly burn rate x new POP
         var burnRateEstimate = await EstimateByBurnRateAsync(request);
+        _logger.LogInformation("IGCE method 3 (burn rate): {Result}",
+            burnRateEstimate != null ? $"${burnRateEstimate.Estimate}" : "null");
         if (burnRateEstimate != null)
             methods.Add(burnRateEstimate);
 
         if (methods.Count == 0)
         {
+            _logger.LogWarning("IGCE: all methods returned null for NAICS={NaicsCode}", request.NaicsCode);
             return new IgceResponse { ConfidenceLevel = "None" };
         }
 
@@ -591,18 +607,15 @@ public class PricingService : IPricingService
         var fiveYearsAgo = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-5));
 
         // Historical analog uses usaspending_award (authoritative source for award trend analysis)
+        // Filter by NAICS only — agency name formats differ between opportunity and USASpending
+        // (e.g., "STATE, DEPARTMENT OF" vs "Department of State"), so agency is used as a
+        // soft preference rather than a hard filter.
         var query = _context.UsaspendingAwards.AsNoTracking()
             .Where(a => a.NaicsCode == request.NaicsCode
                         && a.StartDate != null
                         && a.StartDate >= fiveYearsAgo
                         && a.BaseAndAllOptionsValue != null
                         && a.BaseAndAllOptionsValue > 0);
-
-        if (!string.IsNullOrWhiteSpace(request.AgencyName))
-        {
-            var escapedAgency = EscapeLikeWildcards(request.AgencyName);
-            query = query.Where(a => a.AwardingAgencyName != null && EF.Functions.Like(a.AwardingAgencyName, $"%{escapedAgency}%"));
-        }
 
         var values = await query
             .Select(a => a.BaseAndAllOptionsValue!.Value)
