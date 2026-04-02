@@ -12,11 +12,11 @@ USE fed_contracts;
 CREATE TABLE IF NOT EXISTS canonical_labor_category (
     id                   INT AUTO_INCREMENT PRIMARY KEY,
     canonical_name       VARCHAR(200) NOT NULL,
-    category_group       VARCHAR(50) NOT NULL,
-    onet_code            VARCHAR(10),
-    description          TEXT,
-    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    category_group       VARCHAR(100) NOT NULL,
+    onet_code            VARCHAR(20),
+    description          LONGTEXT,
+    created_at           DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at           DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     UNIQUE KEY uk_canonical_name (canonical_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -27,8 +27,8 @@ CREATE TABLE IF NOT EXISTS labor_category_mapping (
     match_method         VARCHAR(20) NOT NULL COMMENT 'EXACT, FUZZY, PATTERN, MANUAL, UNMAPPED',
     confidence           DECIMAL(5,2) COMMENT 'Match confidence 0-100',
     reviewed             TINYINT(1) NOT NULL DEFAULT 0,
-    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at           DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_at           DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+    updated_at           DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     UNIQUE KEY uk_raw_labor (raw_labor_category),
     INDEX idx_lcm_canonical (canonical_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS labor_category_mapping (
 CREATE TABLE IF NOT EXISTS labor_rate_summary (
     id                   INT AUTO_INCREMENT PRIMARY KEY,
     canonical_id         INT NOT NULL,
-    category_group       VARCHAR(50) NOT NULL,
+    category_group       VARCHAR(100) NOT NULL,
     worksite             VARCHAR(100),
     education_level      VARCHAR(50),
     rate_count           INT NOT NULL,
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS labor_rate_summary (
     p25_rate             DECIMAL(10,2),
     median_rate          DECIMAL(10,2),
     p75_rate             DECIMAL(10,2),
-    refreshed_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    refreshed_at         DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
     UNIQUE KEY uk_summary (canonical_id, category_group, worksite, education_level)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -56,14 +56,14 @@ CREATE TABLE IF NOT EXISTS labor_rate_summary (
 
 CREATE TABLE IF NOT EXISTS bls_cost_index (
     id                   INT AUTO_INCREMENT PRIMARY KEY,
-    series_id            VARCHAR(30) NOT NULL,
+    series_id            VARCHAR(50) NOT NULL,
     series_name          VARCHAR(200),
     year                 INT NOT NULL,
     period               VARCHAR(5) NOT NULL COMMENT 'M01-M12 or Q01-Q04',
     value                DECIMAL(12,4) NOT NULL,
-    footnotes            VARCHAR(200),
-    first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    footnotes            LONGTEXT,
+    first_loaded_at      DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
+    last_loaded_at       DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     last_load_id         INT,
     UNIQUE KEY uk_bls_series_period (series_id, year, period)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
