@@ -25,11 +25,12 @@ public class OpportunitiesControllerTests
     private readonly Mock<IPartnerCompatibilityService> _pcsServiceMock = new();
     private readonly Mock<IOpenDoorService> _openDoorServiceMock = new();
     private readonly Mock<IPursuitPriorityService> _pursuitPriorityServiceMock = new();
+    private readonly Mock<IOpportunityIgnoreService> _ignoreServiceMock = new();
     private readonly OpportunitiesController _controller;
 
     public OpportunitiesControllerTests()
     {
-        _controller = new OpportunitiesController(_serviceMock.Object, _pwinServiceMock.Object, _recommendedServiceMock.Object, _marketIntelServiceMock.Object, _qualificationServiceMock.Object, _attachmentIntelServiceMock.Object, _ivsServiceMock.Object, _csiServiceMock.Object, _pcsServiceMock.Object, _openDoorServiceMock.Object, _pursuitPriorityServiceMock.Object);
+        _controller = new OpportunitiesController(_serviceMock.Object, _pwinServiceMock.Object, _recommendedServiceMock.Object, _marketIntelServiceMock.Object, _qualificationServiceMock.Object, _attachmentIntelServiceMock.Object, _ivsServiceMock.Object, _csiServiceMock.Object, _pcsServiceMock.Object, _openDoorServiceMock.Object, _pursuitPriorityServiceMock.Object, _ignoreServiceMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -71,7 +72,7 @@ public class OpportunitiesControllerTests
     {
         SetAuthenticatedUser(userId: 1, orgId: 10);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.SearchAsync(request, 10))
+        _serviceMock.Setup(s => s.SearchAsync(request, 10, 1))
             .ReturnsAsync(new PagedResponse<OpportunitySearchDto>());
 
         var result = await _controller.Search(request);
@@ -84,12 +85,12 @@ public class OpportunitiesControllerTests
     {
         SetAuthenticatedUser(userId: 1, orgId: 10);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.SearchAsync(request, 10))
+        _serviceMock.Setup(s => s.SearchAsync(request, 10, 1))
             .ReturnsAsync(new PagedResponse<OpportunitySearchDto>());
 
         await _controller.Search(request);
 
-        _serviceMock.Verify(s => s.SearchAsync(request, 10), Times.Once);
+        _serviceMock.Verify(s => s.SearchAsync(request, 10, 1), Times.Once);
     }
 
     [Fact]
@@ -98,7 +99,7 @@ public class OpportunitiesControllerTests
         SetAuthenticatedUser(userId: 1, orgId: 10);
         var request = new OpportunitySearchRequest();
         var expected = new PagedResponse<OpportunitySearchDto> { TotalCount = 42 };
-        _serviceMock.Setup(s => s.SearchAsync(request, 10)).ReturnsAsync(expected);
+        _serviceMock.Setup(s => s.SearchAsync(request, 10, 1)).ReturnsAsync(expected);
 
         var result = await _controller.Search(request) as OkObjectResult;
 
@@ -110,12 +111,12 @@ public class OpportunitiesControllerTests
     {
         SetAuthenticatedUser(userId: 1, orgId: 42);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.SearchAsync(request, 42))
+        _serviceMock.Setup(s => s.SearchAsync(request, 42, 1))
             .ReturnsAsync(new PagedResponse<OpportunitySearchDto>());
 
         await _controller.Search(request);
 
-        _serviceMock.Verify(s => s.SearchAsync(request, 42), Times.Once);
+        _serviceMock.Verify(s => s.SearchAsync(request, 42, 1), Times.Once);
     }
 
     // --- GetTargets ---
@@ -231,7 +232,7 @@ public class OpportunitiesControllerTests
     {
         SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest { SetAside = "WOSB" };
-        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99, 1))
             .ReturnsAsync("header1,header2\nval1,val2\n");
 
         var result = await _controller.ExportCsv(request);
@@ -244,7 +245,7 @@ public class OpportunitiesControllerTests
     {
         SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99, 1))
             .ReturnsAsync("col1,col2\n");
 
         var result = await _controller.ExportCsv(request) as FileContentResult;
@@ -257,7 +258,7 @@ public class OpportunitiesControllerTests
     {
         SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99, 1))
             .ReturnsAsync("col1\n");
 
         var result = await _controller.ExportCsv(request) as FileContentResult;
@@ -270,12 +271,12 @@ public class OpportunitiesControllerTests
     {
         SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest { Naics = "541511", Keyword = "cyber" };
-        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99, 1))
             .ReturnsAsync("data");
 
         await _controller.ExportCsv(request);
 
-        _serviceMock.Verify(s => s.ExportCsvAsync(request, 99), Times.Once);
+        _serviceMock.Verify(s => s.ExportCsvAsync(request, 99, 1), Times.Once);
     }
 
     [Fact]
@@ -283,7 +284,7 @@ public class OpportunitiesControllerTests
     {
         SetAuthenticatedUser(userId: 1, orgId: 99);
         var request = new OpportunitySearchRequest();
-        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99))
+        _serviceMock.Setup(s => s.ExportCsvAsync(request, 99, 1))
             .ReturnsAsync(string.Empty);
 
         var result = await _controller.ExportCsv(request);
@@ -305,7 +306,7 @@ public class OpportunitiesControllerTests
     public async Task GetRecommended_ValidRequest_ReturnsOk()
     {
         SetAuthenticatedUser(userId: 1, orgId: 10);
-        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 10))
+        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 10, 1))
             .ReturnsAsync(new List<RecommendedOpportunityDto>());
 
         var result = await _controller.GetRecommended();
@@ -317,12 +318,12 @@ public class OpportunitiesControllerTests
     public async Task GetRecommended_CustomLimit_CallsServiceWithCorrectLimit()
     {
         SetAuthenticatedUser(userId: 1, orgId: 10);
-        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 25))
+        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 25, 1))
             .ReturnsAsync(new List<RecommendedOpportunityDto>());
 
         await _controller.GetRecommended(limit: 25);
 
-        _recommendedServiceMock.Verify(s => s.GetRecommendedAsync(10, 25), Times.Once);
+        _recommendedServiceMock.Verify(s => s.GetRecommendedAsync(10, 25, 1), Times.Once);
     }
 
     [Fact]
@@ -333,7 +334,7 @@ public class OpportunitiesControllerTests
         {
             new() { NoticeId = "REC-001", OqScore = 85.0m, OqScoreCategory = "High" }
         };
-        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 10))
+        _recommendedServiceMock.Setup(s => s.GetRecommendedAsync(10, 10, 1))
             .ReturnsAsync(expected);
 
         var result = await _controller.GetRecommended();

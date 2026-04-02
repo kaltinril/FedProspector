@@ -40,6 +40,7 @@ export interface OpportunitySearchParams {
   pageSize?: number;
   sortBy?: string;
   sortDescending?: boolean;
+  excludeIgnored?: boolean;
 }
 
 export interface OpportunityDetail {
@@ -1618,4 +1619,157 @@ export interface HierarchyRefreshStatus {
   lastRefreshRecordCount: number | null;
   levelsLoaded: { level: number; count: number }[];
   jobId?: string;
+}
+
+// ============================================================
+// Pricing Intelligence (Phase 115B)
+// ============================================================
+
+export interface CanonicalCategory {
+  id: number;
+  name: string;
+  group?: string;
+  onetCode?: string;
+  description?: string;
+}
+
+export interface RateHeatmapCell {
+  canonicalName: string;
+  categoryGroup?: string;
+  worksite?: string;
+  educationLevel?: string;
+  rateCount: number;
+  minRate: number;
+  avgRate: number;
+  maxRate: number;
+  p25Rate: number;
+  medianRate: number;
+  p75Rate: number;
+}
+
+export interface RateDistribution {
+  canonicalId: number;
+  canonicalName: string;
+  rates: number[];
+  count: number;
+  minRate: number;
+  p25Rate: number;
+  medianRate: number;
+  p75Rate: number;
+  maxRate: number;
+  avgRate: number;
+}
+
+export interface PriceToWinRequest {
+  naicsCode: string;
+  agencyName?: string;
+  setAsideType?: string;
+  contractType?: string;
+  estimatedScope?: string;
+}
+
+export interface PriceToWinResponse {
+  lowEstimate: number;
+  targetEstimate: number;
+  highEstimate: number;
+  confidence: number;
+  comparableCount: number;
+  comparableAwards: ComparableAward[];
+  competitionStats: CompetitionStats;
+}
+
+export interface ComparableAward {
+  contractId: string;
+  vendor?: string;
+  awardValue?: number;
+  offers?: number;
+  agency?: string;
+  awardDate?: string;
+  popMonths?: number;
+}
+
+export interface CompetitionStats {
+  avgOffers: number;
+  medianOffers: number;
+  soloSourcePct: number;
+  avgAwardValue: number;
+  medianAwardValue: number;
+}
+
+export interface SubBenchmark {
+  naicsCode?: string;
+  agencyName?: string;
+  subBusinessType?: string;
+  subCount: number;
+  totalValue: number;
+  avgValue: number;
+  minValue: number;
+  maxValue: number;
+}
+
+export interface SubRatio {
+  naicsCode?: string;
+  avgSubRatio: number;
+  medianSubRatio: number;
+  count: number;
+}
+
+export interface RateTrend {
+  year: number;
+  avgRate: number;
+  minRate: number;
+  maxRate: number;
+  rateCount: number;
+  yoyChangePct?: number;
+}
+
+export interface EscalationForecast {
+  year: number;
+  projectedRate: number;
+  confidenceLow: number;
+  confidenceHigh: number;
+  blsEciIndex?: number;
+  method: string;
+}
+
+export interface IgceRequest {
+  noticeId?: string;
+  naicsCode?: string;
+  agencyName?: string;
+  popMonths?: number;
+  laborMix?: { canonicalId: number; hours: number }[];
+}
+
+export interface IgceResponse {
+  methods: IgceMethodResult[];
+  weightedEstimate: number;
+  confidenceLevel: string;
+}
+
+export interface IgceMethodResult {
+  methodName: string;
+  estimate: number;
+  confidence: number;
+  explanation: string;
+  dataPoints: number;
+}
+
+// Bid Scenario Modeler (client-side)
+export interface BidScenario {
+  id: string;
+  name: string;
+  laborLines: LaborLine[];
+  overheadRate: number;
+  gaRate: number;
+  feeRate: number;
+  odcs: number;
+  subcontractorCost: number;
+  travel: number;
+}
+
+export interface LaborLine {
+  id: string;
+  category: string;
+  hours: number;
+  rate: number;
 }

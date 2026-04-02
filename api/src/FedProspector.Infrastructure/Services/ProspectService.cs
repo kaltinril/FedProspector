@@ -18,9 +18,9 @@ public class ProspectService : IProspectService
 
     private static readonly Dictionary<string, string[]> StatusFlow = new()
     {
-        ["NEW"] = new[] { "REVIEWING", "DECLINED" },
+        ["NEW"] = new[] { "REVIEWING", "DECLINED", "NO_BID" },
         ["REVIEWING"] = new[] { "PURSUING", "DECLINED", "NO_BID" },
-        ["PURSUING"] = new[] { "BID_SUBMITTED", "DECLINED" },
+        ["PURSUING"] = new[] { "BID_SUBMITTED", "DECLINED", "NO_BID" },
         ["BID_SUBMITTED"] = new[] { "WON", "LOST" }
     };
 

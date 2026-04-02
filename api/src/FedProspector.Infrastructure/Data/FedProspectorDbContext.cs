@@ -90,6 +90,15 @@ public class FedProspectorDbContext : DbContext
     public DbSet<SamSubaward> SamSubawards { get; set; }
 
     // -----------------------------------------------------------------------
+    // Pricing Intelligence Tables (4 — Phase 115B)
+    // -----------------------------------------------------------------------
+
+    public DbSet<CanonicalLaborCategory> CanonicalLaborCategories { get; set; }
+    public DbSet<LaborCategoryMapping> LaborCategoryMappings { get; set; }
+    public DbSet<LaborRateSummary> LaborRateSummaries { get; set; }
+    public DbSet<BlsCostIndex> BlsCostIndices { get; set; }
+
+    // -----------------------------------------------------------------------
     // USASpending Tables (2)
     // -----------------------------------------------------------------------
 
@@ -134,6 +143,7 @@ public class FedProspectorDbContext : DbContext
     public DbSet<SavedSearch> SavedSearches { get; set; }
     public DbSet<ActivityLog> ActivityLogs { get; set; }
     public DbSet<Notification> Notifications { get; set; }
+    public DbSet<OpportunityIgnore> OpportunityIgnores { get; set; }
 
     // -----------------------------------------------------------------------
     // Database Views (9 - keyless, read-only)
@@ -387,6 +397,24 @@ public class FedProspectorDbContext : DbContext
             .HasOne(i => i.InvitedByUser)
             .WithMany()
             .HasForeignKey(i => i.InvitedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // ----- OpportunityIgnore Relationships (Phase 115H) -----
+
+        modelBuilder.Entity<OpportunityIgnore>()
+            .HasIndex(e => new { e.UserId, e.NoticeId })
+            .IsUnique();
+
+        modelBuilder.Entity<OpportunityIgnore>()
+            .HasOne(oi => oi.User)
+            .WithMany()
+            .HasForeignKey(oi => oi.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<OpportunityIgnore>()
+            .HasOne(oi => oi.Opportunity)
+            .WithMany()
+            .HasForeignKey(oi => oi.NoticeId)
             .OnDelete(DeleteBehavior.Restrict);
 
         // ----- Soft-Delete Query Filters -----

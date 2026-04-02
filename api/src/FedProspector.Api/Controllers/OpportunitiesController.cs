@@ -25,6 +25,7 @@ public class OpportunitiesController : ApiControllerBase
     private readonly IPartnerCompatibilityService _partnerCompatibilityService;
     private readonly IOpenDoorService _openDoorService;
     private readonly IPursuitPriorityService _pursuitPriorityService;
+    private readonly IOpportunityIgnoreService _ignoreService;
 
     public OpportunitiesController(
         IOpportunityService service,
@@ -37,7 +38,8 @@ public class OpportunitiesController : ApiControllerBase
         ICompetitorStrengthService competitorStrengthService,
         IPartnerCompatibilityService partnerCompatibilityService,
         IOpenDoorService openDoorService,
-        IPursuitPriorityService pursuitPriorityService)
+        IPursuitPriorityService pursuitPriorityService,
+        IOpportunityIgnoreService ignoreService)
     {
         _service = service;
         _pwinService = pwinService;
@@ -50,6 +52,7 @@ public class OpportunitiesController : ApiControllerBase
         _partnerCompatibilityService = partnerCompatibilityService;
         _openDoorService = openDoorService;
         _pursuitPriorityService = pursuitPriorityService;
+        _ignoreService = ignoreService;
     }
 
     [HttpGet]
@@ -58,7 +61,8 @@ public class OpportunitiesController : ApiControllerBase
         var orgId = await ResolveOrganizationIdAsync();
         if (orgId == null) return Unauthorized();
 
-        var result = await _service.SearchAsync(request, orgId.Value);
+        var userId = GetCurrentUserId();
+        var result = await _service.SearchAsync(request, orgId.Value, userId);
         return Ok(result);
     }
 
@@ -142,9 +146,56 @@ public class OpportunitiesController : ApiControllerBase
         var orgId = await ResolveOrganizationIdAsync();
         if (orgId == null) return Unauthorized();
 
-        var csv = await _service.ExportCsvAsync(request, orgId.Value);
+        var userId = GetCurrentUserId();
+        var csv = await _service.ExportCsvAsync(request, orgId.Value, userId);
         var bytes = Encoding.UTF8.GetBytes(csv);
         return File(bytes, "text/csv", "opportunities_export.csv");
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Ignore / Un-ignore
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Ignore an opportunity so it no longer appears in search or recommendations.
+    /// </summary>
+    [HttpPost("{noticeId}/ignore")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Ignore(string noticeId, [FromBody] IgnoreOpportunityRequest? request = null)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var result = await _ignoreService.IgnoreAsync(userId.Value, noticeId, request?.Reason);
+        return Ok(new { result.NoticeId, result.IgnoredAt, result.Reason });
+    }
+
+    /// <summary>
+    /// Un-ignore a previously ignored opportunity.
+    /// </summary>
+    [HttpDelete("{noticeId}/ignore")]
+    [EnableRateLimiting("write")]
+    public async Task<IActionResult> Unignore(string noticeId)
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        await _ignoreService.UnignoreAsync(userId.Value, noticeId);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Get the set of notice IDs the current user has ignored.
+    /// </summary>
+    [HttpGet("ignored")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetIgnoredIds()
+    {
+        var userId = GetCurrentUserId();
+        if (userId == null) return Unauthorized();
+
+        var ids = await _ignoreService.GetIgnoredNoticeIdsAsync(userId.Value);
+        return Ok(ids);
     }
 
     /// <summary>
@@ -157,7 +208,8 @@ public class OpportunitiesController : ApiControllerBase
         var orgId = await ResolveOrganizationIdAsync();
         if (orgId == null) return Unauthorized();
 
-        var result = await _recommendedService.GetRecommendedAsync(orgId.Value, limit);
+        var userId = GetCurrentUserId();
+        var result = await _recommendedService.GetRecommendedAsync(orgId.Value, limit, userId);
         return Ok(result);
     }
 

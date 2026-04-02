@@ -147,7 +147,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 115E | Pipeline & Workflow Enhancements | PLANNED | [115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md](phases/115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md) |
 | 115F | Onboarding & Past Performance | PLANNED | [115F-ONBOARDING-PAST-PERFORMANCE.md](phases/115F-ONBOARDING-PAST-PERFORMANCE.md) |
 | 115G | UX Review & Insights | PLANNED | [115G-UX-REVIEW-INSIGHTS.md](phases/115G-UX-REVIEW-INSIGHTS.md) |
-| 115H | Ignore Opportunity & Pipeline Fixes | PLANNED | [115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md](phases/115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md) |
+| 115H | Ignore Opportunity & Pipeline Fixes | DONE | [115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md](phases/115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md) |
 | 115I | Pre-computed Scoring Summaries | COMPLETE | [115I-PRECOMPUTED-SCORING-SUMMARIES.md](phases/completed/115I-PRECOMPUTED-SCORING-SUMMARIES.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |

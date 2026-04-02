@@ -12,4 +12,5 @@ public class OpportunitySearchRequest : PagedRequest
     public bool OpenOnly { get; set; } = true;
     public string? Department { get; set; }
     public string? State { get; set; }
+    public bool ExcludeIgnored { get; set; } = true;
 }

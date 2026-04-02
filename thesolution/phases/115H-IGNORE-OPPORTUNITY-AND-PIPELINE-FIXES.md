@@ -1,6 +1,6 @@
 # Phase 115H: Ignore Opportunity & Pipeline Visibility Fixes
 
-**Status:** PLANNED
+**Status:** DONE
 **Priority:** HIGH
 **Dependencies:** Prospect Pipeline (Phase 50), Dashboard (Phase 70)
 
@@ -24,13 +24,13 @@ When browsing opportunities (Opportunities page, Recommended page, Expiring Cont
 
 ### Requirements
 
-- [ ] Add "Ignore" action to opportunity cards/rows across all opportunity-facing pages
-- [ ] Ignored opportunities are hidden by default from all opportunity lists
-- [ ] Toggle control (e.g., "Show ignored" checkbox/switch) to reveal ignored opportunities
-- [ ] Ignored opportunities are visually distinct when shown (e.g., muted/greyed out)
-- [ ] "Un-ignore" action available when viewing ignored opportunities
-- [ ] Ignore state is per-user (not org-wide — different team members may want to evaluate the same opportunity)
-- [ ] Ignore state persists across sessions
+- [x] Add "Ignore" action to opportunity cards/rows across all opportunity-facing pages
+- [x] Ignored opportunities are hidden by default from all opportunity lists
+- [x] Toggle control (e.g., "Show ignored" checkbox/switch) to reveal ignored opportunities
+- [x] Ignored opportunities are visually distinct when shown (e.g., muted/greyed out)
+- [x] "Un-ignore" action available when viewing ignored opportunities
+- [x] Ignore state is per-user (not org-wide — different team members may want to evaluate the same opportunity)
+- [x] Ignore state persists across sessions
 
 ### Affected Pages
 
@@ -77,12 +77,12 @@ Prospects moved to terminal statuses can't be seen even when selecting those sta
 
 ### Tasks
 
-- [ ] Investigate: Reproduce the exact scenario where Done prospects disappear
-- [ ] Fix: Add NO_BID to KANBAN_STATUSES and the status filter dropdown
-- [ ] Fix: Ensure all terminal statuses (WON, LOST, DECLINED, NO_BID) are visible when explicitly selected in the filter
-- [ ] Fix: Kanban view should show terminal status columns when those statuses are selected
-- [ ] Test: Verify status filter works correctly for every status value
-- [ ] Consider: Should terminal statuses be hidden by default on Kanban with a "Show completed/archived" toggle?
+- [x] Investigate: Reproduce the exact scenario where Done prospects disappear
+- [x] Fix: Add NO_BID to KANBAN_STATUSES and the status filter dropdown
+- [x] Fix: Ensure all terminal statuses (WON, LOST, DECLINED, NO_BID) are visible when explicitly selected in the filter
+- [x] Fix: Kanban view should show terminal status columns when those statuses are selected
+- [x] Test: Verify status filter works correctly for every status value
+- [x] Consider: Should terminal statuses be hidden by default on Kanban with a "Show completed/archived" toggle?
 
 ---
 

@@ -9,6 +9,7 @@ export const queryKeys = {
     qualification: (noticeId: string) => ['opportunities', 'qualification', noticeId] as const,
     incumbent: (noticeId: string) => ['opportunities', 'incumbent', noticeId] as const,
     recommended: (limit: number) => ['opportunities', 'recommended', limit] as const,
+    ignoredIds: () => ['opportunities', 'ignoredIds'] as const,
     competitiveLandscape: (noticeId: string) => ['opportunities', 'competitiveLandscape', noticeId] as const,
     setAsideShift: (noticeId: string) => ['opportunities', 'setAsideShift', noticeId] as const,
     documentIntelligence: (noticeId: string) => ['opportunities', 'documentIntelligence', noticeId] as const,
@@ -104,6 +105,17 @@ export const queryKeys = {
     refreshStatus: ['hierarchy', 'refreshStatus'] as const,
     lookup: (name?: string, agencyCode?: string) =>
       ['hierarchy', 'lookup', name ?? '', agencyCode ?? ''] as const,
+  },
+  pricing: {
+    all: ['pricing'] as const,
+    categories: (group?: string) => ['pricing', 'categories', group ?? ''] as const,
+    categorySearch: (query: string) => ['pricing', 'categories', 'search', query] as const,
+    heatmap: (params: Record<string, unknown>) => ['pricing', 'heatmap', params] as const,
+    distribution: (canonicalId: number) => ['pricing', 'distribution', canonicalId] as const,
+    subBenchmarks: (params: Record<string, unknown>) => ['pricing', 'subBenchmarks', params] as const,
+    subRatios: (naicsCode?: string) => ['pricing', 'subRatios', naicsCode ?? ''] as const,
+    rateTrends: (canonicalId: number, years?: number) => ['pricing', 'rateTrends', canonicalId, years ?? 5] as const,
+    escalation: (canonicalId: number, years?: number) => ['pricing', 'escalation', canonicalId, years ?? 5] as const,
   },
   auth: {
     me: ['auth', 'me'] as const,

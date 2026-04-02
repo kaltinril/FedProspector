@@ -23,8 +23,8 @@ import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
-import Collapse from '@mui/material/Collapse';
 import FormControl from '@mui/material/FormControl';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
 import ListItemText from '@mui/material/ListItemText';
@@ -35,11 +35,10 @@ import Select from '@mui/material/Select';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import Skeleton from '@mui/material/Skeleton';
 import Stack from '@mui/material/Stack';
+import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import FlagIcon from '@mui/icons-material/Flag';
 import MoveDownIcon from '@mui/icons-material/MoveDown';
 import ViewColumnIcon from '@mui/icons-material/ViewColumn';
@@ -63,7 +62,9 @@ import type { ProspectListDto, ProspectSearchParams } from '@/types/api';
 // Constants
 // ---------------------------------------------------------------------------
 
-const KANBAN_STATUSES = ['NEW', 'REVIEWING', 'PURSUING', 'BID_SUBMITTED', 'WON', 'LOST'] as const;
+const KANBAN_STATUSES = ['NEW', 'REVIEWING', 'PURSUING', 'BID_SUBMITTED', 'WON', 'LOST', 'NO_BID', 'DECLINED'] as const;
+
+const TERMINAL_STATUSES = new Set(['WON', 'LOST', 'NO_BID', 'DECLINED']);
 
 const STATUS_LABELS: Record<string, string> = {
   NEW: 'New',
@@ -72,14 +73,15 @@ const STATUS_LABELS: Record<string, string> = {
   BID_SUBMITTED: 'Bid Submitted',
   WON: 'Won',
   LOST: 'Lost',
+  NO_BID: 'No Bid',
   DECLINED: 'Declined',
 };
 
 /** Valid transitions for the prospect status state machine. */
 const VALID_TRANSITIONS: Record<string, string[]> = {
-  NEW: ['REVIEWING', 'DECLINED'],
-  REVIEWING: ['PURSUING', 'DECLINED'],
-  PURSUING: ['BID_SUBMITTED', 'DECLINED'],
+  NEW: ['REVIEWING', 'NO_BID', 'DECLINED'],
+  REVIEWING: ['PURSUING', 'NO_BID', 'DECLINED'],
+  PURSUING: ['BID_SUBMITTED', 'NO_BID', 'DECLINED'],
   BID_SUBMITTED: ['WON', 'LOST'],
 };
 
@@ -177,7 +179,6 @@ function FilterBar({
               {STATUS_LABELS[s]}
             </MenuItem>
           ))}
-          <MenuItem value="DECLINED">Declined</MenuItem>
         </Select>
       </FormControl>
     </Box>
@@ -403,21 +404,31 @@ interface KanbanViewProps {
   isLoading: boolean;
   onCardClick: (id: number) => void;
   onStatusChange: (id: number, fromStatus: string, toStatus: string) => void;
+  statusFilter: string;
 }
 
-function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: KanbanViewProps) {
+function KanbanView({ prospects, isLoading, onCardClick, onStatusChange, statusFilter }: KanbanViewProps) {
   const [activeCard, setActiveCard] = useState<ProspectListDto | null>(null);
-  const [archivedOpen, setArchivedOpen] = useState(false);
+  const [showTerminal, setShowTerminal] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  // Determine which columns to render
+  const visibleStatuses = useMemo(() => {
+    // If a specific status is selected in the filter, show only that column
+    if (statusFilter && (KANBAN_STATUSES as readonly string[]).includes(statusFilter)) {
+      return KANBAN_STATUSES.filter((s) => s === statusFilter);
+    }
+    // Otherwise show active columns, plus terminal if toggled on
+    return KANBAN_STATUSES.filter((s) => !TERMINAL_STATUSES.has(s) || showTerminal);
+  }, [statusFilter, showTerminal]);
+
   const columnData = useMemo(() => {
     const map: Record<string, ProspectListDto[]> = {};
     for (const s of KANBAN_STATUSES) map[s] = [];
-    map['DECLINED'] = [];
     for (const p of prospects) {
       const bucket = map[p.status];
       if (bucket) bucket.push(p);
@@ -425,6 +436,14 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: Kanba
     }
     return map;
   }, [prospects]);
+
+  const terminalCount = useMemo(() => {
+    let count = 0;
+    for (const s of KANBAN_STATUSES) {
+      if (TERMINAL_STATUSES.has(s)) count += (columnData[s]?.length ?? 0);
+    }
+    return count;
+  }, [columnData]);
 
   const handleDragStart = useCallback(
     (event: DragStartEvent) => {
@@ -465,10 +484,28 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: Kanba
     [prospects, onStatusChange],
   );
 
-  const declinedProspects = columnData['DECLINED'] ?? [];
-
   return (
     <>
+      {/* Show completed/archived toggle - only when not filtering to a specific status */}
+      {!statusFilter && (
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 1 }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={showTerminal}
+                onChange={(e) => setShowTerminal(e.target.checked)}
+                size="small"
+              />
+            }
+            label={
+              <Typography variant="body2" color="text.secondary">
+                Show completed/archived{terminalCount > 0 ? ` (${terminalCount})` : ''}
+              </Typography>
+            }
+          />
+        </Box>
+      )}
+
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}
@@ -490,7 +527,7 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: Kanba
             },
           }}
         >
-          {KANBAN_STATUSES.map((status) => (
+          {visibleStatuses.map((status) => (
             <KanbanColumn
               key={status}
               status={status}
@@ -510,30 +547,6 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange }: Kanba
           ) : null}
         </DragOverlay>
       </DndContext>
-
-      {/* Archived / Declined section */}
-      {declinedProspects.length > 0 && (
-        <Box sx={{ mt: 2 }}>
-          <Button
-            size="small"
-            startIcon={archivedOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            onClick={() => setArchivedOpen((prev) => !prev)}
-            aria-expanded={archivedOpen}
-            sx={{ mb: 1 }}
-          >
-            Archived ({declinedProspects.length})
-          </Button>
-          <Collapse in={archivedOpen}>
-            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-              {declinedProspects.map((p) => (
-                <Box key={p.prospectId} sx={{ width: 280 }}>
-                  <ProspectCardContent prospect={p} onClick={onCardClick} />
-                </Box>
-              ))}
-            </Box>
-          </Collapse>
-        </Box>
-      )}
     </>
   );
 }
@@ -877,6 +890,7 @@ export default function ProspectPipelinePage() {
           isLoading={isLoading}
           onCardClick={handleCardClick}
           onStatusChange={handleStatusChange}
+          statusFilter={filters.status}
         />
       ) : (
         <ListView

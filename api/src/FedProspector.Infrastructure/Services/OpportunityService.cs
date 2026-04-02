@@ -31,7 +31,7 @@ public partial class OpportunityService : IOpportunityService
         _samApiOptions = samApiOptions.Value;
     }
 
-    public async Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request, int organizationId)
+    public async Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request, int organizationId, int? userId = null)
     {
         var query = _context.Opportunities.AsNoTracking().AsQueryable();
 
@@ -77,6 +77,18 @@ public partial class OpportunityService : IOpportunityService
 
         // Exclude non-biddable notice types
         query = query.Where(o => !OpportunityFilters.NonBiddableTypes.Contains(o.Type!));
+
+        // Exclude ignored opportunities
+        if (request.ExcludeIgnored && userId.HasValue)
+        {
+            var ignoredIds = await _context.OpportunityIgnores
+                .Where(i => i.UserId == userId.Value)
+                .Select(i => i.NoticeId)
+                .ToListAsync();
+
+            if (ignoredIds.Count > 0)
+                query = query.Where(o => !ignoredIds.Contains(o.NoticeId));
+        }
 
         // Show only the latest notice per solicitation number (amendments supersede originals).
         // Opportunities without a solicitation number are always shown.
@@ -481,7 +493,7 @@ public partial class OpportunityService : IOpportunityService
         };
     }
 
-    public async Task<string> ExportCsvAsync(OpportunitySearchRequest request, int organizationId)
+    public async Task<string> ExportCsvAsync(OpportunitySearchRequest request, int organizationId, int? userId = null)
     {
         // Build the same query as SearchAsync but without pagination
         // organizationId available for future prospect-enriched CSV exports (same pattern as SearchAsync)
@@ -528,6 +540,18 @@ public partial class OpportunityService : IOpportunityService
 
         // Exclude non-biddable notice types
         query = query.Where(o => !OpportunityFilters.NonBiddableTypes.Contains(o.Type!));
+
+        // Exclude ignored opportunities
+        if (request.ExcludeIgnored && userId.HasValue)
+        {
+            var ignoredIds = await _context.OpportunityIgnores
+                .Where(i => i.UserId == userId.Value)
+                .Select(i => i.NoticeId)
+                .ToListAsync();
+
+            if (ignoredIds.Count > 0)
+                query = query.Where(o => !ignoredIds.Contains(o.NoticeId));
+        }
 
         // Show only the latest notice per solicitation number (amendments supersede originals).
         // Opportunities without a solicitation number are always shown.

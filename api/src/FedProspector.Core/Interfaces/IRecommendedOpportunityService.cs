@@ -4,7 +4,7 @@ namespace FedProspector.Core.Interfaces;
 
 public interface IRecommendedOpportunityService
 {
-    Task<List<RecommendedOpportunityDto>> GetRecommendedAsync(int orgId, int limit = 10);
+    Task<List<RecommendedOpportunityDto>> GetRecommendedAsync(int orgId, int limit = 10, int? userId = null);
 
     /// <summary>
     /// Calculate OQS for a single opportunity against the org's profile.

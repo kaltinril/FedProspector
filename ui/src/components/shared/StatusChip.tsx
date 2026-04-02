@@ -26,6 +26,8 @@ const STATUS_COLOR_MAP: Record<string, ChipColor> = {
   expired: 'error',
   'not awarded': 'error',
   'no-bid': 'error',
+  'no bid': 'error',
+  declined: 'default',
   review: 'info',
   'in review': 'info',
   'in progress': 'info',

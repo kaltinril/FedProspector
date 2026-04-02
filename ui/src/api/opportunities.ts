@@ -184,3 +184,16 @@ export function getPursuitPriority(noticeId: string): Promise<PursuitPriorityDto
 export function fetchBatchPursuitPriority(noticeIds: string[]): Promise<PursuitPriorityDto[]> {
   return apiClient.post('/opportunities/pursuit-priority/batch', { noticeIds }).then((r) => r.data);
 }
+
+// Ignore / Un-ignore
+export function ignoreOpportunity(noticeId: string, reason?: string): Promise<{ noticeId: string; ignoredAt: string; reason: string | null }> {
+  return apiClient.post(`/opportunities/${encodeURIComponent(noticeId)}/ignore`, { reason }).then((r) => r.data);
+}
+
+export function unignoreOpportunity(noticeId: string): Promise<void> {
+  return apiClient.delete(`/opportunities/${encodeURIComponent(noticeId)}/ignore`).then(() => undefined);
+}
+
+export function getIgnoredOpportunityIds(): Promise<string[]> {
+  return apiClient.get('/opportunities/ignored').then((r) => r.data);
+}

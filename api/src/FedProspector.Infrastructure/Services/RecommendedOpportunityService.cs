@@ -57,7 +57,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         _logger = logger;
     }
 
-    public async Task<List<RecommendedOpportunityDto>> GetRecommendedAsync(int orgId, int limit = 10)
+    public async Task<List<RecommendedOpportunityDto>> GetRecommendedAsync(int orgId, int limit = 10, int? userId = null)
     {
         if (limit < 1) limit = 1;
         if (limit > 100) limit = 100;
@@ -119,6 +119,21 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 o.PopCountry
             })
             .ToListAsync();
+
+        // 3b. Exclude ignored opportunities
+        if (userId.HasValue)
+        {
+            var ignoredIds = await _context.OpportunityIgnores
+                .Where(i => i.UserId == userId.Value)
+                .Select(i => i.NoticeId)
+                .ToListAsync();
+
+            if (ignoredIds.Count > 0)
+            {
+                var ignoredSet = ignoredIds.ToHashSet();
+                candidates = candidates.Where(c => !ignoredSet.Contains(c.NoticeId)).ToList();
+            }
+        }
 
         // 4. Dedup: keep latest notice per solicitation
         var deduped = candidates

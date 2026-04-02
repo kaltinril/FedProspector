@@ -5,9 +5,9 @@ namespace FedProspector.Core.Interfaces;
 
 public interface IOpportunityService
 {
-    Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request, int organizationId);
+    Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request, int organizationId, int? userId = null);
     Task<OpportunityDetailDto?> GetDetailAsync(string noticeId, int organizationId);
     Task<PagedResponse<TargetOpportunityDto>> GetTargetsAsync(TargetOpportunitySearchRequest request, int organizationId);
-    Task<string> ExportCsvAsync(OpportunitySearchRequest request, int organizationId);
+    Task<string> ExportCsvAsync(OpportunitySearchRequest request, int organizationId, int? userId = null);
     Task<(string? descriptionText, string? error, bool notFound)> FetchDescriptionAsync(string noticeId);
 }

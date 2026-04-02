@@ -183,6 +183,8 @@ builder.Services.AddScoped<ICompetitorStrengthService, CompetitorStrengthService
 builder.Services.AddScoped<IPartnerCompatibilityService, PartnerCompatibilityService>();
 builder.Services.AddScoped<IOpenDoorService, OpenDoorService>();
 builder.Services.AddScoped<IPursuitPriorityService, PursuitPriorityService>();
+builder.Services.AddScoped<IPricingService, PricingService>();
+builder.Services.AddScoped<IOpportunityIgnoreService, OpportunityIgnoreService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

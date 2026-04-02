@@ -1,6 +1,9 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useSnackbar } from 'notistack';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data-grid';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
@@ -12,6 +15,8 @@ import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import Skeleton from '@mui/material/Skeleton';
+import TextField from '@mui/material/TextField';
+import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 
 import { AgencyLink } from '@/components/shared/AgencyLink';
@@ -22,8 +27,10 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import PWinGauge from '@/components/shared/PWinGauge';
 import { getRecommendedOpportunities } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
+import { useIgnoreOpportunity, useUnignoreOpportunity, useIgnoredOpportunityIds } from '@/queries/useOpportunities';
 import { formatCurrency } from '@/utils/formatters';
 import { formatDate } from '@/utils/dateFormatters';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
 import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import { useBatchPWin } from '@/hooks/useBatchPWin';
@@ -110,6 +117,9 @@ function truncate(text: string | null | undefined, maxLen: number): string {
 function buildColumns(
   pwinMap: Map<string, BatchPWinEntry>,
   pwinLoading: boolean,
+  ignoredSet: Set<string>,
+  onIgnoreToggle: (noticeId: string, isIgnored: boolean) => void,
+  ignoreDisabled: boolean,
 ): GridColDef<RecommendedOpportunityDto>[] {
   return [
     {
@@ -255,6 +265,29 @@ function buildColumns(
       },
       sortable: false,
     },
+    {
+      field: 'actions',
+      headerName: '',
+      width: 60,
+      sortable: false,
+      renderCell: (params) => {
+        const isIgnored = ignoredSet.has(params.row.noticeId);
+        return (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              onIgnoreToggle(params.row.noticeId, isIgnored);
+            }}
+            disabled={ignoreDisabled}
+            title={isIgnored ? 'Un-ignore' : 'Ignore'}
+            color={isIgnored ? 'warning' : 'default'}
+          >
+            {isIgnored ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
+          </IconButton>
+        );
+      },
+    },
   ];
 }
 
@@ -275,13 +308,25 @@ const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
   setAsideDescription: 'md',
   awardAmount: 'md',
   pWin: 'lg',
+  actions: 'sm',
 };
 
 export default function RecommendedOpportunitiesPage() {
   const navigate = useNavigate();
-  const [limit, setLimit] = useState(25);
-  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 25 });
+  const { enqueueSnackbar } = useSnackbar();
+  const [limit, setLimit] = useLocalStorage('recommended.limit', 25);
+  const [savedPageSize, setSavedPageSize] = useLocalStorage('recommended.pageSize', 25);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: savedPageSize });
+  const [keyword, setKeyword] = useState('');
+  const [naicsFilter, setNaicsFilter] = useState('');
+  const [setAsideFilter, setSetAsideFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
   const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
+
+  const ignoreMutation = useIgnoreOpportunity();
+  const unignoreMutation = useUnignoreOpportunity();
+  const { data: ignoredIds } = useIgnoredOpportunityIds();
+  const ignoredSet = useMemo(() => new Set(ignoredIds ?? []), [ignoredIds]);
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.opportunities.recommended(limit),
@@ -289,17 +334,79 @@ export default function RecommendedOpportunitiesPage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Client-side filters
+  const filteredData = useMemo(() => {
+    if (!data) return [];
+    let result = data;
+    if (keyword) {
+      const kw = keyword.toLowerCase();
+      result = result.filter(
+        (r) => r.title?.toLowerCase().includes(kw) || r.solicitationNumber?.toLowerCase().includes(kw),
+      );
+    }
+    if (naicsFilter) {
+      result = result.filter((r) => r.naicsCode?.startsWith(naicsFilter));
+    }
+    if (setAsideFilter) {
+      result = result.filter((r) => r.setAsideDescription === setAsideFilter);
+    }
+    if (typeFilter) {
+      result = result.filter((r) => r.noticeType === typeFilter);
+    }
+    return result;
+  }, [data, keyword, naicsFilter, setAsideFilter, typeFilter]);
+
+  const setAsideOptions = useMemo(() => {
+    if (!data) return [];
+    return [...new Set(data.map((r) => r.setAsideDescription).filter(Boolean))].sort() as string[];
+  }, [data]);
+
+  const typeOptions = useMemo(() => {
+    if (!data) return [];
+    return [...new Set(data.map((r) => r.noticeType).filter(Boolean))].sort() as string[];
+  }, [data]);
+
+  const hasActiveFilters = keyword !== '' || naicsFilter !== '' || setAsideFilter !== '' || typeFilter !== '';
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setPaginationModel((prev) => (prev.page === 0 ? prev : { ...prev, page: 0 }));
+  }, [keyword, naicsFilter, setAsideFilter, typeFilter]);
+
   // Extract noticeIds for the current visible page
   const currentPageNoticeIds = useMemo(() => {
-    if (!data) return [];
+    if (!filteredData.length) return [];
     const start = paginationModel.page * paginationModel.pageSize;
     const end = start + paginationModel.pageSize;
-    return data.slice(start, end).map((row) => row.noticeId);
-  }, [data, paginationModel]);
+    return filteredData.slice(start, end).map((row) => row.noticeId);
+  }, [filteredData, paginationModel]);
 
   const { pwinMap, isLoading: pwinLoading } = useBatchPWin(currentPageNoticeIds);
 
-  const columns = useMemo(() => buildColumns(pwinMap, pwinLoading), [pwinMap, pwinLoading]);
+  const handleIgnoreToggle = useCallback(
+    (noticeId: string, isIgnored: boolean) => {
+      if (isIgnored) {
+        unignoreMutation.mutate(noticeId, {
+          onSuccess: () => enqueueSnackbar('Opportunity restored', { variant: 'info' }),
+          onError: () => enqueueSnackbar('Failed to restore opportunity', { variant: 'error' }),
+        });
+      } else {
+        ignoreMutation.mutate(
+          { noticeId },
+          {
+            onSuccess: () => enqueueSnackbar('Opportunity ignored', { variant: 'info' }),
+            onError: () => enqueueSnackbar('Failed to ignore opportunity', { variant: 'error' }),
+          },
+        );
+      }
+    },
+    [ignoreMutation, unignoreMutation, enqueueSnackbar],
+  );
+
+  const columns = useMemo(
+    () => buildColumns(pwinMap, pwinLoading, ignoredSet, handleIgnoreToggle, ignoreMutation.isPending || unignoreMutation.isPending),
+    [pwinMap, pwinLoading, ignoredSet, handleIgnoreToggle, ignoreMutation.isPending, unignoreMutation.isPending],
+  );
 
   const handleLimitChange = useCallback((e: SelectChangeEvent<number>) => {
     setLimit(Number(e.target.value));
@@ -361,9 +468,61 @@ export default function RecommendedOpportunitiesPage() {
           </Select>
         </FormControl>
 
+        <TextField
+          size="small"
+          label="Search"
+          placeholder="Title or solicitation..."
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          sx={{ minWidth: 200 }}
+        />
+        <TextField
+          size="small"
+          label="NAICS"
+          value={naicsFilter}
+          onChange={(e) => setNaicsFilter(e.target.value)}
+          sx={{ width: 100 }}
+        />
+        <FormControl size="small" sx={{ minWidth: 180 }}>
+          <InputLabel id="set-aside-label">Set-Aside</InputLabel>
+          <Select
+            labelId="set-aside-label"
+            value={setAsideFilter}
+            label="Set-Aside"
+            onChange={(e) => setSetAsideFilter(e.target.value)}
+          >
+            <MenuItem value="">All</MenuItem>
+            {setAsideOptions.map((sa) => (
+              <MenuItem key={sa} value={sa}>
+                {sa}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel id="type-label">Type</InputLabel>
+          <Select
+            labelId="type-label"
+            value={typeFilter}
+            label="Type"
+            onChange={(e) => setTypeFilter(e.target.value)}
+          >
+            <MenuItem value="">All</MenuItem>
+            {typeOptions.map((t) => (
+              <MenuItem key={t} value={t}>
+                {t}
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
         {data && (
           <Chip
-            label={`${data.length} match${data.length !== 1 ? 'es' : ''}`}
+            label={
+              hasActiveFilters
+                ? `${filteredData.length} of ${data.length} matches`
+                : `${data.length} match${data.length !== 1 ? 'es' : ''}`
+            }
             color="primary"
             size="small"
             variant="outlined"
@@ -373,7 +532,7 @@ export default function RecommendedOpportunitiesPage() {
 
       {isLoading && <LoadingState message="Loading recommendations..." />}
 
-      {!isLoading && data && data.length === 0 && (
+      {!isLoading && data && data.length === 0 && !hasActiveFilters && (
         <Alert
           severity="info"
           sx={{ mb: 2 }}
@@ -388,13 +547,13 @@ export default function RecommendedOpportunitiesPage() {
         </Alert>
       )}
 
-      {!isLoading && data && data.length > 0 && (
+      {!isLoading && data && (data.length > 0 || hasActiveFilters) && (
         <DataTable
           columns={columns}
-          rows={data}
+          rows={filteredData}
           loading={false}
           paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
+          onPaginationModelChange={(m) => { setPaginationModel(m); if (m.pageSize !== paginationModel.pageSize) setSavedPageSize(m.pageSize); }}
           onRowClick={handleRowClick}
           getRowId={(row: RecommendedOpportunityDto) => row.noticeId}
           columnVisibilityModel={columnVisibility}

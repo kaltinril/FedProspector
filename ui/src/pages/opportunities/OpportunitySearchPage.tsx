@@ -6,10 +6,15 @@ import type { GridColDef, GridPaginationModel, GridSortModel, GridRowParams } fr
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import IconButton from '@mui/material/IconButton';
+import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import DownloadIcon from '@mui/icons-material/Download';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import TrackChangesIcon from '@mui/icons-material/TrackChanges';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 
 import { PageHeader } from '@/components/shared/PageHeader';
 import { SearchFilters } from '@/components/shared/SearchFilters';
@@ -21,6 +26,7 @@ import { AgencyLink } from '@/components/shared/AgencyLink';
 import { searchOpportunities, exportOpportunities } from '@/api/opportunities';
 import { createProspect } from '@/api/prospects';
 import { queryKeys } from '@/queries/queryKeys';
+import { useIgnoreOpportunity, useUnignoreOpportunity, useIgnoredOpportunityIds } from '@/queries/useOpportunities';
 import { useResponsiveColumns } from '@/hooks/useResponsiveColumns';
 import type { ResponsiveColumnConfig } from '@/hooks/useResponsiveColumns';
 import type { OpportunitySearchResult, OpportunitySearchParams } from '@/types/api';
@@ -136,6 +142,12 @@ export default function OpportunitySearchPage() {
   const { enqueueSnackbar } = useSnackbar();
   const columnVisibility = useResponsiveColumns(RESPONSIVE_COLUMNS);
 
+  const ignoreMutation = useIgnoreOpportunity();
+  const unignoreMutation = useUnignoreOpportunity();
+  const { data: ignoredIds } = useIgnoredOpportunityIds();
+  const ignoredSet = useMemo(() => new Set(ignoredIds ?? []), [ignoredIds]);
+  const [showIgnored, setShowIgnored] = useState(false);
+
   // --- Filter state from URL (committed = what drives the query) ---
   const committedValues = useMemo(() => readFiltersFromParams(searchParams), [searchParams]);
 
@@ -162,10 +174,11 @@ export default function OpportunitySearchPage() {
   }, [searchParams]);
 
   // --- API params ---
-  const apiParams = useMemo(
-    () => filtersToApiParams(committedValues, paginationModel, sortModel),
-    [committedValues, paginationModel, sortModel],
-  );
+  const apiParams = useMemo(() => {
+    const params = filtersToApiParams(committedValues, paginationModel, sortModel);
+    if (showIgnored) params.excludeIgnored = false;
+    return params;
+  }, [committedValues, paginationModel, sortModel, showIgnored]);
 
   // --- Query ---
   const {
@@ -408,25 +421,55 @@ export default function OpportunitySearchPage() {
       {
         field: 'actions',
         headerName: '',
-        width: 100,
+        width: 160,
         sortable: false,
-        renderCell: (params) => (
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<TrackChangesIcon />}
-            onClick={(e) => {
-              e.stopPropagation();
-              trackMutation.mutate(params.row.noticeId);
-            }}
-            disabled={trackMutation.isPending || !!params.row.prospectStatus}
-          >
-            {params.row.prospectStatus ? 'Tracked' : 'Track'}
-          </Button>
-        ),
+        renderCell: (params) => {
+          const isIgnored = ignoredSet.has(params.row.noticeId);
+          return (
+            <Box sx={{ display: 'flex', gap: 0.5 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<TrackChangesIcon />}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  trackMutation.mutate(params.row.noticeId);
+                }}
+                disabled={trackMutation.isPending || !!params.row.prospectStatus}
+              >
+                {params.row.prospectStatus ? 'Tracked' : 'Track'}
+              </Button>
+              <IconButton
+                size="small"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isIgnored) {
+                    unignoreMutation.mutate(params.row.noticeId, {
+                      onSuccess: () => enqueueSnackbar('Opportunity restored', { variant: 'info' }),
+                      onError: () => enqueueSnackbar('Failed to restore opportunity', { variant: 'error' }),
+                    });
+                  } else {
+                    ignoreMutation.mutate(
+                      { noticeId: params.row.noticeId },
+                      {
+                        onSuccess: () => enqueueSnackbar('Opportunity ignored', { variant: 'info' }),
+                        onError: () => enqueueSnackbar('Failed to ignore opportunity', { variant: 'error' }),
+                      },
+                    );
+                  }
+                }}
+                disabled={ignoreMutation.isPending || unignoreMutation.isPending}
+                title={isIgnored ? 'Un-ignore' : 'Ignore'}
+                color={isIgnored ? 'warning' : 'default'}
+              >
+                {isIgnored ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
+              </IconButton>
+            </Box>
+          );
+        },
       },
     ],
-    [trackMutation],
+    [trackMutation, ignoredSet, ignoreMutation, unignoreMutation],
   );
 
   // --- Render ---
@@ -480,6 +523,11 @@ export default function OpportunitySearchPage() {
         <Typography variant="body2" color="text.secondary">
           {data ? `${data.totalCount.toLocaleString()} results` : ''}
         </Typography>
+        <FormControlLabel
+          control={<Switch size="small" checked={showIgnored} onChange={(_, v) => setShowIgnored(v)} />}
+          label="Show ignored"
+          sx={{ ml: 'auto' }}
+        />
       </Box>
 
       <DataTable
