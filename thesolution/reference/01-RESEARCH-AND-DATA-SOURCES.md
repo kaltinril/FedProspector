@@ -178,8 +178,10 @@ This document catalogs all identified federal government data sources for contra
 | URL | `https://api.gsa.gov/acquisition/calc/v3/api/ceilingrates/` |
 | Auth | None required |
 | Rate Limit | None documented |
-| Data Format | JSON (or CSV via `&export=y`) |
-| Records | ~51,863 total, refreshed nightly |
+| Data Format | JSON or CSV (via `&export=y` for bulk export) |
+| Records | ~258,000 total, refreshed daily |
+| Backend | AWS OpenSearch (replaced Elasticsearch, Feb 2025) |
+| Docs | https://open.gsa.gov/api/dx-calc-api/ (legacy https://open.gsa.gov/api/calc/ retired) |
 
 **Key Filters**: `business_size:s` (small business), `price_range:MIN,MAX`, `security_clearance`, `education_level`
 
@@ -374,6 +376,57 @@ When a new opportunity appears on SAM.gov, the following workflow uses these thr
 
 ---
 
+## Tier 5 - Supplementary Data (Economic Indicators & Wage Data)
+
+### 22. Bureau of Labor Statistics (BLS) API v2
+
+**Purpose**: Economic indicators for pricing escalation and cost analysis in proposals
+
+| Field | Detail |
+|-------|--------|
+| URL | `https://api.bls.gov/publicAPI/v2/timeseries/data/` |
+| Auth | Optional registration key (free at https://data.bls.gov/registrationEngine/) |
+| Rate Limit | 25 requests/day (no key), 500/day (with key) |
+| Method | POST with JSON body containing series IDs |
+| Data Format | JSON |
+| Our CLI Command | `python main.py load bls` |
+
+**Key Series for Federal Contracting**:
+- `CIU2020000000000I` — Employment Cost Index (ECI) for professional services
+- `CUUR0000SA0` — Consumer Price Index for All Urban Consumers (CPI-U)
+
+**Why Useful**: Federal contracts with multi-year periods of performance often include escalation clauses tied to ECI or CPI. Having current index values supports pricing proposals with defensible escalation rates.
+
+---
+
+### 23. SAM.gov Wage Determination Data (Undocumented API)
+
+**Purpose**: Service Contract Act (SCA) wage determinations — minimum hourly rates the government mandates for service contract labor categories by geographic area
+
+| Field | Detail |
+|-------|--------|
+| URL | `https://sam.gov/api/prod/wdol/v1/wd/{wdNumber}/{revision}` |
+| Auth | None required |
+| Rate Limit | None documented (undocumented internal API) |
+| Data Format | JSON (metadata is structured; occupation/rate data is unstructured text in a `document` field) |
+| Records | ~2,000 active SCA area-wide wage determinations |
+
+**WD Number Format**: Standard SCA area-wide determinations use format `2015-4001` through `2015-5959`.
+
+**Caution**: This is an undocumented internal API — no official public documentation exists. It could change without notice.
+
+**Why Useful**: SCA wage determinations set minimum labor rates for service contracts. When pricing proposals, you must meet or exceed these rates. Having them in the database enables automated floor-price calculations by geographic area.
+
+**Status**: Phase 115J tracks potential loading of this data.
+
+---
+
+## Entity Management API — Not Yet Loaded
+
+The SAM.gov Entity Management API (documented in `vendor-apis/SAM-ENTITY-API.md`) provides vendor registration data including certifications, clearances, and business types. We currently have no `sam_entity` table populated from this API — our entity data comes solely from the bulk extract files. Loading entity data via the real-time API would enable competitor profiling, certification verification, and clearance-based filtering. Tracked as a future phase candidate in Phase 115M.
+
+---
+
 ## Commercial Sources (Paid)
 
 ### 20. GovWin IQ (Deltek)
@@ -396,8 +449,10 @@ When a new opportunity appears on SAM.gov, the following workflow uses these thr
 | 3 | USASpending.gov | REST | Unlimited | Spending analysis |
 | 4 | SAM.gov Federal Hierarchy | REST | 10-1K/day | Agency mapping |
 | 5 | SAM.gov Contract Awards | REST | 10-1K/day | Award history |
-| 6 | GSA CALC+ | REST | Unlimited | Pricing intel |
+| 6 | GSA CALC+ | REST | Unlimited | Pricing intel (~258K rates) |
 | 7 | SAM.gov Exclusions | REST | 10-1K/day | Due diligence |
 | 8 | FPDS ATOM Feed | XML | Unlimited | Deep history |
 | 9 | SAM.gov Subaward | REST | 10-1K/day | Sub intel |
 | 10 | Acquisition Gateway FCO | Manual | N/A | Forecasts |
+| 11 | BLS API v2 | REST (POST) | 25-500/day | Economic indicators (ECI, CPI) |
+| 12 | SAM.gov Wage Determinations | REST | Unknown | SCA wage floors (undocumented API) |

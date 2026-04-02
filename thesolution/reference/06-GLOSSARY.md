@@ -60,6 +60,8 @@ Reference for developers and AI agents working on this project. Definitions refl
 | **DODAAC** | Department of Defense Activity Address Code | 6-character alphanumeric | DLA | `entity.dodaac` |
 | **EIN/TIN** | Employer Identification Number / Taxpayer Identification Number | 9 digits | IRS | Not tracked (compliance risk) |
 | **CGAC** | Common Government-wide Accounting Classification | 3 digits | Treasury / OMB | `federal_organization.cgac` |
+| **Agency Code** | FPDS agency/sub-tier identifier | 4 characters | FPDS | `federal_organization.agency_code` |
+| **FPDS Office Code** | Contracting office identifier (legacy FPDS) | Up to 6 characters | FPDS | `federal_organization.oldfpds_office_code` |
 
 Notes on identifiers:
 - UEI replaced the DUNS number (previously issued by Dun & Bradstreet) in April 2022.
@@ -106,6 +108,36 @@ Two distinct uses of "API" appear throughout the project documentation. Always u
 |------|-----------|-----------|---|---|
 | **Vendor API** | External government data sources: SAM.gov (v1–v4), USASpending.gov, GSA CALC+ | REST (various auth methods) | Yes — SAM.gov key 1: 10/day, key 2: 1,000/day | Python `load` commands only |
 | **App API** | FedProspect's own C# backend REST API | ASP.NET Core (.NET 10), 59 endpoints, 13 controllers | No (local deployment) | React frontend UI (Phases 20-70) |
+
+---
+
+## 8. Economic & Wage Terms
+
+| Term | Definition | In Our System |
+|------|-----------|---------------|
+| **SCA** | Service Contract Act — federal law requiring contractors to pay service employees at least the locally prevailing wage rates as determined by the Department of Labor. Each covered contract has an attached wage determination. | Wage determination numbers on opportunity attachments; Phase 115J |
+| **WD (Wage Determination)** | A Department of Labor document specifying minimum hourly rates by occupation for a geographic area under SCA or Davis-Bacon Act. Format: `2015-4001`. | Not yet loaded; Phase 115J |
+| **BLS** | Bureau of Labor Statistics — the principal federal statistical agency for labor economics and statistics. Provides CPI, ECI, and employment data. | `python main.py load bls` |
+| **ECI** | Employment Cost Index — a BLS quarterly measure of change in compensation costs (wages and benefits). Series `CIU2020000000000I` covers professional services. Used for contract price escalation. | Loaded via BLS loader |
+| **CPI / CPI-U** | Consumer Price Index for All Urban Consumers — a BLS measure of average change in prices paid by urban consumers. Series `CUUR0000SA0`. Used for inflation adjustments in multi-year contracts. | Loaded via BLS loader |
+| **LPTA** | Lowest Price Technically Acceptable — a source selection method where the government awards to the lowest-priced offeror whose proposal meets minimum technical requirements. Contrasts with best-value tradeoff. | `fpds_contract` (not yet loaded; Phase 115M) |
+
+---
+
+## 9. FPDS Contract Data Fields Not Yet Loaded
+
+The following strategically important fields exist in the FPDS Contract Awards API but are not yet captured in our `fpds_contract` table. Phase 115M tracks their addition:
+
+- Source selection process code (LPTA vs best value)
+- Solicitation procedures code (simplified, sealed bid, negotiated)
+- Contract bundling code (critical for WOSB/8(a) strategy)
+- Subcontract plan code (teaming opportunities)
+- Performance-based flag
+- Multiyear contract flag
+- Awardee socioeconomic flags (8(a), WOSB, SDVOSB, HUBZone on the winner)
+- Ultimate contract value / total ultimate contract value
+- Funding office code/name
+- Contracting department code/name (CGAC-equivalent from FPDS)
 
 **The architectural rule**: Vendor APIs populate the local MySQL database via the Python ETL pipeline. The App API reads from that local database and exposes data to the UI. The App API never calls Vendor APIs.
 

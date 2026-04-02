@@ -36,6 +36,18 @@ Validated 2026-02-28. Always validate with a live API call before bulk loading -
 - **Foreign POP state codes**: For non-US addresses, `placeOfPerformance.state.code` is `null` and `state.name` contains the full name. US states use 2-char codes (e.g., "VA").
 
 
+## Agency Name Format Differences Across Data Sources
+
+Agency names are formatted differently in each data source, making text-based matching unreliable:
+
+| Source | Example Format |
+|--------|---------------|
+| SAM.gov Opportunities | `STATE, DEPARTMENT OF` |
+| USASpending Awards | `Department of State` |
+| FPDS Contracts | `DEPARTMENT OF STATE` |
+
+**Never use agency name text matching across sources.** Always join through `federal_organization` using identifier codes (CGAC, agency code, or FPDS office code). See `10-FEDERAL-IDENTIFIERS.md` for the three coding systems. Phase 115L tracks cross-source agency reconciliation.
+
 ## General
 
 - **Always validate with a live API call** before bulk loading -- documentation is frequently wrong/outdated.

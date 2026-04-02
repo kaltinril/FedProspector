@@ -7,21 +7,23 @@
 | **Endpoint** | `https://api.gsa.gov/acquisition/calc/v3/api/ceilingrates/` |
 | **Auth** | None required |
 | **Rate Limit** | None (effectively unlimited) |
-| **Pagination** | Page-based (`page=1`, `page_size=100`), but limited by Elasticsearch `max_result_window` of 10,000 |
-| **Backend** | Elasticsearch |
-| **Data Format** | JSON (Elasticsearch response format) |
-| **Total Records** | ~230,000 labor rates |
-| **Update Frequency** | Nightly refresh |
+| **Pagination** | Page-based (`page=1`, `page_size=100`), proper pagination support |
+| **Backend** | AWS OpenSearch (replaced Elasticsearch, February 2025) |
+| **Data Format** | JSON or CSV (via `&export=y` for bulk export) |
+| **Total Records** | ~258,000 labor rates |
+| **Update Frequency** | Daily refresh |
 | **Our CLI Command** | `python main.py load calc` |
 | **Client File** | `fed_prospector/api_clients/calc_client.py` |
 | **Loader File** | `fed_prospector/etl/calc_loader.py` |
-| **OpenAPI Spec** | N/A (docs at https://open.gsa.gov/api/calc/) |
+| **Docs URL** | https://open.gsa.gov/api/dx-calc-api/ (legacy URL https://open.gsa.gov/api/calc/ is retired) |
 
 ## Purpose & Prospecting Value
 
 The CALC+ (Contract Awarded Labor Category) Quick Rate API provides awarded ceiling rates on GSA professional services schedules. It contains approximately 230,000 labor rate records from contractors with GSA Schedule contracts, covering labor categories like "Software Developer," "Project Manager," and "Systems Engineer" across all GSA service schedules.
 
 For WOSB and 8(a) federal contract prospecting, CALC+ data is essential for **proposal pricing intelligence**. Before bidding on a contract, you need to know the market rate range for each labor category. CALC+ provides the actual awarded ceiling rates (the maximum a contractor can charge), giving you benchmarks to price competitively. You can filter by `business_size` to compare small business rates versus large business rates, and by `security_clearance` to understand the premium for cleared positions.
+
+The legacy CALC API was decommissioned in February 2025 and replaced by the DX CALC+ API (same base URL, new backend). The new API is powered by AWS OpenSearch (replacing Elasticsearch), supports proper pagination (`page=` + `page_size=`), and offers a CSV bulk export option (`&export=y`). The base endpoint URL remains the same.
 
 The API is also valuable for **competitive analysis**. By searching for specific contractors (`vendor_name`), you can see their full rate card across all labor categories. Combined with award data from USASpending and SAM.gov, this enables a complete picture of competitor pricing and capability. The data refreshes nightly, so rates are always current. Since there are no rate limits or authentication requirements, it is freely available for unlimited analysis.
 
@@ -133,7 +135,11 @@ The `hits.total.value` field caps at 10,000 when `relation` is `"gte"`. To get t
 
 5. **No documented rate limits** -- The API has no authentication and no documented rate limits. Our client sets `max_daily_requests=999999` to disable rate limit tracking.
 
-6. **Record count discrepancy vs documentation** -- The research doc (Phase 1) noted ~51,863 records, but the live API contains ~230,000. The 51K figure may have been for a filtered keyword search. The full dataset requires the multi-sort strategy.
+6. **Record count discrepancy vs documentation** -- The research doc (Phase 1) noted ~51,863 records, but the live API contains ~258,000. The 51K figure may have been for a filtered keyword search. The full dataset requires a complete extraction strategy.
+
+8. **Legacy docs URL retired** -- The old documentation at `https://open.gsa.gov/api/calc/` no longer works. New docs are at `https://open.gsa.gov/api/dx-calc-api/`.
+
+9. **Our multi-sort hack only gets ~124K of ~258K records** -- The 18-sort-ordering dedup strategy retrieves roughly half the total dataset. Phase 115K plans to fix this, likely by using the CSV bulk export (`&export=y`) or the new proper pagination.
 
 7. **Response is raw Elasticsearch format** -- Unlike typical REST APIs, the response uses Elasticsearch's native `hits.hits[]._source` nesting, not a simple `results` array.
 

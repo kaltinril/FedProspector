@@ -20,6 +20,8 @@ The same data often appears in multiple federal sources. This matrix shows where
 | NAICS Codes | Local CSV (already on disk) | USASpending references API | CSV loaded in Phase 1 |
 | SBA Size Standards | Local CSV (already on disk) | SBA.gov (manual) | CSV loaded in Phase 1 |
 | Procurement Forecasts | Acquisition Gateway FCO | Individual agency sites | No single API; per-agency |
+| Economic Indicators (ECI, CPI) | BLS API v2 | FRED (St. Louis Fed) | BLS is authoritative source |
+| SCA Wage Determinations | SAM.gov (undocumented API) | Manual lookup at sam.gov | No official public API; Phase 115J |
 
 ## Rate Limit Budget
 
@@ -72,9 +74,10 @@ These APIs have no documented rate limits and should be used for heavy lifting:
 | Source | Auth Required | Best For |
 |--------|--------------|----------|
 | USASpending.gov | None | Aggregate spending analysis, bulk downloads |
-| GSA CALC+ | None | Labor rate analysis (~52K records) |
+| GSA CALC+ | None | Labor rate analysis (~258K records, daily refresh) |
 | FPDS ATOM Feed | None | Historical contract data (10 records/search, unlimited searches) |
 | Federal Register | None | Regulatory monitoring |
+| BLS API v2 | Optional key | Economic indicators (ECI, CPI). 25/day free, 500/day with key |
 
 ### Rate Limit Tracking
 
@@ -102,7 +105,7 @@ Entity Incremental         | Daily (Tue-Sat) | Daily extract DL | 1 call/day
 Opportunities              | Every 4 hours   | API search       | 6-72 calls/day
 Contract Awards            | Weekly          | API search       | 50 calls/week
 Federal Hierarchy          | Weekly          | API pagination   | 10 calls/week
-GSA CALC Rates             | Monthly         | API pagination   | 260 calls/month
+GSA CALC+ Rates            | Monthly         | API or CSV export| 18 calls (API) or 1 call (CSV)
 USASpending Awards         | Monthly         | Bulk CSV DL      | 0 (no limit)
 Exclusions                 | Weekly          | API search       | 10 calls/week
 FPDS Historical            | Weekly          | ATOM feed        | 0 (no limit)
@@ -120,7 +123,8 @@ For the first-time bulk load of each source:
 | Opportunities (2 year history) | API pagination over multiple days | 3-5 days at 10/day; 1 day at 1,000/day |
 | Contract Awards | API pagination + USASpending bulk download | 2-3 days |
 | Federal Hierarchy | API pagination | 1 day |
-| GSA CALC | API pagination (260 pages) | 1 hour |
+| GSA CALC+ | API (18 multi-sort queries) or CSV export | 1 hour |
+| BLS Economic Indicators | POST API (1 call per load) | Minutes |
 | USASpending | Bulk CSV archive download | 2-4 hours per fiscal year |
 | FPDS Historical | ATOM feed pagination | 3-5 days (no rate limit, but slow XML) |
 

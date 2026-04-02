@@ -70,8 +70,10 @@ RFI (presolicitation) ──── ? ────► Solicitation (RFP)
 | fpds_contract | vendor_uei | entity | uei_sam | Awardee entity |
 | usaspending_award | recipient_uei | entity | uei_sam | Incumbent entity |
 | usaspending_award | id | usaspending_transaction | award_id | Transaction detail |
-| fpds_contract | contracting_office_id | federal_organization | fh_org_id | Org hierarchy (note: may need mapping) |
-| opportunity | contracting_office_id | federal_organization | fh_org_id | Org hierarchy |
+| fpds_contract | contracting_office_id | federal_organization | oldfpds_office_code | FPDS office code match (see 10-FEDERAL-IDENTIFIERS.md Agency Coding Systems) |
+| fpds_contract | agency_id | federal_organization | agency_code | FPDS agency code match |
+| opportunity | contracting_office_id | federal_organization | oldfpds_office_code | FPDS office code match |
+| opportunity | fullParentPathCode (1st segment) | federal_organization | cgac | CGAC department code match |
 | opportunity_relationship | parent_notice_id | opportunity | notice_id | Manual RFI-to-RFP link |
 | opportunity_relationship | child_notice_id | opportunity | notice_id | Manual RFI-to-RFP link |
 
@@ -100,6 +102,10 @@ RFI (presolicitation) ──── ? ────► Solicitation (RFP)
 | Real-time contract expenditures | Only obligation data (committed $) is public | USASpending transaction timeline shows obligations over time |
 | RFP attachments (SOW, PWS) | Requires authenticated download from SAM.gov | User downloads manually from SAM.gov |
 | Entity facility clearance | CUI/FOUO data -- requires System Account access | Not available via public API |
+| FPDS source selection (LPTA/best value) | Available in API, not yet loaded | Phase 115M — add fields to `fpds_contract` |
+| FPDS solicitation procedures, bundling, subcontract plan | Available in API, not yet loaded | Phase 115M — strategic set-aside analysis fields |
+| FPDS awardee socioeconomic flags | Available in API, not yet loaded | Phase 115M — 8(a)/WOSB/SDVOSB winner flags |
+| SAM.gov entity real-time data | Entity API not loaded into DB (only bulk extracts) | Future phase candidate (Phase 115M notes) |
 
 ---
 

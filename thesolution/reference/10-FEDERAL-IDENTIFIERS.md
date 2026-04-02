@@ -122,6 +122,20 @@ PIID alone is **not globally unique** -- two agencies could theoretically issue 
 
 ---
 
+## Agency Coding Systems
+
+Three different identifier schemes exist for federal organizations. Each data source uses a different one, so cross-table agency matching requires joining through the `federal_organization` table.
+
+| Coding System | Format | Example | Used By | DB Column |
+|---|---|---|---|---|
+| **CGAC** (Common Government-wide Accounting Classification) | 3-digit | `012` | Opportunity `fullParentPathCode` (first segment), USASpending `generated_unique_award_id` | `federal_organization.cgac` |
+| **Agency Code** (FPDS agency/sub-tier identifier) | 4-char | `12K3` | `fpds_contract.agency_id` | `federal_organization.agency_code` |
+| **FPDS Office Code** | Up to 6-char | `127SWF` | `fpds_contract.contracting_office_id`, opportunity `contracting_office_id` | `federal_organization.oldfpds_office_code` |
+
+**Cross-source agency matching**: To link an opportunity's agency to FPDS contract data, join through `federal_organization` using whichever code each source provides. Text-based agency name matching fails because each source formats names differently (see `09-SAM-API-QUIRKS.md`). Phase 115L tracks cross-source agency reconciliation.
+
+---
+
 ## Regex Patterns for Text Extraction
 
 Patterns suitable for extracting identifiers from free text (solicitation documents, SOWs, attachments). Only identifiers with distinctive enough patterns to avoid excessive false positives are included.

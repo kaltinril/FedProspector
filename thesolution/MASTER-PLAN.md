@@ -152,6 +152,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 115J | SCA Wage Determinations | PLANNED | [115J-SCA-WAGE-DETERMINATIONS.md](phases/115J-SCA-WAGE-DETERMINATIONS.md) |
 | 115K | CALC+ Bulk Export & Daily Refresh | PLANNED | [115K-CALC-BULK-EXPORT.md](phases/115K-CALC-BULK-EXPORT.md) |
 | 115L | Agency Code Normalization | PLANNED | [115L-AGENCY-CODE-NORMALIZATION.md](phases/115L-AGENCY-CODE-NORMALIZATION.md) |
+| 115M | FPDS Contract Data Enrichment | PLANNED | [115M-FPDS-DATA-ENRICHMENT.md](phases/115M-FPDS-DATA-ENRICHMENT.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |
