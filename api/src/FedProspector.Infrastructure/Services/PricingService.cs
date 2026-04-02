@@ -508,6 +508,24 @@ public class PricingService : IPricingService
 
     public async Task<IgceResponse> EstimateIgceAsync(IgceRequest request)
     {
+        // Auto-populate from opportunity if NoticeId provided but NAICS/Agency missing
+        if (!string.IsNullOrWhiteSpace(request.NoticeId)
+            && string.IsNullOrWhiteSpace(request.NaicsCode))
+        {
+            // Support both notice_id and solicitation_number lookups
+            var opp = await _context.Opportunities.AsNoTracking()
+                .FirstOrDefaultAsync(o => o.NoticeId == request.NoticeId
+                    || o.SolicitationNumber == request.NoticeId);
+
+            if (opp != null)
+            {
+                request.NaicsCode ??= opp.NaicsCode;
+                request.AgencyName ??= opp.DepartmentName;
+                // Use internal notice_id for burn rate lookup
+                request.NoticeId = opp.NoticeId;
+            }
+        }
+
         var methods = new List<IgceMethodResult>();
 
         // Method 1: Historical analog -- average of comparable past awards
