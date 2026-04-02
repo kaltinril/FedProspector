@@ -1,6 +1,6 @@
 # Tech Stack Reference
 
-Last updated: 2026-03-31
+Last updated: 2026-04-01
 
 ---
 
@@ -23,13 +23,13 @@ Last updated: 2026-03-31
 | requests | 2.32.5 | HTTP client for vendor APIs |
 | mysql-connector-python | 9.6.0 | MySQL database driver |
 | python-dotenv | 1.2.2 | .env config loading |
-| lxml | 6.0.2 | XML parsing (SAM.gov extracts) |
-| apscheduler | 3.11.2 | Scheduled ETL jobs |
+| lxml | 6.0.2 | XML parsing (SAM.gov extracts); also transitive dep of python-docx/python-pptx (pinned explicitly) |
 | click | 8.3.1 | CLI framework |
 | tqdm | 4.67.3 | Progress bars |
 | ijson | 3.5.0 | Streaming JSON parser |
 | bcrypt | 5.0.0 | Password hashing |
-| pytest | 9.0.2 | Test framework |
+| rapidfuzz | 3.14.3 | Fuzzy string matching (labor category normalization) |
+| anthropic | 0.86.0 | Anthropic API client (attachment AI analysis) |
 | pymupdf | 1.27.2.2 | PDF text extraction (structure-aware) |
 | python-docx | 1.2.0 | Word .docx text extraction |
 | openpyxl | 3.1.5 | Excel .xlsx text extraction |
@@ -38,6 +38,12 @@ Last updated: 2026-03-31
 | striprtf | 0.0.29 | Rich Text Format extraction |
 | odfpy | 1.4.1 | OpenDocument .odt text extraction |
 | olefile | 0.47 | OLE2 file inspection (IRM/DRM detection) |
+
+### Dev/Testing
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| pytest | 9.0.2 | Test framework |
 
 ### System Dependencies
 
@@ -97,11 +103,17 @@ Last updated: 2026-03-31
 | Package | Version | Purpose |
 |---------|---------|---------|
 | @vitejs/plugin-react | 6.0.1 | Vite React support |
+| @eslint/js | 9.39.1 | ESLint core JS rules |
 | eslint | 9.39.4 | Linting |
 | typescript-eslint | 8.57.1 | TS lint rules |
 | eslint-plugin-react-hooks | 7.0.1 | Hooks lint rules |
 | eslint-plugin-jsx-a11y | 6.10.2 | Accessibility lint |
 | eslint-plugin-react-refresh | 0.5.2 | Fast refresh lint |
+| @types/node | 22.0.0 | Node.js type definitions |
+| @types/react | 19.2.14 | React type definitions |
+| @types/react-dom | 19.2.3 | React DOM type definitions |
+| globals | 17.4.0 | Global variable definitions for ESLint |
+| openapi-typescript | 7.13.0 | OpenAPI → TypeScript codegen |
 | prettier | 3.8.1 | Code formatting |
 | rollup-plugin-visualizer | 7.0.1 | Bundle analysis |
 
@@ -142,4 +154,15 @@ Last updated: 2026-03-31
 | FluentAssertions | 8.9.0 | Assertion library |
 | Microsoft.AspNetCore.Mvc.Testing | 10.0.5 | Integration test host |
 | Microsoft.EntityFrameworkCore.InMemory | 9.0.7 | In-memory DB for tests |
+| Microsoft.EntityFrameworkCore.Relational | 9.0.7 | Relational abstractions for tests |
+| Microsoft.Extensions.Logging.Abstractions | 10.0.5 | Null logger for tests |
 | coverlet.collector | 8.0.1 | Code coverage |
+
+---
+
+## System / Infrastructure Notes
+
+- **`global.json`** pins .NET SDK to **10.0.201**
+- **`.nvmrc`** pins Node.js to **22.22.2**
+- **MySQL `secure-file-priv`** is set to `""` (empty), allowing `LOAD DATA INFILE` from any path
+- **Git for Windows** 2.53.0

@@ -2,7 +2,6 @@ requests==2.32.5
 mysql-connector-python==9.6.0
 python-dotenv==1.2.2
 lxml==6.0.2
-apscheduler==3.11.2
 click==8.3.1
 tqdm==4.67.3
 ijson==3.5.0
@@ -16,4 +15,5 @@ striprtf==0.0.29
 odfpy==1.4.1
 olefile==0.47
 rapidfuzz==3.14.3
-anthropic
+anthropic==0.86.0
+pytest==9.0.2
