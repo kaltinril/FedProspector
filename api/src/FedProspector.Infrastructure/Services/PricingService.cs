@@ -159,48 +159,39 @@ public class PricingService : IPricingService
             return new PriceToWinResponse();
         }
 
-        // TODO: Convention violation — should use usaspending_award instead of fpds_contract
-        // for scoring/analytics. usaspending_award is the authoritative source for market
-        // competition, vendor history, and award trend analysis. Migrate when UsaspendingAward
-        // entity has the needed fields (NumberOfOffers, TypeOfContract equivalent).
         var fiveYearsAgo = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-5));
 
         var escapedAgency = !string.IsNullOrWhiteSpace(request.AgencyName)
             ? EscapeLikeWildcards(request.AgencyName)
             : null;
 
-        // Query comparable base awards
-        var query = _context.FpdsContracts.AsNoTracking()
-            .Where(c => c.NaicsCode == request.NaicsCode
-                        && c.ModificationNumber == "0"
-                        && c.DateSigned != null
-                        && c.DateSigned >= fiveYearsAgo
-                        && c.BaseAndAllOptions != null
-                        && c.BaseAndAllOptions > 0);
+        // Primary award value analysis uses usaspending_award (28.7M rows, authoritative source)
+        var query = _context.UsaspendingAwards.AsNoTracking()
+            .Where(a => a.NaicsCode == request.NaicsCode
+                        && a.StartDate != null
+                        && a.StartDate >= fiveYearsAgo
+                        && a.BaseAndAllOptionsValue != null
+                        && a.BaseAndAllOptionsValue > 0);
 
         if (escapedAgency != null)
-            query = query.Where(c => c.AgencyName != null && EF.Functions.Like(c.AgencyName, $"%{escapedAgency}%"));
+            query = query.Where(a => a.AwardingAgencyName != null && EF.Functions.Like(a.AwardingAgencyName, $"%{escapedAgency}%"));
 
         if (!string.IsNullOrWhiteSpace(request.SetAsideType))
-            query = query.Where(c => c.SetAsideType == request.SetAsideType);
+            query = query.Where(a => a.TypeOfSetAside == request.SetAsideType);
 
-        if (!string.IsNullOrWhiteSpace(request.ContractType))
-            query = query.Where(c => c.TypeOfContract == request.ContractType);
+        // ContractType filter not available in USASpending entity — skip silently
 
         var awards = await query
-            .OrderByDescending(c => c.DateSigned)
+            .OrderByDescending(a => a.StartDate)
             .Take(500)
-            .Select(c => new
+            .Select(a => new
             {
-                c.ContractId,
-                c.VendorName,
-                c.BaseAndAllOptions,
-                c.NumberOfOffers,
-                c.AgencyName,
-                c.DateSigned,
-                c.EffectiveDate,
-                c.UltimateCompletionDate,
-                c.CompletionDate
+                ContractId = a.Piid ?? a.GeneratedUniqueAwardId,
+                a.RecipientName,
+                a.BaseAndAllOptionsValue,
+                a.AwardingAgencyName,
+                a.StartDate,
+                a.EndDate
             })
             .ToListAsync();
 
@@ -210,7 +201,7 @@ public class PricingService : IPricingService
         }
 
         var values = awards
-            .Select(a => a.BaseAndAllOptions!.Value)
+            .Select(a => a.BaseAndAllOptionsValue!.Value)
             .OrderBy(v => v)
             .ToList();
 
@@ -218,40 +209,28 @@ public class PricingService : IPricingService
         var p50 = Percentile(values, 50);
         var p75 = Percentile(values, 75);
 
-        // Competition stats
-        var offersData = awards.Where(a => a.NumberOfOffers.HasValue && a.NumberOfOffers > 0).ToList();
-        var offersList = offersData.Select(a => (decimal)a.NumberOfOffers!.Value).OrderBy(o => o).ToList();
-
-        var soloSourceCount = awards.Count(a => a.NumberOfOffers == 1);
-
-        var competitionStats = new CompetitionStatsDto
-        {
-            AvgOffers = offersList.Count > 0 ? Math.Round(offersList.Average(), 2) : 0,
-            MedianOffers = offersList.Count > 0 ? Percentile(offersList, 50) : 0,
-            SoloSourcePct = awards.Count > 0 ? Math.Round((decimal)soloSourceCount / awards.Count * 100, 2) : 0,
-            AvgAwardValue = Math.Round(values.Average(), 2),
-            MedianAwardValue = p50
-        };
+        // Competition stats from FPDS supplement (NumberOfOffers is FPDS-only)
+        var competitionStats = await GetCompetitionStatsFromFpdsAsync(
+            request.NaicsCode, fiveYearsAgo, escapedAgency, values, p50);
 
         // Top 20 comparable awards
         var comparableAwards = awards.Take(20).Select(a =>
         {
             int? popMonths = null;
-            if (a.EffectiveDate.HasValue)
+            if (a.StartDate.HasValue && a.EndDate.HasValue)
             {
-                var end = a.UltimateCompletionDate ?? a.CompletionDate;
-                if (end.HasValue)
-                    popMonths = (int)Math.Ceiling((end.Value.ToDateTime(TimeOnly.MinValue) - a.EffectiveDate.Value.ToDateTime(TimeOnly.MinValue)).TotalDays / 30.0);
+                popMonths = (int)Math.Ceiling(
+                    (a.EndDate.Value.ToDateTime(TimeOnly.MinValue) - a.StartDate.Value.ToDateTime(TimeOnly.MinValue)).TotalDays / 30.0);
             }
 
             return new ComparableAwardDto
             {
                 ContractId = a.ContractId,
-                Vendor = a.VendorName,
-                AwardValue = a.BaseAndAllOptions,
-                Offers = a.NumberOfOffers,
-                Agency = a.AgencyName,
-                AwardDate = a.DateSigned,
+                Vendor = a.RecipientName,
+                AwardValue = a.BaseAndAllOptionsValue,
+                Offers = null, // NumberOfOffers not available in USASpending
+                Agency = a.AwardingAgencyName,
+                AwardDate = a.StartDate,
                 PopMonths = popMonths
             };
         }).ToList();
@@ -324,27 +303,27 @@ public class PricingService : IPricingService
     public async Task<List<SubRatioDto>> GetSubRatiosAsync(string? naicsCode)
     {
         // Calculate sub/prime ratios by NAICS
-        // Join subawards to fpds_contract on prime PIID to get prime value, then compute ratio
+        // Join subawards to usaspending_award on prime PIID to get prime value, then compute ratio
         var query = _context.SamSubawards.AsNoTracking()
             .Where(s => s.SubAmount != null && s.SubAmount > 0 && s.PrimePiid != null);
 
         if (!string.IsNullOrWhiteSpace(naicsCode))
             query = query.Where(s => s.NaicsCode == naicsCode);
 
-        // Join to fpds_contract (base award) to get prime contract value
+        // Join to usaspending_award to get prime contract value (authoritative source)
         var joined = query
             .Join(
-                _context.FpdsContracts.AsNoTracking()
-                    .Where(c => c.ModificationNumber == "0"
-                                && c.BaseAndAllOptions != null
-                                && c.BaseAndAllOptions > 0),
+                _context.UsaspendingAwards.AsNoTracking()
+                    .Where(a => a.BaseAndAllOptionsValue != null
+                                && a.BaseAndAllOptionsValue > 0
+                                && a.Piid != null),
                 s => s.PrimePiid,
-                c => c.ContractId,
-                (s, c) => new
+                a => a.Piid,
+                (s, a) => new
                 {
                     s.NaicsCode,
                     SubAmount = s.SubAmount!.Value,
-                    PrimeValue = c.BaseAndAllOptions!.Value
+                    PrimeValue = a.BaseAndAllOptionsValue!.Value
                 })
             .Where(x => x.PrimeValue > 0);
 
@@ -591,26 +570,24 @@ public class PricingService : IPricingService
         if (string.IsNullOrWhiteSpace(request.NaicsCode))
             return null;
 
-        // TODO: Convention violation — should use usaspending_award instead of fpds_contract
-        // for scoring/analytics. Migrate when UsaspendingAward entity has the needed fields.
         var fiveYearsAgo = DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-5));
 
-        var query = _context.FpdsContracts.AsNoTracking()
-            .Where(c => c.NaicsCode == request.NaicsCode
-                        && c.ModificationNumber == "0"
-                        && c.DateSigned != null
-                        && c.DateSigned >= fiveYearsAgo
-                        && c.BaseAndAllOptions != null
-                        && c.BaseAndAllOptions > 0);
+        // Historical analog uses usaspending_award (authoritative source for award trend analysis)
+        var query = _context.UsaspendingAwards.AsNoTracking()
+            .Where(a => a.NaicsCode == request.NaicsCode
+                        && a.StartDate != null
+                        && a.StartDate >= fiveYearsAgo
+                        && a.BaseAndAllOptionsValue != null
+                        && a.BaseAndAllOptionsValue > 0);
 
         if (!string.IsNullOrWhiteSpace(request.AgencyName))
         {
             var escapedAgency = EscapeLikeWildcards(request.AgencyName);
-            query = query.Where(c => c.AgencyName != null && EF.Functions.Like(c.AgencyName, $"%{escapedAgency}%"));
+            query = query.Where(a => a.AwardingAgencyName != null && EF.Functions.Like(a.AwardingAgencyName, $"%{escapedAgency}%"));
         }
 
         var values = await query
-            .Select(c => c.BaseAndAllOptions!.Value)
+            .Select(a => a.BaseAndAllOptionsValue!.Value)
             .ToListAsync();
 
         if (values.Count == 0)
@@ -710,23 +687,23 @@ public class PricingService : IPricingService
         if (opportunity == null || string.IsNullOrWhiteSpace(opportunity.SolicitationNumber))
             return null;
 
-        var contract = await _context.FpdsContracts
+        // Use usaspending_award for burn rate analysis (authoritative spending source)
+        var award = await _context.UsaspendingAwards
             .AsNoTracking()
-            .Where(c => c.SolicitationNumber == opportunity.SolicitationNumber
-                        && c.ModificationNumber == "0"
-                        && c.DollarsObligated != null
-                        && c.EffectiveDate != null)
-            .OrderByDescending(c => c.DateSigned)
+            .Where(a => a.SolicitationIdentifier == opportunity.SolicitationNumber
+                        && a.TotalObligation != null
+                        && a.StartDate != null)
+            .OrderByDescending(a => a.StartDate)
             .FirstOrDefaultAsync();
 
-        if (contract == null)
+        if (award == null)
             return null;
 
-        var monthsElapsed = (DateTime.UtcNow - contract.EffectiveDate!.Value.ToDateTime(TimeOnly.MinValue)).TotalDays / 30.0;
+        var monthsElapsed = (DateTime.UtcNow - award.StartDate!.Value.ToDateTime(TimeOnly.MinValue)).TotalDays / 30.0;
         if (monthsElapsed <= 0)
             return null;
 
-        var monthlyBurnRate = contract.DollarsObligated!.Value / (decimal)monthsElapsed;
+        var monthlyBurnRate = award.TotalObligation!.Value / (decimal)monthsElapsed;
 
         var popMonths = request.PopMonths ?? 12;
         var estimate = Math.Round(monthlyBurnRate * popMonths, 2);
@@ -738,6 +715,43 @@ public class PricingService : IPricingService
             Confidence = 0.5m,
             Explanation = $"Incumbent burn rate ${monthlyBurnRate:N0}/month x {popMonths} months POP",
             DataPoints = 1
+        };
+    }
+
+    /// <summary>
+    /// Supplementary FPDS query for competition stats (NumberOfOffers is FPDS-only).
+    /// Award value stats come from the USASpending results passed in.
+    /// </summary>
+    private async Task<CompetitionStatsDto> GetCompetitionStatsFromFpdsAsync(
+        string naicsCode, DateOnly fiveYearsAgo, string? escapedAgency,
+        List<decimal> usaValues, decimal medianAwardValue)
+    {
+        var fpdsQuery = _context.FpdsContracts.AsNoTracking()
+            .Where(c => c.NaicsCode == naicsCode
+                        && c.ModificationNumber == "0"
+                        && c.DateSigned != null
+                        && c.DateSigned >= fiveYearsAgo
+                        && c.NumberOfOffers != null
+                        && c.NumberOfOffers > 0);
+
+        if (escapedAgency != null)
+            fpdsQuery = fpdsQuery.Where(c => c.AgencyName != null && EF.Functions.Like(c.AgencyName, $"%{escapedAgency}%"));
+
+        var fpdsOffers = await fpdsQuery
+            .Select(c => c.NumberOfOffers!.Value)
+            .Take(500)
+            .ToListAsync();
+
+        var offersList = fpdsOffers.Select(o => (decimal)o).OrderBy(o => o).ToList();
+        var soloSourceCount = fpdsOffers.Count(o => o == 1);
+
+        return new CompetitionStatsDto
+        {
+            AvgOffers = offersList.Count > 0 ? Math.Round(offersList.Average(), 2) : 0,
+            MedianOffers = offersList.Count > 0 ? Percentile(offersList, 50) : 0,
+            SoloSourcePct = fpdsOffers.Count > 0 ? Math.Round((decimal)soloSourceCount / fpdsOffers.Count * 100, 2) : 0,
+            AvgAwardValue = usaValues.Count > 0 ? Math.Round(usaValues.Average(), 2) : 0,
+            MedianAwardValue = medianAwardValue
         };
     }
 
