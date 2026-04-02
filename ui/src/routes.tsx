@@ -43,6 +43,12 @@ const NotificationCenterPage = lazy(
 const AdminPage = lazy(() => import('@/pages/admin/AdminPage'));
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
 const OrganizationPage = lazy(() => import('@/pages/organization/OrganizationPage'));
+const RateHeatmapPage = lazy(() => import('@/pages/pricing/RateHeatmapPage'));
+const PriceToWinPage = lazy(() => import('@/pages/pricing/PriceToWinPage'));
+const BidScenarioPage = lazy(() => import('@/pages/pricing/BidScenarioPage'));
+const EscalationPage = lazy(() => import('@/pages/pricing/EscalationPage'));
+const IgcePage = lazy(() => import('@/pages/pricing/IgcePage'));
+const SubBenchmarkPage = lazy(() => import('@/pages/pricing/SubBenchmarkPage'));
 const NotFoundPage = lazy(() => import('@/pages/errors/NotFoundPage'));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -231,6 +237,56 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <ProposalDetailPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Pricing Intelligence */}
+      <Route
+        path="/pricing/rates"
+        element={
+          <AuthenticatedLayout>
+            <RateHeatmapPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pricing/price-to-win"
+        element={
+          <AuthenticatedLayout>
+            <PriceToWinPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pricing/scenarios"
+        element={
+          <AuthenticatedLayout>
+            <BidScenarioPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pricing/escalation"
+        element={
+          <AuthenticatedLayout>
+            <EscalationPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pricing/igce"
+        element={
+          <AuthenticatedLayout>
+            <IgcePage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pricing/sub-benchmarks"
+        element={
+          <AuthenticatedLayout>
+            <SubBenchmarkPage />
           </AuthenticatedLayout>
         }
       />

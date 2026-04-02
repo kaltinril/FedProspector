@@ -1,0 +1,197 @@
+canonical_name,category_group,onet_code,description
+Junior Software Engineer,Engineering,15-1252,Entry-level software development
+Software Engineer,Engineering,15-1252,Mid-level software development
+Senior Software Engineer,Engineering,15-1252,Senior software development and technical leadership
+Principal Software Engineer,Engineering,15-1252,Principal-level software engineering and architecture
+Software Architect,Engineering,15-1299,Software architecture design and technical strategy
+Systems Engineer,Engineering,15-1244,Systems engineering and integration
+Senior Systems Engineer,Engineering,15-1244,Senior systems engineering and integration leadership
+DevOps Engineer,Engineering,15-1244,DevOps automation and CI/CD pipeline engineering
+Senior DevOps Engineer,Engineering,15-1244,Senior DevOps and infrastructure automation
+Embedded Systems Engineer,Engineering,15-1252,Embedded and real-time systems development
+Junior Web Developer,Engineering,15-1254,Entry-level web application development
+Web Developer,Engineering,15-1254,Mid-level web application development
+Senior Web Developer,Engineering,15-1254,Senior web application development
+Full Stack Developer,Engineering,15-1254,Full stack web application development
+Mobile Application Developer,Engineering,15-1252,Mobile application development for iOS and Android
+Test Engineer,Engineering,15-1253,Software testing and quality engineering
+Senior Test Engineer,Engineering,15-1253,Senior software testing and test automation
+Cloud Engineer,Cloud/Infrastructure,15-1244,Cloud platform engineering and migration
+Senior Cloud Engineer,Cloud/Infrastructure,15-1244,Senior cloud architecture and engineering
+Cloud Architect,Cloud/Infrastructure,15-1299,Cloud architecture design and strategy
+Cloud Solutions Architect,Cloud/Infrastructure,15-1299,Cloud solutions architecture and advisory
+Infrastructure Engineer,Cloud/Infrastructure,15-1244,Infrastructure design and management
+Senior Infrastructure Engineer,Cloud/Infrastructure,15-1244,Senior infrastructure engineering and planning
+Site Reliability Engineer,Cloud/Infrastructure,15-1244,Site reliability and production systems engineering
+Systems Administrator,Cloud/Infrastructure,15-1244,System administration and maintenance
+Senior Systems Administrator,Cloud/Infrastructure,15-1244,Senior system administration and infrastructure management
+Platform Engineer,Cloud/Infrastructure,15-1244,Platform engineering and automation
+Storage Engineer,Cloud/Infrastructure,15-1244,Storage systems engineering and data management
+Virtualization Engineer,Cloud/Infrastructure,15-1244,Virtualization and container infrastructure
+Cybersecurity Analyst,Cybersecurity,15-1212,Cybersecurity monitoring and threat analysis
+Senior Cybersecurity Analyst,Cybersecurity,15-1212,Senior cybersecurity analysis and incident response
+Information Security Engineer,Cybersecurity,15-1212,Information security engineering and architecture
+Senior Information Security Engineer,Cybersecurity,15-1212,Senior information security engineering
+Penetration Tester,Cybersecurity,15-1212,Offensive security testing and vulnerability assessment
+Security Architect,Cybersecurity,15-1212,Security architecture design and strategy
+Information System Security Officer,Cybersecurity,15-1212,ISSO role for system accreditation and compliance
+Information System Security Manager,Cybersecurity,15-1212,ISSM role for security program management
+SOC Analyst,Cybersecurity,15-1212,Security operations center monitoring and response
+Vulnerability Analyst,Cybersecurity,15-1212,Vulnerability scanning and remediation tracking
+Cybersecurity Engineer,Cybersecurity,15-1212,Cybersecurity engineering and tool implementation
+Incident Response Analyst,Cybersecurity,15-1212,Incident detection response and forensics
+Threat Intelligence Analyst,Cybersecurity,15-1212,Cyber threat intelligence collection and analysis
+Data Analyst,Data/Analytics,15-2051,Data analysis and reporting
+Senior Data Analyst,Data/Analytics,15-2051,Senior data analysis and business insights
+Data Scientist,Data/Analytics,15-2051,Data science and machine learning
+Senior Data Scientist,Data/Analytics,15-2051,Senior data science and AI/ML strategy
+Data Engineer,Data/Analytics,15-1243,Data pipeline engineering and ETL development
+Senior Data Engineer,Data/Analytics,15-1243,Senior data engineering and architecture
+Business Intelligence Analyst,Data/Analytics,15-2051,BI reporting and dashboard development
+Senior Business Intelligence Analyst,Data/Analytics,15-2051,Senior BI analytics and data visualization
+Machine Learning Engineer,Data/Analytics,15-2051,Machine learning model development and deployment
+AI/ML Specialist,Data/Analytics,15-2051,Artificial intelligence and machine learning specialization
+Data Visualization Specialist,Data/Analytics,15-2051,Data visualization and dashboard design
+Business Analyst,Business Analysis,13-1111,Business analysis and requirements documentation
+Senior Business Analyst,Business Analysis,13-1111,Senior business analysis and process improvement
+Business Process Analyst,Business Analysis,13-1111,Business process mapping and optimization
+Requirements Analyst,Business Analysis,13-1111,Requirements elicitation and management
+Management Analyst,Business Analysis,13-1111,Management consulting and organizational analysis
+Senior Management Analyst,Business Analysis,13-1111,Senior management consulting and strategy
+Functional Analyst,Business Analysis,13-1111,Functional analysis and solution design
+Solutions Analyst,Business Analysis,13-1111,Solutions analysis and technology evaluation
+Project Manager,Project Management,11-9199,Project planning and execution management
+Senior Project Manager,Project Management,11-9199,Senior project management and delivery leadership
+Program Manager,Project Management,11-9199,Program management across multiple projects
+Senior Program Manager,Project Management,11-9199,Senior program management and strategic oversight
+Scrum Master,Project Management,11-9199,Agile scrum facilitation and team coaching
+Agile Coach,Project Management,11-9199,Agile transformation coaching and methodology
+Project Scheduler,Project Management,13-1082,Project scheduling and resource planning
+Project Controller,Project Management,13-1082,Project cost and schedule control
+Risk Manager,Project Management,11-9199,Risk identification and mitigation planning
+Configuration Manager,Project Management,15-1244,Configuration management and change control
+Junior Program Analyst,Management,13-1111,Entry-level program analysis and support
+Program Analyst,Management,13-1111,Program analysis and performance monitoring
+Senior Program Analyst,Management,13-1111,Senior program analysis and strategic planning
+Task Lead,Management,11-9199,Task-level team leadership and coordination
+Task Manager,Management,11-9199,Task management and delivery oversight
+Team Lead,Management,11-9199,Technical team leadership and mentoring
+Subject Matter Expert,Management,13-1111,Domain expertise and advisory services
+Senior Subject Matter Expert,Management,13-1111,Senior domain expertise and thought leadership
+Technical Lead,Management,15-1299,Technical leadership and architecture guidance
+Technical Director,Management,15-1299,Technical direction and engineering strategy
+QA Analyst,Quality Assurance,15-1253,Quality assurance testing and defect tracking
+Senior QA Analyst,Quality Assurance,15-1253,Senior QA analysis and test strategy
+QA Engineer,Quality Assurance,15-1253,QA automation and test engineering
+Senior QA Engineer,Quality Assurance,15-1253,Senior QA engineering and framework development
+Quality Manager,Quality Assurance,11-3051,Quality management and process assurance
+Quality Control Specialist,Quality Assurance,15-1253,Quality control inspection and compliance
+Test Manager,Quality Assurance,11-3051,Test management and test planning
+Performance Tester,Quality Assurance,15-1253,Performance and load testing
+Help Desk Technician,Help Desk/Support,15-1232,Tier 1 help desk support
+Senior Help Desk Technician,Help Desk/Support,15-1232,Tier 2 help desk and escalation support
+Help Desk Manager,Help Desk/Support,11-3021,Help desk operations management
+Desktop Support Technician,Help Desk/Support,15-1232,Desktop and endpoint support
+IT Support Specialist,Help Desk/Support,15-1232,General IT support and troubleshooting
+Senior IT Support Specialist,Help Desk/Support,15-1232,Senior IT support and mentoring
+Service Desk Analyst,Help Desk/Support,15-1232,Service desk ticket management and resolution
+IT Service Manager,Help Desk/Support,11-3021,IT service management and ITIL processes
+Field Service Technician,Help Desk/Support,15-1232,On-site field service and hardware support
+Network Engineer,Network/Telecom,15-1241,Network design and implementation
+Senior Network Engineer,Network/Telecom,15-1241,Senior network engineering and architecture
+Network Architect,Network/Telecom,15-1241,Network architecture and capacity planning
+Telecommunications Engineer,Network/Telecom,15-1241,Telecommunications systems engineering
+Senior Telecommunications Engineer,Network/Telecom,15-1241,Senior telecommunications engineering
+VoIP Engineer,Network/Telecom,15-1241,Voice over IP systems engineering
+Wireless Engineer,Network/Telecom,15-1241,Wireless network engineering and RF design
+Network Administrator,Network/Telecom,15-1241,Network administration and monitoring
+Network Security Engineer,Network/Telecom,15-1241,Network security engineering and firewall management
+Unified Communications Engineer,Network/Telecom,15-1241,Unified communications platform engineering
+Database Administrator,Database,15-1242,Database administration and performance tuning
+Senior Database Administrator,Database,15-1242,Senior DBA and database architecture
+Database Developer,Database,15-1242,Database design and stored procedure development
+Database Architect,Database,15-1242,Database architecture and data modeling
+Data Modeler,Database,15-1242,Logical and physical data modeling
+ETL Developer,Database,15-1243,ETL pipeline development and data integration
+Senior ETL Developer,Database,15-1243,Senior ETL development and data warehouse design
+Data Warehouse Architect,Database,15-1243,Data warehouse architecture and design
+Technical Trainer,Training/Education,13-1151,Technical training delivery and curriculum design
+Senior Technical Trainer,Training/Education,13-1151,Senior training and education program development
+Instructional Designer,Training/Education,25-9031,Instructional design and e-learning development
+Senior Instructional Designer,Training/Education,25-9031,Senior instructional design and learning strategy
+Training Manager,Training/Education,11-3131,Training program management
+Learning Management System Administrator,Training/Education,15-1244,LMS administration and support
+Curriculum Developer,Training/Education,25-9031,Training curriculum development and assessment
+Knowledge Management Specialist,Training/Education,15-1299,Knowledge management and content curation
+Financial Analyst,Financial,13-2051,Financial analysis and forecasting
+Senior Financial Analyst,Financial,13-2051,Senior financial analysis and strategic planning
+Budget Analyst,Financial,13-2031,Budget analysis and fiscal planning
+Cost Analyst,Financial,13-2031,Cost analysis and estimation
+Accountant,Financial,13-2011,Accounting and financial record keeping
+Senior Accountant,Financial,13-2011,Senior accounting and financial reporting
+Auditor,Financial,13-2011,Internal and external audit services
+Contracts Specialist,Financial,13-1023,Contract administration and compliance
+Pricing Analyst,Financial,13-2051,Pricing analysis and cost modeling
+Physician,Medical/Health,29-1211,Medical physician services
+Nurse Practitioner,Medical/Health,29-1171,Advanced practice nursing
+Registered Nurse,Medical/Health,29-1141,Registered nursing care
+Health Information Technician,Medical/Health,29-2072,Health information and medical records management
+Clinical Data Manager,Medical/Health,15-2051,Clinical data management and analysis
+Health IT Specialist,Medical/Health,15-1232,Healthcare IT systems support
+Medical Coder,Medical/Health,29-2072,Medical coding and classification
+Epidemiologist,Medical/Health,19-1041,Epidemiological research and disease surveillance
+Public Health Analyst,Medical/Health,19-1041,Public health analysis and program evaluation
+Paralegal,Legal,23-2011,Paralegal and legal research support
+Senior Paralegal,Legal,23-2011,Senior paralegal and case management
+Legal Analyst,Legal,23-2011,Legal analysis and regulatory compliance
+Contracts Attorney,Legal,23-1011,Contract law and procurement legal support
+Compliance Analyst,Legal,13-1041,Regulatory compliance analysis
+Senior Compliance Analyst,Legal,13-1041,Senior compliance and governance advisory
+Privacy Analyst,Legal,13-1041,Privacy compliance and data protection
+Regulatory Specialist,Legal,13-1041,Regulatory affairs and policy analysis
+Logistics Analyst,Logistics/Supply Chain,13-1081,Logistics analysis and planning
+Senior Logistics Analyst,Logistics/Supply Chain,13-1081,Senior logistics and distribution planning
+Supply Chain Analyst,Logistics/Supply Chain,13-1081,Supply chain optimization and analysis
+Warehouse Manager,Logistics/Supply Chain,11-3071,Warehouse operations management
+Transportation Specialist,Logistics/Supply Chain,13-1081,Transportation planning and coordination
+Inventory Management Specialist,Logistics/Supply Chain,43-5061,Inventory control and asset management
+Property Specialist,Logistics/Supply Chain,43-5061,Government property management and accountability
+Procurement Specialist,Logistics/Supply Chain,13-1023,Procurement and acquisition support
+Research Scientist,Scientific/Research,19-1099,Scientific research and experimentation
+Senior Research Scientist,Scientific/Research,19-1099,Senior scientific research and project leadership
+Research Analyst,Scientific/Research,19-4099,Research analysis and data collection
+Operations Research Analyst,Scientific/Research,15-2031,Operations research and mathematical modeling
+Statistician,Scientific/Research,15-2041,Statistical analysis and study design
+Environmental Scientist,Scientific/Research,19-2041,Environmental science and impact assessment
+Physicist,Scientific/Research,19-2012,Physics research and applied science
+Chemist,Scientific/Research,19-2031,Chemistry research and laboratory analysis
+Biologist,Scientific/Research,19-1020,Biology research and life sciences
+Graphic Designer,Creative/Design,27-1024,Graphic design and visual communications
+Senior Graphic Designer,Creative/Design,27-1024,Senior graphic design and creative direction
+UI Designer,Creative/Design,27-1024,User interface design and prototyping
+UX Designer,Creative/Design,15-1255,User experience design and research
+Senior UX Designer,Creative/Design,15-1255,Senior UX design and strategy
+UX Researcher,Creative/Design,15-1255,User experience research and usability testing
+Technical Writer,Creative/Design,27-3042,Technical documentation and writing
+Senior Technical Writer,Creative/Design,27-3042,Senior technical writing and documentation strategy
+Multimedia Specialist,Creative/Design,27-1024,Multimedia content production
+Video Producer,Creative/Design,27-4032,Video production and editing
+Web Designer,Creative/Design,15-1255,Web design and front-end visual design
+Administrative Assistant,Administrative,43-6014,Administrative and clerical support
+Senior Administrative Assistant,Administrative,43-6014,Senior administrative support and coordination
+Executive Assistant,Administrative,43-6011,Executive-level administrative support
+Office Manager,Administrative,11-3012,Office management and operations
+Receptionist,Administrative,43-4171,Front desk reception and visitor management
+Document Management Specialist,Administrative,43-4071,Document control and records management
+Records Manager,Administrative,11-3012,Records management program administration
+Data Entry Specialist,Administrative,43-9021,Data entry and data processing
+Mail Clerk,Administrative,43-9051,Mail processing and distribution
+Chief Information Officer,Executive,11-1011,Executive IT leadership and strategy
+Chief Technology Officer,Executive,11-1011,Executive technology leadership and innovation
+Chief Information Security Officer,Executive,11-1011,Executive cybersecurity leadership
+Vice President of Engineering,Executive,11-1011,Engineering organization executive leadership
+Director of IT,Executive,11-3021,IT department direction and management
+Deputy Program Manager,Executive,11-9199,Deputy program management and execution oversight
+Engagement Manager,Executive,11-9199,Client engagement and delivery management
+Practice Director,Executive,11-1021,Consulting practice leadership and growth
+Capture Manager,Executive,11-2022,Business capture and proposal strategy leadership

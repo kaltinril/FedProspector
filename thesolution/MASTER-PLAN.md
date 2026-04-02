@@ -149,6 +149,8 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 115G | UX Review & Insights | PLANNED | [115G-UX-REVIEW-INSIGHTS.md](phases/115G-UX-REVIEW-INSIGHTS.md) |
 | 115H | Ignore Opportunity & Pipeline Fixes | DONE | [115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md](phases/115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md) |
 | 115I | Pre-computed Scoring Summaries | COMPLETE | [115I-PRECOMPUTED-SCORING-SUMMARIES.md](phases/completed/115I-PRECOMPUTED-SCORING-SUMMARIES.md) |
+| 115J | SCA Wage Determinations | PLANNED | [115J-SCA-WAGE-DETERMINATIONS.md](phases/115J-SCA-WAGE-DETERMINATIONS.md) |
+| 115K | CALC+ Bulk Export & Daily Refresh | PLANNED | [115K-CALC-BULK-EXPORT.md](phases/115K-CALC-BULK-EXPORT.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |

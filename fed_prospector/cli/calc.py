@@ -78,6 +78,30 @@ def load_calc():
         except Exception:
             pass  # Non-critical, don't fail the load
 
+        # Post-load: re-normalize labor categories and refresh summary table
+        # Chain: gsa_labor_rate → labor_category_mapping → labor_rate_summary
+        try:
+            from etl.labor_normalizer import LaborNormalizer
+            click.echo("")
+            click.echo("Post-load: normalizing labor categories...")
+            normalizer = LaborNormalizer()
+            norm_stats = normalizer.normalize()
+            click.echo("  Mapped: %d (exact=%d pattern=%d fuzzy=%d)" % (
+                norm_stats.get("exact", 0) + norm_stats.get("pattern", 0) + norm_stats.get("fuzzy", 0),
+                norm_stats.get("exact", 0),
+                norm_stats.get("pattern", 0),
+                norm_stats.get("fuzzy", 0),
+            ))
+            click.echo("  Unmapped: %d" % norm_stats.get("unmapped", 0))
+
+            click.echo("Post-load: refreshing labor rate summary...")
+            summary_stats = normalizer.refresh_summary()
+            click.echo("  Summary rows: %d" % summary_stats.get("summary_rows", 0))
+        except Exception as e:
+            logger.warning("Post-load normalization failed (non-fatal): %s", e)
+            click.echo("\n  WARNING: Post-load normalization failed: %s" % e)
+            click.echo("  Run manually: python main.py normalize labor-categories")
+
     except Exception as e:
         elapsed = time.time() - t_start
         logger.exception("CALC+ load failed")

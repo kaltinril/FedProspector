@@ -57,6 +57,11 @@ SAM_SUBAWARD_URL = "https://api.sam.gov/prod/contract/v1/subcontracts/search"
 # ATOM feed sunsetting later FY2026. Use SAM_CONTRACT_AWARDS_URL instead.
 FPDS_ATOM_BASE_URL = "https://www.fpds.gov/dbsight/FEEDS/ATOM"
 
+# Bureau of Labor Statistics API (free, optional registration key)
+BLS_API_BASE_URL = "https://api.bls.gov/publicAPI/v2/timeseries/data/"
+BLS_API_KEY = os.getenv("BLS_API_KEY", "")
+BLS_DAILY_LIMIT = int(os.getenv("BLS_DAILY_LIMIT", "500"))
+
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent
 DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))

@@ -22,6 +22,12 @@ import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOu
 import AccountTreeOutlined from '@mui/icons-material/AccountTreeOutlined';
 import EventBusyOutlined from '@mui/icons-material/EventBusyOutlined';
 import RecommendOutlined from '@mui/icons-material/RecommendOutlined';
+import ShowChartOutlined from '@mui/icons-material/ShowChartOutlined';
+import GavelOutlined from '@mui/icons-material/GavelOutlined';
+import CalculateOutlined from '@mui/icons-material/CalculateOutlined';
+import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
+import AssessmentOutlined from '@mui/icons-material/AssessmentOutlined';
+import HandshakeOutlined from '@mui/icons-material/HandshakeOutlined';
 import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import ChevronRight from '@mui/icons-material/ChevronRight';
@@ -71,6 +77,17 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Entities', icon: <BusinessOutlined />, route: '/entities' },
       { label: 'Teaming', icon: <GroupsOutlined />, route: '/subawards/teaming' },
       { label: 'Federal Hierarchy', icon: <AccountTreeOutlined />, route: '/hierarchy' },
+    ],
+  },
+  {
+    title: 'Pricing Intelligence',
+    items: [
+      { label: 'Market Rates', icon: <ShowChartOutlined />, route: '/pricing/rates' },
+      { label: 'Price-to-Win', icon: <GavelOutlined />, route: '/pricing/price-to-win' },
+      { label: 'Bid Scenarios', icon: <CalculateOutlined />, route: '/pricing/scenarios' },
+      { label: 'Escalation', icon: <TrendingUpOutlined />, route: '/pricing/escalation' },
+      { label: 'IGCE Estimator', icon: <AssessmentOutlined />, route: '/pricing/igce' },
+      { label: 'Sub Benchmarks', icon: <HandshakeOutlined />, route: '/pricing/sub-benchmarks' },
     ],
   },
   {
