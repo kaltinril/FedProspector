@@ -116,7 +116,6 @@ export default function EscalationPage() {
   const { data: categories = [] } = useQuery({
     queryKey: queryKeys.pricing.categories(debouncedSearch || undefined),
     queryFn: () => getCanonicalCategories(debouncedSearch || undefined),
-    enabled: debouncedSearch.length >= 2,
     staleTime: 5 * 60 * 1000,
   });
 

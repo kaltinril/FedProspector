@@ -143,3 +143,17 @@ This is optional -- the full reload only takes ~60 seconds even with normalizati
 | `fed_prospector/etl/calc_loader.py` | Add `full_refresh_csv()` orchestration method |
 | `fed_prospector/cli/calc.py` | Default to CSV export, add `--legacy` flag |
 | `fed_prospector/etl/scheduler.py` | Change `calc_rates` to daily schedule |
+
+---
+
+### Post-Migration: Re-evaluate Canonical Labor Categories
+
+After 115K is complete and we're loading the full ~258K CALC+ dataset (up from ~124K), re-run the canonical labor category analysis:
+
+1. **Repeat gap analysis** — With ~134K additional records, new high-frequency labor categories will appear that aren't in our canonical list. Run the unmapped-by-frequency query against the larger dataset.
+2. **Update canonical_labor_categories.csv** — Add any new high-frequency categories discovered.
+3. **Re-tune fuzzy matching** — The larger dataset may shift optimal thresholds or reveal new abbreviation patterns.
+4. **Measure coverage improvement** — Compare mapping rates (currently ~20% on 124K rows) against the full 258K dataset.
+5. **Re-assess summary table performance** — With 2x the source data, re-benchmark the live aggregation query vs the pre-computed summary table to confirm whether `labor_rate_summary` is still worth maintaining.
+
+This is a follow-up task, not a blocker for the 115K migration itself.

@@ -53,19 +53,31 @@ _ABBREVIATION_PATTERNS = [
     (re.compile(r"\bSRE\b", re.IGNORECASE), "Site Reliability Engineer"),
     (re.compile(r"\bDBA\b", re.IGNORECASE), "Database Administrator"),
     (re.compile(r"\bBI\b", re.IGNORECASE), "Business Intelligence"),
+    (re.compile(r"\bSA\b", re.IGNORECASE), "Systems Analyst"),
+    (re.compile(r"\bBA\b", re.IGNORECASE), "Business Analyst"),
+    (re.compile(r"\bIT\b", re.IGNORECASE), "Information Technology"),
 ]
 
 # Roman numeral / level to seniority mapping
 # Order matters: check IV before III before II before I to avoid partial matches
 _LEVEL_PATTERNS = [
+    (re.compile(r"\b(?:Lvl|Level)\s*V\b", re.IGNORECASE), "Principal"),
     (re.compile(r"\b(?:Lvl|Level)\s*IV\b", re.IGNORECASE), "Principal"),
     (re.compile(r"\b(?:Lvl|Level)\s*III\b", re.IGNORECASE), "Senior"),
     (re.compile(r"\b(?:Lvl|Level)\s*II\b", re.IGNORECASE), ""),  # mid-level, no prefix
     (re.compile(r"\b(?:Lvl|Level)\s*I\b", re.IGNORECASE), "Junior"),
-    # Standalone Roman numerals (without "Level" prefix) — IV/III/II are safe
+    # Standalone Roman numerals (without "Level" prefix) — IV/III/II/V are safe
+    # (I excluded due to pronoun conflict)
+    (re.compile(r"\bV\b"), "Principal"),
     (re.compile(r"\bIV\b"), "Principal"),
     (re.compile(r"\bIII\b"), "Senior"),
     (re.compile(r"\bII\b"), ""),  # mid-level, no prefix
+    # Arabic numerals at end of string (avoids matching "Section 508", "Web 2.0")
+    (re.compile(r"\s+5$"), "Principal"),
+    (re.compile(r"\s+4$"), "Senior"),
+    (re.compile(r"\s+3$"), "Senior"),
+    (re.compile(r"\s+2$"), ""),  # mid-level, no prefix
+    (re.compile(r"\s+1$"), "Junior"),
 ]
 
 # Batch size for DB operations
@@ -385,7 +397,9 @@ class LaborNormalizer:
         # Pass 2: Pattern match — expand abbreviations + level mapping, then try exact match
         expanded = self._expand_abbreviations(raw_category)
         expanded = self._apply_level_mapping(expanded)
-        expanded_lower = expanded.strip().lower()
+        # Normalize to title case so ALL-CAPS input matches canonical names
+        expanded = expanded.strip().title()
+        expanded_lower = expanded.lower()
         if expanded_lower != lower and expanded_lower in canonical_by_name_lower:
             cid, _ = canonical_by_name_lower[expanded_lower]
             return {
