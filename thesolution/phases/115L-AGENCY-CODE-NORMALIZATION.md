@@ -18,6 +18,8 @@ This means cross-table queries (e.g., "find USASpending awards for this opportun
 
 **Solution: Normalize on write.** During ETL load, after downloading but before hashing/upserting, look up each record's agency name in `federal_organization` and resolve it to a CGAC code (or org_id). Store the code alongside the text name. All downstream queries match on code, not text.
 
+**Key discovery:** The opportunity API already sends agency codes in `fullParentPathCode` (e.g., `019.1900.19M553`). We already parse this field and save the last segment as `contracting_office_id`, but discard the first segment (CGAC code `019`) and second segment (sub-tier code `1900`). The fix for opportunities is to save all three segments during the existing parse — no resolver needed. We also store the raw JSON from API loads, so existing records can be backfilled by re-parsing the stored JSON without re-downloading.
+
 ---
 
 ## Current State
@@ -28,7 +30,7 @@ This means cross-table queries (e.g., "find USASpending awards for this opportun
 |-------|----------|----------|-------|
 | `federal_organization` | `cgac VARCHAR(10)`, `agency_code VARCHAR(20)` | `fh_org_name VARCHAR(500)` | Authoritative source, ~2K rows |
 | `fpds_contract` | `agency_id VARCHAR(10)`, `funding_agency_id VARCHAR(10)` | `agency_name VARCHAR(200)`, `funding_agency_name VARCHAR(200)` | Already has codes from FPDS feed |
-| `opportunity` | -- none -- | `department_name VARCHAR(200)` | **Missing code column** |
+| `opportunity` | `contracting_office_id VARCHAR(20)` only (last segment of `fullParentPathCode`) | `department_name VARCHAR(200)` | **Has office code but missing CGAC (1st segment) and sub-tier code (2nd segment) — both already in `fullParentPathCode` but discarded during parse** |
 | `usaspending_award` | -- none -- | `awarding_agency_name VARCHAR(200)`, `awarding_sub_agency_name VARCHAR(200)`, `funding_agency_name VARCHAR(200)` | **Missing code columns** |
 | `sam_subaward` | `prime_agency_id VARCHAR(10)` | `prime_agency_name VARCHAR(200)` | Already has code from subaward feed |
 
@@ -65,8 +67,8 @@ New columns on tables that lack agency codes (ALTER TABLE, not recreate):
 
 | Table | New Column(s) | Source for Resolution |
 |-------|--------------|----------------------|
-| `opportunity` | `department_cgac VARCHAR(10)` | `department_name` |
-| `usaspending_award` | `awarding_agency_cgac VARCHAR(10)`, `funding_agency_cgac VARCHAR(10)` | `awarding_agency_name`, `funding_agency_name` |
+| `opportunity` | `department_cgac VARCHAR(10)`, `sub_tier_code VARCHAR(20)` | **Already in API data** — parse from `fullParentPathCode` segments 1 and 2 (currently discarded) |
+| `usaspending_award` | `awarding_agency_cgac VARCHAR(10)`, `funding_agency_cgac VARCHAR(10)` | `awarding_agency_name` / `funding_agency_name` — need resolver lookup |
 
 CGAC codes are 3-character strings (e.g., "019" for State Dept). Using VARCHAR(10) to match `federal_organization.cgac` column type.
 
@@ -76,12 +78,24 @@ Index each new column for fast joins.
 - `fpds_contract` -- already has `agency_id` and `funding_agency_id` from the FPDS data feed
 - `sam_subaward` -- already has `prime_agency_id` from the subaward data feed
 
+### Opportunity: Data Already Available
+
+The SAM.gov opportunity API returns `fullParentPathCode` (e.g., `019.1900.19M553`):
+- Segment 1: **CGAC code** (`019`) — the department identifier we need
+- Segment 2: **Sub-tier code** (`1900`) — the sub-agency identifier
+- Segment 3: **Office code** (`19M553`) — already saved as `contracting_office_id`
+
+Current code in `opportunity_loader.py` (line 424-426) parses this field but only saves the last segment. Fix: save all three segments. No resolver needed for opportunities.
+
+**Backfill:** We store raw JSON from API loads. Existing records can be backfilled by re-parsing the stored JSON to extract segments 1 and 2 — no re-download needed.
+
 ### DDL
 
 ```sql
--- opportunity: add department code
+-- opportunity: add department CGAC and sub-tier code
 ALTER TABLE opportunity
     ADD COLUMN department_cgac VARCHAR(10) DEFAULT NULL AFTER department_name,
+    ADD COLUMN sub_tier_code VARCHAR(20) DEFAULT NULL AFTER sub_tier,
     ADD INDEX idx_opp_dept_cgac (department_cgac);
 
 -- usaspending_award: add awarding and funding agency codes
@@ -92,7 +106,7 @@ ALTER TABLE usaspending_award
     ADD INDEX idx_usa_funding_cgac (funding_agency_cgac);
 ```
 
-**Note:** The `usaspending_award` ALTER TABLE will take significant time on 28.7M rows. Plan for off-hours execution.
+**Note:** The `usaspending_award` ALTER TABLE will take significant time on 28.7M rows. Plan for off-hours execution. The `opportunity` ALTER is fast (~200K rows).
 
 ---
 
@@ -102,28 +116,40 @@ Modify each loader's post-load step to resolve agency codes via UPDATE ... JOIN:
 
 | Loader | How |
 |--------|-----|
-| `opportunity_loader.py` | After load, UPDATE opportunity o JOIN federal_organization fo to set `department_cgac` |
-| `usaspending_loader.py` | After bulk LOAD DATA INFILE, UPDATE to populate `awarding_agency_cgac` and `funding_agency_cgac` |
+| `opportunity_loader.py` | **Parse during load** — extract segments 1 and 2 from `fullParentPathCode` alongside existing segment 3 parse. No post-load UPDATE needed. |
+| `usaspending_loader.py` | After bulk LOAD DATA INFILE, UPDATE to populate `awarding_agency_cgac` and `funding_agency_cgac` using resolver |
 
-The UPDATE approach is better than per-row resolution because:
-- Works with LOAD DATA INFILE (can't modify data during bulk load)
-- Single UPDATE ... JOIN is fast even on millions of rows
-- Doesn't change the load pipeline structure
+### Opportunity Loader: Parse on Load (No Resolver Needed)
 
-### Resolution Strategy
+The fix is ~3 lines in `opportunity_loader.py` (around line 424):
+```python
+# Current: only saves last segment
+contracting_office_id = code_parts[-1] if code_parts else None
 
-Direct JOIN on name won't work due to name format differences. Two-pass approach:
+# New: save all three segments  
+department_cgac = code_parts[0] if len(code_parts) >= 1 else None
+sub_tier_code = code_parts[1] if len(code_parts) >= 2 else None
+contracting_office_id = code_parts[-1] if code_parts else None
+```
+
+Then include `department_cgac` and `sub_tier_code` in the upsert column list.
+
+### USASpending Loader: Post-Load Resolver
+
+USASpending bulk CSV downloads may include `awarding_agency_code` — check the export columns first. If the code is in the CSV, save it directly during LOAD DATA INFILE (no resolver needed, same as opportunity approach).
+
+If the code is NOT in the CSV, use the two-pass resolver approach:
 
 **Pass 1: Direct match via JOIN**
 ```sql
-UPDATE opportunity o
-JOIN federal_organization fo ON UPPER(o.department_name) = UPPER(fo.fh_org_name)
-SET o.department_cgac = fo.cgac
-WHERE o.department_cgac IS NULL AND fo.level = 1;
+UPDATE usaspending_award ua
+JOIN federal_organization fo ON UPPER(ua.awarding_agency_name) = UPPER(fo.fh_org_name)
+SET ua.awarding_agency_cgac = fo.cgac
+WHERE ua.awarding_agency_cgac IS NULL AND fo.fh_org_type = 'Department/Ind. Agency';
 ```
 
 **Pass 2: Fuzzy/variant match via Python**
-For records still NULL after Pass 1, use the `agency_resolver.py` utility to handle name variants ("STATE, DEPARTMENT OF" -> "DEPARTMENT OF STATE"). Run as a batched UPDATE with a temporary mapping table built by the resolver.
+For records still NULL after Pass 1, use the `agency_resolver.py` utility to handle name variants. Run as a batched UPDATE with a temporary mapping table built by the resolver.
 
 ### No Changes Needed For:
 - `fpds_loader.py` -- `agency_id` and `funding_agency_id` already come from the FPDS source data
