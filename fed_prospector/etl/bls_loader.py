@@ -74,10 +74,10 @@ class BLSLoader:
         }
 
         try:
-            # BLS API allows max 20-year spans per request
-            # and max 50 series per request. We have 4 series
-            # so a single request per 20-year window suffices.
-            chunk_size = 20
+            # BLS free tier (no registration key) limits to 10-year spans per request.
+            # With a registration key the limit is 20 years. We have 4 series
+            # so a single request per chunk suffices.
+            chunk_size = 10
             for chunk_start in range(start_year, end_year + 1, chunk_size):
                 chunk_end = min(chunk_start + chunk_size - 1, end_year)
                 data = client.fetch_series(ALL_SERIES, chunk_start, chunk_end)
