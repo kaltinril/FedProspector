@@ -18,10 +18,23 @@ import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
-import { getCanonicalCategories, getRateTrends, getEscalationForecast } from '@/api/pricing';
+import { getCanonicalCategories, searchLaborCategories, getRateTrends, getEscalationForecast } from '@/api/pricing';
 import { queryKeys } from '@/queries/queryKeys';
 import { useDebounce } from '@/hooks/useDebounce';
 import type { CanonicalCategory, RateTrend } from '@/types/api';
+
+// ---------------------------------------------------------------------------
+// Chart colors — shared between chart series and table columns
+// ---------------------------------------------------------------------------
+
+const COLORS = {
+  avg: '#ff9800',       // orange/yellow — historical avg rate line (matches forecast)
+  forecast: '#ff9800',  // orange/yellow — forecast line (same as avg for continuity)
+  minRate: '#ef5350',   // red — min rate line + area bottom
+  maxRate: '#42a5f5',   // light blue — max rate line + area top
+  confLow: '#ef5350',   // red — confidence low
+  confHigh: '#42a5f5',  // light blue — confidence high
+};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,6 +45,8 @@ const YEAR_OPTIONS = [
   { value: 5, label: '5 years' },
   { value: 10, label: '10 years' },
 ];
+
+const MIN_DATA_POINTS = 3;
 
 function formatRate(value: number | null | undefined): string {
   if (value == null) return '--';
@@ -44,7 +59,7 @@ function formatRate(value: number | null | undefined): string {
 }
 
 // ---------------------------------------------------------------------------
-// Columns
+// Columns — color-coded to match chart series
 // ---------------------------------------------------------------------------
 
 function buildTrendColumns(): GridColDef<RateTrend>[] {
@@ -57,6 +72,11 @@ function buildTrendColumns(): GridColDef<RateTrend>[] {
       align: 'right',
       headerAlign: 'right',
       valueFormatter: (value: number) => formatRate(value),
+      renderCell: (params) => (
+        <Typography variant="body2" sx={{ color: COLORS.avg, fontWeight: 500 }}>
+          {formatRate(params.value as number)}
+        </Typography>
+      ),
     },
     {
       field: 'minRate',
@@ -64,7 +84,11 @@ function buildTrendColumns(): GridColDef<RateTrend>[] {
       width: 120,
       align: 'right',
       headerAlign: 'right',
-      valueFormatter: (value: number) => formatRate(value),
+      renderCell: (params) => (
+        <Typography variant="body2" sx={{ color: COLORS.confLow }}>
+          {formatRate(params.value as number)}
+        </Typography>
+      ),
     },
     {
       field: 'maxRate',
@@ -72,7 +96,11 @@ function buildTrendColumns(): GridColDef<RateTrend>[] {
       width: 120,
       align: 'right',
       headerAlign: 'right',
-      valueFormatter: (value: number) => formatRate(value),
+      renderCell: (params) => (
+        <Typography variant="body2" sx={{ color: COLORS.confHigh }}>
+          {formatRate(params.value as number)}
+        </Typography>
+      ),
     },
     {
       field: 'rateCount',
@@ -80,11 +108,26 @@ function buildTrendColumns(): GridColDef<RateTrend>[] {
       width: 90,
       align: 'center',
       headerAlign: 'center',
+      renderCell: (params) => {
+        const count = params.value as number;
+        const isLow = count < MIN_DATA_POINTS;
+        return (
+          <Typography
+            variant="body2"
+            sx={{
+              color: isLow ? 'warning.main' : 'text.primary',
+              fontWeight: isLow ? 600 : 400,
+            }}
+          >
+            {count}{isLow ? '*' : ''}
+          </Typography>
+        );
+      },
     },
     {
       field: 'yoyChangePct',
-      headerName: 'YoY Change',
-      width: 120,
+      headerName: 'YoY Change (Avg)',
+      width: 140,
       align: 'right',
       headerAlign: 'right',
       renderCell: (params) => {
@@ -114,8 +157,12 @@ export default function EscalationPage() {
   const debouncedSearch = useDebounce(categorySearch, 300);
 
   const { data: categories = [] } = useQuery({
-    queryKey: queryKeys.pricing.categories(debouncedSearch || undefined),
-    queryFn: () => getCanonicalCategories(debouncedSearch || undefined),
+    queryKey: debouncedSearch
+      ? queryKeys.pricing.categorySearch(debouncedSearch)
+      : queryKeys.pricing.categories(),
+    queryFn: () => debouncedSearch
+      ? searchLaborCategories(debouncedSearch)
+      : getCanonicalCategories(),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -142,18 +189,29 @@ export default function EscalationPage() {
 
   const trendColumns = useMemo(() => buildTrendColumns(), []);
 
-  // Chart data: merge historical + forecast
+  // Filter trends: flag years with too few data points
+  const reliableTrends = useMemo(
+    () => trends?.filter((t) => t.rateCount >= MIN_DATA_POINTS) ?? [],
+    [trends],
+  );
+
+  // Chart data: merge historical + forecast, include min/max area
   const chartData = useMemo(() => {
     const allYears: number[] = [];
     const avgRates: (number | null)[] = [];
+    const minRates: (number | null)[] = [];
+    const maxRates: (number | null)[] = [];
     const forecastRates: (number | null)[] = [];
     const confLow: (number | null)[] = [];
     const confHigh: (number | null)[] = [];
 
-    if (trends) {
-      for (const t of trends) {
+    // Use reliable trends (min 3 data points) for the chart
+    if (reliableTrends.length > 0) {
+      for (const t of reliableTrends) {
         allYears.push(t.year);
         avgRates.push(t.avgRate);
+        minRates.push(t.minRate);
+        maxRates.push(t.maxRate);
         forecastRates.push(null);
         confLow.push(null);
         confHigh.push(null);
@@ -164,6 +222,8 @@ export default function EscalationPage() {
         if (!allYears.includes(f.year)) {
           allYears.push(f.year);
           avgRates.push(null);
+          minRates.push(null);
+          maxRates.push(null);
         }
         const idx = allYears.indexOf(f.year);
         forecastRates[idx] = f.projectedRate;
@@ -174,12 +234,16 @@ export default function EscalationPage() {
 
     // Fill nulls for arrays to match length
     while (avgRates.length < allYears.length) avgRates.push(null);
+    while (minRates.length < allYears.length) minRates.push(null);
+    while (maxRates.length < allYears.length) maxRates.push(null);
     while (forecastRates.length < allYears.length) forecastRates.push(null);
     while (confLow.length < allYears.length) confLow.push(null);
     while (confHigh.length < allYears.length) confHigh.push(null);
 
-    return { allYears, avgRates, forecastRates, confLow, confHigh };
-  }, [trends, forecast]);
+    return { allYears, avgRates, minRates, maxRates, forecastRates, confLow, confHigh };
+  }, [reliableTrends, forecast]);
+
+  const hasLowCountYears = trends?.some((t) => t.rateCount < MIN_DATA_POINTS);
 
   return (
     <Box>
@@ -259,29 +323,53 @@ export default function EscalationPage() {
             }]}
             series={[
               {
+                data: chartData.maxRates,
+                label: 'Max Rate',
+                color: COLORS.confHigh,
+                connectNulls: false,
+                showMark: false,
+                area: true,
+              },
+              {
+                data: chartData.minRates,
+                label: 'Min Rate',
+                color: COLORS.confLow,
+                connectNulls: false,
+                showMark: false,
+                area: true,
+              },
+              {
                 data: chartData.avgRates,
                 label: 'Historical Avg Rate',
+                color: COLORS.avg,
                 connectNulls: false,
               },
               {
                 data: chartData.forecastRates,
                 label: 'Forecast',
+                color: COLORS.forecast,
                 connectNulls: false,
               },
               {
                 data: chartData.confLow,
                 label: 'Confidence Low',
+                color: COLORS.confLow,
                 connectNulls: false,
                 showMark: false,
               },
               {
                 data: chartData.confHigh,
                 label: 'Confidence High',
+                color: COLORS.confHigh,
                 connectNulls: false,
                 showMark: false,
               },
             ]}
             height={400}
+            sx={{
+              '& .MuiAreaElement-root:nth-of-type(1)': { fill: 'rgba(66, 165, 245, 0.15)' },
+              '& .MuiAreaElement-root:nth-of-type(2)': { fill: 'var(--mui-palette-background-default, #121212)' },
+            }}
           />
         </Paper>
       )}
@@ -292,6 +380,12 @@ export default function EscalationPage() {
           <Typography variant="subtitle1" fontWeight={600} gutterBottom>
             Year-over-Year Rate Changes
           </Typography>
+          {hasLowCountYears && (
+            <Typography variant="caption" color="warning.main" sx={{ mb: 1, display: 'block' }}>
+              * Years with fewer than {MIN_DATA_POINTS} data points may not be statistically reliable.
+              These years are excluded from the chart.
+            </Typography>
+          )}
           <DataTable
             columns={trendColumns}
             rows={trends}
