@@ -185,6 +185,11 @@ builder.Services.AddScoped<IOpenDoorService, OpenDoorService>();
 builder.Services.AddScoped<IPursuitPriorityService, PursuitPriorityService>();
 builder.Services.AddScoped<IPricingService, PricingService>();
 builder.Services.AddScoped<IOpportunityIgnoreService, OpportunityIgnoreService>();
+builder.Services.AddScoped<ICompetitiveIntelService, CompetitiveIntelService>();
+builder.Services.AddScoped<ITeamingService, TeamingService>();
+builder.Services.AddScoped<IPipelineService, PipelineService>();
+builder.Services.AddScoped<IOnboardingService, OnboardingService>();
+builder.Services.AddScoped<IInsightsService, InsightsService>();
 
 // --- Core services (AutoMapper, Repositories) ---
 builder.Services.AddCoreServices();

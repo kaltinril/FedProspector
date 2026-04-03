@@ -49,6 +49,24 @@ const BidScenarioPage = lazy(() => import('@/pages/pricing/BidScenarioPage'));
 const EscalationPage = lazy(() => import('@/pages/pricing/EscalationPage'));
 const IgcePage = lazy(() => import('@/pages/pricing/IgcePage'));
 const SubBenchmarkPage = lazy(() => import('@/pages/pricing/SubBenchmarkPage'));
+const RecompeteCandidatesPage = lazy(() => import('@/pages/competitive-intel/RecompeteCandidatesPage'));
+const AgencyPatternsPage = lazy(() => import('@/pages/competitive-intel/AgencyPatternsPage'));
+const CompetitorDossierPage = lazy(() => import('@/pages/competitive-intel/CompetitorDossierPage'));
+const ContractingOfficesPage = lazy(() => import('@/pages/competitive-intel/ContractingOfficesPage'));
+const OfficeDetailPage = lazy(() => import('@/pages/competitive-intel/OfficeDetailPage'));
+const PartnerSearchPage = lazy(() => import('@/pages/teaming/PartnerSearchPage'));
+const PartnerDetailPage = lazy(() => import('@/pages/teaming/PartnerDetailPage'));
+const MentorProtegePage = lazy(() => import('@/pages/teaming/MentorProtegePage'));
+const GapAnalysisPage = lazy(() => import('@/pages/teaming/GapAnalysisPage'));
+const PipelineAnalyticsPage = lazy(() => import('@/pages/pipeline/PipelineAnalyticsPage'));
+const PipelineCalendarPage = lazy(() => import('@/pages/pipeline/PipelineCalendarPage'));
+const StaleProspectsPage = lazy(() => import('@/pages/pipeline/StaleProspectsPage'));
+const RevenueForecastPage = lazy(() => import('@/pages/pipeline/RevenueForecastPage'));
+const CertificationAlertsPage = lazy(() => import('@/pages/onboarding/CertificationAlertsPage'));
+const SizeStandardMonitorPage = lazy(() => import('@/pages/onboarding/SizeStandardMonitorPage'));
+const PastPerformanceRelevancePage = lazy(() => import('@/pages/onboarding/PastPerformanceRelevancePage'));
+const PortfolioGapAnalysisPage = lazy(() => import('@/pages/onboarding/PortfolioGapAnalysisPage'));
+const DataQualityDashboardPage = lazy(() => import('@/pages/insights/DataQualityDashboardPage'));
 const NotFoundPage = lazy(() => import('@/pages/errors/NotFoundPage'));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -241,6 +259,40 @@ export function AppRoutes() {
         }
       />
 
+      {/* Pipeline Analytics */}
+      <Route
+        path="/pipeline/analytics"
+        element={
+          <AuthenticatedLayout>
+            <PipelineAnalyticsPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pipeline/calendar"
+        element={
+          <AuthenticatedLayout>
+            <PipelineCalendarPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pipeline/stale"
+        element={
+          <AuthenticatedLayout>
+            <StaleProspectsPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pipeline/forecast"
+        element={
+          <AuthenticatedLayout>
+            <RevenueForecastPage />
+          </AuthenticatedLayout>
+        }
+      />
+
       {/* Pricing Intelligence */}
       <Route
         path="/pricing/rates"
@@ -287,6 +339,126 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <SubBenchmarkPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Competitive Intelligence */}
+      <Route
+        path="/competitive-intel/recompetes"
+        element={
+          <AuthenticatedLayout>
+            <RecompeteCandidatesPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/competitive-intel/agency-patterns"
+        element={
+          <AuthenticatedLayout>
+            <AgencyPatternsPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/competitive-intel/competitor/:uei"
+        element={
+          <AuthenticatedLayout>
+            <CompetitorDossierPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/competitive-intel/offices"
+        element={
+          <AuthenticatedLayout>
+            <ContractingOfficesPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/competitive-intel/offices/:officeCode"
+        element={
+          <AuthenticatedLayout>
+            <OfficeDetailPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Teaming & Partnership Intelligence */}
+      <Route
+        path="/teaming/partners"
+        element={
+          <AuthenticatedLayout>
+            <PartnerSearchPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/teaming/partner/:uei"
+        element={
+          <AuthenticatedLayout>
+            <PartnerDetailPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/teaming/mentor-protege"
+        element={
+          <AuthenticatedLayout>
+            <MentorProtegePage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/teaming/gap-analysis"
+        element={
+          <AuthenticatedLayout>
+            <GapAnalysisPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Onboarding & Past Performance */}
+      <Route
+        path="/onboarding/certification-alerts"
+        element={
+          <AuthenticatedLayout>
+            <CertificationAlertsPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/onboarding/size-standard"
+        element={
+          <AuthenticatedLayout>
+            <SizeStandardMonitorPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/onboarding/past-performance"
+        element={
+          <AuthenticatedLayout>
+            <PastPerformanceRelevancePage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/onboarding/portfolio-gaps"
+        element={
+          <AuthenticatedLayout>
+            <PortfolioGapAnalysisPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* Insights */}
+      <Route
+        path="/insights/data-quality"
+        element={
+          <AuthenticatedLayout>
+            <DataQualityDashboardPage />
           </AuthenticatedLayout>
         }
       />

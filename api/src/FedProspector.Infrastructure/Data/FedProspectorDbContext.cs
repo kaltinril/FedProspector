@@ -127,6 +127,8 @@ public class FedProspectorDbContext : DbContext
     public DbSet<Proposal> Proposals { get; set; }
     public DbSet<ProposalDocument> ProposalDocuments { get; set; }
     public DbSet<ProposalMilestone> ProposalMilestones { get; set; }
+    public DbSet<ProspectMilestone> ProspectMilestones { get; set; }
+    public DbSet<ProspectStatusHistory> ProspectStatusHistories { get; set; }
 
     // -----------------------------------------------------------------------
     // Web API / App Tables (7)
@@ -138,6 +140,7 @@ public class FedProspectorDbContext : DbContext
     public DbSet<OrganizationCertification> OrganizationCertifications { get; set; }
     public DbSet<OrganizationPastPerformance> OrganizationPastPerformances { get; set; }
     public DbSet<OrganizationEntity> OrganizationEntities { get; set; }
+    public DbSet<OrganizationPsc> OrganizationPscs { get; set; }
     public DbSet<AppUser> AppUsers { get; set; }
     public DbSet<AppSession> AppSessions { get; set; }
     public DbSet<SavedSearch> SavedSearches { get; set; }
@@ -146,7 +149,7 @@ public class FedProspectorDbContext : DbContext
     public DbSet<OpportunityIgnore> OpportunityIgnores { get; set; }
 
     // -----------------------------------------------------------------------
-    // Database Views (9 - keyless, read-only)
+    // Database Views (14 - keyless, read-only)
     // -----------------------------------------------------------------------
 
     public DbSet<TargetOpportunityView> TargetOpportunities { get; set; }
@@ -158,6 +161,44 @@ public class FedProspectorDbContext : DbContext
     public DbSet<SetAsideTrendView> SetAsideTrends { get; set; }
     public DbSet<MonthlySpendView> MonthlySpends { get; set; }
     public DbSet<VendorMarketShareView> VendorMarketShares { get; set; }
+
+    // Phase 115C: Advanced Competitive Intelligence views
+    public DbSet<RecompeteCandidateView> RecompeteCandidates { get; set; }
+    public DbSet<AgencyRecompetePatternView> AgencyRecompetePatterns { get; set; }
+    public DbSet<CompetitorDossierView> CompetitorDossiers { get; set; }
+    public DbSet<AgencyBuyingPatternView> AgencyBuyingPatterns { get; set; }
+    public DbSet<ContractingOfficeProfileView> ContractingOfficeProfiles { get; set; }
+
+    // Phase 115D: Teaming & Partnership Intelligence views
+    public DbSet<PartnerCapabilityMatchView> PartnerCapabilityMatches { get; set; }
+    public DbSet<PartnerRiskAssessmentView> PartnerRiskAssessments { get; set; }
+    public DbSet<MentorProtegeCandidateView> MentorProtegeCandidates { get; set; }
+    public DbSet<PrimeSubRelationshipView> PrimeSubRelationships { get; set; }
+    public DbSet<TeamingNetworkView> TeamingNetwork { get; set; }
+
+    // Phase 115E: Pipeline & Workflow views
+    public DbSet<PipelineFunnelView> PipelineFunnels { get; set; }
+    public DbSet<PipelineCalendarView> PipelineCalendarEvents { get; set; }
+    public DbSet<StaleProspectView> StaleProspects { get; set; }
+    public DbSet<PipelineRevenueForecastView> PipelineRevenueForecasts { get; set; }
+
+    // Phase 115G: UX & Review Insights views
+    /// <summary>
+    /// WARNING: Do not query directly. This view produces a Cartesian product without a WHERE clause.
+    /// Use InsightsService.GetSimilarOpportunitiesAsync() which uses raw SQL with filter pushdown.
+    /// </summary>
+    public DbSet<SimilarOpportunityView> SimilarOpportunities { get; set; }
+    public DbSet<CrossSourceValidationView> CrossSourceValidations { get; set; }
+    public DbSet<DataFreshnessView> DataFreshness { get; set; }
+    public DbSet<DataCompletenessView> DataCompleteness { get; set; }
+    public DbSet<ProspectCompetitorSummaryView> ProspectCompetitorSummaries { get; set; }
+
+    // Phase 115F: Onboarding & Past Performance views
+    public DbSet<OrgProfileCompletenessView> OrgProfileCompleteness { get; set; }
+    public DbSet<CertificationExpirationAlertView> CertificationExpirationAlerts { get; set; }
+    public DbSet<SbaSizeStandardMonitorView> SbaSizeStandardMonitors { get; set; }
+    public DbSet<PastPerformanceRelevanceView> PastPerformanceRelevance { get; set; }
+    public DbSet<PortfolioGapAnalysisView> PortfolioGapAnalysis { get; set; }
 
     // -----------------------------------------------------------------------
     // Fluent API Configuration
@@ -476,5 +517,117 @@ public class FedProspectorDbContext : DbContext
         modelBuilder.Entity<VendorMarketShareView>()
             .HasNoKey()
             .ToView("v_vendor_market_share");
+
+        // Phase 115C: Advanced Competitive Intelligence views
+        modelBuilder.Entity<RecompeteCandidateView>()
+            .HasNoKey()
+            .ToView("v_recompete_candidate");
+
+        modelBuilder.Entity<AgencyRecompetePatternView>()
+            .HasNoKey()
+            .ToView("v_agency_recompete_pattern");
+
+        modelBuilder.Entity<CompetitorDossierView>()
+            .HasNoKey()
+            .ToView("v_competitor_dossier");
+
+        modelBuilder.Entity<AgencyBuyingPatternView>()
+            .HasNoKey()
+            .ToView("v_agency_buying_pattern");
+
+        modelBuilder.Entity<ContractingOfficeProfileView>()
+            .HasNoKey()
+            .ToView("v_contracting_office_profile");
+
+        // Phase 115D: Teaming & Partnership Intelligence views
+        modelBuilder.Entity<PartnerCapabilityMatchView>()
+            .HasNoKey()
+            .ToView("v_partner_capability_match");
+
+        modelBuilder.Entity<PartnerRiskAssessmentView>()
+            .HasNoKey()
+            .ToView("v_partner_risk_assessment");
+
+        modelBuilder.Entity<MentorProtegeCandidateView>()
+            .HasNoKey()
+            .ToView("v_mentor_protege_candidate");
+
+        modelBuilder.Entity<PrimeSubRelationshipView>()
+            .HasNoKey()
+            .ToView("v_prime_sub_relationship");
+
+        modelBuilder.Entity<TeamingNetworkView>()
+            .HasNoKey()
+            .ToView("v_teaming_network");
+
+        // Phase 115F: Onboarding & Past Performance
+        modelBuilder.Entity<OrganizationPsc>()
+            .HasIndex(e => new { e.OrganizationId, e.PscCode })
+            .IsUnique();
+
+        modelBuilder.Entity<Organization>()
+            .HasMany(o => o.PscCodes)
+            .WithOne(p => p.Organization)
+            .HasForeignKey(p => p.OrganizationId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Phase 115E: Pipeline & Workflow views
+        modelBuilder.Entity<PipelineFunnelView>()
+            .HasNoKey()
+            .ToView("v_pipeline_funnel");
+
+        modelBuilder.Entity<PipelineCalendarView>()
+            .HasNoKey()
+            .ToView("v_pipeline_calendar");
+
+        modelBuilder.Entity<StaleProspectView>()
+            .HasNoKey()
+            .ToView("v_stale_prospect");
+
+        modelBuilder.Entity<PipelineRevenueForecastView>()
+            .HasNoKey()
+            .ToView("v_pipeline_revenue_forecast");
+
+        // Phase 115F: Onboarding & Past Performance views
+        modelBuilder.Entity<OrgProfileCompletenessView>()
+            .HasNoKey()
+            .ToView("v_org_profile_completeness");
+
+        modelBuilder.Entity<CertificationExpirationAlertView>()
+            .HasNoKey()
+            .ToView("v_certification_expiration_alert");
+
+        modelBuilder.Entity<SbaSizeStandardMonitorView>()
+            .HasNoKey()
+            .ToView("v_sba_size_standard_monitor");
+
+        modelBuilder.Entity<PastPerformanceRelevanceView>()
+            .HasNoKey()
+            .ToView("v_past_performance_relevance");
+
+        modelBuilder.Entity<PortfolioGapAnalysisView>()
+            .HasNoKey()
+            .ToView("v_portfolio_gap_analysis");
+
+        // Phase 115G: UX & Review Insights views
+        modelBuilder.Entity<SimilarOpportunityView>()
+            .HasNoKey()
+            .ToView("v_similar_opportunity");
+
+        modelBuilder.Entity<CrossSourceValidationView>()
+            .HasNoKey()
+            .ToView("v_cross_source_validation");
+
+        modelBuilder.Entity<DataFreshnessView>()
+            .HasNoKey()
+            .ToView("v_data_freshness");
+
+        modelBuilder.Entity<DataCompletenessView>()
+            .HasNoKey()
+            .ToView("v_data_completeness");
+
+        modelBuilder.Entity<ProspectCompetitorSummaryView>()
+            .HasNoKey()
+            .ToView("v_prospect_competitor_summary");
     }
 }

@@ -14,6 +14,7 @@ public class ProspectService : IProspectService
     private readonly IGoNoGoScoringService _scoringService;
     private readonly IActivityLogService _activityLog;
     private readonly INotificationService _notificationService;
+    private readonly IPipelineService _pipelineService;
     private readonly ILogger<ProspectService> _logger;
 
     private static readonly Dictionary<string, string[]> StatusFlow = new()
@@ -34,12 +35,14 @@ public class ProspectService : IProspectService
         IGoNoGoScoringService scoringService,
         IActivityLogService activityLog,
         INotificationService notificationService,
+        IPipelineService pipelineService,
         ILogger<ProspectService> logger)
     {
         _context = context;
         _scoringService = scoringService;
         _activityLog = activityLog;
         _notificationService = notificationService;
+        _pipelineService = pipelineService;
         _logger = logger;
     }
 
@@ -107,6 +110,17 @@ public class ProspectService : IProspectService
 
         _context.ProspectNotes.Add(note);
         await _context.SaveChangesAsync();
+
+        // Record initial status in history table
+        try
+        {
+            await _pipelineService.RecordStatusChangeAsync(prospect.ProspectId, null, "NEW", userId);
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record initial status history for prospect {ProspectId}", prospect.ProspectId);
+        }
 
         // Auto-calculate Go/No-Go score
         try
@@ -449,6 +463,17 @@ public class ProspectService : IProspectService
 
         _context.ProspectNotes.Add(note);
         await _context.SaveChangesAsync();
+
+        // Record status change in history table for funnel analytics
+        try
+        {
+            await _pipelineService.RecordStatusChangeAsync(prospectId, currentStatus, newStatus, userId);
+            await _context.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to record status history for prospect {ProspectId}", prospectId);
+        }
 
         // Log activity
         await _activityLog.LogAsync(organizationId, userId, "UPDATE_STATUS", "PROSPECT", prospectId.ToString(),

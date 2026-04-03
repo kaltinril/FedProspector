@@ -28,6 +28,21 @@ import CalculateOutlined from '@mui/icons-material/CalculateOutlined';
 import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
 import AssessmentOutlined from '@mui/icons-material/AssessmentOutlined';
 import HandshakeOutlined from '@mui/icons-material/HandshakeOutlined';
+import AutorenewOutlined from '@mui/icons-material/AutorenewOutlined';
+import InsightsOutlined from '@mui/icons-material/InsightsOutlined';
+import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined';
+import PersonSearchOutlined from '@mui/icons-material/PersonSearchOutlined';
+import SupervisorAccountOutlined from '@mui/icons-material/SupervisorAccountOutlined';
+import CompareOutlined from '@mui/icons-material/CompareOutlined';
+import VerifiedUserOutlined from '@mui/icons-material/VerifiedUserOutlined';
+import StraightenOutlined from '@mui/icons-material/StraightenOutlined';
+import WorkHistoryOutlined from '@mui/icons-material/WorkHistoryOutlined';
+import DonutSmallOutlined from '@mui/icons-material/DonutSmallOutlined';
+import HealthAndSafetyOutlined from '@mui/icons-material/HealthAndSafetyOutlined';
+import AnalyticsOutlined from '@mui/icons-material/AnalyticsOutlined';
+import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
+import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined';
+import MonetizationOnOutlined from '@mui/icons-material/MonetizationOnOutlined';
 import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import ChevronRight from '@mui/icons-material/ChevronRight';
@@ -67,6 +82,10 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Recommended', icon: <RecommendOutlined />, route: '/opportunities/recommended' },
       { label: 'Expiring Contracts', icon: <EventBusyOutlined />, route: '/awards/expiring' },
       { label: 'Prospects', icon: <TrackChangesOutlined />, route: '/prospects' },
+      { label: 'Analytics', icon: <AnalyticsOutlined />, route: '/pipeline/analytics' },
+      { label: 'Calendar', icon: <CalendarMonthOutlined />, route: '/pipeline/calendar' },
+      { label: 'Stale Alerts', icon: <ReportProblemOutlined />, route: '/pipeline/stale' },
+      { label: 'Forecast', icon: <MonetizationOnOutlined />, route: '/pipeline/forecast' },
     ],
   },
   {
@@ -91,9 +110,35 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: 'Competitive Intel',
+    items: [
+      { label: 'Re-compete Candidates', icon: <AutorenewOutlined />, route: '/competitive-intel/recompetes' },
+      { label: 'Agency Patterns', icon: <InsightsOutlined />, route: '/competitive-intel/agency-patterns' },
+      { label: 'Contracting Offices', icon: <ApartmentOutlined />, route: '/competitive-intel/offices' },
+    ],
+  },
+  {
+    title: 'Teaming',
+    items: [
+      { label: 'Partner Search', icon: <PersonSearchOutlined />, route: '/teaming/partners' },
+      { label: 'Mentor-Protege', icon: <SupervisorAccountOutlined />, route: '/teaming/mentor-protege' },
+      { label: 'Gap Analysis', icon: <CompareOutlined />, route: '/teaming/gap-analysis' },
+    ],
+  },
+  {
+    title: 'Onboarding',
+    items: [
+      { label: 'Certification Alerts', icon: <VerifiedUserOutlined />, route: '/onboarding/certification-alerts' },
+      { label: 'Size Standard', icon: <StraightenOutlined />, route: '/onboarding/size-standard' },
+      { label: 'Past Performance', icon: <WorkHistoryOutlined />, route: '/onboarding/past-performance' },
+      { label: 'Portfolio Gaps', icon: <DonutSmallOutlined />, route: '/onboarding/portfolio-gaps' },
+    ],
+  },
+  {
     title: 'Tools',
     items: [
       { label: 'Saved Searches', icon: <BookmarkBorderOutlined />, route: '/saved-searches' },
+      { label: 'Data Quality', icon: <HealthAndSafetyOutlined />, route: '/insights/data-quality' },
     ],
   },
   {

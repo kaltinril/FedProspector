@@ -35,6 +35,7 @@ import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import PWinGauge from '@/components/shared/PWinGauge';
+import { MilestonePanel } from '@/components/pipeline/MilestonePanel';
 
 import {
   useProspect,
@@ -852,6 +853,16 @@ export default function ProspectDetailPage() {
       label: 'Team',
       value: 'team',
       content: <TeamTab detail={detail} prospectId={prospectId} />,
+    },
+    {
+      label: 'Milestones',
+      value: 'milestones',
+      content: (
+        <MilestonePanel
+          prospectId={prospectId}
+          responseDeadline={opp?.responseDeadline}
+        />
+      ),
     },
     {
       label: 'Proposal',

@@ -48,6 +48,7 @@ import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { SimilarOpportunitiesPanel } from '@/components/insights/SimilarOpportunitiesPanel';
 import QualificationPWinTab from './QualificationPWinTab';
 import CompetitiveIntelTab from './CompetitiveIntelTab';
 import DocumentIntelligenceTab from './DocumentIntelligenceTab';
@@ -505,6 +506,9 @@ function OverviewTab({
 
       {/* Qualification Summary */}
       <QualificationSummary noticeId={opp.noticeId} onViewDetails={onViewQualification} />
+
+      {/* Similar Opportunities ("More Like This") */}
+      <SimilarOpportunitiesPanel noticeId={opp.noticeId} maxResults={10} />
 
       {/* Amendment History */}
       {opp.amendments && opp.amendments.length > 0 && (

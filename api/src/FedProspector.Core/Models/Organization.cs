@@ -103,4 +103,5 @@ public class Organization
     public ICollection<OrganizationCertification> Certifications { get; set; } = new List<OrganizationCertification>();
     public ICollection<OrganizationPastPerformance> PastPerformances { get; set; } = new List<OrganizationPastPerformance>();
     public ICollection<OrganizationEntity> LinkedEntities { get; set; } = new List<OrganizationEntity>();
+    public ICollection<OrganizationPsc> PscCodes { get; set; } = new List<OrganizationPsc>();
 }
