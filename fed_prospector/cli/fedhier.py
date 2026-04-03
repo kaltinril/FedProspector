@@ -522,18 +522,7 @@ def load_offices(max_calls, api_key_number, force, verify, backfill, days_back):
                            f"Saving progress.")
                 break
 
-            # Update current_org in progress
-            _save_offices_progress(
-                load_manager, load_id, completed_orgs, len(subtiers),
-                str(fhorgid), 0, False, calls_made, total_fetched, cumulative,
-                date_from=updated_date_from,
-            )
-
-            # Fetch all pages of children for this sub-tier
-            subtier_offices = 0
-            subtier_complete = True
-            partial_org_id = str(fhorgid)
-            partial_org_offset = 0
+            # Compute resume offset before saving progress
             start_offset = 0
             if str(fhorgid) == resume_current_org and resume_current_page > 0:
                 start_offset = resume_current_page
@@ -541,6 +530,19 @@ def load_offices(max_calls, api_key_number, force, verify, backfill, days_back):
                 # Clear so we don't re-apply on retry
                 resume_current_org = ""
                 resume_current_page = 0
+
+            # Update current_org in progress (preserve resume offset)
+            _save_offices_progress(
+                load_manager, load_id, completed_orgs, len(subtiers),
+                str(fhorgid), start_offset, False, calls_made, total_fetched, cumulative,
+                date_from=updated_date_from,
+            )
+
+            # Fetch all pages of children for this sub-tier
+            subtier_offices = 0
+            subtier_complete = True
+            partial_org_id = str(fhorgid)
+            partial_org_offset = start_offset
             last_offset = start_offset
             try:
                 for child_orgs, offset, total_records in client.iter_org_children_pages(
