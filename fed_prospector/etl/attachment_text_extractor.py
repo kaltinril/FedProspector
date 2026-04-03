@@ -922,6 +922,13 @@ class AttachmentTextExtractor:
             rows = self._fetch_pending(notice_id, batch_size, force)
             logger.info("Found %d attachments to extract", len(rows))
 
+            if not rows:
+                self.load_manager.complete_load(
+                    load_id, records_read=0, records_inserted=0,
+                    records_updated=0, records_unchanged=0, records_errored=0,
+                )
+                return {"processed": 0, "succeeded": 0, "failed": 0, "skipped": 0}
+
             from concurrent.futures import ProcessPoolExecutor, as_completed
             from tqdm import tqdm
 

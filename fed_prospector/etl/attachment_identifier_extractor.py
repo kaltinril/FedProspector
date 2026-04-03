@@ -47,6 +47,18 @@ _CAGE_RE = re.compile(
 _DUNS_RE = re.compile(r"\b(\d{9})\b")
 _DUNS_CONTEXT_RE = re.compile(r"\bDUNS\b", re.IGNORECASE)
 
+# UEI context: require SAM/UEI keyword nearby to reduce false positives
+_UEI_CONTEXT_RE = re.compile(
+    r"\b(?:UEI|Unique\s+Entity|SAM\.gov|SAM\s+registration)\b",
+    re.IGNORECASE,
+)
+
+# PIID dashed format context: require contracting keyword nearby
+_PIID_CONTEXT_RE = re.compile(
+    r"\b(?:contract|solicitation|PIID|award|delivery\s+order|task\s+order|purchase\s+order|requisition|RFP|RFQ|IFB)\b",
+    re.IGNORECASE,
+)
+
 # FAR Clause: 52.2XX-YY
 _FAR_RE = re.compile(r"\b(52\.2\d{2}-\d{1,3})\b")
 
@@ -77,6 +89,7 @@ _STORED_CONTEXT = 150
 _PIID_FALSE_POSITIVES = frozenset({
     # Add known false positives here as discovered
 })
+
 
 # Minimum length for PIID to reduce false positives
 _PIID_MIN_LENGTH = 12
@@ -110,6 +123,18 @@ def _is_piid_like(value: str) -> bool:
     # Must contain at least 2 letters
     letter_count = sum(1 for c in value if c.isalpha())
     if letter_count < 2:
+        return False
+    # Validate instrument type code at position 7 or 8
+    # (5-char AAC + 2 FY = pos 7, or 6-char AAC + 2 FY = pos 8)
+    valid_type_codes = frozenset("ABCDEFGHLMNPQRSTWK")
+    has_valid_type = False
+    for pos in (7, 8):
+        if pos < len(value) and value[pos] in valid_type_codes:
+            # Also check that positions before the type code end with 2 digits (FY)
+            if pos >= 2 and value[pos - 2:pos].isdigit():
+                has_valid_type = True
+                break
+    if not has_valid_type:
         return False
     return True
 
@@ -546,11 +571,7 @@ class AttachmentIdentifierExtractor:
             params.append(notice_id)
 
         if not force:
-            where_parts.append("""
-                ad.document_id NOT IN (
-                    SELECT DISTINCT document_id FROM document_identifier_ref
-                )
-            """)
+            where_parts.append("ad.identifier_scanned_at IS NULL")
 
         where_clause = " AND ".join(where_parts)
 
@@ -586,11 +607,7 @@ class AttachmentIdentifierExtractor:
             params.append(notice_id)
 
         if not force:
-            where_parts.append("""
-                ad.document_id NOT IN (
-                    SELECT DISTINCT document_id FROM document_identifier_ref
-                )
-            """)
+            where_parts.append("ad.identifier_scanned_at IS NULL")
 
         where_clause = " AND ".join(where_parts)
 
@@ -642,10 +659,25 @@ class AttachmentIdentifierExtractor:
                 continue
             if normalized in seen_piid_normalized:
                 continue
+            # Dashed format requires nearby contracting keyword to reduce part-number noise
+            ctx_start = max(0, m.start() - _CONTEXT_WINDOW)
+            ctx_end = min(len(text), m.end() + _CONTEXT_WINDOW)
+            nearby = text[ctx_start:ctx_end]
+            if not _PIID_CONTEXT_RE.search(nearby):
+                continue
             id_type = _classify_piid_type(normalized)
             context = _get_context(text, m.start(), m.end())
             matches.append((id_type, normalized, raw, context, m.start(), m.end(), "medium"))
             seen_piid_normalized.add(normalized)
+
+        # Cap PIID matches per document to avoid parts catalogs flooding the table
+        piid_matches = [m for m in matches if m[0] in ("PIID", "SOLICITATION")]
+        if len(piid_matches) > 100:
+            logger.warning(
+                "Document %d has %d PIID-like matches (likely parts catalog) — capping at 0",
+                document_id, len(piid_matches),
+            )
+            matches = [m for m in matches if m[0] not in ("PIID", "SOLICITATION")]
 
         # --- UEI ---
         for m in _UEI_RE.finditer(text):
@@ -653,6 +685,17 @@ class AttachmentIdentifierExtractor:
             normalized = raw.upper()
             # UEI must not look like a PIID (already captured above)
             if _is_piid_like(raw):
+                continue
+            # Real UEIs always contain both letters and digits
+            has_digit = any(c.isdigit() for c in normalized)
+            has_alpha = any(c.isalpha() for c in normalized)
+            if not has_digit or not has_alpha:
+                continue
+            # Require UEI-related keyword nearby
+            ctx_start = max(0, m.start() - _CONTEXT_WINDOW)
+            ctx_end = min(len(text), m.end() + _CONTEXT_WINDOW)
+            nearby = text[ctx_start:ctx_end]
+            if not _UEI_CONTEXT_RE.search(nearby):
                 continue
             context = _get_context(text, m.start(), m.end())
             matches.append(("UEI", normalized, raw, context, m.start(), m.end(), "medium"))
@@ -680,17 +723,9 @@ class AttachmentIdentifierExtractor:
             context = _get_context(text, m.start(), m.end())
             matches.append(("DUNS", raw, raw, context, m.start(), m.end(), "medium"))
 
-        # --- FAR Clause ---
-        for m in _FAR_RE.finditer(text):
-            raw = m.group(1)
-            context = _get_context(text, m.start(), m.end())
-            matches.append(("FAR_CLAUSE", raw, raw, context, m.start(), m.end(), "high"))
-
-        # --- DFARS Clause ---
-        for m in _DFARS_RE.finditer(text):
-            raw = m.group(1)
-            context = _get_context(text, m.start(), m.end())
-            matches.append(("DFARS_CLAUSE", raw, raw, context, m.start(), m.end(), "high"))
+        # --- FAR / DFARS Clause extraction removed ---
+        # Every solicitation lists the same 50-100 boilerplate clause references
+        # with zero discriminating value. Produces ~268K rows of noise.
 
         # --- Wage Determination (context-dependent) ---
         for m in _WAGE_DET_RE.finditer(text):
@@ -726,9 +761,6 @@ class AttachmentIdentifierExtractor:
                 unique_matches.append(match)
 
         # Insert into database
-        if not unique_matches:
-            return {"total_found": 0, "inserted": 0}
-
         conn = self.db_connection or get_connection()
         cursor = conn.cursor()
 
@@ -737,6 +769,17 @@ class AttachmentIdentifierExtractor:
             "DELETE FROM document_identifier_ref WHERE document_id = %s",
             (document_id,),
         )
+
+        if not unique_matches:
+            cursor.execute(
+                "UPDATE attachment_document SET identifier_scanned_at = NOW() WHERE document_id = %s",
+                (document_id,),
+            )
+            conn.commit()
+            cursor.close()
+            if not self.db_connection:
+                conn.close()
+            return {"total_found": 0, "inserted": 0}
 
         insert_sql = """
             INSERT INTO document_identifier_ref
@@ -750,6 +793,10 @@ class AttachmentIdentifierExtractor:
                 start, end, confidence, load_id,
             ))
 
+        cursor.execute(
+            "UPDATE attachment_document SET identifier_scanned_at = NOW() WHERE document_id = %s",
+            (document_id,),
+        )
         conn.commit()
         cursor.close()
         if not self.db_connection:
