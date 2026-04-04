@@ -259,7 +259,7 @@ SELECT
     ROUND(COALESCE(ret.incumbent_wins / NULLIF(ret.recompete_count, 0), 0) * 100, 1)
         AS incumbent_retention_rate_pct,
     ROUND(COALESCE(ne.new_entrant_wins / NULLIF(ne.total_vendors, 0), 0) * 100, 1)
-        AS new_entrant_win_rate_pct,
+        AS new_vendor_penetration_pct,
     ROUND(COALESCE(sas.sa_shifts / NULLIF(sas.sa_pairs, 0), 0) * 100, 1)
         AS set_aside_shift_frequency_pct,
     ROUND(COALESCE(ol.avg_lead_days, 0), 1)
@@ -305,13 +305,20 @@ WITH fpds_agg AS (
                    THEN 1 END)                                         AS fpds_count_5yr,
         AVG(fc.dollars_obligated)                                      AS fpds_avg_contract_value,
         MAX(fc.date_signed)                                            AS fpds_most_recent_award,
-        -- Top 3 NAICS by contract count
-        SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT fc.naics_code
-            ORDER BY fc.naics_code SEPARATOR ','), ',', 5)             AS fpds_top_naics,
+        -- Top 5 NAICS by contract count (subquery orders by frequency)
+        SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT nc.naics_code
+            ORDER BY nc.naics_cnt DESC, nc.naics_code SEPARATOR ','), ',', 5)
+                                                                       AS fpds_top_naics,
         -- Top agencies
         SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT fc.agency_name
             ORDER BY fc.agency_name SEPARATOR ' | '), ' | ', 5)       AS fpds_top_agencies
     FROM fpds_contract fc
+    LEFT JOIN (
+        SELECT fc2.vendor_uei, fc2.naics_code, COUNT(*) AS naics_cnt
+        FROM fpds_contract fc2
+        WHERE fc2.modification_number = '0'
+        GROUP BY fc2.vendor_uei, fc2.naics_code
+    ) nc ON nc.vendor_uei = fc.vendor_uei AND nc.naics_code = fc.naics_code
     WHERE fc.modification_number = '0'
     GROUP BY fc.vendor_uei
 ),
@@ -528,9 +535,10 @@ WITH office_stats AS (
         ROUND(AVG(fc.dollars_obligated), 2)                            AS avg_award_value,
         MIN(fc.date_signed)                                            AS earliest_award,
         MAX(fc.date_signed)                                            AS latest_award,
-        -- Top NAICS (most frequent)
-        SUBSTRING_INDEX(GROUP_CONCAT(fc.naics_code
-            ORDER BY fc.naics_code SEPARATOR ','), ',', 5)             AS top_naics_codes,
+        -- Top NAICS (most frequent, via subquery for frequency ordering)
+        SUBSTRING_INDEX(GROUP_CONCAT(DISTINCT nc.naics_code
+            ORDER BY nc.naics_cnt DESC, nc.naics_code SEPARATOR ','), ',', 5)
+                                                                       AS top_naics_codes,
         -- Set-aside preferences
         ROUND(SUM(CASE WHEN fc.set_aside_type IN ('SBA','SBP','RSB')  THEN 1 ELSE 0 END)
               / COUNT(*) * 100, 1)                                     AS small_business_pct,
@@ -562,6 +570,14 @@ WITH office_stats AS (
         -- Average procurement timeline (posting to award, via opportunity table)
         NULL                                                           AS avg_procurement_days
     FROM fpds_contract fc
+    LEFT JOIN (
+        SELECT fc2.contracting_office_id, fc2.naics_code, COUNT(*) AS naics_cnt
+        FROM fpds_contract fc2
+        WHERE fc2.modification_number = '0'
+          AND fc2.date_signed >= DATE_SUB(CURDATE(), INTERVAL 5 YEAR)
+          AND fc2.contracting_office_id IS NOT NULL
+        GROUP BY fc2.contracting_office_id, fc2.naics_code
+    ) nc ON nc.contracting_office_id = fc.contracting_office_id AND nc.naics_code = fc.naics_code
     WHERE fc.modification_number = '0'
       AND fc.date_signed >= DATE_SUB(CURDATE(), INTERVAL 5 YEAR)
       AND fc.contracting_office_id IS NOT NULL

@@ -181,7 +181,7 @@ WHERE ss.size_standard > 0
 -- ============================================================
 
 CREATE OR REPLACE VIEW v_past_performance_relevance AS
-SELECT DISTINCT
+SELECT
     pp.organization_id,
     pp.id                                             AS past_performance_id,
     pp.contract_number,
@@ -238,11 +238,19 @@ SELECT DISTINCT
         )
     , 1)                                              AS relevance_score
 FROM organization_past_performance pp
-INNER JOIN organization_naics orn
-    ON pp.organization_id = orn.organization_id
 INNER JOIN opportunity opp
     ON opp.active = 'Y'
-    AND (opp.naics_code = pp.naics_code OR opp.naics_code = orn.naics_code)
+    AND (
+        -- Direct NAICS match: PP record's own NAICS matches the opportunity
+        (pp.naics_code IS NOT NULL AND opp.naics_code = pp.naics_code)
+        OR
+        -- Org NAICS match: any of the org's registered NAICS codes matches the opportunity
+        EXISTS (
+            SELECT 1 FROM organization_naics orn
+            WHERE orn.organization_id = pp.organization_id
+              AND orn.naics_code = opp.naics_code
+        )
+    )
 ;
 
 -- ============================================================

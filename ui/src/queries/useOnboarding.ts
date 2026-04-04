@@ -79,6 +79,7 @@ export function useAddPscCode() {
     retry: 1,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.pscCodes });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.profileCompleteness });
     },
   });
 }
@@ -90,6 +91,7 @@ export function useDeletePscCode() {
     retry: 1,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.pscCodes });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.onboarding.profileCompleteness });
     },
   });
 }

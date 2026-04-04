@@ -19,7 +19,7 @@ public class TeamingService : ITeamingService
     }
 
     public async Task<PagedResponse<PartnerSearchResultDto>> SearchPartnersAsync(
-        string? naicsCode, string? state, string? certification, string? agencyCode, int page, int pageSize)
+        string? naicsCode, string? state, string? certification, string? agency, int page, int pageSize)
     {
         var query = _context.PartnerCapabilityMatches.AsNoTracking();
 
@@ -32,8 +32,8 @@ public class TeamingService : ITeamingService
         if (!string.IsNullOrWhiteSpace(certification))
             query = query.Where(p => p.Certifications != null && p.Certifications.Contains(certification));
 
-        if (!string.IsNullOrWhiteSpace(agencyCode))
-            query = query.Where(p => p.AgenciesWorkedWith != null && p.AgenciesWorkedWith.Contains(agencyCode));
+        if (!string.IsNullOrWhiteSpace(agency))
+            query = query.Where(p => p.AgenciesWorkedWith != null && p.AgenciesWorkedWith.Contains(agency));
 
         var totalCount = await query.CountAsync();
 
@@ -195,6 +195,7 @@ public class TeamingService : ITeamingService
         var hop1 = await _context.TeamingNetwork
             .AsNoTracking()
             .Where(n => n.VendorUei == uei)
+            .Take(200)
             .ToListAsync();
 
         var results = hop1.Select(n => new TeamingNetworkNodeDto

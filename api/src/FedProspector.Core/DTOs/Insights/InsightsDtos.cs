@@ -31,7 +31,7 @@ public class DataFreshnessDto
 {
     public string SourceName { get; set; } = string.Empty;
     public DateTime? LastLoadDate { get; set; }
-    public int RecordsLoaded { get; set; }
+    public long RecordsLoaded { get; set; }
     public string? LastLoadStatus { get; set; }
     public int? HoursSinceLastLoad { get; set; }
     public string FreshnessStatus { get; set; } = string.Empty;

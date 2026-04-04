@@ -304,7 +304,7 @@ function NetworkTab({ uei }: { uei: string }) {
       width: 110,
       renderCell: (params) => {
         const dir = params.value as string;
-        const color: ChipColor = dir === 'PRIME' ? 'primary' : dir === 'SUB' ? 'secondary' : 'default';
+        const color: ChipColor = dir === 'PRIME_OF' ? 'primary' : dir === 'SUB_TO' ? 'secondary' : 'default';
         return <Chip label={dir} size="small" color={color} variant="outlined" />;
       },
     },

@@ -30,7 +30,7 @@ export interface AgencyRecompetePatternDto {
   contractingOfficeName?: string | null;
   agencyName?: string | null;
   incumbentRetentionRatePct?: number | null;
-  newEntrantWinRatePct?: number | null;
+  newVendorPenetrationPct?: number | null;
   setAsideShiftFrequencyPct?: number | null;
   avgSolicitationLeadTimeDays?: number | null;
   bridgeExtensionFrequencyPct?: number | null;

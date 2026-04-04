@@ -96,7 +96,7 @@ public class CompetitiveIntelService : ICompetitiveIntelService
             ContractingOfficeName = p.ContractingOfficeName,
             AgencyName = p.AgencyName,
             IncumbentRetentionRatePct = p.IncumbentRetentionRatePct,
-            NewEntrantWinRatePct = p.NewEntrantWinRatePct,
+            NewVendorPenetrationPct = p.NewVendorPenetrationPct,
             SetAsideShiftFrequencyPct = p.SetAsideShiftFrequencyPct,
             AvgSolicitationLeadTimeDays = p.AvgSolicitationLeadTimeDays,
             BridgeExtensionFrequencyPct = p.BridgeExtensionFrequencyPct,

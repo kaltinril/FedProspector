@@ -458,7 +458,9 @@ export function AppRoutes() {
         path="/insights/data-quality"
         element={
           <AuthenticatedLayout>
-            <DataQualityDashboardPage />
+            <AdminGuard>
+              <DataQualityDashboardPage />
+            </AdminGuard>
           </AuthenticatedLayout>
         }
       />

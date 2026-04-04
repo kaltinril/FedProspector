@@ -20,15 +20,15 @@ import { useProfileCompleteness } from '@/queries/useOnboarding';
 import { UeiImportDialog } from './UeiImportDialog';
 
 const FIELD_RECOMMENDATIONS: Record<string, string> = {
-  UEI: 'Add your Unique Entity ID to enable SAM.gov data import',
-  CageCode: 'Add CAGE code for DoD opportunity matching',
-  NAICS: 'Add NAICS codes to improve opportunity matching',
-  PSC: 'Add PSC codes to match product/service categories',
-  Certifications: 'Add certifications (WOSB, 8a, HUBZone) to find set-aside opportunities',
-  PastPerformance: 'Add past performance records to strengthen bid evaluations',
-  Address: 'Add your business address for geographic matching',
-  BusinessType: 'Specify your business type for set-aside eligibility',
-  SizeStandard: 'Add size standard info to track SBA thresholds',
+  'UEI': 'Add your Unique Entity ID to enable SAM.gov data import',
+  'CAGE Code': 'Add CAGE code for DoD opportunity matching',
+  'NAICS Codes': 'Add NAICS codes to improve opportunity matching',
+  'PSC Codes': 'Add PSC codes to match product/service categories',
+  'Certifications': 'Add certifications (WOSB, 8a, HUBZone) to find set-aside opportunities',
+  'Past Performance': 'Add past performance records to strengthen bid evaluations',
+  'Address': 'Add your business address for geographic matching',
+  'Business Type': 'Specify your business type for set-aside eligibility',
+  'Size Standard': 'Add size standard info to track SBA thresholds',
 };
 
 function getRecommendation(field: string): string {

@@ -57,8 +57,8 @@ export default function PipelineCalendarPage() {
 
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
-  const calendarStart = startOfWeek(monthStart);
-  const calendarEnd = endOfWeek(monthEnd);
+  const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+  const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
 
   const startDate = format(calendarStart, 'yyyy-MM-dd');
   const endDate = format(calendarEnd, 'yyyy-MM-dd');

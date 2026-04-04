@@ -30,7 +30,7 @@ public class AgencyRecompetePatternDto
     public string? ContractingOfficeName { get; set; }
     public string? AgencyName { get; set; }
     public decimal? IncumbentRetentionRatePct { get; set; }
-    public decimal? NewEntrantWinRatePct { get; set; }
+    public decimal? NewVendorPenetrationPct { get; set; }
     public decimal? SetAsideShiftFrequencyPct { get; set; }
     public decimal? AvgSolicitationLeadTimeDays { get; set; }
     public decimal? BridgeExtensionFrequencyPct { get; set; }

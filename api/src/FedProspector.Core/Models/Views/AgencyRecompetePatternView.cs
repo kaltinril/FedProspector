@@ -16,8 +16,8 @@ public class AgencyRecompetePatternView
     [Column("incumbent_retention_rate_pct")]
     public decimal? IncumbentRetentionRatePct { get; set; }
 
-    [Column("new_entrant_win_rate_pct")]
-    public decimal? NewEntrantWinRatePct { get; set; }
+    [Column("new_vendor_penetration_pct")]
+    public decimal? NewVendorPenetrationPct { get; set; }
 
     [Column("set_aside_shift_frequency_pct")]
     public decimal? SetAsideShiftFrequencyPct { get; set; }

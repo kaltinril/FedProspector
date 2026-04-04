@@ -5,6 +5,7 @@ namespace FedProspector.Core.DTOs.Onboarding;
 public class UeiImportRequest
 {
     [Required]
-    [MaxLength(13)]
+    [MinLength(12)]
+    [MaxLength(12)]
     public string Uei { get; set; } = string.Empty;
 }

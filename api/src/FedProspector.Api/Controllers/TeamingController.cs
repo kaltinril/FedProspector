@@ -27,14 +27,14 @@ public class TeamingController : ApiControllerBase
         [FromQuery] string? naicsCode = null,
         [FromQuery] string? state = null,
         [FromQuery] string? certification = null,
-        [FromQuery] string? agencyCode = null,
+        [FromQuery] string? agency = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 100) pageSize = 25;
 
-        var result = await _service.SearchPartnersAsync(naicsCode, state, certification, agencyCode, page, pageSize);
+        var result = await _service.SearchPartnersAsync(naicsCode, state, certification, agency, page, pageSize);
         return Ok(result);
     }
 
@@ -97,6 +97,9 @@ public class TeamingController : ApiControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
+        if (string.IsNullOrWhiteSpace(protegeUei) && string.IsNullOrWhiteSpace(naicsCode))
+            return BadRequest("At least one filter (protegeUei or naicsCode) is required");
+
         if (page < 1) page = 1;
         if (pageSize < 1 || pageSize > 100) pageSize = 25;
 

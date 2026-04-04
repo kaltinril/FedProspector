@@ -29,8 +29,11 @@ function progressColor(pct: number | null | undefined): 'error' | 'warning' | 's
 
 function formatValue(value: number | null | undefined, type: string | null | undefined): string {
   if (value == null) return '--';
-  if (type?.toLowerCase().includes('revenue') || type?.toLowerCase().includes('dollar')) {
-    return formatCurrency(value, true);
+  if (type === 'R') {
+    return formatCurrency(value * 1000000, true);
+  }
+  if (type === 'E') {
+    return value.toLocaleString();
   }
   return value.toLocaleString();
 }

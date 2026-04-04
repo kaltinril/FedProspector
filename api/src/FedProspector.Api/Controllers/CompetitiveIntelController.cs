@@ -52,7 +52,7 @@ public class CompetitiveIntelController : ApiControllerBase
     /// <summary>
     /// Returns buying pattern data for a specific agency, broken down by year and quarter.
     /// </summary>
-    [HttpGet("agency-patterns/{agencyCode}")]
+    [HttpGet("buying-patterns/{agencyCode}")]
     public async Task<ActionResult<List<AgencyBuyingPatternDto>>> GetAgencyBuyingPatterns(
         string agencyCode,
         [FromQuery] int? year = null)

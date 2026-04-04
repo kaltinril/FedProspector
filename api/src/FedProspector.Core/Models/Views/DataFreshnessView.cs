@@ -11,7 +11,7 @@ public class DataFreshnessView
     public DateTime? LastLoadDate { get; set; }
 
     [Column("records_loaded")]
-    public int RecordsLoaded { get; set; }
+    public long RecordsLoaded { get; set; }
 
     [Column("last_load_status")]
     public string? LastLoadStatus { get; set; }

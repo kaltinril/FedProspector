@@ -214,7 +214,7 @@ export default function MentorProtegePage() {
             columns={columns}
             rows={data?.items ?? []}
             loading={false}
-            getRowId={(row: MentorProtegePairDto) => `${row.protegeUei}-${row.mentorUei}`}
+            getRowId={(row: MentorProtegePairDto) => `${row.protegeUei}-${row.mentorUei}-${row.sharedNaics}`}
             sx={{ minHeight: 400 }}
           />
           {data && data.totalPages > 1 && (

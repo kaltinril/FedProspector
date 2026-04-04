@@ -16,6 +16,9 @@ USE fed_contracts;
 -- opportunity. Filter via WHERE source_notice_id = '...'
 -- ============================================================
 
+-- WARNING: This view is O(N^2) without a WHERE clause on src_notice_id.
+-- Always query with: WHERE source_notice_id = ? LIMIT N
+-- Direct SELECT * will lock/crash the database.
 CREATE OR REPLACE VIEW v_similar_opportunity AS
 SELECT
     src.notice_id                                     AS source_notice_id,
@@ -70,7 +73,7 @@ CREATE OR REPLACE VIEW v_cross_source_validation AS
 SELECT
     'XSV-001'                                         AS check_id,
     'Entity Count: SAM vs USASpending'                AS check_name,
-    'sam_entity'                                      AS source_a_name,
+    'entity'                                            AS source_a_name,
     e_cnt.cnt                                         AS source_a_count,
     'usaspending_award (distinct UEI)'                AS source_b_name,
     u_cnt.cnt                                         AS source_b_count,
@@ -256,130 +259,123 @@ LEFT JOIN (
 CREATE OR REPLACE VIEW v_data_completeness AS
 
 -- opportunity
-SELECT
-    'opportunity'                                     AS table_name,
-    total.cnt                                         AS total_rows,
-    'naics_code'                                      AS field_name,
-    SUM(o.naics_code IS NOT NULL)                     AS non_null_count,
-    SUM(o.naics_code IS NULL)                         AS null_count,
-    ROUND(SUM(o.naics_code IS NOT NULL) / total.cnt * 100, 1) AS completeness_pct
-FROM opportunity o, (SELECT COUNT(*) AS cnt FROM opportunity) total
-GROUP BY total.cnt
+SELECT 'opportunity' AS table_name, total.cnt AS total_rows, 'naics_code' AS field_name,
+    COALESCE(filled.cnt, 0) AS non_null_count,
+    total.cnt - COALESCE(filled.cnt, 0) AS null_count,
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END AS completeness_pct
+FROM (SELECT COUNT(*) AS cnt FROM opportunity) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM opportunity WHERE naics_code IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'opportunity', total.cnt, 'department_name',
-    SUM(o.department_name IS NOT NULL), SUM(o.department_name IS NULL),
-    ROUND(SUM(o.department_name IS NOT NULL) / total.cnt * 100, 1)
-FROM opportunity o, (SELECT COUNT(*) AS cnt FROM opportunity) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM opportunity) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM opportunity WHERE department_name IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'opportunity', total.cnt, 'set_aside_code',
-    SUM(o.set_aside_code IS NOT NULL), SUM(o.set_aside_code IS NULL),
-    ROUND(SUM(o.set_aside_code IS NOT NULL) / total.cnt * 100, 1)
-FROM opportunity o, (SELECT COUNT(*) AS cnt FROM opportunity) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM opportunity) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM opportunity WHERE set_aside_code IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'opportunity', total.cnt, 'response_deadline',
-    SUM(o.response_deadline IS NOT NULL), SUM(o.response_deadline IS NULL),
-    ROUND(SUM(o.response_deadline IS NOT NULL) / total.cnt * 100, 1)
-FROM opportunity o, (SELECT COUNT(*) AS cnt FROM opportunity) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM opportunity) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM opportunity WHERE response_deadline IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'opportunity', total.cnt, 'estimated_contract_value',
-    SUM(o.estimated_contract_value IS NOT NULL), SUM(o.estimated_contract_value IS NULL),
-    ROUND(SUM(o.estimated_contract_value IS NOT NULL) / total.cnt * 100, 1)
-FROM opportunity o, (SELECT COUNT(*) AS cnt FROM opportunity) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM opportunity) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM opportunity WHERE estimated_contract_value IS NOT NULL) filled ON 1=1
 
 UNION ALL
 
 -- entity
 SELECT 'entity', total.cnt, 'primary_naics',
-    SUM(e.primary_naics IS NOT NULL), SUM(e.primary_naics IS NULL),
-    ROUND(SUM(e.primary_naics IS NOT NULL) / total.cnt * 100, 1)
-FROM entity e, (SELECT COUNT(*) AS cnt FROM entity) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM entity) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM entity WHERE primary_naics IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'entity', total.cnt, 'registration_status',
-    SUM(e.registration_status IS NOT NULL), SUM(e.registration_status IS NULL),
-    ROUND(SUM(e.registration_status IS NOT NULL) / total.cnt * 100, 1)
-FROM entity e, (SELECT COUNT(*) AS cnt FROM entity) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM entity) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM entity WHERE registration_status IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'entity', total.cnt, 'cage_code',
-    SUM(e.cage_code IS NOT NULL), SUM(e.cage_code IS NULL),
-    ROUND(SUM(e.cage_code IS NOT NULL) / total.cnt * 100, 1)
-FROM entity e, (SELECT COUNT(*) AS cnt FROM entity) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM entity) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM entity WHERE cage_code IS NOT NULL) filled ON 1=1
 
 UNION ALL
 
 -- fpds_contract
 SELECT 'fpds_contract', total.cnt, 'naics_code',
-    SUM(f.naics_code IS NOT NULL), SUM(f.naics_code IS NULL),
-    ROUND(SUM(f.naics_code IS NOT NULL) / total.cnt * 100, 1)
-FROM fpds_contract f, (SELECT COUNT(*) AS cnt FROM fpds_contract) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM fpds_contract) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM fpds_contract WHERE naics_code IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'fpds_contract', total.cnt, 'vendor_uei',
-    SUM(f.vendor_uei IS NOT NULL), SUM(f.vendor_uei IS NULL),
-    ROUND(SUM(f.vendor_uei IS NOT NULL) / total.cnt * 100, 1)
-FROM fpds_contract f, (SELECT COUNT(*) AS cnt FROM fpds_contract) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM fpds_contract) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM fpds_contract WHERE vendor_uei IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'fpds_contract', total.cnt, 'dollars_obligated',
-    SUM(f.dollars_obligated IS NOT NULL), SUM(f.dollars_obligated IS NULL),
-    ROUND(SUM(f.dollars_obligated IS NOT NULL) / total.cnt * 100, 1)
-FROM fpds_contract f, (SELECT COUNT(*) AS cnt FROM fpds_contract) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM fpds_contract) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM fpds_contract WHERE dollars_obligated IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'fpds_contract', total.cnt, 'date_signed',
-    SUM(f.date_signed IS NOT NULL), SUM(f.date_signed IS NULL),
-    ROUND(SUM(f.date_signed IS NOT NULL) / total.cnt * 100, 1)
-FROM fpds_contract f, (SELECT COUNT(*) AS cnt FROM fpds_contract) total
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM fpds_contract) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM fpds_contract WHERE date_signed IS NOT NULL) filled ON 1=1
 
 UNION ALL
 
 -- usaspending_award
 SELECT 'usaspending_award', total.cnt, 'naics_code',
-    SUM(u.naics_code IS NOT NULL), SUM(u.naics_code IS NULL),
-    ROUND(SUM(u.naics_code IS NOT NULL) / total.cnt * 100, 1)
-FROM usaspending_award u, (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL) total
-WHERE u.deleted_at IS NULL
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL AND naics_code IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'usaspending_award', total.cnt, 'recipient_uei',
-    SUM(u.recipient_uei IS NOT NULL), SUM(u.recipient_uei IS NULL),
-    ROUND(SUM(u.recipient_uei IS NOT NULL) / total.cnt * 100, 1)
-FROM usaspending_award u, (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL) total
-WHERE u.deleted_at IS NULL
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL AND recipient_uei IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'usaspending_award', total.cnt, 'total_obligation',
-    SUM(u.total_obligation IS NOT NULL), SUM(u.total_obligation IS NULL),
-    ROUND(SUM(u.total_obligation IS NOT NULL) / total.cnt * 100, 1)
-FROM usaspending_award u, (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL) total
-WHERE u.deleted_at IS NULL
-GROUP BY total.cnt
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL AND total_obligation IS NOT NULL) filled ON 1=1
 
 UNION ALL
 SELECT 'usaspending_award', total.cnt, 'awarding_agency_name',
-    SUM(u.awarding_agency_name IS NOT NULL), SUM(u.awarding_agency_name IS NULL),
-    ROUND(SUM(u.awarding_agency_name IS NOT NULL) / total.cnt * 100, 1)
-FROM usaspending_award u, (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL) total
-WHERE u.deleted_at IS NULL
-GROUP BY total.cnt;
+    COALESCE(filled.cnt, 0), total.cnt - COALESCE(filled.cnt, 0),
+    CASE WHEN total.cnt = 0 THEN 0 ELSE ROUND(COALESCE(filled.cnt, 0) / total.cnt * 100, 1) END
+FROM (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL) total
+LEFT JOIN (SELECT COUNT(*) AS cnt FROM usaspending_award WHERE deleted_at IS NULL AND awarding_agency_name IS NOT NULL) filled ON 1=1;
 
 -- ============================================================
 -- View 5: v_prospect_competitor_summary

@@ -28,7 +28,8 @@ public class InsightsService : IInsightsService
         if (maxResults < 1) maxResults = 1;
         if (maxResults > 100) maxResults = 100;
 
-        const string sql = """
+        // maxResults is safe to interpolate — validated to 1-100 above
+        var sql = $"""
             SELECT
                 src.notice_id                                     AS source_notice_id,
                 m.notice_id                                       AS match_notice_id,
@@ -69,13 +70,12 @@ public class InsightsService : IInsightsService
                 )
             WHERE src.notice_id = @noticeId
             ORDER BY similarity_score DESC
-            LIMIT @maxResults
+            LIMIT {maxResults}
             """;
 
         var rows = await _context.SimilarOpportunities
             .FromSqlRaw(sql,
-                new MySqlParameter("@noticeId", noticeId),
-                new MySqlParameter("@maxResults", maxResults))
+                new MySqlParameter("@noticeId", noticeId))
             .AsNoTracking()
             .ToListAsync();
 
@@ -152,17 +152,16 @@ public class InsightsService : IInsightsService
 
     public async Task<DataQualityDashboardDto> GetDataQualityDashboardAsync()
     {
-        var freshnessTask = GetDataFreshnessAsync();
-        var completenessTask = GetDataCompletenessAsync();
-        var validationTask = GetCrossSourceValidationAsync();
-
-        await Task.WhenAll(freshnessTask, completenessTask, validationTask);
+        // Execute sequentially — EF Core DbContext is not thread-safe
+        var freshness = await GetDataFreshnessAsync();
+        var completeness = await GetDataCompletenessAsync();
+        var validation = await GetCrossSourceValidationAsync();
 
         return new DataQualityDashboardDto
         {
-            Freshness = await freshnessTask,
-            Completeness = await completenessTask,
-            Validation = await validationTask
+            Freshness = freshness,
+            Completeness = completeness,
+            Validation = validation
         };
     }
 

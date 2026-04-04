@@ -40,8 +40,8 @@ SELECT
     -- PSC codes registered in SAM
     GROUP_CONCAT(DISTINCT ep.psc_code ORDER BY ep.psc_code SEPARATOR ', ')
                                                                            AS psc_codes,
-    -- Active SBA certifications
-    GROUP_CONCAT(DISTINCT esc.sba_type_code ORDER BY esc.sba_type_code SEPARATOR ', ')
+    -- Active SBA certifications (human-readable program names)
+    GROUP_CONCAT(DISTINCT rst.program_name ORDER BY rst.program_name SEPARATOR ', ')
                                                                            AS certifications,
     -- Contract history aggregates
     COALESCE(ca.agencies_worked_with, '')                                   AS agencies_worked_with,
@@ -58,6 +58,8 @@ LEFT JOIN entity_psc ep
 LEFT JOIN entity_sba_certification esc
     ON esc.uei_sam = e.uei_sam
     AND (esc.certification_exit_date IS NULL OR esc.certification_exit_date > CURDATE())
+LEFT JOIN ref_sba_type rst
+    ON rst.sba_type_code = esc.sba_type_code
 LEFT JOIN contract_agg ca
     ON ca.vendor_uei = e.uei_sam
 WHERE e.registration_status = 'A'
@@ -214,7 +216,7 @@ WITH protege AS (
     FROM entity e
     INNER JOIN entity_sba_certification esc
         ON esc.uei_sam = e.uei_sam
-        AND esc.sba_type_code IN ('8A', 'WOSB', 'EDWOSB', 'HUBZONE', 'SDVOSB')
+        AND esc.sba_type_code IN ('A4', 'A6', 'XX', '27', 'A2')
         AND (esc.certification_exit_date IS NULL OR esc.certification_exit_date > CURDATE())
     LEFT JOIN entity_naics en
         ON en.uei_sam = e.uei_sam

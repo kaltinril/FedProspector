@@ -26,7 +26,6 @@ const CERTIFICATION_OPTIONS = [
   { value: 'WOSB', label: 'WOSB' },
   { value: 'EDWOSB', label: 'EDWOSB' },
   { value: 'HUBZone', label: 'HUBZone' },
-  { value: 'SDVOSB', label: 'SDVOSB' },
 ];
 
 const US_STATES = [
@@ -137,18 +136,18 @@ export default function PartnerSearchPage() {
   const [naicsCode, setNaicsCode] = useState('');
   const [state, setState] = useState('');
   const [certification, setCertification] = useState('');
-  const [agencyCode, setAgencyCode] = useState('');
+  const [agency, setAgency] = useState('');
   const [page, setPage] = useState(1);
 
   const debouncedNaics = useDebounce(naicsCode, 400);
-  const debouncedAgency = useDebounce(agencyCode, 400);
+  const debouncedAgency = useDebounce(agency, 400);
 
   const params = useMemo(
     () => ({
       naicsCode: debouncedNaics || undefined,
       state: state || undefined,
       certification: certification || undefined,
-      agencyCode: debouncedAgency || undefined,
+      agency: debouncedAgency || undefined,
       page,
       pageSize: 20,
     }),
@@ -219,9 +218,10 @@ export default function PartnerSearchPage() {
         </TextField>
         <TextField
           size="small"
-          label="Agency"
-          value={agencyCode}
-          onChange={(e) => { setAgencyCode(e.target.value); setPage(1); }}
+          label="Agency Name"
+          placeholder="e.g. DEPARTMENT OF DEFENSE"
+          value={agency}
+          onChange={(e) => { setAgency(e.target.value); setPage(1); }}
           sx={{ minWidth: 180 }}
         />
         {data && (

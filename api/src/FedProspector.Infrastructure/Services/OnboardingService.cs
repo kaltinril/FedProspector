@@ -318,6 +318,10 @@ public class OnboardingService : IOnboardingService
         if (exists)
             throw new InvalidOperationException($"PSC code {pscCode} already exists for this organization.");
 
+        var validPsc = await _context.RefPscCodes.AnyAsync(r => r.PscCode == pscCode);
+        if (!validPsc)
+            throw new ArgumentException($"Invalid PSC code: {pscCode}");
+
         var psc = new OrganizationPsc
         {
             OrganizationId = organizationId,

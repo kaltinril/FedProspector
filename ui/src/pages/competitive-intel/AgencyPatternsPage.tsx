@@ -71,8 +71,8 @@ function buildColumns(): GridColDef<AgencyRecompetePatternDto>[] {
       renderCell: (params) => metricBar(params.value as number | null),
     },
     {
-      field: 'newEntrantWinRatePct',
-      headerName: 'New Entrant Win',
+      field: 'newVendorPenetrationPct',
+      headerName: 'New Vendor Penetration',
       width: 180,
       renderCell: (params) => metricBar(params.value as number | null),
     },

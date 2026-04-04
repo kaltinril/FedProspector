@@ -167,7 +167,7 @@ export default function PastPerformanceRelevancePage() {
         <DataTable
           columns={columns}
           rows={records}
-          getRowId={(row: PastPerformanceRelevanceDto) => row.pastPerformanceId}
+          getRowId={(row: PastPerformanceRelevanceDto) => `${row.pastPerformanceId}-${row.noticeId}`}
           sortModel={[{ field: 'relevanceScore', sort: 'desc' }]}
         />
       )}

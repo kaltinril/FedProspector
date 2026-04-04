@@ -122,15 +122,7 @@ public class InsightsController : ApiControllerBase
         if (!orgId.HasValue)
             return Unauthorized();
 
-        // Fetch and verify org ownership via the view's organization_id column
-        var result = await _service.GetProspectCompetitorSummaryAsync(prospectId);
-
-        if (result == null)
-            return NotFound();
-
-        // The view joins prospect (which has organization_id). Verify ownership
-        // by checking the result came from the correct org. Since the view model
-        // doesn't include org_id in the DTO, we re-query with org filter.
+        // Single query with org filter for ownership verification
         var results = await _service.GetProspectCompetitorSummariesAsync(orgId.Value, [prospectId]);
         if (results.Count == 0)
             return NotFound();

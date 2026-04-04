@@ -96,5 +96,5 @@ export interface BulkStatusUpdateRequest {
 export interface BulkStatusUpdateResult {
   updated: number;
   skipped: number;
-  errors?: string[];
+  errors: string[];
 }

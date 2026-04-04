@@ -203,8 +203,7 @@ public class PipelineService : IPipelineService
         }
         if (request.SortOrder.HasValue)
             milestone.SortOrder = request.SortOrder.Value;
-        if (request.Notes != null)
-            milestone.Notes = request.Notes;
+        milestone.Notes = request.Notes;
 
         milestone.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
@@ -232,6 +231,11 @@ public class PipelineService : IPipelineService
         var prospect = await _context.Prospects.AsNoTracking()
             .FirstOrDefaultAsync(p => p.ProspectId == prospectId && p.OrganizationId == organizationId)
             ?? throw new KeyNotFoundException($"Prospect {prospectId} not found in organization");
+
+        // Prevent duplicate milestone generation
+        var existingCount = await _context.ProspectMilestones.CountAsync(m => m.ProspectId == prospectId);
+        if (existingCount > 0)
+            throw new InvalidOperationException($"Prospect already has {existingCount} milestones. Delete existing milestones first or use the update endpoint.");
 
         // Resolve milestone definitions
         List<(string Name, int DaysBefore)> definitions;
@@ -276,19 +280,36 @@ public class PipelineService : IPipelineService
         return milestones.Select(MapMilestoneDto).ToList();
     }
 
+    // Valid prospect statuses (must match ProspectService.StatusFlow keys + terminal values)
+    private static readonly HashSet<string> ValidStatuses = new()
+    {
+        "NEW", "REVIEWING", "PURSUING", "BID_SUBMITTED", "WON", "LOST", "DECLINED", "NO_BID"
+    };
+
     public async Task<BulkStatusUpdateResult> BulkUpdateStatusAsync(
         int organizationId, int userId, BulkStatusUpdateRequest request)
     {
         var result = new BulkStatusUpdateResult();
 
+        // Validate new status is a known value
+        if (!ValidStatuses.Contains(request.NewStatus))
+        {
+            result.Errors.Add($"Invalid status '{request.NewStatus}'. Valid values: {string.Join(", ", ValidStatuses.Order())}");
+            result.Skipped = request.ProspectIds.Count;
+            return result;
+        }
+
+        // Deduplicate prospect IDs
+        var prospectIds = request.ProspectIds.Distinct().ToList();
+
         // Load all requested prospects that belong to the org
         var prospects = await _context.Prospects
-            .Where(p => request.ProspectIds.Contains(p.ProspectId) && p.OrganizationId == organizationId)
+            .Where(p => prospectIds.Contains(p.ProspectId) && p.OrganizationId == organizationId)
             .ToListAsync();
 
         // Check for IDs not found in the org
         var foundIds = prospects.Select(p => p.ProspectId).ToHashSet();
-        foreach (var id in request.ProspectIds)
+        foreach (var id in prospectIds)
         {
             if (!foundIds.Contains(id))
             {

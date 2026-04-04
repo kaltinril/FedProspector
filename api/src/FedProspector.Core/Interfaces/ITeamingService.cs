@@ -6,7 +6,7 @@ namespace FedProspector.Core.Interfaces;
 public interface ITeamingService
 {
     Task<PagedResponse<PartnerSearchResultDto>> SearchPartnersAsync(
-        string? naicsCode, string? state, string? certification, string? agencyCode, int page, int pageSize);
+        string? naicsCode, string? state, string? certification, string? agency, int page, int pageSize);
 
     Task<PartnerRiskDto?> GetPartnerRiskAsync(string uei);
 

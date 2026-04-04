@@ -13,9 +13,9 @@ import { DataTable } from '@/components/shared/DataTable';
 import { usePortfolioGaps } from '@/queries/useOnboarding';
 import type { PortfolioGapDto } from '@/types/onboarding';
 
-type GapType = 'NO_EXPERIENCE' | 'STRONG_MATCH' | 'LOW_OPPORTUNITY';
+type GapType = 'NO_EXPERIENCE' | 'STRONG_MATCH' | 'LOW_OPPORTUNITY' | 'NO_DATA';
 
-const GAP_CONFIG: Record<GapType, { label: string; color: 'error' | 'success' | 'warning'; description: string }> = {
+const GAP_CONFIG: Record<GapType, { label: string; color: 'error' | 'success' | 'warning' | 'default'; description: string }> = {
   NO_EXPERIENCE: {
     label: 'No Experience',
     color: 'error',
@@ -30,6 +30,11 @@ const GAP_CONFIG: Record<GapType, { label: string; color: 'error' | 'success' | 
     label: 'Low Opportunity',
     color: 'warning',
     description: 'NAICS codes with past performance but few active opportunities. Niche areas.',
+  },
+  NO_DATA: {
+    label: 'No Data',
+    color: 'default',
+    description: 'NAICS codes with neither active opportunities nor past performance records.',
   },
 };
 

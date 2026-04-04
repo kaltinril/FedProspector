@@ -28,7 +28,7 @@ export function getAgencyBuyingPatterns(
   year?: number,
 ): Promise<AgencyBuyingPatternDto[]> {
   return apiClient
-    .get(`/competitive-intel/agency-patterns/${encodeURIComponent(agencyCode)}`, {
+    .get(`/competitive-intel/buying-patterns/${encodeURIComponent(agencyCode)}`, {
       params: year ? { year } : undefined,
     })
     .then((r) => r.data);

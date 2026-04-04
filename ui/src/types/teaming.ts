@@ -83,7 +83,7 @@ export interface PartnerSearchParams {
   naicsCode?: string;
   state?: string;
   certification?: string;
-  agencyCode?: string;
+  agency?: string;
   page?: number;
   pageSize?: number;
 }
