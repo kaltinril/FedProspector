@@ -141,13 +141,13 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 113C | Intel Display — Keyword vs AI Side-by-Side | COMPLETE | [113C-INTEL-DISPLAY-KEYWORD-VS-AI.md](phases/completed/113C-INTEL-DISPLAY-KEYWORD-VS-AI.md) |
 | 114 | Project Documentation Suite | COMPLETE | [114-PROJECT-DOCUMENTATION.md](phases/completed/114-PROJECT-DOCUMENTATION.md) |
 | 115A | Scoring Model Enhancements | COMPLETE | [115A-SCORING-MODEL-ENHANCEMENTS.md](phases/completed/115A-SCORING-MODEL-ENHANCEMENTS.md) |
-| 115B | Pricing Intelligence | COMPLETE | [115B-PRICING-INTELLIGENCE.md](phases/115B-PRICING-INTELLIGENCE.md) |
-| 115C | Competitive Intel — Advanced | PLANNED | [115C-COMPETITIVE-INTEL-ADVANCED.md](phases/115C-COMPETITIVE-INTEL-ADVANCED.md) |
-| 115D | Teaming & Partnerships | PLANNED | [115D-TEAMING-PARTNERSHIPS.md](phases/115D-TEAMING-PARTNERSHIPS.md) |
-| 115E | Pipeline & Workflow Enhancements | PLANNED | [115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md](phases/115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md) |
-| 115F | Onboarding & Past Performance | PLANNED | [115F-ONBOARDING-PAST-PERFORMANCE.md](phases/115F-ONBOARDING-PAST-PERFORMANCE.md) |
-| 115G | UX Review & Insights | PLANNED | [115G-UX-REVIEW-INSIGHTS.md](phases/115G-UX-REVIEW-INSIGHTS.md) |
-| 115H | Ignore Opportunity & Pipeline Fixes | DONE | [115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md](phases/115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md) |
+| 115B | Pricing Intelligence | COMPLETE | [115B-PRICING-INTELLIGENCE.md](phases/completed/115B-PRICING-INTELLIGENCE.md) |
+| 115C | Competitive Intel — Advanced | COMPLETE | [115C-COMPETITIVE-INTEL-ADVANCED.md](phases/completed/115C-COMPETITIVE-INTEL-ADVANCED.md) |
+| 115D | Teaming & Partnerships | COMPLETE | [115D-TEAMING-PARTNERSHIPS.md](phases/completed/115D-TEAMING-PARTNERSHIPS.md) |
+| 115E | Pipeline & Workflow Enhancements | COMPLETE | [115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md](phases/completed/115E-PIPELINE-WORKFLOW-ENHANCEMENTS.md) |
+| 115F | Onboarding & Past Performance | COMPLETE | [115F-ONBOARDING-PAST-PERFORMANCE.md](phases/completed/115F-ONBOARDING-PAST-PERFORMANCE.md) |
+| 115G | UX Review & Insights | COMPLETE | [115G-UX-REVIEW-INSIGHTS.md](phases/completed/115G-UX-REVIEW-INSIGHTS.md) |
+| 115H | Ignore Opportunity & Pipeline Fixes | COMPLETE | [115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md](phases/completed/115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md) |
 | 115I | Pre-computed Scoring Summaries | COMPLETE | [115I-PRECOMPUTED-SCORING-SUMMARIES.md](phases/completed/115I-PRECOMPUTED-SCORING-SUMMARIES.md) |
 | 115J | SCA Wage Determinations | PLANNED | [115J-SCA-WAGE-DETERMINATIONS.md](phases/115J-SCA-WAGE-DETERMINATIONS.md) |
 | 115K | CALC+ Bulk Export & Daily Refresh | PLANNED | [115K-CALC-BULK-EXPORT.md](phases/115K-CALC-BULK-EXPORT.md) |
