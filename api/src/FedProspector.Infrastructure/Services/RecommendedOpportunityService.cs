@@ -31,15 +31,6 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         ["SDVOSBS"] = "SDVOSB",
     };
 
-    /// <summary>
-    /// All set-aside codes considered "small business" for partial-match scoring.
-    /// </summary>
-    private static readonly HashSet<string> SmallBusinessSetAsides = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "WOSB", "WOSBSS", "EDWOSB", "EDWOSBSS", "8A", "8AN",
-        "SBA", "SBP", "HZC", "HZS", "SDVOSBC", "SDVOSBS"
-    };
-
     /// <summary>OQS factor weights (must sum to 1.0).</summary>
     private const decimal WeightProfileMatch = 0.20m;
     private const decimal WeightValueAlignment = 0.15m;
@@ -183,8 +174,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             // Set-aside filtering: skip if requires a cert we don't have
             if (!string.IsNullOrEmpty(setAsideCode)
                 && SetAsideToCertType.TryGetValue(setAsideCode, out var requiredCert)
-                && !orgCertSet.Contains(requiredCert)
-                && !(SmallBusinessSetAsides.Contains(setAsideCode) && orgCertSet.Count > 0))
+                && !orgCertSet.Contains(requiredCert))
             {
                 continue;
             }
