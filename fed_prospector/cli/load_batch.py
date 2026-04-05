@@ -136,6 +136,11 @@ def _get_daily_steps():
             "description": "Clean up fully-analyzed attachment files",
             "command": ["python", "main.py", "maintain", "attachment-files"],
         },
+        {
+            "name": "sca_revisions",
+            "description": "Check SCA wage determinations for new revisions",
+            "command": ["python", "main.py", "load", "sca"],
+        },
     ]
 
 

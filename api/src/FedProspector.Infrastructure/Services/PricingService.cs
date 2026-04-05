@@ -3,6 +3,7 @@ using FedProspector.Core.Interfaces;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using MySqlConnector;
 
 namespace FedProspector.Infrastructure.Services;
 
@@ -118,7 +119,7 @@ public class PricingService : IPricingService
         // Get all rates for this canonical category via labor_category_mapping -> gsa_labor_rate
         var rates = await _context.LaborCategoryMappings
             .AsNoTracking()
-            .Where(m => m.CanonicalId == canonicalId)
+            .Where(m => m.CanonicalId == canonicalId && m.Source == "GSA_CALC")
             .Join(_context.GsaLaborRates.AsNoTracking(),
                 m => m.RawLaborCategory,
                 g => g.LaborCategory,
@@ -361,7 +362,7 @@ public class PricingService : IPricingService
         // Get rates for this canonical category by year via mapping
         var mappedCategories = await _context.LaborCategoryMappings
             .AsNoTracking()
-            .Where(m => m.CanonicalId == request.CanonicalId)
+            .Where(m => m.CanonicalId == request.CanonicalId && m.Source == "GSA_CALC")
             .Select(m => m.RawLaborCategory)
             .ToListAsync();
 
@@ -595,6 +596,367 @@ public class PricingService : IPricingService
         };
     }
 
+    public async Task<RateRangeResponse> GetRateRangeAsync(RateRangeRequest request)
+    {
+        var canonical = await _context.CanonicalLaborCategories
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Id == request.CanonicalId);
+
+        if (canonical == null)
+            return new RateRangeResponse { CanonicalId = request.CanonicalId };
+
+        var response = new RateRangeResponse
+        {
+            CanonicalId = request.CanonicalId,
+            CanonicalName = canonical.Name
+        };
+
+        // SCA floor: sca_wage_rate -> sca_wage_determination (is_current=1) -> labor_category_mapping (source='SCA')
+        var scaSql = @"
+            SELECT wr.hourly_rate, wr.fringe_rate, wd.area_name, wd.wd_number, wd.effective_date
+            FROM sca_wage_rate wr
+            JOIN sca_wage_determination wd ON wd.id = wr.wd_id
+            JOIN labor_category_mapping lcm ON lcm.raw_labor_category = wr.occupation_title
+                AND lcm.source = 'SCA'
+            WHERE wd.is_current = 1
+              AND lcm.canonical_id = @canonicalId";
+
+        var scaParams = new List<MySqlParameter>
+        {
+            new("@canonicalId", request.CanonicalId)
+        };
+
+        if (!string.IsNullOrWhiteSpace(request.State))
+        {
+            scaSql += " AND wd.state_code = @state";
+            scaParams.Add(new MySqlParameter("@state", request.State));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.County))
+        {
+            scaSql += " AND wd.county_name = @county";
+            scaParams.Add(new MySqlParameter("@county", request.County));
+        }
+
+        scaSql += " ORDER BY wr.hourly_rate ASC LIMIT 1";
+
+        var connection = _context.Database.GetDbConnection();
+        try
+        {
+            await _context.Database.OpenConnectionAsync();
+
+            using (var cmd = connection.CreateCommand())
+            {
+                cmd.CommandText = scaSql;
+                foreach (var p in scaParams)
+                    cmd.Parameters.Add(p);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    response.ScaFloorRate = reader.IsDBNull(0) ? null : reader.GetDecimal(0);
+                    response.ScaFringe = reader.IsDBNull(1) ? null : reader.GetDecimal(1);
+                    response.Area = reader.IsDBNull(2) ? null : reader.GetString(2);
+                    response.WdNumber = reader.IsDBNull(3) ? null : reader.GetString(3);
+                    response.WdEffectiveDate = reader.IsDBNull(4) ? null : reader.GetDateTime(4);
+
+                    if (response.ScaFloorRate.HasValue && response.ScaFringe.HasValue)
+                        response.ScaFullCost = response.ScaFloorRate.Value + response.ScaFringe.Value;
+                }
+            }
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
+
+        // GSA ceiling from labor_rate_summary
+        var summary = await _context.LaborRateSummaries
+            .AsNoTracking()
+            .Where(s => s.CanonicalId == request.CanonicalId)
+            .FirstOrDefaultAsync();
+
+        if (summary != null)
+        {
+            response.GsaCeilingRate = summary.MedianRate;
+            response.GsaP25Rate = summary.P25Rate;
+            response.GsaP75Rate = summary.P75Rate;
+            response.GsaRateCount = summary.RateCount;
+        }
+
+        // Compute spread
+        if (response.GsaCeilingRate.HasValue && response.ScaFullCost.HasValue && response.ScaFullCost > 0)
+        {
+            response.Spread = Math.Round(response.GsaCeilingRate.Value - response.ScaFullCost.Value, 2);
+            response.SpreadPct = Math.Round(
+                (response.GsaCeilingRate.Value - response.ScaFullCost.Value) / response.ScaFullCost.Value * 100, 2);
+        }
+
+        return response;
+    }
+
+    public async Task<ScaComplianceResponse> CheckScaComplianceAsync(ScaComplianceRequest request)
+    {
+        var response = new ScaComplianceResponse();
+
+        // Batch-load canonical names
+        var canonicalIds = request.LineItems.Select(li => li.CanonicalId).Distinct().ToList();
+        var canonicals = await _context.CanonicalLaborCategories
+            .AsNoTracking()
+            .Where(c => canonicalIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name);
+
+        // Batch-load SCA rates for all requested canonical IDs + location
+        var scaSql = @"
+            SELECT lcm.canonical_id, wr.hourly_rate, wr.fringe_rate, wd.wd_number
+            FROM sca_wage_rate wr
+            JOIN sca_wage_determination wd ON wd.id = wr.wd_id
+            JOIN labor_category_mapping lcm ON lcm.raw_labor_category = wr.occupation_title
+                AND lcm.source = 'SCA'
+            WHERE wd.is_current = 1
+              AND lcm.canonical_id IN ({0})";
+
+        var paramPlaceholders = new List<string>();
+        var scaParams = new List<MySqlParameter>();
+        for (int i = 0; i < canonicalIds.Count; i++)
+        {
+            paramPlaceholders.Add($"@cid{i}");
+            scaParams.Add(new MySqlParameter($"@cid{i}", canonicalIds[i]));
+        }
+
+        scaSql = string.Format(scaSql, string.Join(",", paramPlaceholders));
+
+        if (!string.IsNullOrWhiteSpace(request.State))
+        {
+            scaSql += " AND wd.state_code = @state";
+            scaParams.Add(new MySqlParameter("@state", request.State));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.County))
+        {
+            scaSql += " AND wd.county_name = @county";
+            scaParams.Add(new MySqlParameter("@county", request.County));
+        }
+
+        // For each canonical_id, take the row with the lowest hourly_rate (most conservative floor)
+        var scaRates = new Dictionary<int, (decimal HourlyRate, decimal? Fringe, string? WdNumber)>();
+
+        var connection = _context.Database.GetDbConnection();
+        try
+        {
+            await _context.Database.OpenConnectionAsync();
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = scaSql;
+            foreach (var p in scaParams)
+                cmd.Parameters.Add(p);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var cid = reader.GetInt32(0);
+                var hourly = reader.IsDBNull(1) ? (decimal?)null : reader.GetDecimal(1);
+                var fringe = reader.IsDBNull(2) ? (decimal?)null : reader.GetDecimal(2);
+                var wdNum = reader.IsDBNull(3) ? null : reader.GetString(3);
+
+                if (hourly.HasValue && (!scaRates.ContainsKey(cid) || hourly.Value < scaRates[cid].HourlyRate))
+                {
+                    scaRates[cid] = (hourly.Value, fringe, wdNum);
+                }
+            }
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
+
+        foreach (var item in request.LineItems)
+        {
+            var result = new ScaComplianceResult
+            {
+                CanonicalId = item.CanonicalId,
+                CanonicalName = canonicals.GetValueOrDefault(item.CanonicalId, ""),
+                ProposedRate = item.ProposedRate
+            };
+
+            if (!scaRates.TryGetValue(item.CanonicalId, out var sca))
+            {
+                result.Status = "Unmapped";
+                response.UnmappedCount++;
+                response.Results.Add(result);
+                continue;
+            }
+
+            result.ScaMinimumRate = sca.HourlyRate;
+            result.ScaFringe = sca.Fringe;
+            result.ScaFullCost = sca.HourlyRate + (sca.Fringe ?? 0m);
+            result.WdNumber = sca.WdNumber;
+
+            // Compare: if proposed rate includes fringe, compare to full cost; otherwise compare to hourly only
+            var scaThreshold = item.IncludesFringe ? result.ScaFullCost.Value : sca.HourlyRate;
+
+            if (item.ProposedRate >= scaThreshold)
+            {
+                result.Status = "Compliant";
+                response.CompliantCount++;
+            }
+            else
+            {
+                result.Status = "Violation";
+                result.Shortfall = Math.Round(scaThreshold - item.ProposedRate, 2);
+                response.ViolationCount++;
+            }
+
+            if (sca.Fringe.HasValue)
+                response.TotalFringeObligation += sca.Fringe.Value;
+
+            response.Results.Add(result);
+        }
+
+        response.AllCompliant = response.ViolationCount == 0 && response.UnmappedCount == 0;
+        response.TotalFringeObligation = Math.Round(response.TotalFringeObligation, 2);
+
+        return response;
+    }
+
+    public async Task<List<ScaAreaRateDto>> GetScaAreaRatesAsync(ScaAreaRateRequest request)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append(@"
+            SELECT wd.state_code, wd.county_name, wd.area_name,
+                   wr.occupation_code, wr.occupation_title,
+                   wr.hourly_rate, wr.fringe_rate, wd.wd_number, wd.revision, wd.effective_date
+            FROM sca_wage_rate wr
+            JOIN sca_wage_determination wd ON wd.id = wr.wd_id
+            WHERE wd.is_current = 1");
+
+        var parameters = new List<MySqlParameter>();
+
+        if (!string.IsNullOrWhiteSpace(request.OccupationTitle))
+        {
+            sb.Append(" AND wr.occupation_title LIKE @occupationTitle");
+            parameters.Add(new MySqlParameter("@occupationTitle", $"%{request.OccupationTitle.Trim()}%"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.State))
+        {
+            sb.Append(" AND wd.state_code = @state");
+            parameters.Add(new MySqlParameter("@state", request.State.Trim().ToUpper()));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.County))
+        {
+            sb.Append(" AND wd.county_name LIKE @county");
+            parameters.Add(new MySqlParameter("@county", $"%{request.County.Trim()}%"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.WdNumber))
+        {
+            sb.Append(" AND wd.wd_number LIKE @wdNumber");
+            parameters.Add(new MySqlParameter("@wdNumber", $"%{request.WdNumber.Trim()}%"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.AreaName))
+        {
+            sb.Append(" AND wd.area_name LIKE @areaName");
+            parameters.Add(new MySqlParameter("@areaName", $"%{request.AreaName.Trim()}%"));
+        }
+
+        sb.Append(@"
+            ORDER BY wd.state_code, wd.county_name, wr.occupation_code
+            LIMIT 2000");
+
+        var results = new List<ScaAreaRateDto>();
+        var connection = _context.Database.GetDbConnection();
+        try
+        {
+            await _context.Database.OpenConnectionAsync();
+
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = sb.ToString();
+            foreach (var p in parameters)
+                cmd.Parameters.Add(p);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var hourly = reader.IsDBNull(5) ? 0m : reader.GetDecimal(5);
+                var fringe = reader.IsDBNull(6) ? 0m : reader.GetDecimal(6);
+
+                results.Add(new ScaAreaRateDto
+                {
+                    State = reader.IsDBNull(0) ? "" : reader.GetString(0),
+                    County = reader.IsDBNull(1) ? null : reader.GetString(1),
+                    AreaName = reader.IsDBNull(2) ? "" : reader.GetString(2),
+                    OccupationCode = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                    OccupationTitle = reader.IsDBNull(4) ? "" : reader.GetString(4),
+                    HourlyRate = hourly,
+                    Fringe = fringe,
+                    FullCost = hourly + fringe,
+                    WdNumber = reader.IsDBNull(7) ? null : reader.GetString(7),
+                    Revision = reader.IsDBNull(8) ? null : reader.GetInt32(8),
+                    EffectiveDate = reader.IsDBNull(9) ? null : reader.GetDateTime(9)
+                });
+            }
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
+
+        return results;
+    }
+
+    public async Task<List<string>> GetScaOccupationsAsync()
+    {
+        var sql = @"
+            SELECT DISTINCT TRIM(SUBSTRING_INDEX(occupation_title, '(see', 1)) AS title
+            FROM sca_wage_rate
+            ORDER BY title";
+
+        var rawTitles = new List<string>();
+        var connection = _context.Database.GetDbConnection();
+        try
+        {
+            await _context.Database.OpenConnectionAsync();
+            using var cmd = connection.CreateCommand();
+            cmd.CommandText = sql;
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var title = reader.IsDBNull(0) ? "" : reader.GetString(0).Trim();
+                if (!string.IsNullOrWhiteSpace(title))
+                    rawTitles.Add(title);
+            }
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
+
+        // Strip Roman numeral level suffixes (I through X) from the end
+        var romanNumerals = new[] { " X", " IX", " VIII", " VII", " VI", " V", " IV", " III", " II", " I" };
+        var baseTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var title in rawTitles)
+        {
+            var baseTitle = title;
+            foreach (var suffix in romanNumerals)
+            {
+                if (baseTitle.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+                {
+                    baseTitle = baseTitle[..^suffix.Length].TrimEnd();
+                    break;
+                }
+            }
+            baseTitles.Add(baseTitle);
+        }
+
+        var result = baseTitles.ToList();
+        result.Sort(StringComparer.OrdinalIgnoreCase);
+        return result;
+    }
+
     // -----------------------------------------------------------------------
     // Private helper methods
     // -----------------------------------------------------------------------
@@ -653,7 +1015,7 @@ public class PricingService : IPricingService
 
         var allRates = await _context.LaborCategoryMappings
             .AsNoTracking()
-            .Where(m => m.CanonicalId.HasValue && canonicalIds.Contains(m.CanonicalId.Value))
+            .Where(m => m.CanonicalId.HasValue && canonicalIds.Contains(m.CanonicalId.Value) && m.Source == "GSA_CALC")
             .Join(_context.GsaLaborRates.AsNoTracking(),
                 m => m.RawLaborCategory,
                 g => g.LaborCategory,

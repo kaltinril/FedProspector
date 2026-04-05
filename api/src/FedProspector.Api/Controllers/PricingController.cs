@@ -102,4 +102,38 @@ public class PricingController : ApiControllerBase
         var result = await _service.EstimateIgceAsync(request);
         return Ok(result);
     }
+
+    [HttpGet("rate-range")]
+    public async Task<IActionResult> GetRateRange([FromQuery] RateRangeRequest request)
+    {
+        if (request.CanonicalId <= 0)
+            return BadRequest("CanonicalId is required");
+
+        var result = await _service.GetRateRangeAsync(request);
+        return Ok(result);
+    }
+
+    [HttpPost("sca-compliance-check")]
+    public async Task<IActionResult> CheckScaCompliance([FromBody] ScaComplianceRequest request)
+    {
+        if (request.LineItems.Count == 0)
+            return BadRequest("At least one line item is required");
+
+        var result = await _service.CheckScaComplianceAsync(request);
+        return Ok(result);
+    }
+
+    [HttpGet("sca-area-rates")]
+    public async Task<IActionResult> GetScaAreaRates([FromQuery] ScaAreaRateRequest request)
+    {
+        var result = await _service.GetScaAreaRatesAsync(request);
+        return Ok(result);
+    }
+
+    [HttpGet("sca-occupations")]
+    public async Task<IActionResult> GetScaOccupations()
+    {
+        var result = await _service.GetScaOccupationsAsync();
+        return Ok(result);
+    }
 }

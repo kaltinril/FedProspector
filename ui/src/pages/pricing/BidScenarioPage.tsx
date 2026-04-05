@@ -1,12 +1,24 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import FormControl from '@mui/material/FormControl';
 import IconButton from '@mui/material/IconButton';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
+import Select from '@mui/material/Select';
+import type { SelectChangeEvent } from '@mui/material/Select';
 import Tab from '@mui/material/Tab';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
@@ -14,14 +26,21 @@ import Autocomplete from '@mui/material/Autocomplete';
 import AddOutlined from '@mui/icons-material/AddOutlined';
 import DeleteOutlined from '@mui/icons-material/DeleteOutlined';
 import DownloadOutlined from '@mui/icons-material/DownloadOutlined';
+import GppGoodOutlined from '@mui/icons-material/GppGoodOutlined';
 import { BarChart } from '@mui/x-charts/BarChart';
 
 import { PageHeader } from '@/components/shared/PageHeader';
-import { searchLaborCategories } from '@/api/pricing';
+import { searchLaborCategories, checkScaCompliance } from '@/api/pricing';
 import { queryKeys } from '@/queries/queryKeys';
 import { formatCurrency } from '@/utils/formatters';
 import { useDebounce } from '@/hooks/useDebounce';
-import type { BidScenario, LaborLine, CanonicalCategory } from '@/types/api';
+import type {
+  BidScenario,
+  LaborLine,
+  CanonicalCategory,
+  ScaComplianceResponse,
+  ScaComplianceResult,
+} from '@/types/api';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -110,7 +129,7 @@ function CategoryAutocomplete({
   onChange,
 }: {
   value: string;
-  onChange: (val: string) => void;
+  onChange: (val: string, canonicalId?: number) => void;
 }) {
   const [inputValue, setInputValue] = useState(value);
   const debouncedQuery = useDebounce(inputValue, 300);
@@ -134,6 +153,11 @@ function CategoryAutocomplete({
       onInputChange={(_, newValue) => {
         setInputValue(newValue);
         onChange(newValue);
+      }}
+      onChange={(_, selected) => {
+        if (selected && typeof selected !== 'string') {
+          onChange(selected.name, selected.id);
+        }
       }}
       renderInput={(params) => <TextField {...params} label="Category" sx={{ minWidth: 200 }} />}
       sx={{ minWidth: 200 }}
@@ -261,7 +285,9 @@ export default function BidScenarioPage() {
               <Box key={line.id} sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
                 <CategoryAutocomplete
                   value={line.category}
-                  onChange={(val) => updateLaborLine(activeTab, li, { category: val })}
+                  onChange={(val, canonicalId) =>
+                    updateLaborLine(activeTab, li, { category: val, ...(canonicalId != null ? { canonicalId } : {}) })
+                  }
                 />
                 <TextField
                   size="small"
@@ -421,6 +447,9 @@ export default function BidScenarioPage() {
         </Box>
       )}
 
+      {/* SCA Compliance Check */}
+      {current && <ScaComplianceSection scenario={current} />}
+
       {/* Comparison chart */}
       {scenarios.length > 1 && (
         <Paper variant="outlined" sx={{ p: 2 }}>
@@ -435,5 +464,200 @@ export default function BidScenarioPage() {
         </Paper>
       )}
     </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// SCA Compliance Section
+// ---------------------------------------------------------------------------
+
+const SCA_US_STATES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL',
+  'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME',
+  'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH',
+  'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI',
+  'SC', 'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+];
+
+function statusColor(status: string): string {
+  switch (status) {
+    case 'Compliant': return '#4caf50';
+    case 'Violation': return '#f44336';
+    default: return '#9e9e9e';
+  }
+}
+
+function ScaComplianceSection({ scenario }: { scenario: BidScenario }) {
+  const [scaState, setScaState] = useState('');
+  const [county, setCounty] = useState('');
+  const [result, setResult] = useState<ScaComplianceResponse | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: checkScaCompliance,
+    onSuccess: (data) => setResult(data),
+  });
+
+  const hasLinesWithIds = scenario.laborLines.some((l) => l.canonicalId != null);
+
+  const handleCheck = () => {
+    const lineItems = scenario.laborLines
+      .filter((l) => l.canonicalId != null && l.rate > 0)
+      .map((l) => ({
+        canonicalId: l.canonicalId!,
+        proposedRate: l.rate,
+        includesFringe: false,
+      }));
+
+    if (lineItems.length === 0) return;
+
+    mutation.mutate({
+      state: scaState || null,
+      county: county || null,
+      lineItems,
+    });
+  };
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+        SCA Compliance Check
+      </Typography>
+
+      {/* Work location */}
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <FormControl size="small" sx={{ minWidth: 140 }}>
+          <InputLabel id="sca-comp-state-label">State</InputLabel>
+          <Select
+            labelId="sca-comp-state-label"
+            value={scaState}
+            label="State"
+            onChange={(e: SelectChangeEvent) => {
+              setScaState(e.target.value);
+              setResult(null);
+            }}
+          >
+            <MenuItem value="">Select State</MenuItem>
+            {SCA_US_STATES.map((s) => (
+              <MenuItem key={s} value={s}>{s}</MenuItem>
+            ))}
+          </Select>
+        </FormControl>
+
+        <TextField
+          size="small"
+          label="County (optional)"
+          value={county}
+          onChange={(e) => {
+            setCounty(e.target.value);
+            setResult(null);
+          }}
+          sx={{ minWidth: 160 }}
+        />
+
+        <Button
+          variant="contained"
+          startIcon={<GppGoodOutlined />}
+          onClick={handleCheck}
+          disabled={!hasLinesWithIds || mutation.isPending}
+        >
+          {mutation.isPending ? 'Checking...' : 'Check SCA Compliance'}
+        </Button>
+      </Box>
+
+      {!hasLinesWithIds && (
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          Select labor categories from the autocomplete to enable compliance checking.
+        </Typography>
+      )}
+
+      {mutation.isError && (
+        <Typography variant="body2" color="error" sx={{ mb: 1 }}>
+          Failed to check compliance. Please try again.
+        </Typography>
+      )}
+
+      {/* Results */}
+      {result && (
+        <Box>
+          {/* Summary chips */}
+          <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+            <Chip
+              label={`${result.compliantCount} Compliant`}
+              color="success"
+              size="small"
+              variant="outlined"
+            />
+            <Chip
+              label={`${result.violationCount} Violation${result.violationCount !== 1 ? 's' : ''}`}
+              color="error"
+              size="small"
+              variant={result.violationCount > 0 ? 'filled' : 'outlined'}
+            />
+            <Chip
+              label={`${result.unmappedCount} Unmapped`}
+              size="small"
+              variant="outlined"
+            />
+            <Chip
+              label={`Fringe Obligation: ${formatCurrency(result.totalFringeObligation)}`}
+              size="small"
+              variant="outlined"
+              color="info"
+            />
+          </Box>
+
+          {/* Results table */}
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Category</TableCell>
+                  <TableCell align="right">Proposed Rate</TableCell>
+                  <TableCell align="right">SCA Minimum</TableCell>
+                  <TableCell align="right">SCA Fringe</TableCell>
+                  <TableCell align="right">SCA Full Cost</TableCell>
+                  <TableCell align="center">Status</TableCell>
+                  <TableCell align="right">Shortfall</TableCell>
+                  <TableCell>WD #</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {result.results.map((r: ScaComplianceResult) => (
+                  <TableRow key={r.canonicalId}>
+                    <TableCell>{r.canonicalName}</TableCell>
+                    <TableCell align="right">{formatCurrency(r.proposedRate)}</TableCell>
+                    <TableCell align="right">
+                      {r.scaMinimumRate != null ? formatCurrency(r.scaMinimumRate) : '--'}
+                    </TableCell>
+                    <TableCell align="right">
+                      {r.scaFringe != null ? formatCurrency(r.scaFringe) : '--'}
+                    </TableCell>
+                    <TableCell align="right">
+                      {r.scaFullCost != null ? formatCurrency(r.scaFullCost) : '--'}
+                    </TableCell>
+                    <TableCell align="center">
+                      <Typography
+                        variant="body2"
+                        sx={{ color: statusColor(r.status), fontWeight: 600 }}
+                      >
+                        {r.status}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      {r.shortfall != null ? (
+                        <Typography variant="body2" color="error">
+                          {formatCurrency(r.shortfall)}
+                        </Typography>
+                      ) : '--'}
+                    </TableCell>
+                    <TableCell>{r.wdNumber ?? '--'}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Box>
+      )}
+    </Paper>
   );
 }

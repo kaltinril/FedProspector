@@ -28,6 +28,7 @@ import CalculateOutlined from '@mui/icons-material/CalculateOutlined';
 import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
 import AssessmentOutlined from '@mui/icons-material/AssessmentOutlined';
 import HandshakeOutlined from '@mui/icons-material/HandshakeOutlined';
+import MapOutlined from '@mui/icons-material/MapOutlined';
 import AutorenewOutlined from '@mui/icons-material/AutorenewOutlined';
 import InsightsOutlined from '@mui/icons-material/InsightsOutlined';
 import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined';
@@ -107,6 +108,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Escalation', icon: <TrendingUpOutlined />, route: '/pricing/escalation' },
       { label: 'IGCE Estimator', icon: <AssessmentOutlined />, route: '/pricing/igce' },
       { label: 'Sub Benchmarks', icon: <HandshakeOutlined />, route: '/pricing/sub-benchmarks' },
+      { label: 'SCA Area Rates', icon: <MapOutlined />, route: '/pricing/sca-rates' },
     ],
   },
   {

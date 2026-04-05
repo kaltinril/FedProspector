@@ -1,4 +1,9 @@
-"""Normalize GSA CALC+ labor categories to canonical categories.
+"""Normalize labor categories to canonical categories.
+
+Supports multiple sources:
+- GSA_CALC: GSA CALC+ labor rate categories (from gsa_labor_rate)
+- SCA: DOL Service Contract Act occupation titles (from sca_wage_rate)
+- MANUAL: Manually curated mappings (not auto-generated)
 
 Multi-pass matching strategy:
 1. Exact match (case-insensitive) against canonical_labor_category
@@ -87,8 +92,15 @@ _BATCH_SIZE = 500
 _FUZZY_THRESHOLD = 85
 
 
+# Valid source values for labor_category_mapping.source
+VALID_SOURCES = ("GSA_CALC", "SCA", "MANUAL")
+
+
 class LaborNormalizer:
-    """Normalize labor categories from gsa_labor_rate to canonical categories."""
+    """Normalize labor categories to canonical categories.
+
+    Supports GSA CALC+ (source='GSA_CALC') and SCA wage rates (source='SCA').
+    """
 
     def __init__(self, load_manager=None):
         self.load_manager = load_manager or LoadManager()
@@ -160,23 +172,54 @@ class LaborNormalizer:
             conn.close()
 
     def normalize(self):
-        """Run full normalization pipeline.
+        """Run GSA CALC+ normalization pipeline.
 
         1. Seed canonical categories
         2. Load canonical names for matching
         3. Find unmapped labor categories from gsa_labor_rate
         4. Multi-pass matching: exact, pattern, fuzzy
-        5. Insert mappings into labor_category_mapping
+        5. Insert mappings into labor_category_mapping (source='GSA_CALC')
 
         Returns:
             dict with match statistics.
         """
+        return self._run_normalization(source="GSA_CALC")
+
+    def normalize_sca(self):
+        """Run SCA occupation title normalization pipeline.
+
+        1. Seed canonical categories
+        2. Load canonical names for matching
+        3. Find unmapped occupation titles from sca_wage_rate
+        4. Multi-pass matching: exact, pattern, fuzzy
+        5. Insert mappings into labor_category_mapping (source='SCA')
+
+        Returns:
+            dict with match statistics.
+        """
+        return self._run_normalization(source="SCA")
+
+    def _run_normalization(self, source):
+        """Core normalization pipeline shared by GSA CALC+ and SCA sources.
+
+        Args:
+            source: One of VALID_SOURCES ('GSA_CALC' or 'SCA').
+
+        Returns:
+            dict with match statistics.
+        """
+        if source not in VALID_SOURCES:
+            raise ValueError(f"Invalid source: {source}. Must be one of {VALID_SOURCES}")
+
         load_id = self.load_manager.start_load(
             source_system="LABOR_NORMALIZE",
             load_type="FULL",
-            parameters={"method": "multi_pass"},
+            parameters={"method": "multi_pass", "source": source},
         )
-        self.logger.info("Starting labor category normalization (load_id=%d)", load_id)
+        self.logger.info(
+            "Starting labor category normalization source=%s (load_id=%d)",
+            source, load_id,
+        )
 
         try:
             # Step 1: Seed canonical categories
@@ -189,11 +232,14 @@ class LaborNormalizer:
                 canonicals = self._load_canonical_categories(conn)
                 self.logger.info("Loaded %d canonical categories for matching", len(canonicals))
 
-                unmapped = self._get_unmapped_categories(conn)
-                self.logger.info("Found %d unmapped labor categories", len(unmapped))
+                unmapped = self._get_unmapped_categories(conn, source=source)
+                self.logger.info(
+                    "Found %d unmapped labor categories for source=%s",
+                    len(unmapped), source,
+                )
 
                 if not unmapped:
-                    self.logger.info("All labor categories are already mapped")
+                    self.logger.info("All %s labor categories are already mapped", source)
                     self.load_manager.complete_load(
                         load_id, records_read=0, records_inserted=0,
                     )
@@ -213,6 +259,7 @@ class LaborNormalizer:
                     mapping = self._match_category(
                         raw_cat, canonical_by_name_lower, canonical_list,
                     )
+                    mapping["source"] = source
                     mappings.append(mapping)
 
                     if mapping["match_method"] == "EXACT":
@@ -236,8 +283,8 @@ class LaborNormalizer:
                 conn.close()
 
             self.logger.info(
-                "Normalization complete: exact=%d pattern=%d fuzzy=%d unmapped=%d (total=%d)",
-                stats["exact"], stats["pattern"], stats["fuzzy"],
+                "Normalization complete [%s]: exact=%d pattern=%d fuzzy=%d unmapped=%d (total=%d)",
+                source, stats["exact"], stats["pattern"], stats["fuzzy"],
                 stats["unmapped"], stats["total"],
             )
 
@@ -287,6 +334,7 @@ class LaborNormalizer:
                 FROM gsa_labor_rate glr
                 JOIN labor_category_mapping lcm
                     ON glr.labor_category = lcm.raw_labor_category
+                    AND lcm.source = 'GSA_CALC'
                 JOIN canonical_labor_category clc
                     ON lcm.canonical_id = clc.id
                 WHERE lcm.match_method != 'UNMAPPED'
@@ -522,27 +570,43 @@ class LaborNormalizer:
         finally:
             cursor.close()
 
-    def _get_unmapped_categories(self, conn):
-        """Get distinct labor categories from gsa_labor_rate not yet in labor_category_mapping.
+    def _get_unmapped_categories(self, conn, source="GSA_CALC"):
+        """Get distinct labor categories not yet mapped for the given source.
 
         Args:
             conn: Active DB connection.
+            source: 'GSA_CALC' queries gsa_labor_rate.labor_category,
+                    'SCA' queries sca_wage_rate.occupation_title.
 
         Returns:
             List of raw labor category strings.
         """
         cursor = conn.cursor()
         try:
-            cursor.execute("""
-                SELECT DISTINCT glr.labor_category
-                FROM gsa_labor_rate glr
-                LEFT JOIN labor_category_mapping lcm
-                    ON glr.labor_category = lcm.raw_labor_category
-                WHERE lcm.id IS NULL
-                    AND glr.labor_category IS NOT NULL
-                    AND glr.labor_category != ''
-                ORDER BY glr.labor_category
-            """)
+            if source == "SCA":
+                cursor.execute("""
+                    SELECT DISTINCT swr.occupation_title
+                    FROM sca_wage_rate swr
+                    LEFT JOIN labor_category_mapping lcm
+                        ON swr.occupation_title = lcm.raw_labor_category
+                        AND lcm.source = 'SCA'
+                    WHERE lcm.id IS NULL
+                        AND swr.occupation_title IS NOT NULL
+                        AND swr.occupation_title != ''
+                    ORDER BY swr.occupation_title
+                """)
+            else:
+                cursor.execute("""
+                    SELECT DISTINCT glr.labor_category
+                    FROM gsa_labor_rate glr
+                    LEFT JOIN labor_category_mapping lcm
+                        ON glr.labor_category = lcm.raw_labor_category
+                        AND lcm.source = 'GSA_CALC'
+                    WHERE lcm.id IS NULL
+                        AND glr.labor_category IS NOT NULL
+                        AND glr.labor_category != ''
+                    ORDER BY glr.labor_category
+                """)
             return [row[0] for row in cursor.fetchall()]
         finally:
             cursor.close()
@@ -552,15 +616,15 @@ class LaborNormalizer:
 
         Args:
             conn: Active DB connection.
-            mappings: List of mapping dicts.
+            mappings: List of mapping dicts (must include 'source' key).
         """
         if not mappings:
             return
 
         sql = (
             "INSERT INTO labor_category_mapping "
-            "(raw_labor_category, canonical_id, match_method, confidence) "
-            "VALUES (%s, %s, %s, %s) AS new_row "
+            "(raw_labor_category, source, canonical_id, match_method, confidence) "
+            "VALUES (%s, %s, %s, %s, %s) AS new_row "
             "ON DUPLICATE KEY UPDATE "
             "canonical_id = new_row.canonical_id, "
             "match_method = new_row.match_method, "
@@ -573,6 +637,7 @@ class LaborNormalizer:
             for m in mappings:
                 rows.append((
                     m["raw_labor_category"][:200],
+                    m["source"],
                     m["canonical_id"],
                     m["match_method"],
                     m["confidence"],

@@ -11,6 +11,10 @@ import type {
   EscalationForecast,
   IgceRequest,
   IgceResponse,
+  RateRangeResponse,
+  ScaComplianceRequest,
+  ScaComplianceResponse,
+  ScaAreaRateDto,
 } from '@/types/api';
 
 export function getCanonicalCategories(group?: string): Promise<CanonicalCategory[]> {
@@ -58,4 +62,30 @@ export function getEscalationForecast(canonicalId: number, years?: number): Prom
 
 export function estimateIgce(request: IgceRequest): Promise<IgceResponse> {
   return apiClient.post('/pricing/igce-estimate', request).then((r) => r.data);
+}
+
+export function getRateRange(params: {
+  canonicalId: number;
+  state?: string;
+  county?: string;
+}): Promise<RateRangeResponse> {
+  return apiClient.get('/pricing/rate-range', { params }).then((r) => r.data);
+}
+
+export function checkScaCompliance(request: ScaComplianceRequest): Promise<ScaComplianceResponse> {
+  return apiClient.post('/pricing/sca-compliance-check', request).then((r) => r.data);
+}
+
+export function getScaOccupations(): Promise<string[]> {
+  return apiClient.get('/pricing/sca-occupations').then((r) => r.data);
+}
+
+export function getScaAreaRates(params: {
+  occupationTitle?: string;
+  state?: string;
+  county?: string;
+  wdNumber?: string;
+  areaName?: string;
+}): Promise<ScaAreaRateDto[]> {
+  return apiClient.get('/pricing/sca-area-rates', { params }).then((r) => r.data);
 }

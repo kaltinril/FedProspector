@@ -116,6 +116,9 @@ export const queryKeys = {
     subRatios: (naicsCode?: string) => ['pricing', 'subRatios', naicsCode ?? ''] as const,
     rateTrends: (canonicalId: number, years?: number) => ['pricing', 'rateTrends', canonicalId, years ?? 5] as const,
     escalation: (canonicalId: number, years?: number) => ['pricing', 'escalation', canonicalId, years ?? 5] as const,
+    scaRateRange: (params: Record<string, unknown>) => ['pricing', 'scaRateRange', params] as const,
+    scaOccupations: () => ['pricing', 'scaOccupations'] as const,
+    scaAreaRates: (params: Record<string, unknown>) => ['pricing', 'scaAreaRates', params] as const,
   },
   competitiveIntel: {
     all: ['competitiveIntel'] as const,

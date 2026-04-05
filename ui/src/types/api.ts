@@ -1634,6 +1634,7 @@ export interface CanonicalCategory {
 }
 
 export interface RateHeatmapCell {
+  canonicalId: number;
   canonicalName: string;
   categoryGroup?: string;
   worksite?: string;
@@ -1770,6 +1771,71 @@ export interface BidScenario {
 export interface LaborLine {
   id: string;
   category: string;
+  canonicalId?: number;
   hours: number;
   rate: number;
+}
+
+// SCA Rate Range
+export interface RateRangeResponse {
+  canonicalId: number;
+  canonicalName: string;
+  area: string | null;
+  scaFloorRate: number | null;
+  scaFringe: number | null;
+  scaFullCost: number | null;
+  gsaCeilingRate: number | null;
+  gsaP25Rate: number | null;
+  gsaP75Rate: number | null;
+  spread: number | null;
+  spreadPct: number | null;
+  gsaRateCount: number;
+  wdNumber: string | null;
+  wdEffectiveDate: string | null;
+}
+
+// SCA Compliance Check
+export interface ScaComplianceRequest {
+  state: string | null;
+  county: string | null;
+  lineItems: ScaComplianceLineItem[];
+}
+export interface ScaComplianceLineItem {
+  canonicalId: number;
+  proposedRate: number;
+  includesFringe: boolean;
+}
+export interface ScaComplianceResponse {
+  allCompliant: boolean;
+  compliantCount: number;
+  violationCount: number;
+  unmappedCount: number;
+  totalFringeObligation: number;
+  results: ScaComplianceResult[];
+}
+export interface ScaComplianceResult {
+  canonicalId: number;
+  canonicalName: string;
+  proposedRate: number;
+  scaMinimumRate: number | null;
+  scaFringe: number | null;
+  scaFullCost: number | null;
+  status: string;
+  shortfall: number | null;
+  wdNumber: string | null;
+}
+
+// SCA Area Rates
+export interface ScaAreaRateDto {
+  state: string;
+  county: string | null;
+  areaName: string;
+  occupationCode: string;
+  occupationTitle: string;
+  hourlyRate: number;
+  fringe: number;
+  fullCost: number;
+  wdNumber: string | null;
+  revision: number | null;
+  effectiveDate: string | null;
 }

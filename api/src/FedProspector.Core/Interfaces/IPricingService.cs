@@ -14,4 +14,8 @@ public interface IPricingService
     Task<List<RateTrendDto>> GetRateTrendsAsync(RateTrendRequest request);
     Task<List<EscalationForecastDto>> GetEscalationForecastAsync(int canonicalId, int years = 5);
     Task<IgceResponse> EstimateIgceAsync(IgceRequest request);
+    Task<RateRangeResponse> GetRateRangeAsync(RateRangeRequest request);
+    Task<ScaComplianceResponse> CheckScaComplianceAsync(ScaComplianceRequest request);
+    Task<List<ScaAreaRateDto>> GetScaAreaRatesAsync(ScaAreaRateRequest request);
+    Task<List<string>> GetScaOccupationsAsync();
 }

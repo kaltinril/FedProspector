@@ -149,7 +149,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 115G | UX Review & Insights | COMPLETE | [115G-UX-REVIEW-INSIGHTS.md](phases/completed/115G-UX-REVIEW-INSIGHTS.md) |
 | 115H | Ignore Opportunity & Pipeline Fixes | COMPLETE | [115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md](phases/completed/115H-IGNORE-OPPORTUNITY-AND-PIPELINE-FIXES.md) |
 | 115I | Pre-computed Scoring Summaries | COMPLETE | [115I-PRECOMPUTED-SCORING-SUMMARIES.md](phases/completed/115I-PRECOMPUTED-SCORING-SUMMARIES.md) |
-| 115J | SCA Wage Determinations | PLANNED | [115J-SCA-WAGE-DETERMINATIONS.md](phases/115J-SCA-WAGE-DETERMINATIONS.md) |
+| 115J | SCA Wage Determinations | COMPLETE | [115J-SCA-WAGE-DETERMINATIONS.md](phases/completed/115J-SCA-WAGE-DETERMINATIONS.md) |
 | 115K | CALC+ Bulk Export & Daily Refresh | PLANNED | [115K-CALC-BULK-EXPORT.md](phases/115K-CALC-BULK-EXPORT.md) |
 | 115L | Agency Code Normalization | PLANNED | [115L-AGENCY-CODE-NORMALIZATION.md](phases/115L-AGENCY-CODE-NORMALIZATION.md) |
 | 115M | FPDS Contract Data Enrichment | PLANNED | [115M-FPDS-DATA-ENRICHMENT.md](phases/115M-FPDS-DATA-ENRICHMENT.md) |

@@ -101,10 +101,11 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | Reference docs | `thesolution/reference/` (architecture, data quality, API quirks, glossary, vendor API docs) |
 | Credentials | `thesolution/credentials.example.yml` |
 | Reference CSVs | `workdir/converted/local database/` (NAICS, PSC, SBA, FIPS) |
-| Pricing API | `api/src/FedProspector.Api/Controllers/PricingController.cs` (10 endpoints) |
+| Pricing API | `api/src/FedProspector.Api/Controllers/PricingController.cs` (13 endpoints) |
 | Pricing service | `api/src/FedProspector.Infrastructure/Services/PricingService.cs` |
 | Labor normalizer | `fed_prospector/etl/labor_normalizer.py` (CLI: `normalize labor-categories`) |
 | BLS loader | `fed_prospector/etl/bls_loader.py` + `fed_prospector/api_clients/bls_client.py` (CLI: `load bls`) |
-| Pricing UI pages | `ui/src/pages/pricing/` (6 pages: heatmap, price-to-win, bid scenario, escalation, IGCE, sub benchmark) |
+| SCA loader | `fed_prospector/etl/sca_loader.py` + `fed_prospector/api_clients/sca_wd_client.py` (CLI: `load sca`) |
+| Pricing UI pages | `ui/src/pages/pricing/` (7 pages: heatmap, price-to-win, bid scenario, escalation, IGCE, sub benchmark, SCA geographic) |
 | Pricing API client | `ui/src/api/pricing.ts` |
 | Attachment files | `E:\fedprospector\attachments\` (env var: `ATTACHMENT_DIR`) |

@@ -24,6 +24,10 @@ public class LaborCategoryMapping
     [Column("match_method")]
     public string? MatchMethod { get; set; }
 
+    [MaxLength(20)]
+    [Column("source")]
+    public string Source { get; set; } = "GSA_CALC";
+
     [Column("reviewed")]
     public bool Reviewed { get; set; }
 

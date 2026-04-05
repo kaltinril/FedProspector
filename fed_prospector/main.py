@@ -48,6 +48,7 @@ Modules:
                           search-identifiers
     cli/normalize.py      labor-categories
     cli/bls.py            load-bls
+    cli/sca.py            load-sca
     cli/backfill.py       backfill-opportunity-intel, backfill-pocs
     cli/demand.py         process-requests  (registered under 'job' group)
 """
@@ -206,6 +207,7 @@ from cli.schedule_setup import setup_schedule
 from cli.backfill import backfill_opportunity_intel, backfill_pocs
 from cli.normalize import normalize_labor_categories
 from cli.bls import load_bls
+from cli.sca import load_sca, update_sca_list
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +237,7 @@ load.add_command(load_calc, name="labor-rates")
 load.add_command(load_subawards, name="subawards")
 load.add_command(usaspending_bulk, name="usaspending-bulk")
 load.add_command(load_bls, name="bls")
+load.add_command(load_sca, name="sca")
 
 # ---------------------------------------------------------------------------
 # search group commands
@@ -307,6 +310,7 @@ job.add_command(process_requests, name="process-requests")
 update.add_command(enrich_link_metadata, name="link-metadata")
 update.add_command(fetch_descriptions, name="fetch-descriptions")
 update.add_command(build_relationships, name="build-relationships")
+update.add_command(update_sca_list, name="sca-list")
 
 # ---------------------------------------------------------------------------
 # download group commands

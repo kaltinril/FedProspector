@@ -49,6 +49,7 @@ const BidScenarioPage = lazy(() => import('@/pages/pricing/BidScenarioPage'));
 const EscalationPage = lazy(() => import('@/pages/pricing/EscalationPage'));
 const IgcePage = lazy(() => import('@/pages/pricing/IgcePage'));
 const SubBenchmarkPage = lazy(() => import('@/pages/pricing/SubBenchmarkPage'));
+const ScaGeographicPage = lazy(() => import('@/pages/pricing/ScaGeographicPage'));
 const RecompeteCandidatesPage = lazy(() => import('@/pages/competitive-intel/RecompeteCandidatesPage'));
 const AgencyPatternsPage = lazy(() => import('@/pages/competitive-intel/AgencyPatternsPage'));
 const CompetitorDossierPage = lazy(() => import('@/pages/competitive-intel/CompetitorDossierPage'));
@@ -339,6 +340,14 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <SubBenchmarkPage />
+          </AuthenticatedLayout>
+        }
+      />
+      <Route
+        path="/pricing/sca-rates"
+        element={
+          <AuthenticatedLayout>
+            <ScaGeographicPage />
           </AuthenticatedLayout>
         }
       />
