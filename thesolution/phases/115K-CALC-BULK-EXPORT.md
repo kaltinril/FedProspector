@@ -1,6 +1,6 @@
 # Phase 115K: CALC+ Bulk Export & Daily Refresh
 
-**Status:** COMPLETE
+**Status:** IN PROGRESS
 **Priority:** HIGH -- simple change, big data coverage improvement
 **Dependencies:** Phase 115B (normalization chain already hooked into load-calc CLI)
 
@@ -161,3 +161,43 @@ After 115K is complete and we're loading the full ~258K CALC+ dataset (up from ~
 5. **Re-assess summary table performance** — With 2x the source data, re-benchmark the live aggregation query vs the pre-computed summary table to confirm whether `labor_rate_summary` is still worth maintaining.
 
 This is a follow-up task, not a blocker for the 115K migration itself.
+
+---
+
+## Findings from Implementation Attempt (2026-04-05)
+
+### What Failed
+- `?format=csv&export=y` returns 404 — `format=csv` is not a valid parameter
+- `?export=y` without a keyword returns JSON (20 records), not CSV
+- `search_after` query parameter is silently ignored — no deep JSON pagination
+- ES `max_result_window=10000` is still enforced (page × page_size > 10000 → 500 error)
+- CSV export contains no ID column — can't use for upsert keying
+
+### What Works
+- `?keyword=X&export=y` returns CSV with ALL matching records (no 10K cap)
+- `wage_stats.count` in aggregations gives true filtered count (not capped at 10K like `hits.total`)
+- JSON `_id` / `_source.id` is a unique integer per record (available in JSON, not CSV)
+- Keyword search matches across multiple fields (labor_category, vendor_name, contract#, schedule)
+
+### Keyword CSV Export Strategy (tested)
+- 10 keywords → 70% coverage (181K / 260K) in 10 API calls
+- 30 keywords → 87.5% coverage (227K / 260K) in 30 API calls
+- No API rate limits, no auth required
+- Top keywords by unique contribution: engineer (42K), analyst (40K), system (31K), specialist (31K), manager (29K), service (27K)
+- Diminishing returns after ~30 keywords — remaining 12.5% gap is records with uncommon labor category terms
+
+### Revised Implementation Plan
+1. Add `es_id` column + unique index to `gsa_labor_rate` (from JSON `_source.id`)
+2. Change from TRUNCATE to upsert (`INSERT ... ON DUPLICATE KEY UPDATE` on `es_id`)
+3. Primary method: multi-sort JSON (18 queries, ~124K records with `_id`)
+4. Supplemental: keyword CSV exports for additional coverage (dedup by full row)
+5. Combined approach should reach ~90%+ coverage
+6. Daily runs accumulate coverage over time since upsert preserves existing records
+
+### API Reference (corrected)
+- Base URL: `https://api.gsa.gov/acquisition/calc/v3/api`
+- Endpoint: `/ceilingrates/`
+- No auth required (SAM.gov API keys return 403)
+- No rate limits
+- `hits.total` caps at 10K with `relation: "gte"` — use `aggregations.wage_stats.count` for true count
+- Total dataset: 259,837 records (as of 2026-04-05)

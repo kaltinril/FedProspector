@@ -11,17 +11,15 @@ from config.logging_config import setup_logging
 
 
 @click.command("load-calc")
-@click.option("--legacy", is_flag=True, default=False,
-              help="Use legacy API multi-sort path instead of CSV bulk export.")
-def load_calc(legacy):
+@click.option("--csv", "use_csv", is_flag=True, default=False,
+              help="Use keyword CSV export path (experimental, higher coverage).")
+def load_calc(use_csv):
     """Load GSA CALC+ labor rates into gsa_labor_rate table. No API key needed.
 
-    Downloads the full CALC+ ceiling rates dataset via CSV bulk export
-    (~258K rows), truncates the gsa_labor_rate table, and reloads all
-    records. This is the default and provides complete coverage.
+    Default: API multi-sort de-duplication path (~124K unique rates
+    via Elasticsearch 10K window workaround).
 
-    With --legacy, falls back to the API multi-sort de-duplication path
-    (Elasticsearch 10K window workaround, ~122K unique rates).
+    With --csv, uses keyword-based CSV export (experimental, ~87%+ coverage).
 
     No authentication or API key is required. No rate limits.
 
@@ -38,7 +36,7 @@ def load_calc(legacy):
     client = CalcPlusClient()
     loader = CalcLoader()
 
-    method = "API multi-sort de-duplication" if legacy else "CSV bulk export"
+    method = "keyword CSV export" if use_csv else "API multi-sort de-duplication"
 
     click.echo("GSA CALC+ Labor Rate Load")
     click.echo("  Data source: GSA CALC+ API (refreshed nightly by GSA)")
@@ -56,10 +54,10 @@ def load_calc(legacy):
         click.echo("  [%s] %d unique rates so far" % (label, seen_count))
 
     try:
-        if legacy:
-            stats = loader.full_refresh(client, progress_callback=progress)
-        else:
+        if use_csv:
             stats = loader.full_refresh_csv(client, progress_callback=progress)
+        else:
+            stats = loader.full_refresh(client, progress_callback=progress)
         elapsed = time.time() - t_start
 
         click.echo("")
