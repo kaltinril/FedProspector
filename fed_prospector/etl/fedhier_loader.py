@@ -432,7 +432,7 @@ class FedHierLoader(StagingMixin):
         parent_history = raw.get("fhorgparenthistory") or []
         if parent_history:
             # Sort by effectivedate descending to ensure we take the most recent
-            parent_history.sort(key=lambda x: x.get("effectivedate", ""), reverse=True)
+            parent_history.sort(key=lambda x: x.get("effectivedate") or "", reverse=True)
             latest = parent_history[0]
             full_path_id = latest.get("fhfullparentpathid", "")
             if full_path_id:
