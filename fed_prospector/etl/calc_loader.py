@@ -1,13 +1,15 @@
-"""Load GSA CALC+ labor rate data into gsa_labor_rate table.
+"""Load GSA CALC+ labor rate data into gsa_labor_rate table (~258K rows).
 
-Supports two loading paths:
+Supports three loading paths:
 1. API pagination: fetch rates via CalcPlusClient.get_all_rates() and batch-insert
 2. CSV file: load a pre-downloaded CSV via LOAD DATA INFILE
+3. CSV bulk export: download full dataset via ``&export=y`` and load via LOAD DATA INFILE
 
-Both paths use the same normalize/upsert logic. The full_refresh() method
+All paths use the same normalize/upsert logic. The full_refresh() method
 truncates and reloads via the API (multi-query de-duplication to work around
-the Elasticsearch 10K window limit). Simpler and faster than change
-detection for this fully-refreshed dataset.
+the Elasticsearch 10K window limit). The full_refresh_csv() method uses the
+bulk CSV export for complete coverage (~258K rows vs ~124K from the API).
+Simpler and faster than change detection for this fully-refreshed dataset.
 """
 
 import csv
@@ -40,6 +42,9 @@ _RATE_COLUMNS = [
 
 # Mapping from API response field names to DB column names
 _API_FIELD_MAP = {
+    # Also used by CSV files whose headers match the API JSON keys
+    # (e.g. "vendor_name", "labor_category").  If the CSV uses
+    # human-readable headers like "Vendor Name", see _CSV_FIELD_MAP.
     "labor_category": "labor_category",
     "education_level": "education_level",
     "min_years_experience": "min_years_experience",
@@ -57,6 +62,29 @@ _API_FIELD_MAP = {
     "idv_piid": "idv_piid",
     "category": "category",
     "subcategory": "subcategory",
+}
+
+# Mapping from human-readable CSV column headers (with spaces/caps) to the
+# API-style field names used by _API_FIELD_MAP.  Applied only when the CSV
+# headers do NOT match _API_FIELD_MAP keys directly.
+_CSV_FIELD_MAP = {
+    "Vendor Name": "vendor_name",
+    "Labor Category": "labor_category",
+    "Education Level": "education_level",
+    "Min Years Experience": "min_years_experience",
+    "Current Price": "current_price",
+    "Next Year Price": "next_year_price",
+    "Second Year Price": "second_year_price",
+    "Schedule": "schedule",
+    "SIN": "sin",
+    "Business Size": "business_size",
+    "Security Clearance": "security_clearance",
+    "Worksite": "worksite",
+    "Contract Start": "contract_start",
+    "Contract End": "contract_end",
+    "IDV PIID": "idv_piid",
+    "Category": "category",
+    "Subcategory": "subcategory",
 }
 
 
@@ -225,6 +253,73 @@ class CalcLoader:
             self.logger.exception("CALC+ full refresh failed (load_id=%d)", load_id)
             raise
 
+    def full_refresh_csv(self, client, load_manager=None, progress_callback=None):
+        """Complete reload: truncate + download CSV bulk export + LOAD DATA INFILE.
+
+        Uses the CALC+ ``&export=y`` endpoint to download the full dataset
+        as a single CSV file (~258K rows), then loads via the existing
+        ``load_from_csv()`` path.
+
+        Args:
+            client: CalcPlusClient instance (must have ``download_full_csv``).
+            load_manager: Optional LoadManager override.
+            progress_callback: Optional callable(seen_count, label) for
+                progress reporting.
+
+        Returns:
+            dict with load statistics.
+        """
+        lm = load_manager or self.load_manager
+
+        load_id = lm.start_load(
+            source_system="GSA_CALC",
+            load_type="FULL",
+            parameters={"method": "csv_bulk_export"},
+        )
+        self.logger.info("Starting CALC+ CSV full refresh (load_id=%d)", load_id)
+
+        csv_path = None
+        try:
+            # Download the full CSV export
+            csv_path = client.download_full_csv(
+                progress_callback=progress_callback,
+            )
+            self.logger.info("CSV downloaded to %s", csv_path)
+
+            # Detect CSV header style and remap if needed
+            csv_path = self._remap_csv_headers_if_needed(csv_path)
+
+            # Truncate and reload from CSV
+            self._truncate_table()
+
+            stats = self.load_from_csv(csv_path, load_id)
+
+            lm.complete_load(
+                load_id,
+                records_read=stats["records_read"],
+                records_inserted=stats["records_inserted"],
+                records_errored=stats["records_errored"],
+            )
+            self.logger.info(
+                "CALC+ CSV full refresh complete (load_id=%d): %s",
+                load_id, stats,
+            )
+            return stats
+
+        except Exception as exc:
+            lm.fail_load(load_id, str(exc))
+            self.logger.exception(
+                "CALC+ CSV full refresh failed (load_id=%d)", load_id,
+            )
+            raise
+
+        finally:
+            if csv_path and os.path.exists(csv_path):
+                try:
+                    os.unlink(csv_path)
+                except OSError:
+                    pass
+
     # =================================================================
     # Normalization
     # =================================================================
@@ -352,6 +447,55 @@ class CalcLoader:
     # =================================================================
     # CSV loading helpers
     # =================================================================
+
+    def _remap_csv_headers_if_needed(self, csv_path):
+        """Check CSV headers; if they use human-readable names, rewrite the
+        header row to use API-style field names so ``_normalize_rate()`` works.
+
+        Args:
+            csv_path: Path to the downloaded CSV (str or Path).
+
+        Returns:
+            str: Path to the (possibly rewritten) CSV file.
+        """
+        csv_path = str(csv_path)
+        with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.reader(f)
+            headers = next(reader)
+
+        api_keys = set(_API_FIELD_MAP.keys())
+        csv_keys = set(_CSV_FIELD_MAP.keys())
+
+        headers_stripped = [h.strip() for h in headers]
+        self.logger.info("CSV headers detected: %s", headers_stripped)
+
+        # If headers already match API field names, no rewrite needed
+        if api_keys.intersection(headers_stripped):
+            self.logger.info("CSV headers match API field names -- no remapping needed")
+            return csv_path
+
+        # If headers match the human-readable CSV field map, rewrite
+        if csv_keys.intersection(headers_stripped):
+            self.logger.info("CSV headers use human-readable names -- remapping to API field names")
+            remapped_path = csv_path + ".remapped.csv"
+            new_headers = [
+                _CSV_FIELD_MAP.get(h.strip(), h.strip()) for h in headers
+            ]
+            with open(csv_path, "r", encoding="utf-8-sig", newline="") as fin:
+                reader = csv.reader(fin)
+                next(reader)  # skip original header
+                with open(remapped_path, "w", encoding="utf-8", newline="") as fout:
+                    writer = csv.writer(fout)
+                    writer.writerow(new_headers)
+                    for row in reader:
+                        writer.writerow(row)
+
+            # Replace original with remapped version
+            os.unlink(csv_path)
+            os.rename(remapped_path, csv_path)
+            self.logger.info("CSV headers remapped successfully")
+
+        return csv_path
 
     def _load_csv_via_infile(self, csv_path, load_id):
         """Convert CSV to TSV and load via LOAD DATA INFILE.

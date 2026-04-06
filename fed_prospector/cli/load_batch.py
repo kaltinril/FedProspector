@@ -21,6 +21,7 @@ DAILY_SEQUENCE = [
     "fetch_descriptions",
     "usaspending_bulk",
     "awards",
+    "calc_rates",
     "link_metadata",
     "download_attachments",
     "extract_text",
@@ -30,6 +31,7 @@ DAILY_SEQUENCE = [
     "cross_ref_identifiers",
     "intel_backfill",
     "attachment_cleanup",
+    "sca_revisions",
 ]
 WEEKLY_SEQUENCE = [
     "entity_daily", "opportunities", "awards", "exclusions",
@@ -37,7 +39,7 @@ WEEKLY_SEQUENCE = [
 ]
 MONTHLY_SEQUENCE = [
     "entity_daily", "opportunities", "awards",
-    "subawards", "hierarchy", "calc_rates", "usaspending", "saved_searches",
+    "subawards", "hierarchy", "usaspending", "saved_searches",
 ]
 
 KEY_LIMITS = {"1": "10/day", "2": "1000/day"}
@@ -88,6 +90,11 @@ def _get_daily_steps():
             "command": ["python", "main.py", "load", "awards",
                         "--naics", NAICS, "--days-back", "10", "--max-calls", "100",
                         "--key", "2", "--set-aside", "SBA"],
+        },
+        {
+            "name": "calc_rates",
+            "description": "Refresh GSA CALC+ labor rates",
+            "command": ["python", "main.py", "load", "labor-rates"],
         },
         {
             "name": "link_metadata",
@@ -481,7 +488,7 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
 @click.option("--dry-run", is_flag=True, default=False,
               help="Show what would run without executing")
 def load_daily(key, skip, dry_run):
-    """Run the daily load sequence (15 steps).
+    """Run the daily load sequence (17 steps).
 
     Replaces daily_load.bat with a Python-native command.
     Checks monthly entity load eligibility before daily steps.
@@ -494,15 +501,17 @@ def load_daily(key, skip, dry_run):
       4. awards_8a            Load awards - 8(a) set-aside
       5. awards_wosb          Load awards - WOSB set-aside
       6. awards_sba           Load awards - SBA set-aside
-      7. link_metadata        Enrich resource link metadata
-      8. download_attachments Download attachments
-      9. extract_text         Extract text from attachments
-     10. attachment_intel     Keyword intel from attachment text
-     11. description_intel    Keyword intel from description text
-     12. extract_identifiers  Extract federal identifiers
-     13. cross_ref_identifiers Cross-reference identifiers
-     14. intel_backfill       Backfill opportunity intel
-     15. attachment_cleanup   Clean up attachment files
+      7. calc_rates           Refresh GSA CALC+ labor rates
+      8. link_metadata        Enrich resource link metadata
+      9. download_attachments Download attachments
+     10. extract_text         Extract text from attachments
+     11. attachment_intel     Keyword intel from attachment text
+     12. description_intel    Keyword intel from description text
+     13. extract_identifiers  Extract federal identifiers
+     14. cross_ref_identifiers Cross-reference identifiers
+     15. intel_backfill       Backfill opportunity intel
+     16. attachment_cleanup   Clean up attachment files
+     17. sca_revisions        Check SCA WD revisions
 
     Examples:
         python main.py job daily
@@ -572,7 +581,7 @@ def load_monthly(key, skip, dry_run, continue_on_failure, force):
     """Run the monthly load sequence.
 
     Sequence: entity_daily, opportunities, awards,
-              subawards, hierarchy, calc_rates, usaspending, saved_searches
+              subawards, hierarchy, usaspending, saved_searches
 
     Examples:
         python main.py job monthly

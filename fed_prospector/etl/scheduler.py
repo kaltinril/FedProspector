@@ -9,7 +9,7 @@ Windows Task Scheduler setup commands:
   schtasks /create /tn "FedContract_EntityDaily" /tr "python main.py load entities --type api" /sc WEEKLY /d TUE,WED,THU,FRI,SAT /st 06:00
   schtasks /create /tn "FedContract_Hierarchy" /tr "python main.py load hierarchy --full-refresh --key 2" /sc WEEKLY /d SUN /st 02:00
   schtasks /create /tn "FedContract_Awards" /tr "python main.py load awards --key 2" /sc WEEKLY /d SAT /st 03:00
-  schtasks /create /tn "FedContract_CalcRates" /tr "python main.py load labor-rates" /sc MONTHLY /d 1 /st 04:00
+  schtasks /create /tn "FedContract_CalcRates" /tr "python main.py load labor-rates" /sc DAILY /st 04:00
   schtasks /create /tn "FedContract_Exclusions" /tr "python main.py load exclusions --key 2" /sc WEEKLY /d MON /st 06:00
   schtasks /create /tn "FedContract_HealthCheck" /tr "python main.py health check" /sc DAILY /st 09:00
   schtasks /create /tn "FedContract_SavedSearches" /tr "python main.py job run-searches" /sc DAILY /st 07:00
@@ -79,9 +79,9 @@ JOBS = {
         "description": "Refresh GSA CALC+ labor rates",
         "command": ["python", "main.py", "load", "labor-rates"],
         "source_system": "GSA_CALC",
-        "schedule": "1st of month 04:00",
-        "staleness_hours": 1080,  # 45 days
-        "daily_freshness_hours": 504,
+        "schedule": "daily 04:00",
+        "staleness_hours": 36,
+        "daily_freshness_hours": 48,
         "priority": "Low",
         "catchup_safe": True,
         "estimated_api_calls": 0,   # GSA API, no SAM key

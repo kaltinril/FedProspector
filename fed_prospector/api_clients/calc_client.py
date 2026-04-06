@@ -1,7 +1,7 @@
 """GSA CALC+ Quick Rate API v3 client.
 
 Wraps the CALC+ ceiling rates API for looking up GSA Schedule labor rates.
-Provides pricing intelligence for federal proposals by searching ~230,000
+Provides pricing intelligence for federal proposals by searching ~258,000
 contractor labor rates across all GSA schedules.
 
 API docs: https://open.gsa.gov/api/calc/
@@ -12,12 +12,13 @@ Rate limits: NONE documented
 The v3 API is backed by Elasticsearch. It supports keyword search (labor
 category text matching) and sort-based pagination.  Elasticsearch imposes a
 max_result_window of 10,000 so a single sorted query can only reach 10K
-records.  To retrieve the full ~230K dataset the client combines multiple
+records.  To retrieve the full ~258K dataset the client combines multiple
 sort orderings (each producing a different 10K-record slice) and
 de-duplicates by the ES ``_id`` field.
 """
 
 import logging
+import tempfile
 from pathlib import Path
 
 from api_clients.base_client import BaseAPIClient
@@ -81,7 +82,7 @@ class CalcPlusClient(BaseAPIClient):
         summary = client.get_rate_summary("project manager")
         print(f"Min: ${summary['min']}, Avg: ${summary['avg']}, Max: ${summary['max']}")
 
-        # Iterate through all ~230K rates (multi-query with de-duplication)
+        # Iterate through all ~258K rates (multi-query with de-duplication)
         for rate in client.get_all_rates():
             process(rate)
     """
@@ -222,7 +223,7 @@ class CalcPlusClient(BaseAPIClient):
         """Retrieve the full dataset using multi-ordering de-duplication.
 
         The ES backend limits each query to 10,000 results.  To retrieve
-        all ~230K records we run multiple queries with different sort
+        all ~258K records we run multiple queries with different sort
         orderings (each returns a different 10K slice) and de-duplicate
         by ``_es_id``.
 
@@ -316,6 +317,56 @@ class CalcPlusClient(BaseAPIClient):
             "(%d skipped)",
             total_yielded, query_num, skipped_chunks,
         )
+
+    def download_full_csv(self, progress_callback=None) -> Path:
+        """Download the full CALC+ dataset as a CSV bulk export.
+
+        Uses the ``?format=csv&export=y`` query parameters to request
+        a streaming CSV download from the CALC+ API.
+
+        Args:
+            progress_callback: Optional callable(bytes_written, status_label)
+                for progress reporting.
+
+        Returns:
+            Path: Path to the downloaded temporary CSV file.  The caller
+            is responsible for deleting the file when done.
+        """
+        url = f"{self.base_url}{RATES_ENDPOINT}"
+        params = {"format": "csv", "export": "y"}
+
+        self.logger.info("Downloading full CALC+ CSV export from %s", url)
+
+        response = self.session.get(
+            url, params=params, stream=True, timeout=300,
+        )
+        response.raise_for_status()
+
+        tmp = tempfile.NamedTemporaryFile(
+            suffix=".csv", delete=False, mode="wb",
+        )
+        bytes_written = 0
+        try:
+            for chunk in response.iter_content(chunk_size=8192):
+                tmp.write(chunk)
+                bytes_written += len(chunk)
+            tmp.close()
+        except Exception:
+            tmp.close()
+            Path(tmp.name).unlink(missing_ok=True)
+            raise
+
+        csv_path = Path(tmp.name)
+
+        self.logger.info(
+            "CALC+ CSV download complete: %s (%.1f MB)",
+            csv_path, bytes_written / (1024 * 1024),
+        )
+
+        if progress_callback:
+            progress_callback(bytes_written, "download_complete")
+
+        return csv_path
 
     # =================================================================
     # Convenience methods

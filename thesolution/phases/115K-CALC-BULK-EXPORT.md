@@ -49,6 +49,7 @@ Replace the multi-sort client with a single `&export=y` CSV download.
 ### Changes to `calc_loader.py`
 
 - Add `full_refresh_csv(self, client, load_manager=None)` method
+- Must mirror `full_refresh()`'s load management pattern for ETL audit log: call `lm.start_load()` with `parameters={"method": "csv_bulk_export"}`, `lm.complete_load()` on success, `lm.fail_load()` on error
 - Use existing `load_from_csv()` path which already does LOAD DATA INFILE
 - Full refresh pattern: TRUNCATE -> `download_full_csv()` -> `load_from_csv()`
 - Expected: ~258K rows in a single bulk load
@@ -67,6 +68,7 @@ Replace the multi-sort client with a single `&export=y` CSV download.
 
 - Change `calc_rates` job from `schedule: "1st of month 04:00"` to `schedule: "daily 04:00"`
 - Reduce `staleness_hours` from 1080 (45 days) to 36 (1.5 days)
+- Also reduce `daily_freshness_hours` from 504 (21 days) to ~48 (2 days) -- both keys need updating
 - GSA refreshes overnight, so 4:00 AM local time catches the latest data
 
 ### Update Windows Task Scheduler command
@@ -97,8 +99,10 @@ This is optional -- the full reload only takes ~60 seconds even with normalizati
 | CSV download method in `calc_client.py` | Small -- single HTTP GET + file write |
 | `full_refresh_csv()` in `calc_loader.py` | Small -- orchestrates existing `load_from_csv()` |
 | CLI updates in `cli/calc.py` | Trivial -- swap client call, add `--legacy` flag |
-| Scheduler change in `etl/scheduler.py` | Trivial -- one line |
+| Scheduler change in `etl/scheduler.py` | Trivial -- two config keys |
 | Change detection | Medium -- optional |
+
+**Important**: CSV column headers from the bulk export will likely differ from the JSON API field names used in `_API_FIELD_MAP` and `_normalize_rate()`. Either add a separate `_CSV_FIELD_MAP` for column name translation or verify that CSV headers match the existing mapping before loading. Do not assume they are identical.
 
 ---
 

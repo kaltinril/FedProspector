@@ -85,6 +85,7 @@ SELECT
     MAX(glr.current_price) AS max_rate
 FROM gsa_labor_rate glr
 JOIN labor_category_mapping lcm ON lcm.raw_labor_category = glr.labor_category
+    AND lcm.source = 'GSA_CALC'
 JOIN canonical_labor_category clc ON clc.id = lcm.canonical_id
 WHERE glr.current_price > 0
 GROUP BY clc.canonical_name, clc.category_group, glr.worksite, glr.education_level, glr.schedule;
