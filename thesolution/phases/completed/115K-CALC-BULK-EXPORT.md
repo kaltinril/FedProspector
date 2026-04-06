@@ -1,6 +1,6 @@
 # Phase 115K: CALC+ Bulk Export & Daily Refresh
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** HIGH -- simple change, big data coverage improvement
 **Dependencies:** Phase 115B (normalization chain already hooked into load-calc CLI)
 
