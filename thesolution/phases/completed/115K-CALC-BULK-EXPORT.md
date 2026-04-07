@@ -1,6 +1,6 @@
 # Phase 115K: CALC+ Bulk Export & Daily Refresh
 
-**Status:** IN PROGRESS
+**Status:** COMPLETE
 **Priority:** HIGH -- simple change, big data coverage improvement
 **Dependencies:** Phase 115B (normalization chain already hooked into load-calc CLI)
 
@@ -164,40 +164,148 @@ This is a follow-up task, not a blocker for the 115K migration itself.
 
 ---
 
-## Findings from Implementation Attempt (2026-04-05)
+## Research & Implementation Findings (2026-04-06)
 
-### What Failed
-- `?format=csv&export=y` returns 404 — `format=csv` is not a valid parameter
-- `?export=y` without a keyword returns JSON (20 records), not CSV
-- `search_after` query parameter is silently ignored — no deep JSON pagination
-- ES `max_result_window=10000` is still enforced (page × page_size > 10000 → 500 error)
-- CSV export contains no ID column — can't use for upsert keying
+### Problem Statement
 
-### What Works
-- `?keyword=X&export=y` returns CSV with ALL matching records (no 10K cap)
-- `wage_stats.count` in aggregations gives true filtered count (not capped at 10K like `hits.total`)
-- JSON `_id` / `_source.id` is a unique integer per record (available in JSON, not CSV)
-- Keyword search matches across multiple fields (labor_category, vendor_name, contract#, schedule)
+The original multi-sort API strategy (`get_all_rates()`) only retrieves ~124K of ~260K records
+(48% coverage) due to the Elasticsearch `max_result_window=10000` limit. Each of 18 sorted
+queries returns at most 10K records from the extremes of each sort order; the middle of each
+distribution is unreachable. Phase 115K aimed to find a way to get full coverage.
 
-### Keyword CSV Export Strategy (tested)
-- 10 keywords → 70% coverage (181K / 260K) in 10 API calls
-- 30 keywords → 87.5% coverage (227K / 260K) in 30 API calls
-- No API rate limits, no auth required
-- Top keywords by unique contribution: engineer (42K), analyst (40K), system (31K), specialist (31K), manager (29K), service (27K)
-- Diminishing returns after ~30 keywords — remaining 12.5% gap is records with uncommon labor category terms
+### Approaches Tested
 
-### Revised Implementation Plan
-1. Add `es_id` column + unique index to `gsa_labor_rate` (from JSON `_source.id`)
-2. Change from TRUNCATE to upsert (`INSERT ... ON DUPLICATE KEY UPDATE` on `es_id`)
-3. Primary method: multi-sort JSON (18 queries, ~124K records with `_id`)
-4. Supplemental: keyword CSV exports for additional coverage (dedup by full row)
-5. Combined approach should reach ~90%+ coverage
-6. Daily runs accumulate coverage over time since upsert preserves existing records
+#### 1. Single CSV Bulk Export — FAILED
+- **Tried:** `?format=csv&export=y` as documented in old CALC API docs
+- **Result:** 404 error. `format=csv` is not a valid parameter in the DX CALC+ API (migrated to OpenSearch Feb 2025).
+- **Also tried:** `?export=y` without keyword → returns JSON (20 records), not CSV
+- **Conclusion:** There is no single-URL full dataset download
 
-### API Reference (corrected)
-- Base URL: `https://api.gsa.gov/acquisition/calc/v3/api`
-- Endpoint: `/ceilingrates/`
-- No auth required (SAM.gov API keys return 403)
-- No rate limits
-- `hits.total` caps at 10K with `relation: "gte"` — use `aggregations.wage_stats.count` for true count
-- Total dataset: 259,837 records (as of 2026-04-05)
+#### 2. Simple JSON Pagination — BLOCKED BY ES LIMIT
+- **Tried:** Paginating with `page` and `page_size` parameters
+- **Result:** `page * page_size > 10000` returns HTTP 500. Confirmed at page=201, page_size=50.
+- **Also tried:** `search_after` query parameter (ES deep pagination) → silently ignored, returns same results
+- **Conclusion:** JSON pagination is hard-capped at 10,000 records per sort order
+
+#### 3. API Key Authentication — NOT APPLICABLE
+- **Tried:** SAM.gov API keys with various endpoints
+- **Result:** HTTP 403. CALC+ does not accept SAM.gov API keys — the API is fully public with no auth.
+- **Conclusion:** No auth tier unlocks additional capabilities
+
+#### 4. Keyword CSV Export — WORKS
+- **Discovery:** `?keyword=X&export=y` returns ALL matching records as CSV, bypassing the 10K window
+- **Key insight:** The keyword search is full-text across `labor_category` (and partially vendor_name, contract#)
+- **`wage_stats.count`** in the aggregations response gives the TRUE filtered count (unlike `hits.total` which caps at 10K with `relation: "gte"`)
+- **Single-char keywords** (a, e, i, o, u) return empty CSV (29 bytes) — minimum 2 characters required
+
+#### 5. Keyword Strategy Optimization
+
+**Phase A — Job Title Keywords (94 API calls → 96.6%)**
+Tested 94 common job-title words (engineer, analyst, manager, specialist, etc.). Coverage
+plateaued at 96.6% with diminishing returns after ~30 keywords. Many keywords overlapped
+heavily (e.g., "senior" records already captured by "engineer").
+
+**Phase B — Two-Letter Bigrams (8 API calls → 99.8%)**
+Key insight: every English word contains common letter pairs. Two-letter substrings like "in",
+"er", "te" appear in virtually every labor category name.
+
+| Bigrams Added | Cumulative Coverage | API Calls |
+|---------------|-------------------|-----------|
+| `in` | 75.2% (195K) | 1 |
+| `er` | 91.1% (237K) | 2 |
+| `te` | 95.3% (248K) | 3 |
+| `on` | 98.0% (255K) | 4 |
+| `an` | 99.1% (258K) | 5 |
+| `al` | 99.5% (259K) | 6 |
+| `ti` | 99.7% (259K) | 7 |
+| `or` | 99.8% (259K) | 8 |
+
+**The remaining 0.2% (~230 records):** Contain special Unicode characters in the `labor_category`
+field that the CALC+ search engine doesn't index:
+- En-dash `–` (U+2013): "Cyber Data Scientist – Senior"
+- Non-breaking space `\xa0`: "Advanced\xa0Technology\xa0Project\xa0Manager"
+- Accented chars: "Protégé" in mentor-protégé entries
+- Smart quotes and other typographic characters
+
+These records ARE returned by the multi-sort JSON approach, which doesn't rely on keyword matching.
+However, 99.8% coverage was deemed sufficient — the 230 missing records are data entry anomalies.
+
+### CSV Format Details
+
+**Preamble (must be skipped):**
+```
+SEARCH VALUES
+keyword
+<the_keyword>
+
+Contract #,Labor Category,...data rows...
+```
+
+**CSV Headers (human-readable, NOT matching JSON field names):**
+`Contract #, Labor Category, Business Size, Schedule, Site, Security Clearance, Category,
+Subcategory, Begin Date, End Date, SIN, Vendor Name, Education Level,
+Minimum Years Experience, Current Year Labor Price, Next Year Labor Price,
+Second Year Labor Price`
+
+**No ID column** — the CSV export does not include the Elasticsearch `_id` field.
+
+### Unique Key Analysis
+
+With 259,607 rows loaded into a staging table, tested composite key uniqueness:
+
+| Composite Key | Dupe Groups |
+|---------------|------------|
+| contract + labor_cat + vendor | 40,625 |
+| + sin + education + experience + site | 2,404 |
+| + current_price | 77 |
+| + all 3 prices | 76 |
+
+The 2,404 dupe groups (without price) are the same labor category offered at different price
+points under the same contract — likely different option year tiers. The final 76 are true
+duplicates in GSA's data (identical across all 17 columns, confirmed via JSON `_id` — each has
+a unique ES document ID but identical field values).
+
+**Decision:** No unique key needed. Since we do a full TRUNCATE + reload monthly via the bigram
+sweep, deduplication happens in memory before INSERT. No upsert, no `es_id` column required.
+
+### Data Quality Notes
+
+- **Max `labor_category` length:** 1,899 chars (one vendor, HARRIS GRANT LLC, pasted full job
+  descriptions with bullet points instead of titles — 6 records total)
+- **Length distribution:** 96.8% ≤50 chars, 99.98% ≤200 chars
+- **Total dataset:** 259,837 records (from `aggregations.wage_stats.count`)
+- **Business size values:** `small business`, `other than small business`
+- **Site values:** `Contractor_Facility`, `Customer Facility`, `Both` (inconsistent underscores)
+
+### Why Monthly, Not Daily
+
+1. GSA CALC+ data updates infrequently — contract ceiling rates change on option year exercises
+   or contract modifications, not daily
+2. The 8-bigram sweep takes ~2 minutes and downloads ~90MB of CSV data
+3. Post-load normalization (labor category mapping + summary refresh) adds ~60 seconds
+4. Daily reload provides no meaningful freshness benefit for ceiling rate data
+5. The staleness check (`LoadManager.get_last_load`) prevents redundant reloads
+
+### Final Implementation
+
+1. **Client:** `CalcPlusClient.download_bigram_csvs()` — 8 keyword CSV exports, streamed to temp files
+2. **Loader:** `CalcLoader.full_refresh_csv()` — parse CSVs (skip preamble), dedup in memory, write combined file, TRUNCATE + LOAD DATA INFILE
+3. **CLI:** `load-calc` defaults to bigram CSV with 30-day staleness check. `--force` bypasses check. `--legacy` uses old multi-sort.
+4. **Scheduler:** Monthly at 04:00, `staleness_hours: 744` (31 days)
+5. **Batch:** `calc_rates` in `MONTHLY_SEQUENCE`, not daily
+6. **Post-load:** `LaborNormalizer.normalize()` + `refresh_summary()` runs automatically after load
+
+### API Reference (corrected from original docs)
+
+| Parameter | Behavior |
+|-----------|----------|
+| `keyword=X` | Full-text search on labor_category (and partially other fields) |
+| `export=y` | With keyword: returns full CSV of all matches (no 10K cap). Without keyword: returns JSON (20 records) |
+| `format=csv` | **Invalid** — returns 404 |
+| `page_size` | Max effective value depends on context; `page * page_size > 10000` → 500 error |
+| `search_after` | **Silently ignored** as query parameter |
+| `ordering` / `sort` | Sort field and direction for JSON results |
+| API key | **Not accepted** — SAM.gov keys return 403. API is fully public |
+| Rate limits | None observed. `max_daily_requests` set to 999999 |
+| `hits.total` | Caps at 10,000 with `relation: "gte"`. Use `aggregations.wage_stats.count` for true count |
+| Total records | 259,837 (as of 2026-04-06) |

@@ -366,7 +366,15 @@ class LaborNormalizer:
                 "INSERT INTO labor_rate_summary "
                 "(canonical_id, category_group, worksite, education_level, "
                 "rate_count, min_rate, avg_rate, max_rate, p25_rate, median_rate, p75_rate) "
-                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) AS new_row "
+                "ON DUPLICATE KEY UPDATE "
+                "rate_count = new_row.rate_count, "
+                "min_rate = new_row.min_rate, "
+                "avg_rate = new_row.avg_rate, "
+                "max_rate = new_row.max_rate, "
+                "p25_rate = new_row.p25_rate, "
+                "median_rate = new_row.median_rate, "
+                "p75_rate = new_row.p75_rate"
             )
 
             batch = []

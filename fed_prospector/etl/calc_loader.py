@@ -67,24 +67,40 @@ _API_FIELD_MAP = {
 # Mapping from human-readable CSV column headers (with spaces/caps) to the
 # API-style field names used by _API_FIELD_MAP.  Applied only when the CSV
 # headers do NOT match _API_FIELD_MAP keys directly.
+#
+# The CALC+ CSV export (?keyword=X&export=y) uses headers like:
+#   Contract #, Labor Category, Business Size, Schedule, Site,
+#   Security Clearance, Category, Subcategory, Begin Date, End Date,
+#   SIN, Vendor Name, Education Level, Minimum Years Experience,
+#   Current Year Labor Price, Next Year Labor Price, Second Year Labor Price
 _CSV_FIELD_MAP = {
-    "Vendor Name": "vendor_name",
+    # CALC+ export CSV headers (keyword+export=y)
+    "Contract #": "idv_piid",
     "Labor Category": "labor_category",
+    "Business Size": "business_size",
+    "Schedule": "schedule",
+    "Site": "worksite",
+    "Security Clearance": "security_clearance",
+    "Category": "category",
+    "Subcategory": "subcategory",
+    "Begin Date": "contract_start",
+    "End Date": "contract_end",
+    "SIN": "sin",
+    "Vendor Name": "vendor_name",
     "Education Level": "education_level",
+    "Minimum Years Experience": "min_years_experience",
+    "Current Year Labor Price": "current_price",
+    "Next Year Labor Price": "next_year_price",
+    "Second Year Labor Price": "second_year_price",
+    # Legacy headers (kept for backward compat with manually downloaded CSVs)
     "Min Years Experience": "min_years_experience",
     "Current Price": "current_price",
     "Next Year Price": "next_year_price",
     "Second Year Price": "second_year_price",
-    "Schedule": "schedule",
-    "SIN": "sin",
-    "Business Size": "business_size",
-    "Security Clearance": "security_clearance",
     "Worksite": "worksite",
     "Contract Start": "contract_start",
     "Contract End": "contract_end",
     "IDV PIID": "idv_piid",
-    "Category": "category",
-    "Subcategory": "subcategory",
 }
 
 
@@ -254,16 +270,16 @@ class CalcLoader:
             raise
 
     def full_refresh_csv(self, client, load_manager=None, progress_callback=None):
-        """Complete reload: truncate + download CSV bulk export + LOAD DATA INFILE.
+        """Complete reload via bigram CSV sweep + LOAD DATA INFILE.
 
-        Uses the CALC+ ``&export=y`` endpoint to download the full dataset
-        as a single CSV file (~258K rows), then loads via the existing
-        ``load_from_csv()`` path.
+        Downloads 8 keyword CSV exports (bigram sweep), de-duplicates rows
+        client-side, writes a single combined CSV, and loads via LOAD DATA
+        INFILE.  Covers 99.8% of the ~260K record dataset in 8 API calls.
 
         Args:
-            client: CalcPlusClient instance (must have ``download_full_csv``).
+            client: CalcPlusClient instance (must have ``download_bigram_csvs``).
             load_manager: Optional LoadManager override.
-            progress_callback: Optional callable(seen_count, label) for
+            progress_callback: Optional callable(index, label) for
                 progress reporting.
 
         Returns:
@@ -273,26 +289,88 @@ class CalcLoader:
 
         load_id = lm.start_load(
             source_system="GSA_CALC",
-            load_type="FULL",
-            parameters={"method": "csv_bulk_export"},
+            load_type="full_refresh",
+            parameters={"method": "bigram_csv_sweep"},
         )
-        self.logger.info("Starting CALC+ CSV full refresh (load_id=%d)", load_id)
+        self.logger.info("Starting CALC+ bigram CSV sweep (load_id=%d)", load_id)
 
-        csv_path = None
+        csv_files = []
+        combined_csv = None
         try:
-            # Download the full CSV export
-            csv_path = client.download_full_csv(
+            # 1. Download bigram CSVs
+            csv_files = client.download_bigram_csvs(
                 progress_callback=progress_callback,
             )
-            self.logger.info("CSV downloaded to %s", csv_path)
+            if not csv_files:
+                raise RuntimeError("No CSV files downloaded from bigram sweep")
 
-            # Detect CSV header style and remap if needed
-            csv_path = self._remap_csv_headers_if_needed(csv_path)
+            # 2. Parse all CSVs, dedup by row content
+            unique_rows = set()
+            header = None
+            files_parsed = 0
 
-            # Truncate and reload from CSV
+            for csv_path in csv_files:
+                try:
+                    with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
+                        # Skip preamble: find the header line starting with "Contract #"
+                        for line in f:
+                            stripped = line.strip()
+                            if stripped.startswith("Contract #"):
+                                # This is the header line
+                                header_line = stripped
+                                break
+                        else:
+                            self.logger.warning(
+                                "No header found in %s -- skipping", csv_path,
+                            )
+                            continue
+
+                        if header is None:
+                            header = header_line
+
+                        # Parse the data rows after the header
+                        reader = csv.reader(f)
+                        for row in reader:
+                            if row:
+                                unique_rows.add(tuple(row))
+
+                    files_parsed += 1
+                except Exception as exc:
+                    self.logger.warning(
+                        "Error parsing %s (continuing): %s", csv_path, exc,
+                    )
+
+            self.logger.info(
+                "Bigram sweep: %d files parsed, %d unique rows",
+                files_parsed, len(unique_rows),
+            )
+
+            if not unique_rows:
+                raise RuntimeError("No data rows found in any bigram CSV")
+
+            # 3. Write combined CSV with header
+            tmp_fd, combined_csv = tempfile.mkstemp(
+                suffix=".csv", prefix="calc_combined_",
+            )
+            os.close(tmp_fd)
+
+            with open(combined_csv, "w", encoding="utf-8", newline="") as f:
+                f.write(header + "\n")
+                writer = csv.writer(f)
+                for row_tuple in unique_rows:
+                    writer.writerow(row_tuple)
+
+            self.logger.info(
+                "Combined CSV written: %s (%d rows)", combined_csv, len(unique_rows),
+            )
+
+            # 4. Remap CSV headers to API-style field names
+            combined_csv = self._remap_csv_headers_if_needed(combined_csv)
+
+            # 5. Truncate and reload
             self._truncate_table()
 
-            stats = self.load_from_csv(csv_path, load_id)
+            stats = self.load_from_csv(combined_csv, load_id)
 
             lm.complete_load(
                 load_id,
@@ -301,7 +379,7 @@ class CalcLoader:
                 records_errored=stats["records_errored"],
             )
             self.logger.info(
-                "CALC+ CSV full refresh complete (load_id=%d): %s",
+                "CALC+ bigram CSV sweep complete (load_id=%d): %s",
                 load_id, stats,
             )
             return stats
@@ -309,14 +387,21 @@ class CalcLoader:
         except Exception as exc:
             lm.fail_load(load_id, str(exc))
             self.logger.exception(
-                "CALC+ CSV full refresh failed (load_id=%d)", load_id,
+                "CALC+ bigram CSV sweep failed (load_id=%d)", load_id,
             )
             raise
 
         finally:
-            if csv_path and os.path.exists(csv_path):
+            # Clean up all temp files
+            for f in csv_files:
                 try:
-                    os.unlink(csv_path)
+                    if os.path.exists(f):
+                        os.unlink(f)
+                except OSError:
+                    pass
+            if combined_csv and os.path.exists(combined_csv):
+                try:
+                    os.unlink(combined_csv)
                 except OSError:
                     pass
 

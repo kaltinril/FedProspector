@@ -76,12 +76,12 @@ JOBS = {
         "estimated_api_calls": 72,
     },
     "calc_rates": {
-        "description": "Refresh GSA CALC+ labor rates",
+        "description": "Refresh GSA CALC+ labor rates (bigram CSV sweep)",
         "command": ["python", "main.py", "load", "labor-rates"],
         "source_system": "GSA_CALC",
         "schedule": "daily 04:00",
-        "staleness_hours": 36,
-        "daily_freshness_hours": 48,
+        "staleness_hours": 744,
+        "daily_freshness_hours": 744,
         "priority": "Low",
         "catchup_safe": True,
         "estimated_api_calls": 0,   # GSA API, no SAM key

@@ -12,13 +12,17 @@ Rate limits: NONE documented
 The v3 API is backed by Elasticsearch. It supports keyword search (labor
 category text matching) and sort-based pagination.  Elasticsearch imposes a
 max_result_window of 10,000 so a single sorted query can only reach 10K
-records.  To retrieve the full ~258K dataset the client combines multiple
-sort orderings (each producing a different 10K-record slice) and
-de-duplicates by the ES ``_id`` field.
+records.  To retrieve the full ~258K dataset the client uses a bigram CSV
+sweep: 8 keyword searches with ``export=y`` that collectively cover 99.8%
+of all records, de-duplicated client-side.
+
+Legacy path: multi-sort de-duplication (get_all_rates) uses different sort
+orderings to retrieve overlapping 10K slices.  Kept for --legacy CLI flag.
 """
 
 import logging
 import tempfile
+import time
 from pathlib import Path
 
 from api_clients.base_client import BaseAPIClient
@@ -318,55 +322,83 @@ class CalcPlusClient(BaseAPIClient):
             total_yielded, query_num, skipped_chunks,
         )
 
-    def download_full_csv(self, progress_callback=None) -> Path:
-        """Download the full CALC+ dataset as a CSV bulk export.
+    # These bigrams collectively cover 99.8% of all CALC+ records.
+    # Every English word in a labor category contains at least one.
+    _BIGRAM_KEYWORDS = ['in', 'er', 'te', 'on', 'an', 'al', 'ti', 'or']
 
-        Uses the ``?format=csv&export=y`` query parameters to request
-        a streaming CSV download from the CALC+ API.
+    def download_bigram_csvs(self, progress_callback=None) -> list[Path]:
+        """Download CALC+ data via keyword CSV exports using bigram sweep.
 
-        Args:
-            progress_callback: Optional callable(bytes_written, status_label)
-                for progress reporting.
+        Each bigram keyword with export=y returns ALL matching records as CSV,
+        bypassing the ES 10K window limit. 8 bigrams cover 99.8% of ~260K records.
 
         Returns:
-            Path: Path to the downloaded temporary CSV file.  The caller
-            is responsible for deleting the file when done.
+            List of Paths to downloaded CSV temp files. Caller must delete them.
         """
         url = f"{self.base_url}{RATES_ENDPOINT}"
-        params = {"format": "csv", "export": "y"}
+        downloaded = []
 
-        self.logger.info("Downloading full CALC+ CSV export from %s", url)
+        for i, bigram in enumerate(self._BIGRAM_KEYWORDS):
+            params = {"keyword": bigram, "export": "y"}
+            self.logger.info(
+                "Downloading CALC+ CSV for bigram %d/%d: %r",
+                i + 1, len(self._BIGRAM_KEYWORDS), bigram,
+            )
 
-        response = self.session.get(
-            url, params=params, stream=True, timeout=300,
-        )
-        response.raise_for_status()
+            try:
+                response = self.session.get(
+                    url, params=params, stream=True, timeout=300,
+                )
+                response.raise_for_status()
 
-        tmp = tempfile.NamedTemporaryFile(
-            suffix=".csv", delete=False, mode="wb",
-        )
-        bytes_written = 0
-        try:
-            for chunk in response.iter_content(chunk_size=8192):
-                tmp.write(chunk)
-                bytes_written += len(chunk)
-            tmp.close()
-        except Exception:
-            tmp.close()
-            Path(tmp.name).unlink(missing_ok=True)
-            raise
+                tmp = tempfile.NamedTemporaryFile(
+                    suffix=f"_calc_{bigram}.csv", delete=False, mode="wb",
+                )
+                bytes_written = 0
+                last_reported_mb = 0
+                try:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        tmp.write(chunk)
+                        bytes_written += len(chunk)
+                        # Report progress every 5 MB during download
+                        current_mb = bytes_written // (5 * 1024 * 1024)
+                        if progress_callback and current_mb > last_reported_mb:
+                            last_reported_mb = current_mb
+                            progress_callback(
+                                i + 1,
+                                f"downloading '{bigram}' ({bytes_written / (1024 * 1024):.0f} MB)",
+                            )
+                    tmp.close()
+                except Exception:
+                    tmp.close()
+                    Path(tmp.name).unlink(missing_ok=True)
+                    raise
 
-        csv_path = Path(tmp.name)
+                csv_path = Path(tmp.name)
+                downloaded.append(csv_path)
+
+                self.logger.info(
+                    "Bigram %r: downloaded %s (%.1f MB)",
+                    bigram, csv_path, bytes_written / (1024 * 1024),
+                )
+
+                if progress_callback:
+                    progress_callback(i + 1, f"downloaded '{bigram}'")
+
+            except Exception as exc:
+                self.logger.warning(
+                    "Bigram %r download failed (continuing): %s", bigram, exc,
+                )
+
+            # Be polite between requests
+            if i < len(self._BIGRAM_KEYWORDS) - 1:
+                time.sleep(0.5)
 
         self.logger.info(
-            "CALC+ CSV download complete: %s (%.1f MB)",
-            csv_path, bytes_written / (1024 * 1024),
+            "Bigram sweep complete: %d/%d CSVs downloaded",
+            len(downloaded), len(self._BIGRAM_KEYWORDS),
         )
-
-        if progress_callback:
-            progress_callback(bytes_written, "download_complete")
-
-        return csv_path
+        return downloaded
 
     # =================================================================
     # Convenience methods
