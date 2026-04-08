@@ -3,6 +3,7 @@
 **/.env.*
 !**/.env.example
 !**/.env.local.example
+.deploy-cred.xml
 !ui/.env.development
 *.key
 *.pem
