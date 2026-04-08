@@ -67,6 +67,7 @@ PROJECT_ROOT = Path(__file__).parent.parent
 DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))
 DOWNLOAD_DIR = DATA_DIR / "downloads"
 LOG_DIR = DATA_DIR / "logs"
+ATTACHMENT_DIR = Path(os.getenv("ATTACHMENT_DIR", str(DATA_DIR / "attachments"))).resolve()
 
 # Reference data paths (relative to project root's parent = fedProspect/)
 REPO_ROOT = PROJECT_ROOT.parent

@@ -16,10 +16,9 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from config.settings import ATTACHMENT_DIR as _DEFAULT_ATTACHMENT_DIR
 from db.connection import get_connection
 from etl.load_manager import LoadManager
-
-_DEFAULT_ATTACHMENT_DIR = Path(os.environ.get("ATTACHMENT_DIR", r"E:\fedprospector\attachments"))
 
 logger = logging.getLogger("fed_prospector.etl.attachment_text_extractor")
 

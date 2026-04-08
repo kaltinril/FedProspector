@@ -14,6 +14,7 @@ import logging
 import os
 import shutil
 
+from config.settings import ATTACHMENT_DIR
 from db.connection import get_connection
 from etl.etl_utils import extract_resource_guid
 
@@ -598,7 +599,7 @@ class AttachmentDeduplicationMigration:
 
     def _step8_migrate_files(self):
         """Move files from {ATTACHMENT_DIR}/{notice_id}/ to {ATTACHMENT_DIR}/{resource_guid}/."""
-        attachment_dir = os.environ.get("ATTACHMENT_DIR", r"E:\fedprospector\attachments")
+        attachment_dir = str(ATTACHMENT_DIR)
         self.logger.info("Step 8: Migrating files (attachment_dir=%s, dry_run=%s)", attachment_dir, self.dry_run)
 
         conn = get_connection()

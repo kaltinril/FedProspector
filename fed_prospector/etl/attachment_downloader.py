@@ -21,6 +21,7 @@ from urllib.parse import unquote, urlparse
 
 import requests
 
+from config.settings import ATTACHMENT_DIR as _DEFAULT_ATTACHMENT_DIR
 from db.connection import get_connection
 from etl.etl_utils import extract_resource_guid
 from etl.load_manager import LoadManager
@@ -30,9 +31,6 @@ logger = logging.getLogger("fed_prospector.etl.attachment_downloader")
 
 # Redirect targets must match *.amazonaws.com
 _ALLOWED_REDIRECT_PATTERN = re.compile(r"^https://[a-z0-9._-]+\.amazonaws\.com/")
-
-# Default download directory (relative to fed_prospector/)
-_DEFAULT_ATTACHMENT_DIR = Path(os.environ.get("ATTACHMENT_DIR", r"E:\fedprospector\attachments"))
 
 # Request timeout (seconds) for the download stream
 _REQUEST_TIMEOUT = 60

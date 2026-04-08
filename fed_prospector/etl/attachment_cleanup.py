@@ -15,12 +15,10 @@ Usage:
 """
 
 import logging
-import os
 from pathlib import Path
 
+from config.settings import ATTACHMENT_DIR as _DEFAULT_ATTACHMENT_DIR
 from db.connection import get_connection
-
-_DEFAULT_ATTACHMENT_DIR = Path(os.environ.get("ATTACHMENT_DIR", r"E:\fedprospector\attachments"))
 
 logger = logging.getLogger("fed_prospector.etl.attachment_cleanup")
 
