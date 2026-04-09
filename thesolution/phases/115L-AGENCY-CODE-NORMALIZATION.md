@@ -305,6 +305,108 @@ Output:
 
 ---
 
+## Post-Backfill Cleanup (Evaluated 2026-04-09)
+
+### Backfill Results
+
+| Table | Populated | Unresolved | Rate |
+|-------|-----------|------------|------|
+| opportunity | 56,392 | 1 (no department_name) | 99.998% |
+| usaspending_award (awarding) | 28,755,675 | 8,385 (5 names) | 99.97% |
+| usaspending_award (funding) | 28,716,745 | 41,972 (9 names) | 99.85% |
+
+Resolver stats: 57 exact, 6 variant, 4 fuzzy matches out of 72 distinct awarding names.
+
+Top unresolved names (niche agencies not in federal_organization):
+- U.S. Agency for Global Media (5,983 rows)
+- Corps of Engineers - Civil Works (33,255 funding rows)
+- U.S. International Development Finance Corporation (1,337 rows)
+- Export-Import Bank of the United States (973 rows)
+
+---
+
+### 1. Performance — HIGH PRIORITY: Cross-Table Joins Producing Wrong Results
+
+Three services are doing text-based agency matching that **silently fails** due to name format differences between SAM.gov and USASpending:
+
+| Service | Line | What's Broken | Impact |
+|---------|------|---------------|--------|
+| `AutoProspectService.cs` | 275 | `o.DepartmentName == contract.FundingAgencyName` | Recompete detection misses matches where agency names differ across sources |
+| `RecommendedOpportunityService.cs` | 164, 203, 405 | `competitionLookup` keyed on `AgencyName`, looked up by `DepartmentName` | Opportunity scoring ignores agency-level competition data when names don't match |
+| `etl_utils.py` | 239-248 | `usaspending_award_summary` built with `GROUP BY awarding_agency_name` | Summary table uses text names as dimension key — lookups from opportunity side fail |
+
+**Fix required:**
+1. Change `usaspending_award_summary` schema: add `agency_cgac` column, change PK to `(naics_code, agency_cgac)`, keep `agency_name` for display
+2. Change `etl_utils.py` summary refresh to `GROUP BY awarding_agency_cgac`
+3. Change `AutoProspectService.cs:275` to compare CGAC codes
+4. Change `RecommendedOpportunityService.cs` competition lookup to key on CGAC codes
+5. Change `PWinService.cs:313-321,488-493` from `Contains()` string matching to CGAC comparison
+
+**Additional medium-priority fixes:**
+- `FederalHierarchyService.cs:315` — match opportunities to org hierarchy by CGAC instead of name list
+
+**No changes needed for:**
+- User-facing LIKE/Contains search filters (OpportunityService, AwardService, ExpiringContractService, PricingService) — text search is correct UX
+- Display-only projections into DTOs — names still needed for UI rendering
+- ETL loaders that already populate both name and CGAC columns
+
+---
+
+### 2. Index Cleanup — Drop 4 Unused Indexes (~400-600 MB savings)
+
+Evaluation of all 15 indexes on `usaspending_award` (28.7M rows):
+
+| Index | Columns | Verdict | Evidence |
+|-------|---------|---------|----------|
+| `idx_usa_agency` | `awarding_agency_name(50)` | **DROP — REPLACED** | Prefix index never helped existing LIKE '%...%' queries. Superseded by `idx_usa_awarding_cgac`. |
+| `idx_usa_recipient_name` | `recipient_name(40)` | **DROP — USELESS** | Only consumer uses CONTAINS (mid-string match) which cannot use a prefix index. Vendor lookup uses `entity` table instead. |
+| `idx_usa_modified` | `last_modified_date` | **DROP — UNUSED** | Zero WHERE clause usage in entire codebase (Python + C#). Column is write-only metadata. |
+| `idx_usa_enrich` | `fpds_enriched_at` | **DROP — UNUSED** | Zero WHERE clause usage. Column is write-only metadata. |
+
+**Borderline:** `idx_usa_fy` (`fiscal_year`) — also zero WHERE usage today, but cheapest index (SMALLINT) and natural future analytics dimension. Keep for now.
+
+**Note:** `usaspending_bulk_loader.py` lines 111-115 drops/recreates indexes during full loads — that code needs updating when indexes are removed.
+
+---
+
+### 3. Auto-Resolve on USASpending Load
+
+Currently new bulk loads insert rows with NULL CGAC codes, requiring manual `maintain normalize-agencies`.
+
+**Best approach — check CSV columns first:**
+USASpending's 299-column CSV format likely includes `awarding_agency_code` and `funding_agency_code`. If so, map them directly in `usaspending_bulk_loader.py`:
+- Add to `CSV_COLUMN_MAP`: `"awarding_agency_code": "awarding_agency_cgac"`
+- Add to `LOAD_COLUMNS`: `"awarding_agency_cgac"`, `"funding_agency_cgac"`
+- This is zero-cost — codes arrive via LOAD DATA INFILE, no resolver needed for bulk path
+
+**Fallback — resolver-based post-load step:**
+If CSV lacks agency codes, add shared utility to `etl_utils.py`:
+- `resolve_usaspending_agency_codes(conn)` — queries distinct NULL names, resolves via AgencyResolver, per-name UPDATEs
+- Call after `refresh_usaspending_award_summary()` in both `usaspending_bulk_loader.py` (load_fiscal_year line 285, load_delta line 416) and `usaspending_loader.py` (line 283)
+- Performance: <2 seconds on daily loads (~100 distinct names, indexed UPDATEs on NULL rows only)
+- AgencyResolver loads ~2K rows into memory — trivial footprint
+
+**API loader always needs resolver** — USASpending search endpoint doesn't return agency codes.
+
+---
+
+### 4. Column Removal — DEFERRED (keep as denormalized display fields)
+
+Evaluated dropping `awarding_agency_name`, `awarding_sub_agency_name`, `funding_agency_name` from `usaspending_award`.
+
+**Verdict: Too much blast radius, low ROI.**
+
+Blocking dependencies:
+- **HASH fields** — all 3 columns are in `_AWARD_HASH_FIELDS`. Removing them changes SHA-256 hashes for all 28.7M rows, triggering full re-upsert on next load
+- **15+ display references** — C# services project names into DTOs for UI (AwardService, ExpiringContractService, PricingService, etc.). Dropping columns requires JOIN to `federal_organization` everywhere
+- **4 query filters** — LIKE searches in AwardService, ExpiringContractService, PricingService still need text columns for user-facing agency name search
+- **UI components** — AwardDetailPage.tsx renders funding_agency_name directly
+- **Views** — 50_expiring_contracts.sql, competitive intel views SELECT agency names
+
+**Recommendation:** Keep columns as denormalized display-convenience fields. Gradually migrate filters to CGAC codes (items #1 above). Column removal can be revisited after all query filters are CGAC-based and a hash migration strategy is planned.
+
+---
+
 ## Risks
 
 - `federal_organization` may not cover all agency names (especially sub-tier offices that use non-standard names)
