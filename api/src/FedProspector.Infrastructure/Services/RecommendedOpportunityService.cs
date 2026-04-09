@@ -94,6 +94,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 o.Title,
                 o.SolicitationNumber,
                 o.DepartmentName,
+                o.DepartmentCgac,
                 o.SubTier,
                 o.ContractingOfficeId,
                 o.SetAsideCode,
@@ -157,11 +158,11 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
 
         var competitionData = await _context.UsaspendingAwardSummaries.AsNoTracking()
             .Where(s => distinctNaicsInCandidates.Contains(s.NaicsCode))
-            .Select(s => new { s.NaicsCode, s.AgencyName, s.VendorCount })
+            .Select(s => new { s.NaicsCode, s.AgencyCgac, s.VendorCount })
             .ToListAsync();
 
         var competitionLookup = competitionData.ToDictionary(
-            c => (c.NaicsCode, c.AgencyName),
+            c => (c.NaicsCode, c.AgencyCgac),
             c => c.VendorCount);
 
         // 7. Score each candidate using the 7-factor OQS model
@@ -200,7 +201,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             var valueFactor = ScoreValueAlignment(value, orgContext.AvgAwardValue, orgContext.HasAwardData);
 
             // Factor 3: Competition Level
-            var competitionKey = (c.NaicsCode ?? "", c.DepartmentName ?? "");
+            var competitionKey = (c.NaicsCode ?? "", c.DepartmentCgac ?? "");
             competitionLookup.TryGetValue(competitionKey, out var vendorCount);
             var competitionFactor = ScoreCompetition(vendorCount);
 
@@ -365,6 +366,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 o.Title,
                 o.SolicitationNumber,
                 o.DepartmentName,
+                o.DepartmentCgac,
                 o.SubTier,
                 o.ContractingOfficeId,
                 o.SetAsideCode,
@@ -399,10 +401,10 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
 
         // 5. Load competition data from pre-computed summary table
         var vendorCount = 0;
-        if (!string.IsNullOrEmpty(opp.NaicsCode) && !string.IsNullOrEmpty(opp.DepartmentName))
+        if (!string.IsNullOrEmpty(opp.NaicsCode) && !string.IsNullOrEmpty(opp.DepartmentCgac))
         {
             vendorCount = await _context.UsaspendingAwardSummaries.AsNoTracking()
-                .Where(s => s.NaicsCode == opp.NaicsCode && s.AgencyName == opp.DepartmentName)
+                .Where(s => s.NaicsCode == opp.NaicsCode && s.AgencyCgac == opp.DepartmentCgac)
                 .Select(s => s.VendorCount)
                 .FirstOrDefaultAsync();
         }

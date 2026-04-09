@@ -222,7 +222,7 @@ public class FedProspectorDbContext : DbContext
             .HasKey(e => new { e.StateCode, e.CountryCode });
 
         modelBuilder.Entity<UsaspendingAwardSummary>()
-            .HasKey(s => new { s.NaicsCode, s.AgencyName });
+            .HasKey(s => new { s.NaicsCode, s.AgencyCgac });
 
         modelBuilder.Entity<FpdsContract>()
             .HasKey(e => new { e.ContractId, e.ModificationNumber });

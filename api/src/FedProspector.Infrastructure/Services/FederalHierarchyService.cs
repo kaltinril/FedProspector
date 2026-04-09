@@ -305,13 +305,14 @@ public class FederalHierarchyService : IFederalHierarchyService
 
     public async Task<PagedResponse<OpportunitySearchDto>> GetOpportunitiesAsync(int fhOrgId, PagedRequest request, string? active = null, string? type = null, string? setAsideCode = null)
     {
-        // Get the org and its descendants' names for matching
-        var orgNames = await GetOrgAndDescendantNamesAsync(fhOrgId);
-        if (orgNames.Count == 0)
+        // Get the org and its descendants' names and CGAC codes for matching
+        var (orgNames, orgCgacs) = await GetOrgAndDescendantNamesAndCgacsAsync(fhOrgId);
+        if (orgNames.Count == 0 && orgCgacs.Count == 0)
             return EmptyPaged<OpportunitySearchDto>(request);
 
         var query = _context.Opportunities.AsNoTracking()
             .Where(o =>
+                (orgCgacs.Count > 0 && o.DepartmentCgac != null && orgCgacs.Contains(o.DepartmentCgac)) ||
                 (o.DepartmentName != null && orgNames.Contains(o.DepartmentName)) ||
                 (o.SubTier != null && orgNames.Contains(o.SubTier)) ||
                 (o.Office != null && orgNames.Contains(o.Office)));
@@ -456,29 +457,36 @@ public class FederalHierarchyService : IFederalHierarchyService
     }
 
     /// <summary>
-    /// Gets the org name and all descendant org names for use in string matching.
+    /// Gets the org name/CGAC and all descendant org names/CGACs for use in matching.
+    /// Returns both name set (for text fallback) and CGAC set (for code-based matching).
     /// </summary>
-    private async Task<HashSet<string>> GetOrgAndDescendantNamesAsync(int fhOrgId)
+    private async Task<(HashSet<string> Names, HashSet<string> Cgacs)> GetOrgAndDescendantNamesAndCgacsAsync(int fhOrgId)
     {
         var org = await _context.FederalOrganizations.AsNoTracking()
             .FirstOrDefaultAsync(o => o.FhOrgId == fhOrgId);
 
-        if (org == null) return [];
+        if (org == null) return ([], []);
 
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cgacs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         if (!string.IsNullOrWhiteSpace(org.FhOrgName))
             names.Add(org.FhOrgName);
+        if (!string.IsNullOrWhiteSpace(org.Cgac))
+            cgacs.Add(org.Cgac);
 
         // Get direct children
         var children = await _context.FederalOrganizations.AsNoTracking()
             .Where(o => o.ParentOrgId == fhOrgId)
-            .Select(o => new { o.FhOrgId, o.FhOrgName })
+            .Select(o => new { o.FhOrgId, o.FhOrgName, o.Cgac })
             .ToListAsync();
 
         foreach (var child in children)
         {
             if (!string.IsNullOrWhiteSpace(child.FhOrgName))
                 names.Add(child.FhOrgName);
+            if (!string.IsNullOrWhiteSpace(child.Cgac))
+                cgacs.Add(child.Cgac);
         }
 
         // Get grandchildren (level 3) if the org is a department (level 1)
@@ -487,17 +495,19 @@ public class FederalHierarchyService : IFederalHierarchyService
             var childIds = children.Select(c => c.FhOrgId).ToList();
             var grandchildren = await _context.FederalOrganizations.AsNoTracking()
                 .Where(o => o.ParentOrgId != null && childIds.Contains(o.ParentOrgId.Value))
-                .Select(o => o.FhOrgName)
+                .Select(o => new { o.FhOrgName, o.Cgac })
                 .ToListAsync();
 
-            foreach (var name in grandchildren)
+            foreach (var gc in grandchildren)
             {
-                if (!string.IsNullOrWhiteSpace(name))
-                    names.Add(name);
+                if (!string.IsNullOrWhiteSpace(gc.FhOrgName))
+                    names.Add(gc.FhOrgName);
+                if (!string.IsNullOrWhiteSpace(gc.Cgac))
+                    cgacs.Add(gc.Cgac);
             }
         }
 
-        return names;
+        return (names, cgacs);
     }
 
     private static PagedResponse<T> EmptyPaged<T>(PagedRequest request) => new()

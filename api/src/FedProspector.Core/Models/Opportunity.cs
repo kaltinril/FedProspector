@@ -19,8 +19,16 @@ public class Opportunity
     [MaxLength(200)]
     public string? DepartmentName { get; set; }
 
+    [Column("department_cgac")]
+    [MaxLength(10)]
+    public string? DepartmentCgac { get; set; }
+
     [MaxLength(200)]
     public string? SubTier { get; set; }
+
+    [Column("sub_tier_code")]
+    [MaxLength(20)]
+    public string? SubTierCode { get; set; }
 
     [MaxLength(200)]
     public string? Office { get; set; }

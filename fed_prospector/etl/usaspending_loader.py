@@ -16,7 +16,7 @@ from decimal import Decimal, InvalidOperation
 from db.connection import get_connection
 from etl.batch_upsert import build_upsert_sql, executemany_upsert
 from etl.change_detector import ChangeDetector
-from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal, refresh_usaspending_award_summary
+from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal, refresh_usaspending_award_summary, resolve_usaspending_agency_codes
 from etl.load_manager import LoadManager
 from etl.staging_mixin import StagingMixin
 
@@ -278,6 +278,7 @@ class USASpendingLoader(StagingMixin):
             summary_conn = get_connection()
             try:
                 refresh_usaspending_award_summary(summary_conn)
+                resolve_usaspending_agency_codes(summary_conn)
             finally:
                 summary_conn.close()
 

@@ -206,7 +206,7 @@ public class AutoProspectService : IAutoProspectService
                 && c.UltimateCompletionDate <= cutoff
                 && c.NaicsCode != null
                 && orgNaics.Contains(c.NaicsCode))
-            .Select(c => new { c.SolicitationNumber, c.NaicsCode, c.FundingAgencyName })
+            .Select(c => new { c.SolicitationNumber, c.NaicsCode, c.FundingAgencyName, c.FundingAgencyId })
             .Distinct()
             .ToListAsync();
 
@@ -228,7 +228,7 @@ public class AutoProspectService : IAutoProspectService
                 && a.EndDate <= cutoff
                 && a.NaicsCode != null
                 && orgNaics.Contains(a.NaicsCode))
-            .Select(a => new { a.SolicitationIdentifier, a.NaicsCode, a.FundingAgencyName, a.AwardingAgencyName })
+            .Select(a => new { a.SolicitationIdentifier, a.NaicsCode, a.FundingAgencyName, a.AwardingAgencyName, a.FundingAgencyCgac, a.AwardingAgencyCgac })
             .Distinct()
             .ToListAsync();
 
@@ -243,9 +243,9 @@ public class AutoProspectService : IAutoProspectService
 
         // Combine both sources into a unified list
         var expiringContracts = fpdsContracts
-            .Select(c => new { SolicitationNumber = c.SolicitationNumber, NaicsCode = c.NaicsCode, FundingAgencyName = c.FundingAgencyName })
+            .Select(c => new { SolicitationNumber = c.SolicitationNumber, NaicsCode = c.NaicsCode, FundingAgencyCgac = c.FundingAgencyId })
             .Concat(usaContractsDeduped
-                .Select(a => new { SolicitationNumber = a.SolicitationIdentifier, NaicsCode = a.NaicsCode, FundingAgencyName = a.FundingAgencyName ?? a.AwardingAgencyName }))
+                .Select(a => new { SolicitationNumber = a.SolicitationIdentifier, NaicsCode = a.NaicsCode, FundingAgencyCgac = a.FundingAgencyCgac ?? a.AwardingAgencyCgac }))
             .ToList();
 
         foreach (var contract in expiringContracts)
@@ -268,11 +268,11 @@ public class AutoProspectService : IAutoProspectService
                     .FirstOrDefaultAsync();
             }
 
-            // Match by agency + NAICS pattern
-            if (matchedNoticeId == null && !string.IsNullOrEmpty(contract.FundingAgencyName))
+            // Match by agency CGAC + NAICS pattern
+            if (matchedNoticeId == null && !string.IsNullOrEmpty(contract.FundingAgencyCgac))
             {
                 matchedNoticeId = await _context.Opportunities.AsNoTracking()
-                    .Where(o => o.DepartmentName == contract.FundingAgencyName
+                    .Where(o => o.DepartmentCgac != null && o.DepartmentCgac == contract.FundingAgencyCgac
                         && o.NaicsCode == contract.NaicsCode
                         && o.Active == "Y"
                         && !OpportunityFilters.NonBiddableTypes.Contains(o.Type!)

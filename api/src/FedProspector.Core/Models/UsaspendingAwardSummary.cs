@@ -9,6 +9,10 @@ public class UsaspendingAwardSummary
     [Column("naics_code")]
     public string NaicsCode { get; set; } = "";
 
+    [Column("agency_cgac")]
+    [MaxLength(10)]
+    public string AgencyCgac { get; set; } = "";
+
     [Column("agency_name")]
     public string AgencyName { get; set; } = "";
 

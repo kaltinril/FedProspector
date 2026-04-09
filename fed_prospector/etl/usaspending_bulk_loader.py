@@ -15,7 +15,7 @@ import time
 import zipfile
 
 from db.connection import get_connection
-from etl.etl_utils import escape_tsv_value, parse_date, parse_decimal, refresh_usaspending_award_summary
+from etl.etl_utils import escape_tsv_value, parse_date, parse_decimal, refresh_usaspending_award_summary, resolve_usaspending_agency_codes
 from etl.load_manager import LoadManager
 
 
@@ -95,24 +95,20 @@ class USASpendingBulkLoader:
          "CREATE INDEX idx_usa_naics ON usaspending_award (naics_code)"),
         ("idx_usa_recipient",
          "CREATE INDEX idx_usa_recipient ON usaspending_award (recipient_uei)"),
-        ("idx_usa_agency",
-         "CREATE INDEX idx_usa_agency ON usaspending_award (awarding_agency_name(50))"),
+        ("idx_usa_awarding_cgac",
+         "CREATE INDEX idx_usa_awarding_cgac ON usaspending_award (awarding_agency_cgac)"),
+        ("idx_usa_funding_cgac",
+         "CREATE INDEX idx_usa_funding_cgac ON usaspending_award (funding_agency_cgac)"),
         ("idx_usa_setaside",
          "CREATE INDEX idx_usa_setaside ON usaspending_award (type_of_set_aside)"),
         ("idx_usa_dates",
          "CREATE INDEX idx_usa_dates ON usaspending_award (start_date, end_date)"),
-        ("idx_usa_modified",
-         "CREATE INDEX idx_usa_modified ON usaspending_award (last_modified_date)"),
         ("idx_usa_solicitation",
          "CREATE INDEX idx_usa_solicitation ON usaspending_award (solicitation_identifier)"),
         ("idx_usa_piid",
          "CREATE INDEX idx_usa_piid ON usaspending_award (piid)"),
         ("idx_usa_fy",
          "CREATE INDEX idx_usa_fy ON usaspending_award (fiscal_year)"),
-        ("idx_usa_enrich",
-         "CREATE INDEX idx_usa_enrich ON usaspending_award (fpds_enriched_at)"),
-        ("idx_usa_recipient_name",
-         "CREATE INDEX idx_usa_recipient_name ON usaspending_award (recipient_name(40))"),
     ]
 
     def __init__(self, fast_mode=False):
@@ -281,6 +277,7 @@ class USASpendingBulkLoader:
             conn = get_connection()
             try:
                 refresh_usaspending_award_summary(conn)
+                resolve_usaspending_agency_codes(conn)
             finally:
                 conn.close()
 
@@ -412,6 +409,7 @@ class USASpendingBulkLoader:
             conn = get_connection()
             try:
                 refresh_usaspending_award_summary(conn)
+                resolve_usaspending_agency_codes(conn)
             finally:
                 conn.close()
 

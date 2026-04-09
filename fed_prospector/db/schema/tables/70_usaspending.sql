@@ -62,17 +62,13 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
 
     INDEX idx_usa_naics (naics_code),
     INDEX idx_usa_recipient (recipient_uei),
-    INDEX idx_usa_recipient_name (recipient_name(40)),
-    INDEX idx_usa_agency (awarding_agency_name(50)),
     INDEX idx_usa_awarding_cgac (awarding_agency_cgac),
     INDEX idx_usa_funding_cgac (funding_agency_cgac),
     INDEX idx_usa_setaside (type_of_set_aside),
     INDEX idx_usa_dates (start_date, end_date),
-    INDEX idx_usa_modified (last_modified_date),
     INDEX idx_usa_solicitation (solicitation_identifier),
     INDEX idx_usa_piid (piid),
-    INDEX idx_usa_fy (fiscal_year),
-    INDEX idx_usa_enrich (fpds_enriched_at)
+    INDEX idx_usa_fy (fiscal_year)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Phase 127: optimize expiring contracts query (end_date range + award_type + naics filter)
@@ -123,3 +119,12 @@ CREATE TABLE IF NOT EXISTS usaspending_load_checkpoint (
 -- ALTER TABLE usaspending_award ADD COLUMN funding_agency_cgac VARCHAR(10) DEFAULT NULL AFTER funding_agency_name;
 -- ALTER TABLE usaspending_award ADD INDEX idx_usa_awarding_cgac (awarding_agency_cgac);
 -- ALTER TABLE usaspending_award ADD INDEX idx_usa_funding_cgac (funding_agency_cgac);
+
+-- =============================================================================
+-- Migration: Phase 115L — Drop unused indexes
+-- Run against existing databases.
+-- =============================================================================
+-- DROP INDEX idx_usa_agency ON usaspending_award;
+-- DROP INDEX idx_usa_recipient_name ON usaspending_award;
+-- DROP INDEX idx_usa_modified ON usaspending_award;
+-- DROP INDEX idx_usa_enrich ON usaspending_award;

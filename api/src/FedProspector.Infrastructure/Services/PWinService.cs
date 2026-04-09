@@ -144,7 +144,7 @@ public class PWinService : IPWinService
     private sealed record NaicsExperienceData(
         int TotalContracts,
         List<(DateTime? PeriodEnd, string? AgencyName, decimal? ContractValue)> PpRecords,
-        List<(DateOnly? DateSigned, string? AgencyName, decimal? Value)> FpdsRecords);
+        List<(DateOnly? DateSigned, string? AgencyId, decimal? Value)> FpdsRecords);
 
     /// <summary>
     /// Core pWin calculation that uses pre-loaded context to avoid redundant queries.
@@ -259,18 +259,18 @@ public class PWinService : IPWinService
                 .Select(p => new { p.PeriodEnd, p.AgencyName, p.ContractValue })
                 .ToListAsync();
 
-            var fpdsRecords = new List<(DateOnly? DateSigned, string? AgencyName, decimal? Value)>();
+            var fpdsRecords = new List<(DateOnly? DateSigned, string? AgencyId, decimal? Value)>();
             if (linkedUeis.Count > 0)
             {
                 var fpdsRaw = await _context.FpdsContracts.AsNoTracking()
                     .Where(c => c.VendorUei != null && linkedUeis.Contains(c.VendorUei) && c.NaicsCode == naicsCode)
-                    .Select(c => new { c.ContractId, c.DateSigned, c.AgencyName, c.BaseAndAllOptions })
+                    .Select(c => new { c.ContractId, c.DateSigned, c.AgencyId, c.BaseAndAllOptions })
                     .Distinct()
                     .Take(200)
                     .ToListAsync();
 
                 fpdsRecords = fpdsRaw
-                    .Select(c => (c.DateSigned, c.AgencyName, c.BaseAndAllOptions))
+                    .Select(c => (c.DateSigned, c.AgencyId, c.BaseAndAllOptions))
                     .ToList();
             }
 
@@ -310,15 +310,11 @@ public class PWinService : IPWinService
         var recencyFactor = recencyMax > 0 ? recencySum / recencyMax : 0.5;
 
         double agencyBonus = 0;
-        var oppAgency = opp.DepartmentName?.Trim();
-        if (!string.IsNullOrEmpty(oppAgency))
+        var oppCgac = opp.DepartmentCgac ?? "";
+        if (!string.IsNullOrEmpty(oppCgac))
         {
-            var hasAgencyMatch = data.PpRecords.Any(p =>
-                    !string.IsNullOrEmpty(p.AgencyName) &&
-                    p.AgencyName.Contains(oppAgency, StringComparison.OrdinalIgnoreCase))
-                || data.FpdsRecords.Any(f =>
-                    !string.IsNullOrEmpty(f.AgencyName) &&
-                    f.AgencyName.Contains(oppAgency, StringComparison.OrdinalIgnoreCase));
+            var hasAgencyMatch = data.FpdsRecords.Any(f =>
+                    !string.IsNullOrEmpty(f.AgencyId) && f.AgencyId == oppCgac);
             if (hasAgencyMatch)
                 agencyBonus = 10;
         }
@@ -437,18 +433,18 @@ public class PWinService : IPWinService
             .ToListAsync();
 
         // Gather FPDS contracts where any linked entity is vendor in this NAICS
-        var fpdsRecords = new List<(DateOnly? dateSigned, string? agencyName, decimal? value)>();
+        var fpdsRecords = new List<(DateOnly? dateSigned, string? agencyId, decimal? value)>();
         if (linkedUeis.Count > 0)
         {
             var fpdsRaw = await _context.FpdsContracts.AsNoTracking()
                 .Where(c => c.VendorUei != null && linkedUeis.Contains(c.VendorUei) && c.NaicsCode == naicsCode)
-                .Select(c => new { c.ContractId, c.DateSigned, c.AgencyName, c.BaseAndAllOptions })
+                .Select(c => new { c.ContractId, c.DateSigned, c.AgencyId, c.BaseAndAllOptions })
                 .Distinct()
                 .Take(200)
                 .ToListAsync();
 
             fpdsRecords = fpdsRaw
-                .Select(c => (c.DateSigned, c.AgencyName, c.BaseAndAllOptions))
+                .Select(c => (c.DateSigned, c.AgencyId, c.BaseAndAllOptions))
                 .ToList();
         }
 
@@ -483,17 +479,13 @@ public class PWinService : IPWinService
         // Recency factor: ratio of weighted sum to max possible (1.0 if all recent)
         var recencyFactor = recencyMax > 0 ? recencySum / recencyMax : 0.5;
 
-        // Agency match bonus: +10 if any past contract was at the same agency
+        // Agency match bonus: +10 if any past FPDS contract was at the same agency (CGAC code)
         double agencyBonus = 0;
-        var oppAgency = opp.DepartmentName?.Trim();
-        if (!string.IsNullOrEmpty(oppAgency))
+        var oppCgac = opp.DepartmentCgac ?? "";
+        if (!string.IsNullOrEmpty(oppCgac))
         {
-            var hasAgencyMatch = ppRecords.Any(p =>
-                    !string.IsNullOrEmpty(p.AgencyName) &&
-                    p.AgencyName.Contains(oppAgency, StringComparison.OrdinalIgnoreCase))
-                || fpdsRecords.Any(f =>
-                    !string.IsNullOrEmpty(f.agencyName) &&
-                    f.agencyName.Contains(oppAgency, StringComparison.OrdinalIgnoreCase));
+            var hasAgencyMatch = fpdsRecords.Any(f =>
+                    !string.IsNullOrEmpty(f.agencyId) && f.agencyId == oppCgac);
             if (hasAgencyMatch)
                 agencyBonus = 10;
         }
@@ -569,9 +561,9 @@ public class PWinService : IPWinService
             return MakeFactor("Competition Level", 50, weight, "No NAICS code — competition level unknown", hadRealData: false);
         }
 
-        // Get vendor count for this NAICS from the NAICS-level summary row (agency_name = '*')
+        // Get vendor count for this NAICS from the NAICS-level summary row (agency_cgac = '*')
         var naicsVendorCount = await _context.UsaspendingAwardSummaries.AsNoTracking()
-            .Where(s => s.NaicsCode == naicsCode && s.AgencyName == "*")
+            .Where(s => s.NaicsCode == naicsCode && s.AgencyCgac == "*")
             .Select(s => s.VendorCount)
             .FirstOrDefaultAsync();
 
@@ -597,7 +589,7 @@ public class PWinService : IPWinService
 
         // Get the distribution across all NAICS codes for percentile scoring (cached)
         _naicsDistributionCache ??= await _context.UsaspendingAwardSummaries.AsNoTracking()
-            .Where(s => s.AgencyName == "*")
+            .Where(s => s.AgencyCgac == "*")
             .Select(s => s.VendorCount)
             .ToListAsync();
 

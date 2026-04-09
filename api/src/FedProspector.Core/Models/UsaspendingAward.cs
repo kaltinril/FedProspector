@@ -51,11 +51,19 @@ public class UsaspendingAward
     [MaxLength(200)]
     public string? AwardingAgencyName { get; set; }
 
+    [Column("awarding_agency_cgac")]
+    [MaxLength(10)]
+    public string? AwardingAgencyCgac { get; set; }
+
     [MaxLength(200)]
     public string? AwardingSubAgencyName { get; set; }
 
     [MaxLength(200)]
     public string? FundingAgencyName { get; set; }
+
+    [Column("funding_agency_cgac")]
+    [MaxLength(10)]
+    public string? FundingAgencyCgac { get; set; }
 
     [MaxLength(6)]
     public string? NaicsCode { get; set; }

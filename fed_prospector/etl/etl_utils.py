@@ -233,29 +233,31 @@ def refresh_usaspending_award_summary(conn):
     cursor.execute("TRUNCATE TABLE usaspending_award_summary")
     cursor.execute("""
         INSERT INTO usaspending_award_summary
-            (naics_code, agency_name, vendor_count, contract_count, total_value, computed_at)
+            (naics_code, agency_cgac, agency_name, vendor_count, contract_count, total_value, computed_at)
         SELECT
             naics_code,
-            awarding_agency_name,
+            awarding_agency_cgac,
+            MAX(awarding_agency_name),
             COUNT(DISTINCT recipient_uei),
             COUNT(*),
             COALESCE(SUM(total_obligation), 0),
             NOW()
         FROM usaspending_award
         WHERE naics_code IS NOT NULL
-          AND awarding_agency_name IS NOT NULL
+          AND awarding_agency_cgac IS NOT NULL
           AND recipient_uei IS NOT NULL
-        GROUP BY naics_code, awarding_agency_name
+        GROUP BY naics_code, awarding_agency_cgac
     """)
     row_count = cursor.rowcount
 
-    # Add NAICS-level totals with true distinct vendor count (agency_name = '*')
+    # Add NAICS-level totals with true distinct vendor count (agency_cgac = '*')
     cursor.execute("""
         INSERT INTO usaspending_award_summary
-            (naics_code, agency_name, vendor_count, contract_count, total_value, computed_at)
+            (naics_code, agency_cgac, agency_name, vendor_count, contract_count, total_value, computed_at)
         SELECT
             naics_code,
             '*',
+            'All Agencies',
             COUNT(DISTINCT recipient_uei),
             COUNT(*),
             COALESCE(SUM(total_obligation), 0),
@@ -272,3 +274,46 @@ def refresh_usaspending_award_summary(conn):
     logger.info("usaspending_award_summary refreshed: %d agency rows + %d NAICS totals in %.1fs",
                 row_count, naics_total_count, elapsed)
     return row_count + naics_total_count
+
+
+def resolve_usaspending_agency_codes(conn):
+    """Resolve NULL CGAC codes on usaspending_award after a load.
+
+    Queries distinct agency names with NULL codes, resolves via
+    AgencyResolver, and runs per-name UPDATEs. Only touches NULL rows
+    so it's safe to call repeatedly.
+
+    Called after refresh_usaspending_award_summary() in both the
+    bulk loader and API loader.
+    """
+    from etl.agency_resolver import AgencyResolver
+
+    resolver = AgencyResolver()
+    cursor = conn.cursor()
+    total_updated = 0
+
+    for cgac_col, name_col in [
+        ("awarding_agency_cgac", "awarding_agency_name"),
+        ("funding_agency_cgac", "funding_agency_name"),
+    ]:
+        cursor.execute(
+            f"SELECT DISTINCT {name_col} FROM usaspending_award "
+            f"WHERE {cgac_col} IS NULL AND {name_col} IS NOT NULL"
+        )
+        names = [row[0] for row in cursor.fetchall()]
+        if not names:
+            continue
+
+        mapping = resolver.resolve_bulk(names)
+        for name, cgac in mapping.items():
+            if cgac:
+                cursor.execute(
+                    f"UPDATE usaspending_award SET {cgac_col} = %s "
+                    f"WHERE {name_col} = %s AND {cgac_col} IS NULL",
+                    (cgac, name),
+                )
+                total_updated += cursor.rowcount
+        conn.commit()
+
+    logger.info("Resolved %d usaspending_award agency code rows", total_updated)
+    return total_updated
