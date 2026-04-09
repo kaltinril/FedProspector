@@ -151,8 +151,9 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 115I | Pre-computed Scoring Summaries | COMPLETE | [115I-PRECOMPUTED-SCORING-SUMMARIES.md](phases/completed/115I-PRECOMPUTED-SCORING-SUMMARIES.md) |
 | 115J | SCA Wage Determinations | COMPLETE | [115J-SCA-WAGE-DETERMINATIONS.md](phases/completed/115J-SCA-WAGE-DETERMINATIONS.md) |
 | 115K | CALC+ Bulk Export & Daily Refresh | COMPLETE | [115K-CALC-BULK-EXPORT.md](phases/completed/115K-CALC-BULK-EXPORT.md) |
-| 115L | Agency Code Normalization | PLANNED | [115L-AGENCY-CODE-NORMALIZATION.md](phases/115L-AGENCY-CODE-NORMALIZATION.md) |
+| 115L | Agency Code Normalization | IN PROGRESS | [115L-AGENCY-CODE-NORMALIZATION.md](phases/115L-AGENCY-CODE-NORMALIZATION.md) |
 | 115M | FPDS Contract Data Enrichment | PLANNED | [115M-FPDS-DATA-ENRICHMENT.md](phases/115M-FPDS-DATA-ENRICHMENT.md) |
+| 116 | Daily Job Performance & Resource Link Architecture | IN PROGRESS | [116-DAILY-JOB-PERFORMANCE.md](phases/116-DAILY-JOB-PERFORMANCE.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |
