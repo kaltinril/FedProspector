@@ -1,6 +1,6 @@
 """Federal Contract Prospecting System - CLI
 
-Commands are organized into 14 top-level groups:
+Commands are organized into 15 top-level groups:
 
     setup     Build the database, seed reference data, verify prerequisites
     load      Download and load data from government APIs
@@ -16,6 +16,7 @@ Commands are organized into 14 top-level groups:
     normalize Normalize labor categories to canonical categories
     backfill  Backfill opportunity columns from extracted intelligence
     health    System health checks, ETL history, status monitoring
+    report    Reports: unresolved data, coverage gaps, diagnostics
 
 Run 'python main.py GROUP --help' to list commands in a group.
 Run 'python main.py GROUP COMMAND --help' for command-specific help.
@@ -47,6 +48,7 @@ Modules:
                           extract-identifiers, cross-ref-identifiers,
                           search-identifiers
     cli/normalize.py      labor-categories
+    cli/agencies.py       normalize-agencies, unresolved-agencies
     cli/bls.py            load-bls
     cli/sca.py            load-sca
     cli/backfill.py       backfill-opportunity-intel, backfill-pocs
@@ -68,8 +70,8 @@ def cli():
 
     Gathers federal contract data from government APIs into a local MySQL
     database for WOSB/8(a) contract discovery. Commands are organized into
-    14 groups: setup, load, download, extract, search, prospect, analyze,
-    update, admin, job, maintain, normalize, backfill, health.
+    15 groups: setup, load, download, extract, search, prospect, analyze,
+    update, admin, job, maintain, normalize, backfill, health, report.
 
     Run 'python main.py GROUP --help' to list commands in a group.
     """
@@ -164,6 +166,12 @@ def health():
     pass
 
 
+@cli.group()
+def report():
+    """Reports: unresolved data, coverage gaps, diagnostics."""
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Imports
 # ---------------------------------------------------------------------------
@@ -208,6 +216,7 @@ from cli.backfill import backfill_opportunity_intel, backfill_pocs
 from cli.normalize import normalize_labor_categories
 from cli.bls import load_bls
 from cli.sca import load_sca, update_sca_list
+from cli.agencies import normalize_agencies, unresolved_agencies
 
 
 # ---------------------------------------------------------------------------
@@ -339,6 +348,7 @@ maintain.add_command(maintain_db, name="db")
 maintain.add_command(cleanup_attachment_files, name="attachment-files")
 maintain.add_command(migrate_dedup, name="migrate-dedup")
 maintain.add_command(migrate_files, name="migrate-files")
+maintain.add_command(normalize_agencies, name="normalize-agencies")
 
 # ---------------------------------------------------------------------------
 # normalize group commands
@@ -363,6 +373,12 @@ health.add_command(load_history, name="load-history")
 health.add_command(check_schema, name="check-schema")
 health.add_command(attachment_pipeline_status, name="pipeline-status")
 health.add_command(ai_usage, name="ai-usage")
+
+# ---------------------------------------------------------------------------
+# report group commands
+# ---------------------------------------------------------------------------
+
+report.add_command(unresolved_agencies, name="unresolved-agencies")
 
 
 if __name__ == "__main__":

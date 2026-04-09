@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     awarding_agency_name     VARCHAR(200),
     awarding_sub_agency_name VARCHAR(200),
     funding_agency_name      VARCHAR(200),
+    awarding_agency_cgac     VARCHAR(10),
+    funding_agency_cgac      VARCHAR(10),
     naics_code               VARCHAR(6),
     naics_description        VARCHAR(500),
     psc_code                 VARCHAR(10),
@@ -62,6 +64,8 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     INDEX idx_usa_recipient (recipient_uei),
     INDEX idx_usa_recipient_name (recipient_name(40)),
     INDEX idx_usa_agency (awarding_agency_name(50)),
+    INDEX idx_usa_awarding_cgac (awarding_agency_cgac),
+    INDEX idx_usa_funding_cgac (funding_agency_cgac),
     INDEX idx_usa_setaside (type_of_set_aside),
     INDEX idx_usa_dates (start_date, end_date),
     INDEX idx_usa_modified (last_modified_date),
@@ -109,3 +113,13 @@ CREATE TABLE IF NOT EXISTS usaspending_load_checkpoint (
     KEY idx_fy_hash (fiscal_year, archive_hash),
     CONSTRAINT fk_checkpoint_load FOREIGN KEY (load_id) REFERENCES etl_load_log(load_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- =============================================================================
+-- Migration: Phase 115L — Agency code normalization
+-- Run against existing databases that already have the usaspending_award table.
+-- NOTE: 28.7M rows — schedule for off-hours.
+-- =============================================================================
+-- ALTER TABLE usaspending_award ADD COLUMN awarding_agency_cgac VARCHAR(10) DEFAULT NULL AFTER awarding_sub_agency_name;
+-- ALTER TABLE usaspending_award ADD COLUMN funding_agency_cgac VARCHAR(10) DEFAULT NULL AFTER funding_agency_name;
+-- ALTER TABLE usaspending_award ADD INDEX idx_usa_awarding_cgac (awarding_agency_cgac);
+-- ALTER TABLE usaspending_award ADD INDEX idx_usa_funding_cgac (funding_agency_cgac);

@@ -24,7 +24,7 @@ from etl.staging_mixin import StagingMixin
 # ---------------------------------------------------------------------------
 _OPPORTUNITY_HASH_FIELDS = [
     "notice_id", "title", "solicitation_number",
-    "department_name", "sub_tier", "office",
+    "department_name", "department_cgac", "sub_tier", "sub_tier_code", "office",
     "posted_date", "response_deadline", "archive_date",
     "type", "base_type", "set_aside_code",
     "classification_code", "naics_code",
@@ -36,7 +36,7 @@ _OPPORTUNITY_HASH_FIELDS = [
 # All opportunity columns used in upsert (order matters for values list)
 _UPSERT_COLS = [
     "notice_id", "title", "solicitation_number",
-    "department_name", "sub_tier", "office",
+    "department_name", "department_cgac", "sub_tier", "sub_tier_code", "office",
     "posted_date", "response_deadline", "archive_date",
     "type", "base_type",
     "set_aside_code", "set_aside_description",
@@ -420,9 +420,11 @@ class OpportunityLoader(StagingMixin):
         else:
             office = None
 
-        # Parse code hierarchy for contracting_office_id (last segment)
+        # Parse code hierarchy — save all three segments
         parent_code = raw.get("fullParentPathCode") or ""
         code_parts = [p.strip() for p in parent_code.split(".")] if parent_code else []
+        department_cgac = code_parts[0] if len(code_parts) >= 1 else None
+        sub_tier_code = code_parts[1] if len(code_parts) >= 2 else None
         contracting_office_id = code_parts[-1] if code_parts else None
 
         # Awardee location (Item 1.2)
@@ -450,7 +452,9 @@ class OpportunityLoader(StagingMixin):
             "title":                 raw.get("title"),
             "solicitation_number":   raw.get("solicitationNumber"),
             "department_name":       department_name,
+            "department_cgac":       department_cgac,
             "sub_tier":              sub_tier,
+            "sub_tier_code":         sub_tier_code,
             "office":                office,
             "posted_date":           self._parse_date(raw.get("postedDate")),
             "response_deadline":     self._parse_datetime(raw.get("responseDeadLine")),

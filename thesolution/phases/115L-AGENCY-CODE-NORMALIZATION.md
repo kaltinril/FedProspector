@@ -1,6 +1,6 @@
 # Phase 115L: Agency Code Normalization
 
-**Status:** PLANNED
+**Status:** IN PROGRESS — Code complete. ALTER TABLE pending (run when MySQL is available).
 **Priority:** HIGH -- cross-cutting data quality issue affecting pricing, scoring, market intel, and competitor analysis
 **Dependencies:** federal_organization table (already loaded via hierarchy)
 
@@ -219,30 +219,29 @@ Report after backfill:
 
 ## Feature 5: Update Downstream Queries
 
-After codes are populated, update queries that currently match on agency text:
+After codes are populated, downstream queries can use code-based joins instead of text matching.
 
-| Component | Current (text match) | New (code match) |
-|-----------|---------------------|-------------------|
-| PricingService.cs | LIKE on `awarding_agency_name` | JOIN on `awarding_agency_cgac` or `agency_id` |
-| MarketIntelService.cs | LIKE on agency names | JOIN on CGAC codes |
-| v_procurement_intelligence | Text-based agency grouping | Code-based grouping |
-| v_price_to_win_comparable | LIKE text matching | Code-based joins |
-| Scoring services | Any agency-based text matching | Code-based matching |
+**Validated scope (smaller than initially estimated):**
+- **PricingService.cs** — Already avoids agency matching by design (line 972 comment: "agency name formats differ between opportunity and USASpending"). Uses NAICS as primary filter. **No changes needed** — but the new CGAC codes enable future agency-aware pricing queries.
+- **MarketIntelService.cs** — Already uses `AgencyId` extracted from `FullParentPathCode` via `ExtractAgencyCode()` (line 434). **No changes needed for FPDS queries**, but opportunity→usaspending joins now possible via `department_cgac = awarding_agency_cgac`.
+- **Views** — Display agency names for UI but don't perform cross-table agency matching. **No changes needed.**
 
-Cross-table queries become straightforward:
+**Primary value:** Enables new cross-table queries that were previously impossible:
 ```sql
--- Find USASpending awards for an opportunity's agency
+-- Find USASpending awards for an opportunity's agency (NEW — not possible before)
 SELECT ua.*
 FROM opportunity o
 JOIN usaspending_award ua ON o.department_cgac = ua.awarding_agency_cgac
 WHERE o.notice_id = ?;
 
--- Join FPDS contracts to opportunities via agency
+-- Join FPDS contracts to opportunities via agency (NEW — previously required text matching)
 SELECT fc.*
 FROM opportunity o
 JOIN fpds_contract fc ON o.department_cgac = fc.agency_id
 WHERE o.notice_id = ?;
 ```
+
+These joins will be consumed by future features (e.g., agency-filtered IGCE, award history by department). No existing C# services or views require immediate updates.
 
 ---
 
@@ -291,7 +290,7 @@ Output:
 | ALTER TABLE on `usaspending_award` | Medium -- 28.7M rows, needs off-hours |
 | Backfill existing data | Medium -- depends on resolver accuracy |
 | Loader integration (2 loaders) | Small -- add post-load UPDATE step |
-| Downstream query updates | Medium -- multiple C# services and views |
+| Downstream query updates | Small -- no existing services need changes (validated: PricingService avoids agency matching, MarketIntelService already uses AgencyId codes) |
 | Unresolved agency report | Small -- query + CLI command |
 
 ---
@@ -337,10 +336,7 @@ Output:
 | `fed_prospector/etl/agency_resolver.py` | **New** -- agency name to CGAC resolution utility |
 | `fed_prospector/db/schema/tables/30_opportunity.sql` | Add `department_cgac` column |
 | `fed_prospector/db/schema/tables/70_usaspending.sql` | Add `awarding_agency_cgac`, `funding_agency_cgac` columns |
-| `fed_prospector/etl/opportunity_loader.py` | Post-load UPDATE to set `department_cgac` |
+| `fed_prospector/etl/opportunity_loader.py` | Parse segments 1+2 from `fullParentPathCode` during load, add to hash fields + upsert columns |
 | `fed_prospector/etl/usaspending_loader.py` | Post-load UPDATE to set `awarding_agency_cgac`, `funding_agency_cgac` |
 | `fed_prospector/cli/maintain.py` | Add `normalize-agencies` command |
 | `fed_prospector/cli/report.py` | Add `unresolved-agencies` command |
-| `api/src/FedProspector.Infrastructure/Services/PricingService.cs` | Switch to code-based agency joins |
-| `api/src/FedProspector.Infrastructure/Services/MarketIntelService.cs` | Switch to code-based agency joins |
-| `fed_prospector/db/schema/views/` | Update agency-matching views to use CGAC codes |

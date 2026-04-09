@@ -8,7 +8,9 @@ CREATE TABLE IF NOT EXISTS opportunity (
     title                VARCHAR(500),
     solicitation_number  VARCHAR(100),
     department_name      VARCHAR(200),
+    department_cgac      VARCHAR(10),
     sub_tier             VARCHAR(200),
+    sub_tier_code        VARCHAR(20),
     office               VARCHAR(200),
     posted_date          DATE,
     response_deadline    DATETIME,
@@ -61,7 +63,8 @@ CREATE TABLE IF NOT EXISTS opportunity (
     INDEX idx_opp_type (type),
     INDEX idx_opp_active (active),
     INDEX idx_opp_sol (solicitation_number),
-    KEY idx_opp_department (department_name(50))
+    KEY idx_opp_department (department_name(50)),
+    INDEX idx_opp_dept_cgac (department_cgac)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS opportunity_history (
@@ -107,3 +110,11 @@ CREATE TABLE IF NOT EXISTS opportunity_relationship (
 -- Run against existing databases that already have the opportunity table.
 -- =============================================================================
 -- ALTER TABLE opportunity ADD COLUMN description_text LONGTEXT AFTER description_url;
+
+-- =============================================================================
+-- Migration: Phase 115L — Agency code normalization
+-- Run against existing databases that already have the opportunity table.
+-- =============================================================================
+-- ALTER TABLE opportunity ADD COLUMN department_cgac VARCHAR(10) DEFAULT NULL AFTER department_name;
+-- ALTER TABLE opportunity ADD COLUMN sub_tier_code VARCHAR(20) DEFAULT NULL AFTER sub_tier;
+-- ALTER TABLE opportunity ADD INDEX idx_opp_dept_cgac (department_cgac);
