@@ -176,7 +176,7 @@ function OverviewTab({
   const oppFacts = useMemo(() => {
     if (!opp) return [];
     return [
-      { label: 'Department', value: opp.departmentName ? <AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
+      { label: 'Department', value: opp.departmentName ? <AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} fhOrgId={opp.fhOrgId} /> : '--' },
       { label: 'Office', value: opp.office ? <AgencyLink name={opp.office} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
       { label: 'NAICS', value: opp.naicsCode ?? '--' },
       {
@@ -740,7 +740,7 @@ function IntelTab({ detail }: { detail: ProspectDetailDto }) {
   const facts = [
     { label: 'Title', value: opp.title ?? '--' },
     { label: 'Solicitation Number', value: opp.solicitationNumber ?? '--' },
-    { label: 'Department', value: opp.departmentName ? <AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
+    { label: 'Department', value: opp.departmentName ? <AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} fhOrgId={opp.fhOrgId} /> : '--' },
     { label: 'Sub-Tier', value: opp.subTier ? <AgencyLink name={opp.subTier} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
     { label: 'Office', value: opp.office ? <AgencyLink name={opp.office} agencyCode={opp.contractingOfficeId ?? undefined} /> : '--' },
     { label: 'Type', value: opp.type ?? '--' },

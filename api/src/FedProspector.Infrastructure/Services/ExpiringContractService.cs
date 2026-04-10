@@ -160,7 +160,8 @@ public class ExpiringContractService : IExpiringContractService
             PercentSpent = c.BaseAndAllOptions > 0 && c.DollarsObligated.HasValue
                 ? Math.Round(c.DollarsObligated.Value / c.BaseAndAllOptions.Value * 100m, 1)
                 : null,
-            Source = "FPDS"
+            Source = "FPDS",
+            FhOrgId = c.FhOrgId
         }).ToList();
 
         var usaDtos = usaResults.Select(u => new ExpiringContractDto
@@ -185,7 +186,8 @@ public class ExpiringContractService : IExpiringContractService
             PercentSpent = u.BaseAndAllOptionsValue > 0 && u.TotalObligation.HasValue
                 ? Math.Round(u.TotalObligation.Value / u.BaseAndAllOptionsValue.Value * 100m, 1)
                 : null,
-            Source = "USASpending"
+            Source = "USASpending",
+            FhOrgId = u.FhOrgId
         }).ToList();
 
         // Dedup: FPDS wins when same PIID exists in both

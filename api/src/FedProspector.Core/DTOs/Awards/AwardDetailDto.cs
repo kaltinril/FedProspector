@@ -41,6 +41,7 @@ public class AwardDetailDto
     public int? NumberOfOffers { get; set; }
     public string? SolicitationNumber { get; set; }
     public DateOnly? SolicitationDate { get; set; }
+    public int? FhOrgId { get; set; }
 
     // Nested
     public List<TransactionDto> Transactions { get; set; } = [];

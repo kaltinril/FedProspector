@@ -1179,7 +1179,7 @@ export default function OpportunityDetailPage() {
           <Chip label={`NAICS ${opp.naicsCode}`} size="small" variant="outlined" />
         )}
         {opp.departmentName && (
-          <Chip label={<AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} />} size="small" variant="outlined" />
+          <Chip label={<AgencyLink name={opp.departmentName} agencyCode={opp.contractingOfficeId ?? undefined} fhOrgId={opp.fhOrgId} />} size="small" variant="outlined" />
         )}
         {opp.active != null && (
           <Chip

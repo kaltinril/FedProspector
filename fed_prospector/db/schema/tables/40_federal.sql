@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     ultimate_completion_date DATE,
     type_of_contract_pricing VARCHAR(10),
     co_bus_size_determination VARCHAR(50),
+    fh_org_id            INT DEFAULT NULL,
     record_hash              CHAR(64),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -85,7 +86,14 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     INDEX idx_fpds_hash (record_hash),
     INDEX idx_fpds_far1102 (far1102_exception_code),
     INDEX idx_fpds_solicitation (solicitation_number),
-    KEY idx_fpds_vendor_name (vendor_name(50))
+    KEY idx_fpds_vendor_name (vendor_name(50)),
+    INDEX idx_fpds_fh_org (fh_org_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS agency_name_alias (
+    source_name          VARCHAR(255) NOT NULL,
+    fh_org_id            INT NOT NULL,
+    PRIMARY KEY (source_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS gsa_labor_rate (

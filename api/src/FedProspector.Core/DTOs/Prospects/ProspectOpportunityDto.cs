@@ -20,4 +20,5 @@ public class ProspectOpportunityDto
     public string? Active { get; set; }
     public decimal? AwardAmount { get; set; }
     public string? Link { get; set; }
+    public int? FhOrgId { get; set; }
 }

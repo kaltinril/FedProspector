@@ -1,6 +1,6 @@
 """Agency code normalization CLI commands.
 
-Commands: normalize-agencies, unresolved-agencies
+Commands: normalize-agencies, unresolved-agencies, normalize-fh-orgs
 """
 
 import sys
@@ -223,4 +223,215 @@ def unresolved_agencies(limit):
     except Exception as e:
         logger.exception("Unresolved agencies report failed")
         click.echo(f"\nERROR: {e}")
+        sys.exit(1)
+
+
+@click.command("normalize-fh-orgs")
+@click.option("--table", type=click.Choice(["opportunity", "fpds", "usaspending", "all"]),
+              default="all", show_default=True, help="Which table(s) to backfill")
+@click.option("--dry-run", is_flag=True, help="Preview changes without writing to database")
+def normalize_fh_orgs(table, dry_run):
+    """Backfill fh_org_id on opportunity, fpds_contract, and usaspending_award.
+
+    Resolves each record's awarding agency to a federal_organization.fh_org_id
+    using code joins (opportunity, FPDS) or name matching + alias table (USASpending).
+    Only updates rows where fh_org_id IS NULL, so safe to run repeatedly.
+
+    Examples:
+        python main.py maintain normalize-fh-orgs
+        python main.py maintain normalize-fh-orgs --table opportunity
+        python main.py maintain normalize-fh-orgs --table fpds
+        python main.py maintain normalize-fh-orgs --table usaspending
+        python main.py maintain normalize-fh-orgs --dry-run
+    """
+    import time
+
+    logger = setup_logging()
+
+    from db.connection import get_connection
+
+    t_start = time.time()
+
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # -----------------------------------------------------------------
+        # Opportunity backfill
+        # -----------------------------------------------------------------
+        if table in ("opportunity", "all"):
+            click.echo("=== Opportunity fh_org_id backfill ===")
+
+            cursor.execute("SELECT COUNT(*) FROM opportunity WHERE fh_org_id IS NULL")
+            null_before = cursor.fetchone()[0]
+            click.echo(f"  NULL before: {null_before:,}")
+
+            if not dry_run:
+                # Step 1: sub_tier_code -> Sub-Tier org
+                cursor.execute("""
+                    UPDATE opportunity o
+                    JOIN federal_organization fo
+                      ON fo.agency_code = o.sub_tier_code AND fo.fh_org_type = 'Sub-Tier'
+                    SET o.fh_org_id = fo.fh_org_id
+                    WHERE o.fh_org_id IS NULL AND o.sub_tier_code IS NOT NULL
+                """)
+                step1 = cursor.rowcount
+                conn.commit()
+                click.echo(f"  Step 1 (sub_tier_code): {step1:,} rows")
+
+                # Step 2: department CGAC fallback
+                cursor.execute("""
+                    UPDATE opportunity o
+                    JOIN federal_organization fo
+                      ON fo.cgac = o.department_cgac
+                      AND fo.fh_org_type = 'Department/Ind. Agency' AND fo.level = 1
+                    SET o.fh_org_id = fo.fh_org_id
+                    WHERE o.fh_org_id IS NULL AND o.department_cgac IS NOT NULL
+                """)
+                step2 = cursor.rowcount
+                conn.commit()
+                click.echo(f"  Step 2 (dept CGAC):     {step2:,} rows")
+
+            cursor.execute("SELECT COUNT(*) FROM opportunity WHERE fh_org_id IS NULL")
+            null_after = cursor.fetchone()[0]
+            click.echo(f"  NULL after:  {null_after:,}")
+
+        # -----------------------------------------------------------------
+        # FPDS backfill
+        # -----------------------------------------------------------------
+        if table in ("fpds", "all"):
+            click.echo("\n=== FPDS fh_org_id backfill ===")
+
+            cursor.execute("SELECT COUNT(*) FROM fpds_contract WHERE fh_org_id IS NULL")
+            null_before = cursor.fetchone()[0]
+            click.echo(f"  NULL before: {null_before:,}")
+
+            if not dry_run:
+                # Step 1: oldfpds_office_code match
+                cursor.execute("""
+                    UPDATE fpds_contract fc
+                    JOIN (
+                        SELECT oldfpds_office_code, MIN(fh_org_id) as fh_org_id
+                        FROM federal_organization
+                        WHERE oldfpds_office_code IS NOT NULL
+                        GROUP BY oldfpds_office_code
+                    ) fo ON fo.oldfpds_office_code = fc.contracting_office_id
+                    SET fc.fh_org_id = fo.fh_org_id
+                    WHERE fc.fh_org_id IS NULL AND fc.contracting_office_id IS NOT NULL
+                """)
+                step1 = cursor.rowcount
+                conn.commit()
+                click.echo(f"  Step 1 (office code):   {step1:,} rows")
+
+                # Step 2: department-level fallback via agency_id
+                cursor.execute("""
+                    UPDATE fpds_contract fc
+                    JOIN (
+                        SELECT agency_code, MIN(fh_org_id) as fh_org_id
+                        FROM federal_organization
+                        WHERE fh_org_type = 'Department/Ind. Agency' AND level = 1
+                        GROUP BY agency_code
+                    ) fo ON fo.agency_code = fc.agency_id
+                    SET fc.fh_org_id = fo.fh_org_id
+                    WHERE fc.fh_org_id IS NULL AND fc.agency_id IS NOT NULL
+                """)
+                step2 = cursor.rowcount
+                conn.commit()
+                click.echo(f"  Step 2 (agency_id):     {step2:,} rows")
+
+            cursor.execute("SELECT COUNT(*) FROM fpds_contract WHERE fh_org_id IS NULL")
+            null_after = cursor.fetchone()[0]
+            click.echo(f"  NULL after:  {null_after:,}")
+
+        # -----------------------------------------------------------------
+        # USASpending backfill
+        # -----------------------------------------------------------------
+        if table in ("usaspending", "all"):
+            click.echo("\n=== USASpending fh_org_id backfill ===")
+
+            if not dry_run:
+                # Step 1: Build mapping from distinct names via federal_organization
+                click.echo("  Step 1: building name→fh_org_id mapping...")
+                cursor.execute("""
+                    SELECT DISTINCT ua.awarding_sub_agency_name, ua.awarding_agency_cgac
+                    FROM usaspending_award ua
+                    WHERE ua.fh_org_id IS NULL
+                      AND ua.awarding_sub_agency_name IS NOT NULL
+                      AND ua.awarding_agency_cgac IS NOT NULL
+                """)
+                name_cgac_pairs = cursor.fetchall()
+
+                # Build lookup from federal_organization
+                cursor.execute("""
+                    SELECT fh_org_id, fh_org_name, cgac
+                    FROM federal_organization
+                    WHERE fh_org_type = 'Sub-Tier'
+                """)
+                fo_map = {}
+                for fh_org_id, fh_org_name, cgac in cursor.fetchall():
+                    key = (fh_org_name.strip().upper() if fh_org_name else "", cgac or "")
+                    fo_map[key] = fh_org_id
+
+                # Load alias table
+                cursor.execute("SELECT source_name, fh_org_id FROM agency_name_alias")
+                alias_map = {row[0]: row[1] for row in cursor.fetchall()}
+
+                # Resolve each name to fh_org_id
+                resolved = []
+                for sub_name, cgac in name_cgac_pairs:
+                    key = (sub_name.strip().upper() if sub_name else "", cgac or "")
+                    fh_id = fo_map.get(key)
+                    if fh_id is None:
+                        fh_id = alias_map.get(sub_name)
+                    if fh_id is not None:
+                        resolved.append((fh_id, sub_name, cgac))
+
+                click.echo(f"  Resolved {len(resolved)} of {len(name_cgac_pairs)} distinct name+CGAC combos")
+
+                # Create temp index for fast per-name UPDATEs
+                click.echo("  Creating temporary index on awarding_sub_agency_name (this takes a few minutes)...")
+                t_idx = time.time()
+                cursor.execute("""
+                    ALTER TABLE usaspending_award
+                    ADD INDEX idx_usa_sub_agency_tmp (awarding_sub_agency_name(50))
+                """)
+                click.echo(f"  Index built in {time.time() - t_idx:.1f}s")
+
+                # Per-name UPDATEs with progress
+                click.echo(f"  Step 2: applying {len(resolved)} per-name UPDATEs...")
+                step1 = 0
+                for i, (fh_id, sub_name, cgac) in enumerate(resolved, 1):
+                    cursor.execute(
+                        "UPDATE usaspending_award SET fh_org_id = %s "
+                        "WHERE awarding_sub_agency_name = %s "
+                        "AND awarding_agency_cgac = %s "
+                        "AND fh_org_id IS NULL",
+                        (fh_id, sub_name, cgac),
+                    )
+                    rows = cursor.rowcount
+                    step1 += rows
+                    conn.commit()
+                    click.echo(f"    [{i}/{len(resolved)}] {sub_name} ({cgac}): {rows:,} rows")
+
+                click.echo(f"  Total resolved: {step1:,} rows")
+
+                # Drop temp index
+                click.echo("  Dropping temporary index...")
+                cursor.execute("ALTER TABLE usaspending_award DROP INDEX idx_usa_sub_agency_tmp")
+                click.echo("  Done.")
+
+            # Skip COUNT(*) on 28M rows — per-name progress above shows the total
+
+        # -----------------------------------------------------------------
+        # Summary
+        # -----------------------------------------------------------------
+        elapsed = time.time() - t_start
+        click.echo(f"\nDone in {elapsed:.1f} seconds.")
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        elapsed = time.time() - t_start
+        logger.exception("fh_org_id normalization failed")
+        click.echo("\nERROR after %.1f seconds: %s" % (elapsed, e))
         sys.exit(1)

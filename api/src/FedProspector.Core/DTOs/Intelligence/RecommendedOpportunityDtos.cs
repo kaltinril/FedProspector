@@ -21,6 +21,7 @@ public class RecommendedOpportunityDto
     public string? PopState { get; set; }
     public string? PopCity { get; set; }
     public string? PopCountry { get; set; }
+    public int? FhOrgId { get; set; }
 
     // OQS scoring (new 7-factor weighted model)
     /// <summary>Opportunity Quality Score (0-100), weighted sum of 7 factors.</summary>

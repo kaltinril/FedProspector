@@ -288,7 +288,7 @@ export default function TargetOpportunityPage() {
         headerName: 'Department',
         width: 180,
         valueGetter: (_value, row) => row.departmentName ?? '--',
-        renderCell: (params) => params.row.departmentName ? <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} /> : '--',
+        renderCell: (params) => params.row.departmentName ? <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} fhOrgId={params.row.fhOrgId} /> : '--',
       },
       {
         field: 'setAsideDescription',

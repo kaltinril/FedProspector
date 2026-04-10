@@ -18,4 +18,5 @@ public class ProspectListDto
     public string? DepartmentName { get; set; }
     public string? Active { get; set; }
     public DateTime? CreatedAt { get; set; }
+    public int? FhOrgId { get; set; }
 }

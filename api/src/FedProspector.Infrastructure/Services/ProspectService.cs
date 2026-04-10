@@ -217,7 +217,8 @@ public class ProspectService : IProspectService
                             NaicsCode = o != null ? o.NaicsCode : null,
                             DepartmentName = o != null ? o.DepartmentName : null,
                             Active = o != null ? o.Active : null,
-                            CreatedAt = p.CreatedAt
+                            CreatedAt = p.CreatedAt,
+                            FhOrgId = o != null ? o.FhOrgId : null
                         };
 
         // Apply sorting
@@ -396,7 +397,8 @@ public class ProspectService : IProspectService
                 PopCountry = opp.PopCountry,
                 Active = opp.Active,
                 AwardAmount = opp.AwardAmount,
-                Link = OpportunityService.NormalizeSamGovLink(opp.Link)
+                Link = OpportunityService.NormalizeSamGovLink(opp.Link),
+                FhOrgId = opp.FhOrgId
             } : null,
             Notes = notes,
             TeamMembers = teamMembers,

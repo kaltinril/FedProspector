@@ -29,6 +29,7 @@ public class ExpiringContractDto
     public bool? ShiftDetected { get; set; }
     // Data source (Phase 127)
     public string Source { get; set; } = "FPDS";
+    public int? FhOrgId { get; set; }
 }
 
 public class ExpiringContractSearchRequest

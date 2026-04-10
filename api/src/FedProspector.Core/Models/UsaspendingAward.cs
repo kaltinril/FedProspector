@@ -110,6 +110,9 @@ public class UsaspendingAward
 
     public DateTime? DeletedAt { get; set; }
 
+    [Column("fh_org_id")]
+    public int? FhOrgId { get; set; }
+
     /// <summary>
     /// Navigation to SAM entity via RecipientUei (no DB-level FK constraint).
     /// </summary>

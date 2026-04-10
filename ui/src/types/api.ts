@@ -25,6 +25,7 @@ export interface OpportunitySearchResult {
   popCity?: string | null;
   prospectStatus?: string | null;
   assignedUser?: string | null;
+  fhOrgId?: number | null;
 }
 
 export interface OpportunitySearchParams {
@@ -51,6 +52,7 @@ export interface OpportunityDetail {
   subTier?: string | null;
   office?: string | null;
   contractingOfficeId?: string | null;
+  fhOrgId?: number | null;
   postedDate?: string | null;
   responseDeadline?: string | null;
   archiveDate?: string | null;
@@ -157,6 +159,7 @@ export interface TargetOpportunityDto {
   departmentName?: string | null;
   office?: string | null;
   contractingOfficeId?: string | null;
+  fhOrgId?: number | null;
   postedDate?: string | null;
   responseDeadline?: string | null;
   daysUntilDue?: number | null;
@@ -202,6 +205,7 @@ export interface AwardSearchResult {
   contractId: string;
   solicitationNumber?: string | null;
   agencyName?: string | null;
+  fhOrgId?: number | null;
   contractingOfficeName?: string | null;
   vendorName?: string | null;
   vendorUei?: string | null;
@@ -242,9 +246,12 @@ export interface AwardDetail {
   idvPiid?: string | null;
   agencyId?: string | null;
   agencyName?: string | null;
+  fhOrgId?: number | null;
   contractingOfficeId?: string | null;
+  contractingOfficeFhOrgId?: number | null;
   contractingOfficeName?: string | null;
   fundingAgencyId?: string | null;
+  fundingAgencyFhOrgId?: number | null;
   fundingAgencyName?: string | null;
   vendorUei?: string | null;
   vendorName?: string | null;
@@ -530,6 +537,7 @@ export interface ProspectListDto {
   setAsideCode?: string | null;
   naicsCode?: string | null;
   departmentName?: string | null;
+  fhOrgId?: number | null;
   active?: string | null;
   createdAt?: string | null;
 }
@@ -590,6 +598,7 @@ export interface ProspectOpportunityDto {
   subTier?: string | null;
   office?: string | null;
   contractingOfficeId?: string | null;
+  fhOrgId?: number | null;
   postedDate?: string | null;
   responseDeadline?: string | null;
   type?: string | null;
@@ -1077,6 +1086,7 @@ export interface RecommendedOpportunityDto {
   departmentName: string | null;
   subTier: string | null;
   contractingOfficeId?: string | null;
+  fhOrgId?: number | null;
   setAsideCode: string | null;
   setAsideDescription: string | null;
   naicsCode: string | null;
@@ -1124,6 +1134,7 @@ export interface ExpiringContractDto {
   vendorUei: string | null;
   vendorName: string | null;
   agencyName: string | null;
+  fhOrgId?: number | null;
   officeName: string | null;
   contractValue: number | null;
   dollarsObligated: number | null;

@@ -135,6 +135,9 @@ public class FpdsContract
 
     public int? LastLoadId { get; set; }
 
+    [Column("fh_org_id")]
+    public int? FhOrgId { get; set; }
+
     /// <summary>
     /// Navigation to SAM entity via VendorUei (no DB-level FK constraint).
     /// </summary>

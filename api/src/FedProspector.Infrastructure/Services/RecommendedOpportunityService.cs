@@ -108,7 +108,8 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 o.ResponseDeadline,
                 o.PopState,
                 o.PopCity,
-                o.PopCountry
+                o.PopCountry,
+                o.FhOrgId
             })
             .ToListAsync();
 
@@ -263,6 +264,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 PopState = c.PopState,
                 PopCity = c.PopCity,
                 PopCountry = c.PopCountry,
+                FhOrgId = c.FhOrgId,
                 OqScore = oqScore,
                 OqScoreCategory = category,
                 OqScoreFactors = factors,
@@ -380,7 +382,8 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 o.ResponseDeadline,
                 o.PopState,
                 o.PopCity,
-                o.PopCountry
+                o.PopCountry,
+                o.FhOrgId
             })
             .FirstOrDefaultAsync();
 
@@ -479,6 +482,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             PopState = opp.PopState,
             PopCity = opp.PopCity,
             PopCountry = opp.PopCountry,
+            FhOrgId = opp.FhOrgId,
             OqScore = oqScore,
             OqScoreCategory = category,
             OqScoreFactors = factors,

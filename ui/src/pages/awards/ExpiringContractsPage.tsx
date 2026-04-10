@@ -145,7 +145,7 @@ function buildColumns(navigate: ReturnType<typeof useNavigate>): GridColDef<Expi
       headerName: 'Agency',
       flex: 1,
       minWidth: 140,
-      renderCell: (params) => params.row.agencyName ? <AgencyLink name={params.row.agencyName} /> : '--',
+      renderCell: (params) => params.row.agencyName ? <AgencyLink name={params.row.agencyName} fhOrgId={params.row.fhOrgId} /> : '--',
     },
     {
       field: 'naicsCode',

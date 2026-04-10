@@ -130,7 +130,8 @@ public class AwardService : IAwardService
                 NumberOfOffers = x.Contract.NumberOfOffers,
                 ExtentCompeted = x.Contract.ExtentCompeted,
                 Description = x.Contract.Description,
-                DataSource = "fpds"
+                DataSource = "fpds",
+                FhOrgId = x.Contract.FhOrgId
             })
             .ToListAsync();
 
@@ -313,6 +314,7 @@ public class AwardService : IAwardService
                 NumberOfOffers = contract.NumberOfOffers,
                 SolicitationNumber = contract.SolicitationNumber,
                 SolicitationDate = contract.SolicitationDate,
+                FhOrgId = contract.FhOrgId,
                 Transactions = transactions,
                 VendorProfile = vendorProfile
             };
@@ -409,6 +411,7 @@ public class AwardService : IAwardService
                 PopCountry = usaAward.PopCountry,
                 PopCountryName = usaPopCountryName,
                 PopZip = usaAward.PopZip,
+                FhOrgId = usaAward.FhOrgId,
                 Transactions = transactions,
                 VendorProfile = vendorProfile
             };
@@ -654,7 +657,8 @@ public class AwardService : IAwardService
                 NumberOfOffers = null,
                 ExtentCompeted = null,
                 Description = x.Award.AwardDescription,
-                DataSource = "usaspending"
+                DataSource = "usaspending",
+                FhOrgId = x.Award.FhOrgId
             })
             .ToListAsync();
     }

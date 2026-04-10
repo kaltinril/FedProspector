@@ -131,9 +131,9 @@ function ContractDetailsTab({ award }: { award: AwardDetail }) {
           },
         ]
       : []),
-    { label: 'Contracting Office', value: award.contractingOfficeName ? <AgencyLink name={award.contractingOfficeName} agencyCode={award.contractingOfficeId ?? undefined} /> : null },
+    { label: 'Contracting Office', value: award.contractingOfficeName ? <AgencyLink name={award.contractingOfficeName} agencyCode={award.contractingOfficeId ?? undefined} fhOrgId={award.contractingOfficeFhOrgId} /> : null },
     ...(award.fundingAgencyName && award.fundingAgencyName !== award.agencyName
-      ? [{ label: 'Funding Agency', value: <AgencyLink name={award.fundingAgencyName} agencyCode={award.fundingAgencyId ?? undefined} /> }]
+      ? [{ label: 'Funding Agency', value: <AgencyLink name={award.fundingAgencyName} agencyCode={award.fundingAgencyId ?? undefined} fhOrgId={award.fundingAgencyFhOrgId} /> }]
       : []),
   ];
 
@@ -680,7 +680,7 @@ export default function AwardDetailPage() {
                 Agency
               </Typography>
               <Typography variant="body1">
-                <AgencyLink name={award.agencyName} agencyCode={award.agencyId ?? undefined} />
+                <AgencyLink name={award.agencyName} agencyCode={award.agencyId ?? undefined} fhOrgId={award.fhOrgId} />
               </Typography>
             </Box>
           )}
@@ -690,7 +690,7 @@ export default function AwardDetailPage() {
                 Funding Agency
               </Typography>
               <Typography variant="body1">
-                <AgencyLink name={award.fundingAgencyName} agencyCode={award.fundingAgencyId ?? undefined} />
+                <AgencyLink name={award.fundingAgencyName} agencyCode={award.fundingAgencyId ?? undefined} fhOrgId={award.fundingAgencyFhOrgId} />
               </Typography>
             </Box>
           )}

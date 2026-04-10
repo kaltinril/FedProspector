@@ -27,4 +27,5 @@ public class OpportunitySearchDto
     public string? PopCountryName { get; set; }
     public string? ProspectStatus { get; set; }
     public string? AssignedUser { get; set; }
+    public int? FhOrgId { get; set; }
 }

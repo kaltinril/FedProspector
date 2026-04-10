@@ -16,7 +16,7 @@ from decimal import Decimal, InvalidOperation
 from db.connection import get_connection
 from etl.batch_upsert import build_upsert_sql, executemany_upsert
 from etl.change_detector import ChangeDetector
-from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal, refresh_usaspending_award_summary, resolve_usaspending_agency_codes
+from etl.etl_utils import fetch_existing_hashes, parse_date, parse_decimal, refresh_usaspending_award_summary
 from etl.load_manager import LoadManager
 from etl.staging_mixin import StagingMixin
 
@@ -55,6 +55,7 @@ _UPSERT_COLS = [
     "pop_state", "pop_country", "pop_zip", "pop_city",
     "solicitation_identifier",
     "record_hash", "last_load_id",
+    "awarding_agency_cgac", "funding_agency_cgac", "fh_org_id",
 ]
 
 
@@ -92,6 +93,8 @@ class USASpendingLoader(StagingMixin):
         self.logger = logging.getLogger("fed_prospector.etl.usaspending_loader")
         self.change_detector = change_detector or ChangeDetector()
         self.load_manager = load_manager or LoadManager()
+        self._agency_resolver = None
+        self._fh_org_cache = None
 
     # =================================================================
     # Public entry point
@@ -278,11 +281,58 @@ class USASpendingLoader(StagingMixin):
             summary_conn = get_connection()
             try:
                 refresh_usaspending_award_summary(summary_conn)
-                resolve_usaspending_agency_codes(summary_conn)
             finally:
                 summary_conn.close()
 
         return stats
+
+    # =================================================================
+    # Agency resolution caches (lazy-loaded)
+    # =================================================================
+
+    def _get_agency_resolver(self):
+        """Lazy-load AgencyResolver for CGAC code resolution."""
+        if self._agency_resolver is None:
+            from etl.agency_resolver import AgencyResolver
+            self._agency_resolver = AgencyResolver()
+        return self._agency_resolver
+
+    def _get_fh_org_cache(self):
+        """Lazy-load fh_org_id lookup from federal_organization + alias table."""
+        if self._fh_org_cache is None:
+            conn = get_connection()
+            cursor = conn.cursor()
+            try:
+                # Sub-Tier: (upper_name, cgac) -> fh_org_id
+                cursor.execute("""
+                    SELECT fh_org_id, fh_org_name, cgac
+                    FROM federal_organization WHERE fh_org_type = 'Sub-Tier'
+                """)
+                cache = {}
+                for fh_org_id, name, cgac in cursor.fetchall():
+                    key = (name.strip().upper() if name else "", cgac or "")
+                    cache[key] = fh_org_id
+
+                # Alias table: source_name -> fh_org_id
+                cursor.execute("SELECT source_name, fh_org_id FROM agency_name_alias")
+                self._alias_map = {row[0]: row[1] for row in cursor.fetchall()}
+
+                self._fh_org_cache = cache
+            finally:
+                cursor.close()
+                conn.close()
+        return self._fh_org_cache
+
+    def _resolve_fh_org_id(self, sub_agency_name, cgac):
+        """Resolve fh_org_id from sub-agency name + CGAC code."""
+        if not sub_agency_name:
+            return None
+        cache = self._get_fh_org_cache()
+        key = (sub_agency_name.strip().upper(), cgac or "")
+        fh_org_id = cache.get(key)
+        if fh_org_id is None and sub_agency_name:
+            fh_org_id = self._alias_map.get(sub_agency_name)
+        return fh_org_id
 
     # =================================================================
     # Normalisation
@@ -315,6 +365,17 @@ class USASpendingLoader(StagingMixin):
         # "Award ID" in search results is the PIID (contract number)
         piid = raw.get("Award ID")
 
+        # Resolve agency codes in-memory (no post-load query needed)
+        awarding_agency_name = raw.get("Awarding Agency")
+        awarding_sub_agency_name = raw.get("Awarding Sub Agency")
+        funding_agency_name = raw.get("Funding Agency")
+
+        resolver = self._get_agency_resolver()
+        awarding_cgac = resolver.resolve_agency(awarding_agency_name) if awarding_agency_name else None
+        funding_cgac = resolver.resolve_agency(funding_agency_name) if funding_agency_name else None
+
+        fh_org_id = self._resolve_fh_org_id(awarding_sub_agency_name, awarding_cgac)
+
         return {
             "generated_unique_award_id": unique_id,
             "piid":                      piid,
@@ -331,9 +392,9 @@ class USASpendingLoader(StagingMixin):
             "start_date":                parse_date(raw.get("Start Date")),
             "end_date":                  parse_date(raw.get("End Date")),
             "last_modified_date":        None,  # Not in search results; populated by enrich_from_detail()
-            "awarding_agency_name":      raw.get("Awarding Agency"),
-            "awarding_sub_agency_name":  raw.get("Awarding Sub Agency"),
-            "funding_agency_name":       raw.get("Funding Agency"),
+            "awarding_agency_name":      awarding_agency_name,
+            "awarding_sub_agency_name":  awarding_sub_agency_name,
+            "funding_agency_name":       funding_agency_name,
             "naics_code":                raw.get("NAICS Code"),
             "naics_description":         raw.get("NAICS Description"),
             "psc_code":                  raw.get("PSC Code"),
@@ -344,6 +405,9 @@ class USASpendingLoader(StagingMixin):
             "pop_zip":                   raw.get("Place of Performance Zip5"),
             "pop_city":                  raw.get("Place of Performance City Code"),
             "solicitation_identifier":   None,  # Only available from detail endpoint
+            "awarding_agency_cgac":      awarding_cgac,
+            "funding_agency_cgac":       funding_cgac,
+            "fh_org_id":                 fh_org_id,
         }
 
     def enrich_from_detail(self, award_data, detail):

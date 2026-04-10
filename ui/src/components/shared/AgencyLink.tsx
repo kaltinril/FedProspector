@@ -5,15 +5,21 @@ import { useOrgLookup } from '@/queries/useHierarchy';
 interface AgencyLinkProps {
   name: string | undefined | null;
   agencyCode?: string;
+  fhOrgId?: number | null;
   level?: number;
 }
 
-export function AgencyLink({ name, agencyCode }: AgencyLinkProps) {
-  const { fhOrgId, isLoading } = useOrgLookup(name ?? undefined, agencyCode);
+export function AgencyLink({ name, agencyCode, fhOrgId: fhOrgIdProp }: AgencyLinkProps) {
+  // Skip the lookup API call when fhOrgId is already provided by the caller.
+  // The hook's enabled flag (!!lookupName) prevents it from firing when we pass undefined.
+  const lookupName = fhOrgIdProp ? undefined : (name ?? undefined);
+  const { fhOrgId: resolvedFhOrgId, isLoading } = useOrgLookup(lookupName, agencyCode);
+
+  const fhOrgId = fhOrgIdProp ?? resolvedFhOrgId;
 
   if (!name) return null;
 
-  if (isLoading) {
+  if (!fhOrgIdProp && isLoading) {
     return <>{name}</>;
   }
 

@@ -52,6 +52,7 @@ public class OpportunityDetailDto
     public string? IncumbentName { get; set; }
     public DateOnly? PeriodOfPerformanceStart { get; set; }
     public DateOnly? PeriodOfPerformanceEnd { get; set; }
+    public int? FhOrgId { get; set; }
     public DateTime? FirstLoadedAt { get; set; }
     public DateTime? LastLoadedAt { get; set; }
 

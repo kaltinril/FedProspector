@@ -276,15 +276,133 @@ def refresh_usaspending_award_summary(conn):
     return row_count + naics_total_count
 
 
-def resolve_usaspending_agency_codes(conn):
+def resolve_fpds_fh_org_ids(conn):
+    """Resolve NULL fh_org_id on fpds_contract after a load.
+
+    Two-step approach:
+      1. contracting_office_id -> federal_organization.oldfpds_office_code
+      2. agency_id -> department-level federal_organization
+
+    Only touches NULL rows so safe to call repeatedly.
+    """
+    cursor = conn.cursor()
+    total_updated = 0
+
+    # Step 1: oldfpds_office_code match
+    cursor.execute("""
+        UPDATE fpds_contract fc
+        JOIN (
+            SELECT oldfpds_office_code, MIN(fh_org_id) as fh_org_id
+            FROM federal_organization
+            WHERE oldfpds_office_code IS NOT NULL
+            GROUP BY oldfpds_office_code
+        ) fo ON fo.oldfpds_office_code = fc.contracting_office_id
+        SET fc.fh_org_id = fo.fh_org_id
+        WHERE fc.fh_org_id IS NULL AND fc.contracting_office_id IS NOT NULL
+    """)
+    total_updated += cursor.rowcount
+
+    # Step 2: department-level fallback via agency_id
+    cursor.execute("""
+        UPDATE fpds_contract fc
+        JOIN (
+            SELECT agency_code, MIN(fh_org_id) as fh_org_id
+            FROM federal_organization
+            WHERE fh_org_type = 'Department/Ind. Agency' AND level = 1
+            GROUP BY agency_code
+        ) fo ON fo.agency_code = fc.agency_id
+        SET fc.fh_org_id = fo.fh_org_id
+        WHERE fc.fh_org_id IS NULL AND fc.agency_id IS NOT NULL
+    """)
+    total_updated += cursor.rowcount
+    conn.commit()
+
+    logger.info("Resolved %d fpds_contract fh_org_id rows", total_updated)
+    return total_updated
+
+
+def resolve_usaspending_fh_org_ids(conn, load_id=None):
+    """Resolve NULL fh_org_id on usaspending_award after a load.
+
+    Queries distinct awarding_sub_agency_name + awarding_agency_cgac combos
+    with NULL fh_org_id, resolves via federal_organization join + alias table,
+    per-name UPDATEs. Only touches NULL rows so safe to call repeatedly.
+
+    Args:
+        load_id: If provided, only process rows from this load (fast).
+                 If None, scans all NULL rows (slow on large tables).
+    """
+    cursor = conn.cursor()
+    total_updated = 0
+
+    load_filter_aliased = "AND ua.last_load_id = %s" if load_id else ""
+    load_filter_bare = "AND last_load_id = %s" if load_id else ""
+    load_params = (load_id,) if load_id else ()
+
+    # Step 1: Exact sub-agency name match + CGAC disambiguator
+    cursor.execute(f"""
+        SELECT DISTINCT ua.awarding_sub_agency_name, ua.awarding_agency_cgac
+        FROM usaspending_award ua
+        WHERE ua.fh_org_id IS NULL
+          AND ua.awarding_sub_agency_name IS NOT NULL
+          AND ua.awarding_agency_cgac IS NOT NULL
+          {load_filter_aliased}
+    """, load_params)
+    name_cgac_pairs = cursor.fetchall()
+
+    if name_cgac_pairs:
+        # Build a lookup cache from federal_organization
+        cursor.execute("""
+            SELECT fh_org_id, fh_org_name, cgac
+            FROM federal_organization
+            WHERE fh_org_type = 'Sub-Tier'
+        """)
+        # Map (upper_name, cgac) -> fh_org_id
+        fo_map = {}
+        for fh_org_id, fh_org_name, cgac in cursor.fetchall():
+            key = (fh_org_name.strip().upper() if fh_org_name else "", cgac or "")
+            fo_map[key] = fh_org_id
+
+        # Load alias table
+        cursor.execute("SELECT source_name, fh_org_id FROM agency_name_alias")
+        alias_map = {row[0]: row[1] for row in cursor.fetchall()}
+
+        for sub_name, cgac in name_cgac_pairs:
+            key = (sub_name.strip().upper() if sub_name else "", cgac or "")
+            fh_org_id = fo_map.get(key)
+
+            if fh_org_id is None:
+                # Try alias table
+                fh_org_id = alias_map.get(sub_name)
+
+            if fh_org_id is not None:
+                params = [fh_org_id, sub_name, cgac]
+                if load_id:
+                    params.append(load_id)
+                cursor.execute(
+                    "UPDATE usaspending_award SET fh_org_id = %s "
+                    "WHERE awarding_sub_agency_name = %s AND awarding_agency_cgac = %s "
+                    f"AND fh_org_id IS NULL {load_filter_bare}",
+                    params,
+                )
+                total_updated += cursor.rowcount
+
+        conn.commit()
+
+    logger.info("Resolved %d usaspending_award fh_org_id rows", total_updated)
+    return total_updated
+
+
+def resolve_usaspending_agency_codes(conn, load_id=None):
     """Resolve NULL CGAC codes on usaspending_award after a load.
 
     Queries distinct agency names with NULL codes, resolves via
     AgencyResolver, and runs per-name UPDATEs. Only touches NULL rows
     so it's safe to call repeatedly.
 
-    Called after refresh_usaspending_award_summary() in both the
-    bulk loader and API loader.
+    Args:
+        load_id: If provided, only process rows from this load (fast).
+                 If None, scans all NULL rows (slow on large tables).
     """
     from etl.agency_resolver import AgencyResolver
 
@@ -292,13 +410,17 @@ def resolve_usaspending_agency_codes(conn):
     cursor = conn.cursor()
     total_updated = 0
 
+    load_filter = "AND last_load_id = %s" if load_id else ""
+
     for cgac_col, name_col in [
         ("awarding_agency_cgac", "awarding_agency_name"),
         ("funding_agency_cgac", "funding_agency_name"),
     ]:
+        params = (load_id,) if load_id else ()
         cursor.execute(
             f"SELECT DISTINCT {name_col} FROM usaspending_award "
-            f"WHERE {cgac_col} IS NULL AND {name_col} IS NOT NULL"
+            f"WHERE {cgac_col} IS NULL AND {name_col} IS NOT NULL {load_filter}",
+            params,
         )
         names = [row[0] for row in cursor.fetchall()]
         if not names:
@@ -307,10 +429,13 @@ def resolve_usaspending_agency_codes(conn):
         mapping = resolver.resolve_bulk(names)
         for name, cgac in mapping.items():
             if cgac:
+                update_params = [cgac, name]
+                if load_id:
+                    update_params.append(load_id)
                 cursor.execute(
                     f"UPDATE usaspending_award SET {cgac_col} = %s "
-                    f"WHERE {name_col} = %s AND {cgac_col} IS NULL",
-                    (cgac, name),
+                    f"WHERE {name_col} = %s AND {cgac_col} IS NULL {load_filter}",
+                    update_params,
                 )
                 total_updated += cursor.rowcount
         conn.commit()

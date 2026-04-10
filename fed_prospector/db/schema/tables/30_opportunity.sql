@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     link                 VARCHAR(500),
     resource_links       JSON,
     contracting_office_id VARCHAR(20),
+    fh_org_id            INT DEFAULT NULL,
     record_hash          CHAR(64),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     last_loaded_at       DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -64,7 +65,8 @@ CREATE TABLE IF NOT EXISTS opportunity (
     INDEX idx_opp_active (active),
     INDEX idx_opp_sol (solicitation_number),
     KEY idx_opp_department (department_name(50)),
-    INDEX idx_opp_dept_cgac (department_cgac)
+    INDEX idx_opp_dept_cgac (department_cgac),
+    INDEX idx_opp_fh_org (fh_org_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS opportunity_history (
@@ -118,3 +120,5 @@ CREATE TABLE IF NOT EXISTS opportunity_relationship (
 -- ALTER TABLE opportunity ADD COLUMN department_cgac VARCHAR(10) DEFAULT NULL AFTER department_name;
 -- ALTER TABLE opportunity ADD COLUMN sub_tier_code VARCHAR(20) DEFAULT NULL AFTER sub_tier;
 -- ALTER TABLE opportunity ADD INDEX idx_opp_dept_cgac (department_cgac);
+-- ALTER TABLE opportunity ADD COLUMN fh_org_id INT DEFAULT NULL;
+-- ALTER TABLE opportunity ADD INDEX idx_opp_fh_org (fh_org_id);

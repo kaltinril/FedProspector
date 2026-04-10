@@ -15,7 +15,7 @@ import time
 import zipfile
 
 from db.connection import get_connection
-from etl.etl_utils import escape_tsv_value, parse_date, parse_decimal, refresh_usaspending_award_summary, resolve_usaspending_agency_codes
+from etl.etl_utils import escape_tsv_value, parse_date, parse_decimal, refresh_usaspending_award_summary, resolve_usaspending_agency_codes, resolve_usaspending_fh_org_ids
 from etl.load_manager import LoadManager
 
 
@@ -277,7 +277,8 @@ class USASpendingBulkLoader:
             conn = get_connection()
             try:
                 refresh_usaspending_award_summary(conn)
-                resolve_usaspending_agency_codes(conn)
+                resolve_usaspending_agency_codes(conn, load_id=load_id)
+                resolve_usaspending_fh_org_ids(conn, load_id=load_id)
             finally:
                 conn.close()
 
@@ -409,7 +410,8 @@ class USASpendingBulkLoader:
             conn = get_connection()
             try:
                 refresh_usaspending_award_summary(conn)
-                resolve_usaspending_agency_codes(conn)
+                resolve_usaspending_agency_codes(conn, load_id=load_id)
+                resolve_usaspending_fh_org_ids(conn, load_id=load_id)
             finally:
                 conn.close()
 

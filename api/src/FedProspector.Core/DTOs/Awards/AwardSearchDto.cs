@@ -25,4 +25,5 @@ public class AwardSearchDto
     public string? ExtentCompeted { get; set; }
     public string? Description { get; set; }
     public string? DataSource { get; set; }
+    public int? FhOrgId { get; set; }
 }

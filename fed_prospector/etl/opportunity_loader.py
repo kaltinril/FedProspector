@@ -49,6 +49,7 @@ _UPSERT_COLS = [
     "full_parent_path_name", "full_parent_path_code",
     "description_url", "link", "resource_links",
     "contracting_office_id",
+    "fh_org_id",
     "record_hash", "last_load_id",
 ]
 
@@ -83,6 +84,45 @@ class OpportunityLoader(StagingMixin):
         self.logger = logging.getLogger("fed_prospector.etl.opportunity_loader")
         self.change_detector = change_detector or ChangeDetector()
         self.load_manager = load_manager or LoadManager()
+        self._fh_org_cache = None  # Lazy-loaded in _get_fh_org_cache()
+
+    def _get_fh_org_cache(self):
+        """Build/return cached lookups for fh_org_id resolution.
+
+        Returns dict with:
+          'subtier': {agency_code -> fh_org_id} for Sub-Tier orgs
+          'dept':    {cgac -> fh_org_id} for Department/Ind. Agency level-1 orgs
+        """
+        if self._fh_org_cache is not None:
+            return self._fh_org_cache
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            # Sub-Tier: agency_code -> fh_org_id (unique per the plan)
+            cursor.execute(
+                "SELECT agency_code, fh_org_id FROM federal_organization "
+                "WHERE fh_org_type = 'Sub-Tier' AND agency_code IS NOT NULL"
+            )
+            subtier = {row[0]: row[1] for row in cursor.fetchall()}
+
+            # Department: cgac -> fh_org_id (level 1)
+            cursor.execute(
+                "SELECT cgac, MIN(fh_org_id) FROM federal_organization "
+                "WHERE fh_org_type = 'Department/Ind. Agency' AND level = 1 "
+                "AND cgac IS NOT NULL GROUP BY cgac"
+            )
+            dept = {row[0]: row[1] for row in cursor.fetchall()}
+        finally:
+            cursor.close()
+            conn.close()
+
+        self._fh_org_cache = {"subtier": subtier, "dept": dept}
+        self.logger.info(
+            "fh_org_id cache loaded: %d sub-tier, %d department codes",
+            len(subtier), len(dept),
+        )
+        return self._fh_org_cache
 
     # =================================================================
     # Public entry point
@@ -447,6 +487,14 @@ class OpportunityLoader(StagingMixin):
                 "officer_type": ((poc.get("type") or "").strip()[:50]) or None,
             })
 
+        # Resolve fh_org_id from cached federal_organization data
+        fh_org_id = None
+        cache = self._get_fh_org_cache()
+        if sub_tier_code:
+            fh_org_id = cache["subtier"].get(sub_tier_code)
+        if fh_org_id is None and department_cgac:
+            fh_org_id = cache["dept"].get(department_cgac)
+
         return {
             "notice_id":             raw.get("noticeId"),
             "title":                 raw.get("title"),
@@ -485,6 +533,7 @@ class OpportunityLoader(StagingMixin):
             "link":                  raw.get("uiLink"),
             "resource_links":        resource_links,
             "contracting_office_id": contracting_office_id,
+            "fh_org_id":             fh_org_id,
             "_pocs":                 pocs,
         }
 

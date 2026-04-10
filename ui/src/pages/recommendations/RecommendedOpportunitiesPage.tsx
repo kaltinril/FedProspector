@@ -143,7 +143,7 @@ function buildColumns(
       headerName: 'Agency',
       flex: 1,
       minWidth: 140,
-      renderCell: (params) => params.row.departmentName ? <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} /> : '--',
+      renderCell: (params) => params.row.departmentName ? <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} fhOrgId={params.row.fhOrgId} /> : '--',
     },
     {
       field: 'naicsCode',

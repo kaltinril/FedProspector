@@ -145,7 +145,8 @@ public partial class OpportunityService : IOpportunityService
                 PopCountry = o.PopCountry,
                 PopCountryName = cc != null ? cc.CountryName : o.PopCountry,
                 ProspectStatus = p != null ? p.Status : null,
-                AssignedUser = u != null ? u.DisplayName : null
+                AssignedUser = u != null ? u.DisplayName : null,
+                FhOrgId = o.FhOrgId
             };
 
         // Override sort if specified
@@ -377,6 +378,7 @@ public partial class OpportunityService : IOpportunityService
             ResourceLinks = opp.ResourceLinks,
             ResourceLinkDetails = ParseResourceLinks(opp.ResourceLinks),
             EstimatedContractValue = opp.EstimatedContractValue,
+            FhOrgId = opp.FhOrgId,
             SecurityClearanceRequired = opp.SecurityClearanceRequired,
             IncumbentUei = opp.IncumbentUei,
             IncumbentName = opp.IncumbentName,

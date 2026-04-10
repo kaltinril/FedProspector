@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
     fiscal_year              SMALLINT,
     fpds_enriched_at         DATETIME,
 
+    -- Resolved federal hierarchy org
+    fh_org_id                INT DEFAULT NULL,
+
     -- ETL metadata
     record_hash              CHAR(64),
     last_load_id             INT,
@@ -128,3 +131,14 @@ CREATE TABLE IF NOT EXISTS usaspending_load_checkpoint (
 -- DROP INDEX idx_usa_recipient_name ON usaspending_award;
 -- DROP INDEX idx_usa_modified ON usaspending_award;
 -- DROP INDEX idx_usa_enrich ON usaspending_award;
+
+-- =============================================================================
+-- Migration: Phase 115L Item 5 — fh_org_id resolution
+-- Run against existing databases.
+-- NOTE: 28.7M rows — ADD COLUMN is instant (metadata-only) in MySQL 8.0+.
+-- =============================================================================
+-- ALTER TABLE opportunity ADD COLUMN fh_org_id INT DEFAULT NULL;
+-- ALTER TABLE opportunity ADD INDEX idx_opp_fh_org (fh_org_id);
+-- ALTER TABLE fpds_contract ADD COLUMN fh_org_id INT DEFAULT NULL;
+-- ALTER TABLE fpds_contract ADD INDEX idx_fpds_fh_org (fh_org_id);
+-- ALTER TABLE usaspending_award ADD COLUMN fh_org_id INT DEFAULT NULL;

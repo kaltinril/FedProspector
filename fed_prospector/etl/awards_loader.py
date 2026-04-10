@@ -14,7 +14,7 @@ import logging
 from db.connection import get_connection
 from etl.batch_upsert import build_upsert_sql, executemany_upsert
 from etl.change_detector import ChangeDetector
-from etl.etl_utils import parse_date, parse_decimal
+from etl.etl_utils import parse_date, parse_decimal, resolve_fpds_fh_org_ids
 from etl.load_manager import LoadManager
 from etl.staging_mixin import StagingMixin
 
@@ -47,6 +47,7 @@ _UPSERT_COLS = [
     "reason_for_modification", "solicitation_number",
     "solicitation_date", "ultimate_completion_date",
     "type_of_contract_pricing", "co_bus_size_determination",
+    "fh_org_id",
     "record_hash", "last_load_id",
 ]
 
@@ -97,6 +98,49 @@ class AwardsLoader(StagingMixin):
         self.logger = logging.getLogger("fed_prospector.etl.awards_loader")
         self.change_detector = change_detector or ChangeDetector()
         self.load_manager = load_manager or LoadManager()
+        self._fh_org_cache = None  # Lazy-loaded
+
+    def _get_fh_org_cache(self):
+        """Build/return cached lookups for fh_org_id resolution.
+
+        Returns dict with:
+          'office': {oldfpds_office_code -> fh_org_id}
+          'dept':   {agency_code -> fh_org_id} for Department/Ind. Agency level-1
+        """
+        if self._fh_org_cache is not None:
+            return self._fh_org_cache
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            # oldfpds_office_code -> fh_org_id (MIN for deterministic dedup)
+            cursor.execute(
+                "SELECT oldfpds_office_code, MIN(fh_org_id) "
+                "FROM federal_organization "
+                "WHERE oldfpds_office_code IS NOT NULL "
+                "GROUP BY oldfpds_office_code"
+            )
+            office = {row[0]: row[1] for row in cursor.fetchall()}
+
+            # Department: agency_code -> fh_org_id (level 1)
+            cursor.execute(
+                "SELECT agency_code, MIN(fh_org_id) "
+                "FROM federal_organization "
+                "WHERE fh_org_type = 'Department/Ind. Agency' AND level = 1 "
+                "AND agency_code IS NOT NULL "
+                "GROUP BY agency_code"
+            )
+            dept = {row[0]: row[1] for row in cursor.fetchall()}
+        finally:
+            cursor.close()
+            conn.close()
+
+        self._fh_org_cache = {"office": office, "dept": dept}
+        self.logger.info(
+            "fh_org_id cache loaded: %d office codes, %d department codes",
+            len(office), len(dept),
+        )
+        return self._fh_org_cache
 
     # =================================================================
     # Public entry points
@@ -482,7 +526,29 @@ class AwardsLoader(StagingMixin):
                                         ),
             "type_of_contract_pricing": _s(contract_pricing.get("code")),
             "co_bus_size_determination": _s(co_biz_size),
+            "fh_org_id":                self._resolve_fh_org_id(
+                                            _s(contracting_office.get("code")),
+                                            _s(contracting_dept.get("code")),
+                                        ),
         }
+
+    def _resolve_fh_org_id(self, contracting_office_code, agency_id):
+        """Resolve fh_org_id from contracting office code or agency_id.
+
+        Args:
+            contracting_office_code: oldfpds_office_code (e.g. 'SPE7LX')
+            agency_id: department-level code (e.g. '9700')
+
+        Returns:
+            int fh_org_id or None
+        """
+        cache = self._get_fh_org_cache()
+        fh_org_id = None
+        if contracting_office_code:
+            fh_org_id = cache["office"].get(contracting_office_code)
+        if fh_org_id is None and agency_id:
+            fh_org_id = cache["dept"].get(agency_id)
+        return fh_org_id
 
     # =================================================================
     # Staging helpers

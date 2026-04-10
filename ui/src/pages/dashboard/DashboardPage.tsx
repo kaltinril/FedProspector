@@ -301,7 +301,7 @@ export default function DashboardPage() {
                   >
                     <ListItemText
                       primary={rec.title ?? rec.solicitationNumber ?? rec.noticeId}
-                      secondary={rec.departmentName ? <AgencyLink name={rec.departmentName} agencyCode={rec.contractingOfficeId ?? undefined} /> : undefined}
+                      secondary={rec.departmentName ? <AgencyLink name={rec.departmentName} agencyCode={rec.contractingOfficeId ?? undefined} fhOrgId={rec.fhOrgId} /> : undefined}
                       primaryTypographyProps={{ variant: 'body2', fontWeight: 500, noWrap: true }}
                       secondaryTypographyProps={{ variant: 'caption', noWrap: true, component: 'div' as const }}
                     />

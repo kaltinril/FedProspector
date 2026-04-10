@@ -351,7 +351,7 @@ export default function OpportunitySearchPage() {
         headerName: 'Department',
         width: 180,
         renderCell: (params) => (
-          <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} />
+          <AgencyLink name={params.row.departmentName} agencyCode={params.row.contractingOfficeId ?? undefined} fhOrgId={params.row.fhOrgId} />
         ),
         valueGetter: (_value, row) => row.departmentName ?? '--',
       },

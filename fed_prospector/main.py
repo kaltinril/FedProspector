@@ -48,7 +48,7 @@ Modules:
                           extract-identifiers, cross-ref-identifiers,
                           search-identifiers
     cli/normalize.py      labor-categories
-    cli/agencies.py       normalize-agencies, unresolved-agencies
+    cli/agencies.py       normalize-agencies, normalize-fh-orgs, unresolved-agencies
     cli/bls.py            load-bls
     cli/sca.py            load-sca
     cli/backfill.py       backfill-opportunity-intel, backfill-pocs
@@ -216,7 +216,7 @@ from cli.backfill import backfill_opportunity_intel, backfill_pocs
 from cli.normalize import normalize_labor_categories
 from cli.bls import load_bls
 from cli.sca import load_sca, update_sca_list
-from cli.agencies import normalize_agencies, unresolved_agencies
+from cli.agencies import normalize_agencies, unresolved_agencies, normalize_fh_orgs
 
 
 # ---------------------------------------------------------------------------
@@ -349,6 +349,7 @@ maintain.add_command(cleanup_attachment_files, name="attachment-files")
 maintain.add_command(migrate_dedup, name="migrate-dedup")
 maintain.add_command(migrate_files, name="migrate-files")
 maintain.add_command(normalize_agencies, name="normalize-agencies")
+maintain.add_command(normalize_fh_orgs, name="normalize-fh-orgs")
 
 # ---------------------------------------------------------------------------
 # normalize group commands

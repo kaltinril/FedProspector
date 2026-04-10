@@ -77,7 +77,7 @@ function buildColumns(navigate: ReturnType<typeof useNavigate>): GridColDef<Awar
       },
     },
     { field: 'vendorName', headerName: 'Vendor Name', flex: 1.2, minWidth: 150 },
-    { field: 'agencyName', headerName: 'Agency', flex: 1, minWidth: 140, renderCell: (params) => <AgencyLink name={params.row.agencyName} /> },
+    { field: 'agencyName', headerName: 'Agency', flex: 1, minWidth: 140, renderCell: (params) => <AgencyLink name={params.row.agencyName} fhOrgId={params.row.fhOrgId} /> },
     { field: 'naicsCode', headerName: 'NAICS', width: 100 },
     { field: 'setAsideType', headerName: 'Set-Aside', width: 120 },
     {

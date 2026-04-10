@@ -145,4 +145,7 @@ public class Opportunity
     public DateTime? LastLoadedAt { get; set; }
 
     public int? LastLoadId { get; set; }
+
+    [Column("fh_org_id")]
+    public int? FhOrgId { get; set; }
 }
