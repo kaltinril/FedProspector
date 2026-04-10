@@ -421,9 +421,9 @@ The `AgencyLink` UI component (used on ~16 call sites across 7 pages) fires a se
 
 | Source | Usable Join Path | Coverage | Notes |
 |--------|-----------------|----------|-------|
-| **opportunity** | `sub_tier_code` → `fed_org.agency_code` (Sub-Tier) | **83.5%** (49,960 rows) | Zero ambiguity. 142 codes all map to exactly 1 org. |
-| **opportunity** (fallback) | `department_cgac` → `fed_org.cgac` (Department level) | **+16.4%** (9,836 rows) | Coarser (dept level only). Filter `level=1` to avoid 14 ambiguous CGAC codes. |
-| **opportunity** (total) | Combined | **99.94%** | 33 rows unmatched (0.06%) |
+| **opportunity** | `sub_tier_code` → `fed_org.agency_code` (Sub-Tier) | **83.5%** (49,960 rows) | Zero ambiguity. 142 codes all map to exactly 1 org. Resolves to specific sub-tier office (e.g., "DLA AVIATION"). |
+| **opportunity** (fallback) | `department_cgac` → `fed_org.cgac` (Department level) | **+16.4%** (9,836 rows) | These are older records where SAM.gov API returned NULL `fullParentPathCode`, so no `sub_tier_code` exists. Also 32 records with single-segment paths where sub_tier_code == CGAC. Resolves to department (e.g., "DEPT OF DEFENSE") — coarser but still correct, and matches what the UI already displays for these records. |
+| **opportunity** (total) | Combined | **99.94%** | 33 rows unmatched (0.06%). **100% of records with `full_parent_path_code` resolve.** |
 | **usaspending_award** | `awarding_sub_agency_name` → `fed_org.fh_org_name` (Sub-Tier) | **93.5%** (26.9M rows) | 116 of 168 distinct names match exactly. |
 | **usaspending_award** (disambiguate) | Add `AND fed_org.cgac = ua.awarding_agency_cgac` | **+0.1%** | 5 ambiguous names (Office of Inspector General, etc.) all have different CGACs per org — CGAC tiebreaker resolves all. |
 | **usaspending_award** (alias table) | Static mapping for 47 unmatched names | **+6.3%** (1.8M rows) | Name format differences: "Department of the Navy" vs "DEPT OF THE NAVY", "Defense Health Agency" vs "DEFENSE HEALTH AGENCY (DHA)". A hand-built alias table of ~47 entries would push to ~100%. |
@@ -465,23 +465,78 @@ WHERE ua.fh_org_id IS NULL AND ua.awarding_sub_agency_name IS NOT NULL;
 -- "Defense Health Agency" → fh_org_id for "DEFENSE HEALTH AGENCY (DHA)"
 ```
 
-**FPDS (partial — accept lower coverage initially):**
+**FPDS (two-step — office then department fallback):**
 ```sql
 -- Step 1: oldfpds_office_code match (52.6%)
+-- 89 ambiguous codes have duplicate org entries (same office, multiple fh_org_ids).
+-- Use a subquery to pick one deterministically.
 UPDATE fpds_contract fc
-JOIN federal_organization fo ON fo.oldfpds_office_code = fc.contracting_office_id
-SET fc.fh_org_id = MIN(fo.fh_org_id)  -- dedup ambiguous via MIN
+JOIN (
+    SELECT oldfpds_office_code, MIN(fh_org_id) as fh_org_id
+    FROM federal_organization
+    WHERE oldfpds_office_code IS NOT NULL
+    GROUP BY oldfpds_office_code
+) fo ON fo.oldfpds_office_code = fc.contracting_office_id
+SET fc.fh_org_id = fo.fh_org_id
 WHERE fc.fh_org_id IS NULL AND fc.contracting_office_id IS NOT NULL;
 
--- Step 2: department-level fallback via agency_id (future work)
+-- Step 2: department-level fallback via agency_id (+47.4%)
+-- agency_id is a 4-digit sub-tier code (e.g., 9700=DoD, 4700=GSA).
+-- Maps to many orgs per code, so resolve to the SINGLE department-level org.
+UPDATE fpds_contract fc
+JOIN (
+    SELECT agency_code, MIN(fh_org_id) as fh_org_id
+    FROM federal_organization
+    WHERE fh_org_type = 'Department/Ind. Agency' AND level = 1
+    GROUP BY agency_code
+) fo ON fo.agency_code = fc.agency_id
+SET fc.fh_org_id = fo.fh_org_id
+WHERE fc.fh_org_id IS NULL AND fc.agency_id IS NOT NULL;
 ```
 
 #### UI Changes
 
-- Add `fhOrgId` (nullable int) to opportunity/award DTOs — project from DB column
-- `AgencyLink` accepts optional `fhOrgId` prop → renders direct `/hierarchy/{fhOrgId}` link, zero API calls
-- Keep `useOrgLookup` as fallback only for records where `fhOrgId` is NULL
-- Fix TS type: `fhOrgId` should be `number | null` (not string) to match DB INT type
+**AgencyLink component** (`ui/src/components/shared/AgencyLink.tsx`):
+- Add optional `fhOrgId?: number` prop to `AgencyLinkProps` interface
+- When `fhOrgId` is provided, render direct `<Link to={/hierarchy/${fhOrgId}}>` — no hook call
+- When `fhOrgId` is NULL/undefined, fall back to existing `useOrgLookup` behavior
+- Fix TS type inconsistency: frontend uses `fhOrgId: string` in types but DB is INT. Use `number | null`.
+
+**AgencyLink call sites (16 total across 7 pages)** — all need `fhOrgId` prop added:
+
+| Page | Lines | Context | Rows per page | Current props |
+|------|-------|---------|--------------|---------------|
+| `OpportunitySearchPage.tsx` | 332 | Department grid column | 25 | `name=departmentName, agencyCode=contractingOfficeId` |
+| `TargetOpportunityPage.tsx` | 270 | Department grid column | 25 | `name=departmentName, agencyCode=contractingOfficeId` |
+| `RecommendedOpportunitiesPage.tsx` | 146 | Agency grid column | 10-50 | `name=departmentName, agencyCode=contractingOfficeId` |
+| `AwardSearchPage.tsx` | 80 | Agency grid column | 25 | `name=agencyName` (no agencyCode!) |
+| `ExpiringContractsPage.tsx` | 148 | Agency grid column | 50-500 | `name=agencyName` (no agencyCode!) |
+| `DashboardPage.tsx` | 304 | Top recommendations | 5 | `name=departmentName, agencyCode=contractingOfficeId` |
+| `OpportunityDetailPage.tsx` | 1182 | Summary chip | 1 | `name=departmentName, agencyCode=contractingOfficeId` |
+| `ProspectDetailPage.tsx` | 179,180,743-745 | KeyFacts (dept/office/subtier) | 1 | `name=departmentName/office/subTier, agencyCode=contractingOfficeId` |
+| `AwardDetailPage.tsx` | 134,136,683,693 | Contract details + header | 1 | `name=various, agencyCode=contractingOfficeId/fundingAgencyId` |
+
+**DTOs that need `fhOrgId` added:**
+
+| DTO | File | Has dept/agency name? | Needs fhOrgId? |
+|-----|------|-----------------------|----------------|
+| `OpportunitySearchDto` | `DTOs/Opportunities/OpportunitySearchDto.cs` | `DepartmentName` ✓ | YES — grid column |
+| `OpportunityDetailDto` | `DTOs/Opportunities/OpportunityDetailDto.cs` | `DepartmentName` ✓ | YES — detail page |
+| `RecommendedOpportunityDto` | `DTOs/Intelligence/RecommendedOpportunityDtos.cs` | `DepartmentName` ✓ | YES — grid column |
+| `ProspectOpportunityDto` | `DTOs/Prospects/ProspectOpportunityDto.cs` | `DepartmentName` ✓ | YES — detail page |
+| `ProspectListDto` | `DTOs/Prospects/ProspectListDto.cs` | `DepartmentName` ✓ | YES — list |
+| `AwardSearchDto` | `DTOs/Awards/AwardSearchDto.cs` | `AgencyName` ✓ | YES — grid column |
+| `AwardDetailDto` | `DTOs/Awards/AwardDetailDto.cs` | `AgencyName` ✓ | YES — detail page |
+| `ExpiringContractDto` | via service projection | `AgencyName` ✓ | YES — grid column |
+
+**EF Core models already have the DB properties** (`Opportunity.DepartmentCgac`, `UsaspendingAward.AwardingAgencyCgac`). Add `FhOrgId` (nullable int) to `Opportunity`, `UsaspendingAward`, and `FpdsContract` models. Use `[Column("fh_org_id")]` attribute.
+
+**Service projections** — each service that creates the DTOs above needs to include `FhOrgId = o.FhOrgId` in its Select/projection. Key files:
+- `OpportunityService.cs` (SearchAsync, GetDetailAsync)
+- `RecommendedOpportunityService.cs` (GetRecommendedAsync, CalculateOqScoreAsync)
+- `ProspectService.cs` (SearchAsync, GetDetailAsync)
+- `AwardService.cs` (SearchAsync, GetDetailAsync — both FPDS and USASpending paths)
+- `ExpiringContractService.cs`
 
 #### Schema Changes
 
@@ -509,17 +564,42 @@ CREATE TABLE IF NOT EXISTS agency_name_alias (
 -- INSERT INTO agency_name_alias VALUES ('Defense Health Agency', <fh_org_id for DEFENSE HEALTH AGENCY (DHA)>);
 ```
 
+#### ETL Loader Integration
+
+After backfill, wire resolution into ongoing loads so new records get `fh_org_id` automatically:
+
+**Opportunity loader** (`fed_prospector/etl/opportunity_loader.py`):
+- During `_normalize_opportunity()`, after parsing `sub_tier_code` from `fullParentPathCode`, look up `fh_org_id` from a cached `{agency_code: fh_org_id}` dict built from `federal_organization` Sub-Tier rows.
+- Fallback to CGAC → department-level lookup.
+- Add `fh_org_id` to `_UPSERT_COLS` and `_OPPORTUNITY_HASH_FIELDS`.
+- Cache is small (~737 Sub-Tier codes + ~166 dept codes) — load once at loader init.
+
+**USASpending loaders** (`usaspending_bulk_loader.py` and `usaspending_loader.py`):
+- Add `resolve_usaspending_fh_org_ids(conn)` to `etl_utils.py` (similar pattern to `resolve_usaspending_agency_codes`).
+- Call after `resolve_usaspending_agency_codes()` in both loaders' post-load hooks.
+- Logic: query distinct `awarding_sub_agency_name` + `awarding_agency_cgac` combos with NULL `fh_org_id`, resolve via `federal_organization` join + alias table, per-name UPDATEs.
+
+**FPDS loader** (`fed_prospector/etl/fpds_loader.py`):
+- Post-load UPDATE using `oldfpds_office_code` join + `agency_id` fallback (same SQL as backfill).
+
+**DDL files to update:**
+- `fed_prospector/db/schema/tables/30_opportunity.sql` — add `fh_org_id` column
+- `fed_prospector/db/schema/tables/40_federal.sql` — add `fh_org_id` to `fpds_contract` CREATE TABLE
+- `fed_prospector/db/schema/tables/70_usaspending.sql` — add `fh_org_id` column
+
 #### Build Order
 
-1. Schema: Add `fh_org_id` columns to all 3 tables
-2. Build alias table for USASpending name variants (~47 entries)
-3. Backfill opportunity (fast — 60K rows, code-based joins)
-4. Backfill FPDS (fast — 226K rows, oldfpds_office_code join)
-5. Backfill USASpending (slow — 28.7M rows, per-name UPDATEs like CGAC approach)
-6. Wire into ETL loaders (resolve during load)
-7. Add fhOrgId to C# DTOs + service projections
-8. Update AgencyLink component
-9. Verify UI pages load without per-row lookups
+1. Schema: Add `fh_org_id` columns + indexes to all 3 tables (DDL + ALTER TABLE)
+2. Build alias table for USASpending name variants (~47 entries, query DB for actual fh_org_ids)
+3. Backfill opportunity (fast — 60K rows, 2-step code-based joins)
+4. Backfill FPDS (fast — 226K rows, oldfpds_office_code + agency_id fallback)
+5. Backfill USASpending (slow — 28.7M rows, sub-agency name match + alias table)
+6. Wire into ETL loaders (opportunity: resolve during load; USASpending/FPDS: post-load UPDATE)
+7. Add `FhOrgId` property to C# EF Core models (Opportunity, UsaspendingAward, FpdsContract)
+8. Add `fhOrgId` to C# DTOs + update service projections (8 DTOs, 5 services)
+9. Update `AgencyLink` component — accept `fhOrgId` prop, skip lookup when present
+10. Update all 16 AgencyLink call sites to pass `fhOrgId` from DTO data
+11. Verify UI pages load without per-row hierarchy API lookups
 
 #### Impact
 
