@@ -325,9 +325,9 @@ Top unresolved names (niche agencies not in federal_organization):
 
 ---
 
-### 1. Performance — HIGH PRIORITY: Cross-Table Joins Producing Wrong Results
+### 1. Performance — DONE (commit 52f6709): Cross-Table Agency Matching Fixed
 
-Three services are doing text-based agency matching that **silently fails** due to name format differences between SAM.gov and USASpending:
+Three services **were** doing text-based agency matching that silently failed. All fixed in commit `52f6709`:
 
 | Service | Line | What's Broken | Impact |
 |---------|------|---------------|--------|
@@ -335,12 +335,12 @@ Three services are doing text-based agency matching that **silently fails** due 
 | `RecommendedOpportunityService.cs` | 164, 203, 405 | `competitionLookup` keyed on `AgencyName`, looked up by `DepartmentName` | Opportunity scoring ignores agency-level competition data when names don't match |
 | `etl_utils.py` | 239-248 | `usaspending_award_summary` built with `GROUP BY awarding_agency_name` | Summary table uses text names as dimension key — lookups from opportunity side fail |
 
-**Fix required:**
-1. Change `usaspending_award_summary` schema: add `agency_cgac` column, change PK to `(naics_code, agency_cgac)`, keep `agency_name` for display
-2. Change `etl_utils.py` summary refresh to `GROUP BY awarding_agency_cgac`
-3. Change `AutoProspectService.cs:275` to compare CGAC codes
-4. Change `RecommendedOpportunityService.cs` competition lookup to key on CGAC codes
-5. Change `PWinService.cs:313-321,488-493` from `Contains()` string matching to CGAC comparison
+**All fixes applied:**
+1. ~~Change `usaspending_award_summary` schema~~ — DONE: PK is now `(naics_code, agency_cgac)`
+2. ~~Change `etl_utils.py` summary refresh~~ — DONE: `GROUP BY awarding_agency_cgac`
+3. ~~Change `AutoProspectService.cs:275`~~ — DONE: `DepartmentCgac == FundingAgencyCgac`
+4. ~~Change `RecommendedOpportunityService.cs` competition lookup~~ — DONE: keyed on `AgencyCgac`
+5. ~~Change `PWinService.cs`~~ — DONE: `DepartmentCgac == AgencyId` (exact match, not Contains)
 
 **Additional medium-priority fixes:**
 - `FederalHierarchyService.cs:315` — match opportunities to org hierarchy by CGAC instead of name list
@@ -352,7 +352,7 @@ Three services are doing text-based agency matching that **silently fails** due 
 
 ---
 
-### 2. Index Cleanup — Drop 4 Unused Indexes (~400-600 MB savings)
+### 2. Index Cleanup — DONE (commit 52f6709): Dropped 4 Indexes (~500 MB saved)
 
 Evaluation of all 15 indexes on `usaspending_award` (28.7M rows):
 
@@ -369,7 +369,7 @@ Evaluation of all 15 indexes on `usaspending_award` (28.7M rows):
 
 ---
 
-### 3. Auto-Resolve on USASpending Load
+### 3. Auto-Resolve on USASpending Load — DONE (commit 52f6709)
 
 Currently new bulk loads insert rows with NULL CGAC codes, requiring manual `maintain normalize-agencies`.
 
@@ -571,7 +571,7 @@ After backfill, wire resolution into ongoing loads so new records get `fh_org_id
 **Opportunity loader** (`fed_prospector/etl/opportunity_loader.py`):
 - During `_normalize_opportunity()`, after parsing `sub_tier_code` from `fullParentPathCode`, look up `fh_org_id` from a cached `{agency_code: fh_org_id}` dict built from `federal_organization` Sub-Tier rows.
 - Fallback to CGAC → department-level lookup.
-- Add `fh_org_id` to `_UPSERT_COLS` and `_OPPORTUNITY_HASH_FIELDS`.
+- Add `fh_org_id` to `_UPSERT_COLS` only. Do NOT add to `_OPPORTUNITY_HASH_FIELDS` — it's a derived/computed value, not source business data. Adding it would trigger false change detection on every load.
 - Cache is small (~737 Sub-Tier codes + ~166 dept codes) — load once at loader init.
 
 **USASpending loaders** (`usaspending_bulk_loader.py` and `usaspending_loader.py`):
@@ -587,13 +587,23 @@ After backfill, wire resolution into ongoing loads so new records get `fh_org_id
 - `fed_prospector/db/schema/tables/40_federal.sql` — add `fh_org_id` to `fpds_contract` CREATE TABLE
 - `fed_prospector/db/schema/tables/70_usaspending.sql` — add `fh_org_id` column
 
+#### Implementation Notes
+
+- **Do NOT add `fh_org_id` to hash fields** (`_OPPORTUNITY_HASH_FIELDS`, `_AWARD_HASH_FIELDS`). It's derived from `federal_organization`, not from the source API. Including it would cause false change detection and trigger full re-upserts on every load.
+- **Do NOT add an index on `usaspending_award.fh_org_id`** unless reverse-lookup queries are implemented. After initial backfill, NULL count drops to near-zero so ongoing post-load UPDATEs only touch new rows via the name index.
+- **USASpending backfill**: Use per-name UPDATE approach (same pattern as CGAC backfill in `cli/agencies.py`). Only ~168 distinct sub-agency names. Each UPDATE hits the existing `awarding_sub_agency_name` index. Commit after each name to avoid long transactions.
+- **USASpending CSV columns**: Check if bulk CSV includes `awarding_agency_code`/`funding_agency_code` by inspecting a downloaded CSV header. If present, map directly in `CSV_COLUMN_MAP` — but this only gives CGAC, not fh_org_id, so the post-load resolver is still needed.
+- **Agency alias table**: The 47 unmatched names were identified but actual `(source_name, fh_org_id)` pairs need to be queried from the DB during implementation. Query: find each unmatched `awarding_sub_agency_name`, then manually match to the correct `federal_organization` row by searching for similar names.
+- **4 unresolved agencies** (U.S. Agency for Global Media, Corps of Engineers - Civil Works, etc.): Leave unresolved. <0.2% of rows, niche agencies not in `federal_organization`.
+- **FederalHierarchyService name fallback** (lines 316-318): Keep permanently as a safety net for records without `fh_org_id`.
+
 #### Build Order
 
 1. Schema: Add `fh_org_id` columns + indexes to all 3 tables (DDL + ALTER TABLE)
 2. Build alias table for USASpending name variants (~47 entries, query DB for actual fh_org_ids)
 3. Backfill opportunity (fast — 60K rows, 2-step code-based joins)
 4. Backfill FPDS (fast — 226K rows, oldfpds_office_code + agency_id fallback)
-5. Backfill USASpending (slow — 28.7M rows, sub-agency name match + alias table)
+5. Backfill USASpending (28.7M rows — use per-name UPDATE approach like CGAC backfill. Only ~168 distinct sub-agency names, each UPDATE hits the existing name index. Do NOT use a single massive UPDATE ... JOIN.)
 6. Wire into ETL loaders (opportunity: resolve during load; USASpending/FPDS: post-load UPDATE)
 7. Add `FhOrgId` property to C# EF Core models (Opportunity, UsaspendingAward, FpdsContract)
 8. Add `fhOrgId` to C# DTOs + update service projections (8 DTOs, 5 services)
