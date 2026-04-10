@@ -587,6 +587,54 @@ After backfill, wire resolution into ongoing loads so new records get `fh_org_id
 - `fed_prospector/db/schema/tables/40_federal.sql` — add `fh_org_id` to `fpds_contract` CREATE TABLE
 - `fed_prospector/db/schema/tables/70_usaspending.sql` — add `fh_org_id` column
 
+#### Answers to Validation Questions (2026-04-09)
+
+**Q1: Have the ALTER TABLE statements been run for CGAC columns?**
+YES. All ALTERs executed successfully:
+- `opportunity`: `department_cgac VARCHAR(10)`, `sub_tier_code VARCHAR(20)` — added and backfilled (99.998% populated)
+- `usaspending_award`: `awarding_agency_cgac VARCHAR(10)`, `funding_agency_cgac VARCHAR(10)` — added and backfilled (99.97% / 99.85%)
+- `usaspending_award_summary`: `agency_cgac VARCHAR(10)` added, PK changed to `(naics_code, agency_cgac)`, table refreshed (15,338 rows)
+- 4 unused indexes dropped (`idx_usa_agency`, `idx_usa_recipient_name`, `idx_usa_modified`, `idx_usa_enrich`)
+- Schema drift check: 76 OK, 3 pre-existing drift (none from our changes)
+
+**Q2: The 47 USASpending alias entries — documented?**
+NEEDS RESEARCH at implementation time. The 47 unmatched names were identified but `(source_name, fh_org_id)` pairs were NOT built. Top examples:
+- "Department of the Navy" → needs mapping to fh_org_id for "DEPT OF THE NAVY" (Sub-Tier)
+- "Department of the Army" → "DEPT OF THE ARMY"
+- "Department of the Air Force" → "DEPT OF THE AIR FORCE"
+- "Defense Health Agency" → "DEFENSE HEALTH AGENCY (DHA)"
+- "Department of State" → "STATE, DEPARTMENT OF"
+Query to find each mapping:
+```sql
+SELECT fh_org_id, fh_org_name, fh_org_type, cgac
+FROM federal_organization
+WHERE fh_org_type = 'Sub-Tier' AND UPPER(fh_org_name) LIKE '%NAVY%'  -- adjust per name
+```
+
+**Q3: USASpending CSV column check — was it done?**
+NOT CHECKED. No CSV was inspected. The bulk loader logs unmapped columns at DEBUG level (~line 707 in `usaspending_bulk_loader.py`) — next bulk load with debug logging will answer. The post-load resolver is already wired in and works. CSV check is an optimization, not a blocker.
+
+**Q4: FederalHierarchyService.cs:315 — in scope?**
+ALREADY DONE. Commit `52f6709` added CGAC matching as primary condition with name fallback kept permanently as safety net. No further work needed.
+
+**Q5: The 16 AgencyLink call sites — accurate?**
+YES. Validated by agent review. Exact locations in the "UI Changes" table above. Grep `<AgencyLink` to confirm.
+
+**Q6: Opportunity fh_org_id backfill — validated?**
+YES, validated with live queries:
+- 154 distinct `sub_tier_code` values in opportunities with `full_parent_path_code`
+- 142 match exactly 1 Sub-Tier org (zero ambiguity, zero duplicates)
+- 12 are single-segment paths where `sub_tier_code == department_cgac` — correctly fall through to CGAC fallback
+- **100% of records with `full_parent_path_code` resolve**
+- 9,836 without paths get department-level resolution (coarser but matches what UI displays)
+- 33 total unmatched (0.06%)
+
+**Q7: FPDS 52.6% match rate — acceptable?**
+YES with department-level fallback. Step 1 = 52.6% at office specificity. Step 2 uses `agency_id` → department-level org for remaining 47.4%. Combined = ~100%. Loss is precision (department instead of office), not coverage.
+
+**Q8: Index strategy — combine with CGAC ALTERs?**
+No combining needed. CGAC ALTERs already done. `fh_org_id` is a new ALTER. Fast for opportunity (60K) and fpds_contract (226K). Skip index on usaspending_award (28.7M) — after backfill, NULL count is near-zero so ongoing post-load UPDATEs only touch new rows.
+
 #### Implementation Notes
 
 - **Do NOT add `fh_org_id` to hash fields** (`_OPPORTUNITY_HASH_FIELDS`, `_AWARD_HASH_FIELDS`). It's derived from `federal_organization`, not from the source API. Including it would cause false change detection and trigger full re-upserts on every load.
