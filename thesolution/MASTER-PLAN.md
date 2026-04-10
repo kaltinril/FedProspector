@@ -171,6 +171,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 170 | Full Document Viewer with Highlights | PLANNED | [170-FULL-DOCUMENT-VIEWER.md](phases/170-FULL-DOCUMENT-VIEWER.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
 | 300 | Comprehensive Review & Tech Debt Registry | PLANNED | [300-COMPREHENSIVE-REVIEW.md](phases/300-COMPREHENSIVE-REVIEW.md) |
+| 310 | Dependency Updates & Package Maintenance | PLANNED | [310-DEPENDENCY-UPDATES.md](phases/310-DEPENDENCY-UPDATES.md) |
 | 500 | Deferred Items | BACKLOG | [500-DEFERRED-ITEMS.md](phases/500-DEFERRED-ITEMS.md) |
 | 600 | Insane Optimizations | DEFERRED | [600-INSANE-OPTIMIZATIONS.md](phases/600-INSANE-OPTIMIZATIONS.md) |
 

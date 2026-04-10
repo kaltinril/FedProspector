@@ -407,6 +407,128 @@ Blocking dependencies:
 
 ---
 
+### 5. Resolve fh_org_id During ETL — Eliminate Per-Row UI Lookups
+
+#### The Problem
+
+The `AgencyLink` UI component (used on ~16 call sites across 7 pages) fires a separate `useOrgLookup()` API call **per row** to resolve a department text name → `fhOrgId` for a clickable `/hierarchy/:fhOrgId` link. A 25-row search grid triggers 25 extra `GET /api/v1/hierarchy` calls. The hierarchy detail page requires `fhOrgId` as a path parameter — no way to link by code or name directly.
+
+#### Critical Finding: Code Systems Don't Match As Expected
+
+**`contracting_office_id` is NOT a federal hierarchy code.** It contains AAC/DODAAC codes (e.g., `SPE7LX`, `N00104`, `W912DY`) which are a completely different code system from `federal_organization.agency_code` (e.g., `1700`, `97AS`, `0500`). The originally proposed `JOIN opportunity.contracting_office_id = federal_organization.agency_code` has a **99.5% failure rate**. Same problem for FPDS contracts.
+
+#### What Each Source Actually Has (Validated)
+
+| Source | Usable Join Path | Coverage | Notes |
+|--------|-----------------|----------|-------|
+| **opportunity** | `sub_tier_code` → `fed_org.agency_code` (Sub-Tier) | **83.5%** (49,960 rows) | Zero ambiguity. 142 codes all map to exactly 1 org. |
+| **opportunity** (fallback) | `department_cgac` → `fed_org.cgac` (Department level) | **+16.4%** (9,836 rows) | Coarser (dept level only). Filter `level=1` to avoid 14 ambiguous CGAC codes. |
+| **opportunity** (total) | Combined | **99.94%** | 33 rows unmatched (0.06%) |
+| **usaspending_award** | `awarding_sub_agency_name` → `fed_org.fh_org_name` (Sub-Tier) | **93.5%** (26.9M rows) | 116 of 168 distinct names match exactly. |
+| **usaspending_award** (disambiguate) | Add `AND fed_org.cgac = ua.awarding_agency_cgac` | **+0.1%** | 5 ambiguous names (Office of Inspector General, etc.) all have different CGACs per org — CGAC tiebreaker resolves all. |
+| **usaspending_award** (alias table) | Static mapping for 47 unmatched names | **+6.3%** (1.8M rows) | Name format differences: "Department of the Navy" vs "DEPT OF THE NAVY", "Defense Health Agency" vs "DEFENSE HEALTH AGENCY (DHA)". A hand-built alias table of ~47 entries would push to ~100%. |
+| **fpds_contract** | `contracting_office_id` → `fed_org.oldfpds_office_code` | **52.6%** (119K rows) | 814 exact + 89 ambiguous (resolvable via MIN). 830 newer office codes have no mapping. |
+| **fpds_contract** (fallback) | `agency_id` → dept-level `fed_org` | **+47.4%** | Coarser (dept level). `agency_id` is a 4-digit code that maps to department-level org. |
+
+#### Resolution Strategy
+
+**Opportunity (high accuracy — best ROI for UI):**
+```sql
+-- Step 1: sub_tier_code → Sub-Tier org (83.5% coverage, zero ambiguity)
+UPDATE opportunity o
+JOIN federal_organization fo ON fo.agency_code = o.sub_tier_code AND fo.fh_org_type = 'Sub-Tier'
+SET o.fh_org_id = fo.fh_org_id
+WHERE o.fh_org_id IS NULL AND o.sub_tier_code IS NOT NULL;
+
+-- Step 2: fallback to department CGAC (16.4% coverage)
+UPDATE opportunity o
+JOIN federal_organization fo ON fo.cgac = o.department_cgac 
+  AND fo.fh_org_type = 'Department/Ind. Agency' AND fo.level = 1
+SET o.fh_org_id = fo.fh_org_id
+WHERE o.fh_org_id IS NULL AND o.department_cgac IS NOT NULL;
+```
+
+**USASpending (name-based, needs alias table for full coverage):**
+```sql
+-- Step 1: Exact sub-agency name match + CGAC disambiguator (93.6%)
+UPDATE usaspending_award ua
+JOIN federal_organization fo 
+  ON UPPER(TRIM(ua.awarding_sub_agency_name)) = UPPER(TRIM(fo.fh_org_name))
+  AND fo.fh_org_type = 'Sub-Tier'
+  AND fo.cgac = ua.awarding_agency_cgac
+SET ua.fh_org_id = fo.fh_org_id
+WHERE ua.fh_org_id IS NULL AND ua.awarding_sub_agency_name IS NOT NULL;
+
+-- Step 2: Alias table for 47 unmatched names (+6.3%)
+-- Build a static agency_name_alias table mapping USASpending names to fh_org_ids
+-- "Department of the Navy" → fh_org_id for "DEPT OF THE NAVY"
+-- "Defense Health Agency" → fh_org_id for "DEFENSE HEALTH AGENCY (DHA)"
+```
+
+**FPDS (partial — accept lower coverage initially):**
+```sql
+-- Step 1: oldfpds_office_code match (52.6%)
+UPDATE fpds_contract fc
+JOIN federal_organization fo ON fo.oldfpds_office_code = fc.contracting_office_id
+SET fc.fh_org_id = MIN(fo.fh_org_id)  -- dedup ambiguous via MIN
+WHERE fc.fh_org_id IS NULL AND fc.contracting_office_id IS NOT NULL;
+
+-- Step 2: department-level fallback via agency_id (future work)
+```
+
+#### UI Changes
+
+- Add `fhOrgId` (nullable int) to opportunity/award DTOs — project from DB column
+- `AgencyLink` accepts optional `fhOrgId` prop → renders direct `/hierarchy/{fhOrgId}` link, zero API calls
+- Keep `useOrgLookup` as fallback only for records where `fhOrgId` is NULL
+- Fix TS type: `fhOrgId` should be `number | null` (not string) to match DB INT type
+
+#### Schema Changes
+
+```sql
+ALTER TABLE opportunity ADD COLUMN fh_org_id INT DEFAULT NULL;
+ALTER TABLE fpds_contract ADD COLUMN fh_org_id INT DEFAULT NULL;
+ALTER TABLE usaspending_award ADD COLUMN fh_org_id INT DEFAULT NULL;
+ALTER TABLE opportunity ADD INDEX idx_opp_fh_org (fh_org_id);
+ALTER TABLE fpds_contract ADD INDEX idx_fpds_fh_org (fh_org_id);
+-- USASpending index deferred unless needed for reverse-lookup queries
+```
+
+#### Additional Improvement: Agency Name Alias Table
+
+Create a small static table to map the 47 USASpending sub-agency name variants to fh_org_ids:
+
+```sql
+CREATE TABLE IF NOT EXISTS agency_name_alias (
+    source_name VARCHAR(255) NOT NULL,
+    fh_org_id INT NOT NULL,
+    PRIMARY KEY (source_name)
+);
+-- Populate with ~47 entries:
+-- INSERT INTO agency_name_alias VALUES ('Department of the Navy', <fh_org_id for DEPT OF THE NAVY>);
+-- INSERT INTO agency_name_alias VALUES ('Defense Health Agency', <fh_org_id for DEFENSE HEALTH AGENCY (DHA)>);
+```
+
+#### Build Order
+
+1. Schema: Add `fh_org_id` columns to all 3 tables
+2. Build alias table for USASpending name variants (~47 entries)
+3. Backfill opportunity (fast — 60K rows, code-based joins)
+4. Backfill FPDS (fast — 226K rows, oldfpds_office_code join)
+5. Backfill USASpending (slow — 28.7M rows, per-name UPDATEs like CGAC approach)
+6. Wire into ETL loaders (resolve during load)
+7. Add fhOrgId to C# DTOs + service projections
+8. Update AgencyLink component
+9. Verify UI pages load without per-row lookups
+
+#### Impact
+
+- Eliminates ~25+ API calls per page load on 7+ pages
+- AgencyLink becomes a pure link component — no hooks, no loading states, no API dependency
+- Resolution accuracy: ~99.9% opportunity, ~100% USASpending (with alias table), ~52.6% FPDS (with dept fallback ~100%)
+
+---
+
 ## Risks
 
 - `federal_organization` may not cover all agency names (especially sub-tier offices that use non-standard names)
