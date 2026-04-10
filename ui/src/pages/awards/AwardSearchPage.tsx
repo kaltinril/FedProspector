@@ -186,19 +186,33 @@ export default function AwardSearchPage() {
     setEditingValues(committedValues);
   }, [committedValues]);
 
-  const paginationModel: GridPaginationModel = useMemo(
-    () => ({
-      page: Number(searchParams.get('page') ?? 0),
-      pageSize: Number(searchParams.get('pageSize') ?? 25),
-    }),
-    [searchParams],
-  );
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>(() => ({
+    page: Number(searchParams.get('page') ?? 0),
+    pageSize: Number(searchParams.get('pageSize') ?? 25),
+  }));
 
-  const sortModel: GridSortModel = useMemo(() => {
+  const [sortModel, setSortModel] = useState<GridSortModel>(() => {
     const sortBy = searchParams.get('sortBy');
     const sortDesc = searchParams.get('sortDescending');
     if (!sortBy) return [];
     return [{ field: sortBy, sort: sortDesc === 'true' ? 'desc' : 'asc' }];
+  });
+
+  // Sync from URL on browser back/forward
+  useEffect(() => {
+    const urlPage = Number(searchParams.get('page') ?? 0);
+    const urlPageSize = Number(searchParams.get('pageSize') ?? 25);
+    setPaginationModel((prev) =>
+      prev.page === urlPage && prev.pageSize === urlPageSize ? prev : { page: urlPage, pageSize: urlPageSize },
+    );
+    const sortBy = searchParams.get('sortBy');
+    const sortDesc = searchParams.get('sortDescending');
+    const urlSort: GridSortModel = sortBy ? [{ field: sortBy, sort: sortDesc === 'true' ? 'desc' : 'asc' }] : [];
+    setSortModel((prev) => {
+      if (prev.length === 0 && urlSort.length === 0) return prev;
+      if (prev.length === 1 && urlSort.length === 1 && prev[0].field === urlSort[0].field && prev[0].sort === urlSort[0].sort) return prev;
+      return urlSort;
+    });
   }, [searchParams]);
 
   const apiParams = useMemo(
@@ -239,6 +253,7 @@ export default function AwardSearchPage() {
 
   const handlePaginationChange = useCallback(
     (model: GridPaginationModel) => {
+      setPaginationModel(model);
       const sp = filtersToSearchParams(committedValues);
       sp.page = String(model.page);
       sp.pageSize = String(model.pageSize);
@@ -253,8 +268,11 @@ export default function AwardSearchPage() {
 
   const handleSortChange = useCallback(
     (model: GridSortModel) => {
+      setSortModel(model);
+      const resetPage = { ...paginationModel, page: 0 };
+      setPaginationModel(resetPage);
       const sp = filtersToSearchParams(committedValues);
-      sp.page = String(paginationModel.page);
+      sp.page = '0';
       sp.pageSize = String(paginationModel.pageSize);
       if (model.length > 0) {
         sp.sortBy = model[0].field;

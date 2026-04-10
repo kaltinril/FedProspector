@@ -31,6 +31,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 3. **Follow the phase order**: Do not skip ahead unless told to.
 4. **Record data quality issues**: Document in relevant phase file under "Known Issues".
 5. **Never hardcode credentials**: Use `.env` + `python-dotenv`. See `thesolution/credentials.example.yml`.
+6. **Never modify live database data for testing**: Do not reset passwords, insert test rows, or alter user records to facilitate debugging. Ask the user to test, or verify via code/logs.
 6. **Prefer bulk extracts over API pagination**: SAM.gov rate limits are harsh.
 7. **Test with real data**: `workdir/converted/local database/` has reference CSVs.
 8. **Ignore OLD_ATTEMPTS and OLD_RESOURCES**: Relevant data already in `workdir/converted/`.

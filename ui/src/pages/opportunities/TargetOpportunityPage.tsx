@@ -115,18 +115,35 @@ export default function TargetOpportunityPage() {
     setEditingValues(committedValues);
   }, [committedValues]);
 
-  const paginationModel: GridPaginationModel = useMemo(() => ({
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>(() => ({
     page: Number(searchParams.get('page') ?? 0),
     pageSize: Number(searchParams.get('pageSize') ?? 25),
-  }), [searchParams]);
+  }));
 
-  const sortModel: GridSortModel = useMemo(() => {
+  const [sortModel, setSortModel] = useState<GridSortModel>(() => {
     const sortBy = searchParams.get('sortBy');
     const sortDesc = searchParams.get('sortDesc');
     if (sortBy) {
       return [{ field: sortBy, sort: sortDesc === 'true' ? 'desc' : 'asc' }];
     }
     return [];
+  });
+
+  // Sync from URL on browser back/forward
+  useEffect(() => {
+    const urlPage = Number(searchParams.get('page') ?? 0);
+    const urlPageSize = Number(searchParams.get('pageSize') ?? 25);
+    setPaginationModel((prev) =>
+      prev.page === urlPage && prev.pageSize === urlPageSize ? prev : { page: urlPage, pageSize: urlPageSize },
+    );
+    const sortBy = searchParams.get('sortBy');
+    const sortDesc = searchParams.get('sortDesc');
+    const urlSort: GridSortModel = sortBy ? [{ field: sortBy, sort: sortDesc === 'true' ? 'desc' : 'asc' }] : [];
+    setSortModel((prev) => {
+      if (prev.length === 0 && urlSort.length === 0) return prev;
+      if (prev.length === 1 && urlSort.length === 1 && prev[0].field === urlSort[0].field && prev[0].sort === urlSort[0].sort) return prev;
+      return urlSort;
+    });
   }, [searchParams]);
 
   // --- API params ---
@@ -214,6 +231,7 @@ export default function TargetOpportunityPage() {
 
   const handlePaginationChange = useCallback(
     (model: GridPaginationModel) => {
+      setPaginationModel(model);
       updateUrl(committedValues, model, sortModel);
     },
     [committedValues, sortModel, updateUrl],
@@ -221,7 +239,10 @@ export default function TargetOpportunityPage() {
 
   const handleSortChange = useCallback(
     (model: GridSortModel) => {
-      updateUrl(committedValues, { ...paginationModel, page: 0 }, model);
+      setSortModel(model);
+      const resetPage = { ...paginationModel, page: 0 };
+      setPaginationModel(resetPage);
+      updateUrl(committedValues, resetPage, model);
     },
     [committedValues, paginationModel, updateUrl],
   );
