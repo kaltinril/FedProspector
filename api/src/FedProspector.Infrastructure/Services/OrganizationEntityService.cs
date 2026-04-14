@@ -207,12 +207,8 @@ public class OrganizationEntityService : IOrganizationEntityService
             .Select(n => n.NaicsCode)
             .ToListAsync();
 
-        // Entity NAICS from all active linked entities
-        var linkedUeis = await _context.OrganizationEntities
-            .AsNoTracking()
-            .Where(oe => oe.OrganizationId == orgId && oe.IsActive == "Y")
-            .Select(oe => oe.UeiSam)
-            .ToListAsync();
+        // Entity NAICS from all active linked entities (including partner UEIs)
+        var linkedUeis = await GetLinkedUeisAsync(orgId);
 
         if (linkedUeis.Count > 0)
         {

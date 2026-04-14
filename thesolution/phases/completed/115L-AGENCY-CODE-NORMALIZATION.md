@@ -1,6 +1,6 @@
 # Phase 115L: Agency Code Normalization
 
-**Status:** IN PROGRESS — Code complete. ALTER TABLE pending (run when MySQL is available).
+**Status:** COMPLETE (2026-04-10) — fh_org_id resolution during ETL, agency_name_alias table (47 rows), AgencyLink UI component updated, backfill complete.
 **Priority:** HIGH -- cross-cutting data quality issue affecting pricing, scoring, market intel, and competitor analysis
 **Dependencies:** federal_organization table (already loaded via hierarchy)
 
