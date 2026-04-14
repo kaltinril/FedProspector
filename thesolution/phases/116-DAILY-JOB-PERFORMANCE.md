@@ -61,11 +61,20 @@ The Document Intelligence tab already reads from `sam_attachment` via `Attachmen
 
 | Issue | Step | Details |
 |-------|------|---------|
-| `award_number` too short | opportunities (1/16) | 223-char multi-award value rejected. Notice `58b0b8a1...` lost each run. |
-| 404 descriptions retried forever | fetch_descriptions (2/16) | 15 of 100 daily API calls wasted on permanently-404'd notice_ids with no failure tracking |
-| usaspending_award_summary slow | usaspending_bulk (3/16) | Full rebuild from 28.7M rows takes 372s even when only 8,112 rows changed |
-| 100ms sleep per HEAD request | link_metadata (8/16) | Unnecessary — SAM.gov HEAD requests have no rate limit per the code's own docstring |
-| Full table scan + Python JSON parse | link_metadata (8/16) | Scans all 22,151 rows and parses JSON in Python to find ~5,000 needing enrichment |
+| `award_number` too short | opportunities (1/17) | 223-char multi-award value rejected. Notice `58b0b8a1...` lost each run. |
+| 404 descriptions retried forever | fetch_descriptions (2/17) | 11 of 100 daily API calls wasted on permanently-404'd notice_ids with no failure tracking |
+| usaspending_award_summary slow | usaspending_bulk (3/17) | Full TRUNCATE+rebuild from 28.7M rows takes 380s even when only 14,985 rows changed |
+| No early-exit on unchanged pages | opportunities (1/17) | Pages 3-23 were 100% unchanged (22,000+ rows) but loader kept paginating. ~20 wasted API calls, ~30s wasted. |
+| 100ms sleep per HEAD request | link_metadata (8/17) | Unnecessary — SAM.gov HEAD requests have no rate limit per the code's own docstring |
+| Full table scan + Python JSON parse | link_metadata (8/17) | Scans all 22,151 rows and parses JSON in Python to find ~5,000 needing enrichment |
+
+### Finding 7: Opportunity pagination — full scan is intentional
+
+The opportunity loader paginated through all 24 pages (23,760 records) on 2026-04-13 even though most pages had no new data. Pages 2-23 were mostly unchanged, but page 8 had 4 inserts — SAM.gov does not guarantee strict newest-first ordering, so modified records can appear on any page.
+
+**Cost**: ~15 extra API calls (1.5% of 1,000/day budget), ~30 seconds. Both nominal.
+
+**Decision**: Full pagination is correct. An early-exit heuristic would risk missing mid-result-set updates for negligible savings.
 
 ## Design Principles
 
@@ -186,11 +195,16 @@ These principles address the root causes identified in the investigation. Each i
 - [ ] Skip notice_ids with 3+ consecutive 404s
 
 **5c: Optimize usaspending_award_summary refresh**
-- Profile the 372-second summary rebuild
-- Investigate incremental refresh or index improvements
-- `fed_prospector/etl/etl_utils.py`: summary refresh function
+- Profile the 380-second summary rebuild (TRUNCATE + full re-aggregate of 28.7M rows)
+- Investigate incremental refresh (only re-aggregate changed fiscal years) or index improvements
+- `fed_prospector/etl/etl_utils.py`: `refresh_usaspending_award_summary()` function
 - [ ] Profile summary refresh query
 - [ ] Implement optimization (target: under 60s for daily loads)
+
+**5d: ~~Early-exit on opportunity pagination~~ — DECLINED**
+- SAM.gov results are not strictly sorted by posted date. Modified records can appear on any page (e.g., page 8 had 4 inserts on 2026-04-13 while pages 2-7 were all unchanged). An early-exit heuristic would miss these mid-result-set updates.
+- The cost is ~15 extra API calls out of the 1,000/day budget (1.5%) and ~30 seconds — both nominal.
+- **Decision: keep full pagination. Data completeness > marginal speed savings.**
 
 ## Expected Impact
 
@@ -202,6 +216,7 @@ These principles address the root causes identified in the investigation. Each i
 | Skip/size transparency | None | Full — reason and size shown in UI |
 | Raw API data integrity | Overwritten daily | Never modified after load |
 | award_number data loss | 1+ records/run | 0 |
-| Wasted description API calls | ~15/day | 0 |
-| usaspending summary refresh | 372s | Target <60s |
-| **Total daily job time** | **75+ min (with timeout)** | **~10-15 min** |
+| Wasted description API calls | ~11/day | 0 |
+| usaspending summary refresh | 380s | Target <60s |
+| Opportunity pagination | ~20 extra API calls, ~30s | Kept as-is (data completeness) |
+| **Total daily job time** | **35-40 min (observed 2026-04-13)** | **~10-15 min** |
