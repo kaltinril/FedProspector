@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     place_of_performance_detail VARCHAR(200), -- Reserved: not in public Opportunities API v2 response
     estimated_contract_value DECIMAL(15,2), -- Reserved: not in public Opportunities API v2 response
     active               CHAR(1) DEFAULT 'Y',
-    award_number         VARCHAR(200),
+    award_number         VARCHAR(500),
     award_date           DATE,
     award_amount         DECIMAL(15,2),
     awardee_uei          VARCHAR(12),
@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     full_parent_path_code VARCHAR(200),
     description_url      VARCHAR(500),      -- URL to fetch description text via SAM.gov API
     description_text     LONGTEXT,          -- Cached description fetched from description_url
+    description_fetch_failures INT NOT NULL DEFAULT 0,  -- Count of consecutive 404/gone failures; stops retry at 3
     link                 VARCHAR(500),
     resource_links       JSON,
     contracting_office_id VARCHAR(20),
@@ -122,3 +123,9 @@ CREATE TABLE IF NOT EXISTS opportunity_relationship (
 -- ALTER TABLE opportunity ADD INDEX idx_opp_dept_cgac (department_cgac);
 -- ALTER TABLE opportunity ADD COLUMN fh_org_id INT DEFAULT NULL;
 -- ALTER TABLE opportunity ADD INDEX idx_opp_fh_org (fh_org_id);
+
+-- =============================================================================
+-- Migration: Phase 116 — Description fetch failure tracking
+-- Run against existing databases that already have the opportunity table.
+-- =============================================================================
+-- ALTER TABLE opportunity ADD COLUMN description_fetch_failures INT NOT NULL DEFAULT 0 AFTER description_text;

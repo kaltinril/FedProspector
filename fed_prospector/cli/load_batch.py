@@ -22,7 +22,6 @@ DAILY_SEQUENCE = [
     "usaspending_bulk",
     "awards",
     "calc_rates",
-    "link_metadata",
     "download_attachments",
     "extract_text",
     "attachment_intel",
@@ -95,11 +94,6 @@ def _get_daily_steps():
             "name": "calc_rates",
             "description": "Load CALC+ labor rates (skips if <30 days old)",
             "command": ["python", "main.py", "load", "labor-rates"],
-        },
-        {
-            "name": "link_metadata",
-            "description": "Enrich resource link metadata",
-            "command": ["python", "main.py", "update", "link-metadata"],
         },
         {
             "name": "download_attachments",
@@ -501,7 +495,7 @@ def load_daily(key, skip, dry_run):
       4. awards_8a            Load awards - 8(a) set-aside
       5. awards_wosb          Load awards - WOSB set-aside
       6. awards_sba           Load awards - SBA set-aside
-      7. link_metadata        Enrich resource link metadata
+      7. calc_rates           Load CALC+ labor rates
       8. download_attachments Download attachments
       9. extract_text         Extract text from attachments
      10. attachment_intel     Keyword intel from attachment text

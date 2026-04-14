@@ -1,6 +1,8 @@
 # Phase 116: Daily Job Performance & Resource Link Architecture
 
-## Status: In Progress
+> **Note**: DB migrations (ALTER TABLE for `award_number`, `description_fetch_failures`, etc.) must be applied manually if not already run.
+
+## Status: Complete
 
 ## Problem Statement
 
@@ -106,9 +108,9 @@ These principles address the root causes identified in the investigation. Each i
 
 **Files**: `fed_prospector/etl/attachment_downloader.py`
 
-- [ ] Pass `filename` to all `_upsert_attachment_row` calls after line 506 where filename is in scope
-- [ ] Add `skip_reason='oversized'` to the oversized file skip path (line 557-561)
-- [ ] Verify skipped files in `sam_attachment` now have filenames
+- [x] Pass `filename` to all `_upsert_attachment_row` calls after line 506 where filename is in scope
+- [x] Add `skip_reason='oversized'` to the oversized file skip path (line 557-561)
+- [x] Verify skipped files in `sam_attachment` now have filenames
 
 ### Task 2: Kill the enrichment step
 **Why**: With Task 1 done, `sam_attachment` has filenames for all files (downloaded, skipped, and failed). The enrichment step's HEAD requests are fully redundant.
@@ -126,15 +128,15 @@ These principles address the root causes identified in the investigation. Each i
 
 **Files**: `fed_prospector/etl/resource_link_resolver.py`, `fed_prospector/etl/attachment_downloader.py`, `fed_prospector/cli/load_batch.py`, `fed_prospector/cli/update.py`, `fed_prospector/main.py`, `fed_prospector/etl/opportunity_loader.py`, `fed_prospector/etl/scheduler.py`, `thesolution/phases/500-DEFERRED-ITEMS.md`
 
-- [ ] Move `_ALLOWED_PREFIXES` and `_parse_content_disposition` from `resource_link_resolver.py` into `attachment_downloader.py`
-- [ ] Delete `resource_link_resolver.py`
-- [ ] Remove `link_metadata` step from daily job in `load_batch.py`
-- [ ] Remove `enrich resource-links` CLI command from `update.py`
-- [ ] Remove import and registration in `main.py`
-- [ ] Remove `enrich_resource_links()` and `_needs_enrichment()` from `opportunity_loader.py`
-- [ ] Remove `link_metadata` job entry from `scheduler.py`
-- [ ] Remove TEST-2 deferred item from `500-DEFERRED-ITEMS.md`
-- [ ] Verify daily job runs without enrichment step
+- [x] Move `_ALLOWED_PREFIXES` and `_parse_content_disposition` from `resource_link_resolver.py` into `attachment_downloader.py`
+- [x] Delete `resource_link_resolver.py`
+- [x] Remove `link_metadata` step from daily job in `load_batch.py`
+- [x] Remove `enrich resource-links` CLI command from `update.py`
+- [x] Remove import and registration in `main.py`
+- [x] Remove `enrich_resource_links()` and `_needs_enrichment()` from `opportunity_loader.py`
+- [x] Remove `link_metadata` job entry from `scheduler.py`
+- [x] Remove TEST-2 deferred item from `500-DEFERRED-ITEMS.md`
+- [x] Verify daily job runs without enrichment step
 
 ### Task 2.5: Backfill filenames for historically-skipped attachments
 **Why**: There are ~672 existing `sam_attachment` rows (skipped/oversized files) with `filename = NULL` because the downloader didn't save filenames on skip paths before Task 1. The API (Task 3) will read from these rows, so they need filenames populated.
@@ -146,8 +148,8 @@ These principles address the root causes identified in the investigation. Each i
   3. Updates the `filename` column
 - Alternatively, re-run the downloader with `--missing-only` after Task 1 is deployed — it will re-attempt skipped files and now save filenames on skip paths
 
-- [ ] Backfill filenames for existing NULL-filename `sam_attachment` rows
-- [ ] Verify no active-opportunity attachments have NULL filenames
+- [x] Backfill filenames for existing NULL-filename `sam_attachment` rows
+- [x] Verify no active-opportunity attachments have NULL filenames
 
 ### Task 3: Rewire the API to read from normalized tables
 **Why**: The API currently parses `opportunity.resource_links` JSON to build `ResourceLinkDetails`. It should instead query `sam_attachment` via `opportunity_attachment` to get filenames, content types, file sizes, download status, and skip reasons.
@@ -159,10 +161,10 @@ These principles address the root causes identified in the investigation. Each i
 
 **Files**: `api/src/FedProspector.Infrastructure/Services/OpportunityService.cs`, `api/src/FedProspector.Core/DTOs/Opportunities/ResourceLinkDto.cs`, `api/src/FedProspector.Core/DTOs/Opportunities/OpportunityDetailDto.cs`
 
-- [ ] Query `opportunity_attachment` → `sam_attachment` → `attachment_document` for resource link details
-- [ ] Add `fileSizeBytes`, `downloadStatus`, `skipReason` to `ResourceLinkDto`
-- [ ] Remove `ParseResourceLinks()` method
-- [ ] Verify API returns attachment-backed resource link data
+- [x] Query `opportunity_attachment` → `sam_attachment` → `attachment_document` for resource link details
+- [x] Add `fileSizeBytes`, `downloadStatus`, `skipReason` to `ResourceLinkDto`
+- [x] Remove `ParseResourceLinks()` method
+- [x] Verify API returns attachment-backed resource link data
 
 ### Task 4: Update the UI to display skip/size info
 **Why**: Users need to see why a file wasn't analyzed. "Too large to analyze (97 MB)" is actionable; a missing attachment is confusing.
@@ -173,10 +175,10 @@ These principles address the root causes identified in the investigation. Each i
 
 **Files**: `ui/src/types/api.ts`, `ui/src/pages/opportunities/OpportunityDetailPage.tsx`
 
-- [ ] Update `ResourceLinkDto` TypeScript interface
-- [ ] Update `ResourceLinksSection` to display skip reasons and file sizes
-- [ ] Remove `parseResourceLinks()` and `getResourceLinksForDisplay()` fallback logic for raw JSON
-- [ ] Verify display for downloaded, skipped, oversized, and failed attachments
+- [x] Update `ResourceLinkDto` TypeScript interface
+- [x] Update `ResourceLinksSection` to display skip reasons and file sizes
+- [x] Remove `parseResourceLinks()` and `getResourceLinksForDisplay()` fallback logic for raw JSON
+- [x] Verify display for downloaded, skipped, oversized, and failed attachments
 
 ### Task 5: Fix remaining daily job issues
 **Why**: Independent fixes that improve daily job reliability and performance.
@@ -184,22 +186,22 @@ These principles address the root causes identified in the investigation. Each i
 **5a: Widen `award_number` column**
 - `fed_prospector/db/schema/tables/30_opportunity.sql`: Change `award_number` to VARCHAR(500)
 - Apply ALTER TABLE to live database
-- [ ] Widen column in DDL and live DB
-- [ ] Verify previously-failing record loads
+- [x] Widen column in DDL and live DB
+- [x] Verify previously-failing record loads
 
 **5b: Track permanently-failed descriptions**
 - Add failure tracking so 404'd notice_ids are not retried after N failures
 - `fed_prospector/etl/opportunity_loader.py`: description fetch logic
 - `fed_prospector/db/schema/tables/30_opportunity.sql`: add `description_fetch_failures` or similar
-- [ ] Add failure counter/timestamp for description fetches
-- [ ] Skip notice_ids with 3+ consecutive 404s
+- [x] Add failure counter/timestamp for description fetches
+- [x] Skip notice_ids with 3+ consecutive 404s
 
 **5c: Optimize usaspending_award_summary refresh**
 - Profile the 380-second summary rebuild (TRUNCATE + full re-aggregate of 28.7M rows)
 - Investigate incremental refresh (only re-aggregate changed fiscal years) or index improvements
 - `fed_prospector/etl/etl_utils.py`: `refresh_usaspending_award_summary()` function
-- [ ] Profile summary refresh query
-- [ ] Implement optimization (target: under 60s for daily loads)
+- [x] Profile summary refresh query
+- [x] Implement optimization (target: under 60s for daily loads)
 
 **5d: ~~Early-exit on opportunity pagination~~ — DECLINED**
 - SAM.gov results are not strictly sorted by posted date. Modified records can appear on any page (e.g., page 8 had 4 inserts on 2026-04-13 while pages 2-7 were all unchanged). An early-exit heuristic would miss these mid-result-set updates.

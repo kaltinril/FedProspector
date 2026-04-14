@@ -342,10 +342,9 @@ Implemented as `_check_and_rebuild_indexes()` in `USASpendingBulkLoader`. Runs o
 |---|-------|
 | API-15 | 8 intelligence services missing unit tests (CompanyProfileService, ExpiringContractService, MarketIntelService, OrganizationEntityService, PWinService, QualificationService, RecommendedOpportunityService, AutoProspectService) |
 | TEST-1 | `etl/demand_loader.py` has no tests |
-| TEST-2 | `etl/resource_link_resolver.py` has no tests |
 | TEST-3 | CLI: `calc`, `fedhier`, `spending`, `exclusions`, `subaward` commands not covered |
 | TEST-4 | CLI: All 8 admin commands have no tests |
-| TEST-5 | CLI: `update` commands (link-metadata, fetch-descriptions, build-relationships) no tests |
+| TEST-5 | CLI: `update` commands (fetch-descriptions, build-relationships) no tests |
 | TEST-6 | CLI: `job` process-requests no tests |
 | TEST-9 | Pre-existing test failure: `test_all_valid_note_types_accepted[STATUS_CHANGE]` |
 

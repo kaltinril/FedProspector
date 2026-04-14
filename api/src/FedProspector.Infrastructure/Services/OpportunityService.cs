@@ -332,6 +332,28 @@ public partial class OpportunityService : IOpportunityService
                 .ToListAsync();
         }
 
+        // Resource links from normalized attachment tables
+        var resourceLinkDetails = await _context.OpportunityAttachments.AsNoTracking()
+            .Where(oa => oa.NoticeId == noticeId)
+            .Join(_context.SamAttachments.AsNoTracking(),
+                oa => oa.AttachmentId,
+                sa => sa.AttachmentId,
+                (oa, sa) => new { oa, sa })
+            .GroupJoin(_context.AttachmentDocuments.AsNoTracking(),
+                x => x.sa.AttachmentId,
+                ad => ad.AttachmentId,
+                (x, docs) => new { x.oa, x.sa, Doc = docs.FirstOrDefault() })
+            .Select(x => new ResourceLinkDto
+            {
+                Url = x.oa.Url,
+                Filename = x.Doc != null ? x.Doc.Filename : x.sa.Filename,
+                ContentType = x.Doc != null ? x.Doc.ContentType : null,
+                FileSizeBytes = x.sa.FileSizeBytes,
+                DownloadStatus = x.sa.DownloadStatus,
+                SkipReason = x.sa.SkipReason
+            })
+            .ToListAsync();
+
         return new OpportunityDetailDto
         {
             NoticeId = opp.NoticeId,
@@ -376,7 +398,7 @@ public partial class OpportunityService : IOpportunityService
             DescriptionText = opp.DescriptionText,
             Link = NormalizeSamGovLink(opp.Link),
             ResourceLinks = opp.ResourceLinks,
-            ResourceLinkDetails = ParseResourceLinks(opp.ResourceLinks),
+            ResourceLinkDetails = resourceLinkDetails,
             EstimatedContractValue = opp.EstimatedContractValue,
             FhOrgId = opp.FhOrgId,
             SecurityClearanceRequired = opp.SecurityClearanceRequired,
@@ -719,45 +741,6 @@ public partial class OpportunityService : IOpportunityService
         return text;
     }
 
-    /// <summary>
-    /// Parses the resource_links JSON column into structured DTOs.
-    /// Handles both old format (array of URL strings) and new format (array of objects with url/filename/content_type).
-    /// </summary>
-    private static List<ResourceLinkDto> ParseResourceLinks(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return [];
-
-        try
-        {
-            using var doc = JsonDocument.Parse(json);
-            var result = new List<ResourceLinkDto>();
-
-            foreach (var element in doc.RootElement.EnumerateArray())
-            {
-                if (element.ValueKind == JsonValueKind.String)
-                {
-                    // Old format: plain URL string
-                    result.Add(new ResourceLinkDto { Url = element.GetString() ?? string.Empty });
-                }
-                else if (element.ValueKind == JsonValueKind.Object)
-                {
-                    // New format: object with url, filename, content_type
-                    result.Add(new ResourceLinkDto
-                    {
-                        Url = element.TryGetProperty("url", out var urlProp) ? urlProp.GetString() ?? string.Empty : string.Empty,
-                        Filename = element.TryGetProperty("filename", out var fProp) ? fProp.GetString() : null,
-                        ContentType = element.TryGetProperty("content_type", out var ctProp) ? ctProp.GetString() : null
-                    });
-                }
-            }
-
-            return result;
-        }
-        catch (JsonException)
-        {
-            return [];
-        }
-    }
 
     /// <summary>
     /// Escapes LIKE special characters (%, _, \) so user input is treated as literals.

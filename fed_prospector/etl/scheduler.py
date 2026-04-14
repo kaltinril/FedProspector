@@ -186,17 +186,6 @@ JOBS = {
         "catchup_safe": True,
         "estimated_api_calls": 0,
     },
-    "link_metadata": {
-        "description": "Enrich resource link metadata (filenames, content types)",
-        "command": ["python", "main.py", "update", "link-metadata"],
-        "source_system": "SAM_ATTACHMENT",
-        "schedule": "Daily after opportunities",
-        "staleness_hours": 48,
-        "daily_freshness_hours": 20,
-        "priority": "Medium",
-        "catchup_safe": True,
-        "estimated_api_calls": 0,
-    },
     "download_attachments": {
         "description": "Download attachment files from SAM.gov",
         "command": ["python", "main.py", "download", "attachments", "--missing-only", "--active-only", "--batch-size", "5000"],

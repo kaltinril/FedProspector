@@ -796,6 +796,8 @@ class OpportunityLoader(StagingMixin):
         """Raised when SAM.gov returns 429 Too Many Requests."""
         pass
 
+    _NOT_FOUND = object()  # Sentinel for permanent 404/410 responses
+
     def fetch_description_text(self, description_url, api_key_number=2):
         """Fetch description text from a SAM.gov description URL.
 
@@ -808,7 +810,8 @@ class OpportunityLoader(StagingMixin):
             api_key_number: Which API key to use (1=free 10/day, 2=1000/day).
 
         Returns:
-            str: The description text (HTML), or None on failure.
+            str: The description text (HTML), _NOT_FOUND on 404/410, or None
+            on transient failure.
         """
         import requests as req
         from config import settings
@@ -835,6 +838,8 @@ class OpportunityLoader(StagingMixin):
                 raise self.RateLimitError(
                     f"SAM.gov rate limit (429) hit fetching {description_url}"
                 )
+            if resp.status_code in (404, 410):
+                return self._NOT_FOUND
             resp.raise_for_status()
             data = resp.json()
             return data.get("description")
@@ -876,15 +881,25 @@ class OpportunityLoader(StagingMixin):
                 text = self.fetch_description_text(
                     row["description_url"], api_key_number=api_key_number,
                 )
-                if text:
+                if text is self._NOT_FOUND:
                     cursor.execute(
-                        "UPDATE opportunity SET description_text = %s "
+                        "UPDATE opportunity "
+                        "SET description_text = '', "
+                        "    description_fetch_failures = description_fetch_failures + 1 "
+                        "WHERE notice_id = %s",
+                        (row["notice_id"],),
+                    )
+                    stats["failed"] += 1
+                elif text:
+                    cursor.execute(
+                        "UPDATE opportunity SET description_text = %s, "
+                        "    description_fetch_failures = 0 "
                         "WHERE notice_id = %s",
                         (text, row["notice_id"]),
                     )
                     stats["fetched"] += 1
                 else:
-                    # Mark as empty string so --missing-only won't retry
+                    # Transient failure (None) — mark empty so --missing-only won't retry immediately
                     cursor.execute(
                         "UPDATE opportunity SET description_text = '' "
                         "WHERE notice_id = %s",
@@ -906,7 +921,6 @@ class OpportunityLoader(StagingMixin):
                     "Error fetching description for %s: %s",
                     row["notice_id"], exc,
                 )
-                # Mark as empty string so --missing-only won't retry
                 cursor.execute(
                     "UPDATE opportunity SET description_text = '' "
                     "WHERE notice_id = %s",
@@ -1002,7 +1016,8 @@ class OpportunityLoader(StagingMixin):
                 # Priority gets up to half the limit; no days_back filter,
                 # but only active opportunities (response_deadline >= today).
                 priority_limit = limit // 2 if limit else None
-                conditions = ["description_url IS NOT NULL"]
+                conditions = ["description_url IS NOT NULL",
+                              "description_fetch_failures < 3"]
                 params = []
                 if missing_only:
                     conditions.append("description_text IS NULL")
@@ -1057,7 +1072,8 @@ class OpportunityLoader(StagingMixin):
                             )
 
                     if remaining is None or remaining > 0:
-                        conditions2 = ["description_url IS NOT NULL"]
+                        conditions2 = ["description_url IS NOT NULL",
+                                       "description_fetch_failures < 3"]
                         params2 = []
                         if missing_only:
                             conditions2.append("description_text IS NULL")
@@ -1109,7 +1125,8 @@ class OpportunityLoader(StagingMixin):
 
             else:
                 # --- General pass (no priority filters) ---
-                conditions = ["description_url IS NOT NULL"]
+                conditions = ["description_url IS NOT NULL",
+                              "description_fetch_failures < 3"]
                 params = []
                 if missing_only:
                     conditions.append("description_text IS NULL")
@@ -1145,137 +1162,6 @@ class OpportunityLoader(StagingMixin):
             stats["priority_fetched"],
         )
         return stats
-
-    # =================================================================
-    # Resource link metadata enrichment
-    # =================================================================
-
-    def enrich_resource_links(self, notice_ids=None, batch_size=100):
-        """Enrich resource_links JSON with filename/content_type metadata.
-
-        Finds opportunities whose resource_links contain plain URL strings
-        (not yet enriched objects) and HEAD-requests SAM.gov to resolve
-        filenames and content types.
-
-        Args:
-            notice_ids: Optional list of notice_ids to process. If None,
-                        processes all un-enriched opportunities.
-            batch_size: Number of opportunities to process per batch.
-
-        Returns:
-            dict with keys: opportunities_enriched, links_resolved
-        """
-        from etl.resource_link_resolver import resolve_resource_links
-
-        conn = get_connection()
-        cursor = conn.cursor(dictionary=True)
-
-        stats = {"opportunities_enriched": 0, "links_resolved": 0}
-
-        try:
-            # Find opportunities needing enrichment
-            if notice_ids:
-                placeholders = ", ".join(["%s"] * len(notice_ids))
-                sql = (
-                    f"SELECT notice_id, resource_links FROM opportunity "
-                    f"WHERE notice_id IN ({placeholders}) "
-                    f"AND resource_links IS NOT NULL"
-                )
-                cursor.execute(sql, notice_ids)
-            else:
-                sql = (
-                    "SELECT notice_id, resource_links FROM opportunity "
-                    "WHERE resource_links IS NOT NULL"
-                )
-                cursor.execute(sql)
-
-            rows = cursor.fetchall()
-            total = len(rows)
-            self.logger.info("Found %d opportunities with resource_links to check", total)
-
-            # Filter to only those needing enrichment
-            to_enrich = []
-            for row in rows:
-                if self._needs_enrichment(row["resource_links"]):
-                    to_enrich.append(row)
-
-            self.logger.info(
-                "%d of %d opportunities need resource link enrichment",
-                len(to_enrich), total,
-            )
-
-            # Process in batches
-            for i in range(0, len(to_enrich), batch_size):
-                batch = to_enrich[i : i + batch_size]
-                batch_links = 0
-
-                for row in batch:
-                    try:
-                        urls = json.loads(row["resource_links"])
-                        if not urls:
-                            continue
-
-                        enriched = resolve_resource_links(urls)
-                        enriched_json = json.dumps(enriched)
-
-                        cursor.execute(
-                            "UPDATE opportunity SET resource_links = %s WHERE notice_id = %s",
-                            (enriched_json, row["notice_id"]),
-                        )
-                        stats["opportunities_enriched"] += 1
-                        resolved_count = sum(1 for e in enriched if e.get("filename"))
-                        stats["links_resolved"] += resolved_count
-                        batch_links += len(urls)
-                    except Exception as exc:
-                        self.logger.warning(
-                            "Error enriching resource links for %s: %s",
-                            row["notice_id"], exc,
-                        )
-
-                conn.commit()
-                self.logger.info(
-                    "Enriched %d/%d opportunities (%d links resolved)",
-                    stats["opportunities_enriched"],
-                    len(to_enrich),
-                    stats["links_resolved"],
-                )
-
-                # Pause between batches to avoid overwhelming SAM.gov
-                if i + batch_size < len(to_enrich):
-                    import time
-                    time.sleep(0.5)
-
-        finally:
-            cursor.close()
-            conn.close()
-
-        return stats
-
-    @staticmethod
-    def _needs_enrichment(resource_links_json):
-        """Check if resource_links JSON needs enrichment.
-
-        Returns True if the JSON is an array of strings (old format).
-        Returns False if it's an array of dicts with "url" key (already enriched),
-        or if parsing fails / empty.
-        """
-        try:
-            data = json.loads(resource_links_json)
-        except (json.JSONDecodeError, TypeError):
-            return False
-
-        if not isinstance(data, list) or not data:
-            return False
-
-        # If first element is a string, needs enrichment
-        # If first element is a dict with "url" key, already enriched
-        first = data[0]
-        if isinstance(first, str):
-            return True
-        if isinstance(first, dict) and "url" in first:
-            return False
-
-        return False
 
     # =================================================================
     # Opportunity relationship detection

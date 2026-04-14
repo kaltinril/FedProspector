@@ -110,6 +110,9 @@ export interface ResourceLinkDto {
   url: string;
   filename: string | null;
   contentType: string | null;
+  fileSizeBytes?: number | null;
+  downloadStatus?: string | null;
+  skipReason?: string | null;
 }
 
 export interface RelatedAwardDto {

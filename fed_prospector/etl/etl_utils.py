@@ -225,39 +225,38 @@ def refresh_usaspending_award_summary(conn):
     Pre-computes vendor count, contract count, and total value per
     NAICS+agency combination for sub-millisecond scoring lookups.
     Called after usaspending and awards loads.
+
+    Uses WITH ROLLUP to produce both agency-level and NAICS-level totals
+    in a single table scan (Phase 116 optimization).  Requires covering
+    index ``idx_usa_summary_cover`` for index-only scan performance.
     """
     logger.info("Refreshing usaspending_award_summary...")
     t0 = time.time()
 
     cursor = conn.cursor()
     cursor.execute("TRUNCATE TABLE usaspending_award_summary")
-    cursor.execute("""
-        INSERT INTO usaspending_award_summary
-            (naics_code, agency_cgac, agency_name, vendor_count, contract_count, total_value, computed_at)
-        SELECT
-            naics_code,
-            awarding_agency_cgac,
-            MAX(awarding_agency_name),
-            COUNT(DISTINCT recipient_uei),
-            COUNT(*),
-            COALESCE(SUM(total_obligation), 0),
-            NOW()
-        FROM usaspending_award
-        WHERE naics_code IS NOT NULL
-          AND awarding_agency_cgac IS NOT NULL
-          AND recipient_uei IS NOT NULL
-        GROUP BY naics_code, awarding_agency_cgac
-    """)
-    row_count = cursor.rowcount
 
-    # Add NAICS-level totals with true distinct vendor count (agency_cgac = '*')
+    # Single-pass aggregation using WITH ROLLUP over the covering index
+    # idx_usa_summary_cover (naics_code, awarding_agency_cgac, recipient_uei,
+    # total_obligation).  agency_name is excluded from the scan so the
+    # optimizer can use an index-only scan; names are filled in by a cheap
+    # UPDATE afterward (~14K rows).
+    #
+    # GROUPING() distinguishes rollup rows (NAICS totals) from regular
+    # groups and the grand-total row:
+    #   - GROUPING(naics_code) = 0: keep (not the grand total)
+    #   - GROUPING(awarding_agency_cgac) = 1: rollup -> '*' / 'All Agencies'
+    #   - awarding_agency_cgac IS NOT NULL: regular agency group (skip NULL)
     cursor.execute("""
         INSERT INTO usaspending_award_summary
-            (naics_code, agency_cgac, agency_name, vendor_count, contract_count, total_value, computed_at)
+            (naics_code, agency_cgac, agency_name, vendor_count,
+             contract_count, total_value, computed_at)
         SELECT
             naics_code,
-            '*',
-            'All Agencies',
+            CASE WHEN GROUPING(awarding_agency_cgac) = 1 THEN '*'
+                 ELSE awarding_agency_cgac END,
+            CASE WHEN GROUPING(awarding_agency_cgac) = 1 THEN 'All Agencies'
+                 ELSE '' END,
             COUNT(DISTINCT recipient_uei),
             COUNT(*),
             COALESCE(SUM(total_obligation), 0),
@@ -265,15 +264,48 @@ def refresh_usaspending_award_summary(conn):
         FROM usaspending_award
         WHERE naics_code IS NOT NULL
           AND recipient_uei IS NOT NULL
-        GROUP BY naics_code
+        GROUP BY naics_code, awarding_agency_cgac WITH ROLLUP
+        HAVING GROUPING(naics_code) = 0
+          AND (GROUPING(awarding_agency_cgac) = 1
+               OR awarding_agency_cgac IS NOT NULL)
     """)
-    naics_total_count = cursor.rowcount
+    total_count = cursor.rowcount
+
+    # Back-fill agency names.  Build a tiny lookup (~100 CGAC codes) via
+    # Python, then batch-update the summary rows — avoids a second big scan.
+    cursor.execute("""
+        SELECT DISTINCT agency_cgac
+        FROM usaspending_award_summary
+        WHERE agency_cgac != '*'
+    """)
+    cgac_codes = [row[0] for row in cursor.fetchall()]
+    if cgac_codes:
+        # Fetch one name per CGAC using index-assisted single-row lookups
+        names = {}
+        for cgac in cgac_codes:
+            cursor.execute("""
+                SELECT awarding_agency_name
+                FROM usaspending_award
+                WHERE awarding_agency_cgac = %s
+                  AND awarding_agency_name IS NOT NULL
+                LIMIT 1
+            """, (cgac,))
+            row = cursor.fetchone()
+            if row and row[0]:
+                names[cgac] = row[0]
+        # Batch update
+        if names:
+            cursor.executemany("""
+                UPDATE usaspending_award_summary
+                SET agency_name = %s
+                WHERE agency_cgac = %s
+            """, [(name, cgac) for cgac, name in names.items()])
     conn.commit()
 
     elapsed = time.time() - t0
-    logger.info("usaspending_award_summary refreshed: %d agency rows + %d NAICS totals in %.1fs",
-                row_count, naics_total_count, elapsed)
-    return row_count + naics_total_count
+    logger.info("usaspending_award_summary refreshed: %d rows in %.1fs (single-pass ROLLUP)",
+                total_count, elapsed)
+    return total_count
 
 
 def resolve_fpds_fh_org_ids(conn):

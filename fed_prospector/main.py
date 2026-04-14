@@ -41,7 +41,7 @@ Modules:
     cli/schema.py         check-schema
     cli/setup.py          verify-setup
     cli/schedule_setup.py setup-schedule
-    cli/update.py         link-metadata, fetch-descriptions, build-relationships
+    cli/update.py         fetch-descriptions, build-relationships, backfill-attachment-filenames
     cli/attachments.py    download-attachments, extract-attachment-text,
                           extract-attachment-intel, extract-description-intel,
                           extract-attachment-ai, extract-description-ai,
@@ -198,7 +198,7 @@ from cli.admin import (
 )
 from cli.load_batch import load_daily, load_weekly, load_monthly
 from cli.demand import process_requests
-from cli.update import enrich_link_metadata, fetch_descriptions, build_relationships
+from cli.update import fetch_descriptions, build_relationships, backfill_attachment_filenames
 from cli.attachments import (
     download_attachments, extract_attachment_text,
     extract_attachment_intel, extract_description_intel,
@@ -316,10 +316,10 @@ job.add_command(process_requests, name="process-requests")
 # update group commands
 # ---------------------------------------------------------------------------
 
-update.add_command(enrich_link_metadata, name="link-metadata")
 update.add_command(fetch_descriptions, name="fetch-descriptions")
 update.add_command(build_relationships, name="build-relationships")
 update.add_command(update_sca_list, name="sca-list")
+update.add_command(backfill_attachment_filenames, name="backfill-attachment-filenames")
 
 # ---------------------------------------------------------------------------
 # download group commands

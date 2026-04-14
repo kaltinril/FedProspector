@@ -25,7 +25,21 @@ from config.settings import ATTACHMENT_DIR as _DEFAULT_ATTACHMENT_DIR
 from db.connection import get_connection
 from etl.etl_utils import extract_resource_guid
 from etl.load_manager import LoadManager
-from etl.resource_link_resolver import _ALLOWED_PREFIXES, _parse_content_disposition
+_ALLOWED_PREFIXES = ("https://sam.gov/", "https://api.sam.gov/")
+
+
+def _parse_content_disposition(header: str) -> str | None:
+    """Parse filename from Content-Disposition header."""
+    match = re.search(r'filename="([^"]+)"', header)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r"filename=([^\s;]+)", header)
+    if match:
+        return match.group(1).strip()
+    match = re.search(r"filename\*=(?:UTF-8|utf-8)''(.+?)(?:;|$)", header)
+    if match:
+        return unquote(match.group(1).strip())
+    return None
 
 logger = logging.getLogger("fed_prospector.etl.attachment_downloader")
 
@@ -526,7 +540,8 @@ class AttachmentDownloader:
                 logger.warning("Permanent HTTP %d for %s — marking skipped (%s)",
                                resp.status_code, url, reason)
                 self._upsert_attachment_row(
-                    notice_id, url, download_status="skipped",
+                    notice_id, url, filename=filename,
+                    download_status="skipped",
                     skip_reason=reason, load_id=load_id,
                 )
                 return "skipped"
@@ -543,7 +558,8 @@ class AttachmentDownloader:
             logger.warning("Rejected text/html content for %s", url)
             resp.close()
             self._upsert_attachment_row(
-                notice_id, url, download_status="skipped",
+                notice_id, url, filename=filename,
+                download_status="skipped",
                 content_type=content_type_clean, load_id=load_id,
             )
             return "skipped"
@@ -555,7 +571,8 @@ class AttachmentDownloader:
                         content_length, url)
             resp.close()
             self._upsert_attachment_row(
-                notice_id, url, download_status="skipped",
+                notice_id, url, filename=filename,
+                download_status="skipped", skip_reason="oversized",
                 content_type=content_type_clean,
                 file_size_bytes=int(content_length), load_id=load_id,
             )
@@ -865,3 +882,89 @@ class AttachmentDownloader:
         finally:
             cursor.close()
             conn.close()
+
+
+def backfill_attachment_filenames() -> dict:
+    """Backfill filename for sam_attachment rows where filename IS NULL.
+
+    Makes HEAD requests to SAM.gov URLs, follows redirects, and extracts
+    the filename from the Content-Disposition header or final URL path.
+
+    Returns dict with counts: total, updated, failed, skipped.
+    """
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT attachment_id, url FROM sam_attachment "
+            "WHERE filename IS NULL AND url IS NOT NULL"
+        )
+        rows = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+
+    stats = {"total": len(rows), "updated": 0, "failed": 0, "skipped": 0}
+    logger.info("Found %d attachments with NULL filename", len(rows))
+
+    for i, row in enumerate(rows, 1):
+        url = row["url"]
+        attachment_id = row["attachment_id"]
+
+        try:
+            resp = requests.head(url, allow_redirects=True, timeout=30)
+        except requests.RequestException as exc:
+            logger.warning("HEAD failed for attachment %s: %s", attachment_id, exc)
+            stats["failed"] += 1
+            time.sleep(0.1)
+            continue
+
+        # Try Content-Disposition header first
+        filename = None
+        cd = resp.headers.get("Content-Disposition")
+        if cd:
+            filename = _parse_content_disposition(cd)
+
+        # Fallback: extract from final URL path
+        if not filename:
+            parsed = urlparse(resp.url)
+            for part in reversed(parsed.path.rstrip("/").split("/")):
+                if part and part != "download":
+                    decoded = unquote(part)
+                    if "." in decoded:
+                        filename = decoded
+                        break
+
+        if not filename:
+            logger.debug("No filename resolved for attachment %s (%s)", attachment_id, url)
+            stats["skipped"] += 1
+            time.sleep(0.1)
+            continue
+
+        conn2 = get_connection()
+        cur2 = conn2.cursor()
+        try:
+            cur2.execute(
+                "UPDATE sam_attachment SET filename = %s WHERE attachment_id = %s",
+                (filename, attachment_id),
+            )
+            conn2.commit()
+            stats["updated"] += 1
+            logger.debug("Updated attachment %s -> %s", attachment_id, filename)
+        except Exception as exc:
+            logger.warning("DB update failed for attachment %s: %s", attachment_id, exc)
+            stats["failed"] += 1
+        finally:
+            cur2.close()
+            conn2.close()
+
+        if i % 50 == 0:
+            logger.info("Progress: %d/%d (%d updated)", i, len(rows), stats["updated"])
+
+        time.sleep(0.1)
+
+    logger.info(
+        "Backfill complete: %d total, %d updated, %d failed, %d skipped",
+        stats["total"], stats["updated"], stats["failed"], stats["skipped"],
+    )
+    return stats

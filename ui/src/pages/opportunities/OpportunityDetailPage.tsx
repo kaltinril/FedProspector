@@ -32,6 +32,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import ImageIcon from '@mui/icons-material/Image';
 import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
+import Tooltip from '@mui/material/Tooltip';
 
 import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -124,16 +125,35 @@ function getFileIcon(contentType: string | null | undefined) {
   return <InsertDriveFileIcon fontSize="small" color="action" />;
 }
 
+interface ResourceLinkDisplay {
+  label: string;
+  url: string;
+  contentType: string | null;
+  fileSizeBytes?: number | null;
+  downloadStatus?: string | null;
+  skipReason?: string | null;
+}
+
+/** Format bytes into human-readable file size. */
+function formatFileSize(bytes: number | null | undefined): string {
+  if (bytes == null) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 /** Build the display list of resource links, preferring enriched DTO data. */
-function getResourceLinksForDisplay(
-  opp: OpportunityDetail,
-): { label: string; url: string; contentType: string | null }[] {
+function getResourceLinksForDisplay(opp: OpportunityDetail): ResourceLinkDisplay[] {
   // Prefer structured resourceLinkDetails from API (enriched data)
   if (opp.resourceLinkDetails && opp.resourceLinkDetails.length > 0) {
     return opp.resourceLinkDetails.map((rl: ResourceLinkDto, idx: number) => ({
       label: rl.filename ?? `Attachment ${idx + 1}`,
       url: rl.url,
       contentType: rl.contentType,
+      fileSizeBytes: rl.fileSizeBytes,
+      downloadStatus: rl.downloadStatus,
+      skipReason: rl.skipReason,
     }));
   }
   // Fallback: parse the raw JSON string (old/un-enriched data)
@@ -149,7 +169,28 @@ function getResourceLinksForDisplay(
 
 const RESOURCE_LINKS_LIMIT = 5;
 
-function ResourceLinksSection({ resourceLinks }: { resourceLinks: { url: string; label: string; contentType: string | null }[] }) {
+function DownloadStatusChip({ status, skipReason }: { status?: string | null; skipReason?: string | null }) {
+  switch (status) {
+    case 'downloaded':
+      return <Chip label="Downloaded" size="small" color="success" variant="outlined" sx={{ ml: 1, height: 20, fontSize: '0.7rem' }} />;
+    case 'skipped': {
+      const reason = skipReason ? `Skipped: ${skipReason}` : 'Skipped';
+      return (
+        <Tooltip title={skipReason ?? ''} arrow>
+          <Chip label={reason} size="small" color="warning" variant="outlined" sx={{ ml: 1, height: 20, fontSize: '0.7rem' }} />
+        </Tooltip>
+      );
+    }
+    case 'failed':
+      return <Chip label="Download failed" size="small" color="error" variant="outlined" sx={{ ml: 1, height: 20, fontSize: '0.7rem' }} />;
+    case 'pending':
+      return <Chip label="Pending" size="small" variant="outlined" sx={{ ml: 1, height: 20, fontSize: '0.7rem' }} />;
+    default:
+      return null;
+  }
+}
+
+function ResourceLinksSection({ resourceLinks }: { resourceLinks: ResourceLinkDisplay[] }) {
   const [expanded, setExpanded] = useState(false);
   const needsCollapse = resourceLinks.length > RESOURCE_LINKS_LIMIT;
   const visible = needsCollapse && !expanded ? resourceLinks.slice(0, RESOURCE_LINKS_LIMIT) : resourceLinks;
@@ -160,16 +201,23 @@ function ResourceLinksSection({ resourceLinks }: { resourceLinks: { url: string;
         Resource Links ({resourceLinks.length})
       </Typography>
       {visible.map((rl, idx) => (
-        <Link
-          key={idx}
-          href={rl.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}
-        >
-          {getFileIcon(rl.contentType)}
-          {rl.label}
-        </Link>
+        <Box key={idx} sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+          <Link
+            href={rl.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}
+          >
+            {getFileIcon(rl.contentType)}
+            {rl.label}
+          </Link>
+          {rl.fileSizeBytes != null && (
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              ({formatFileSize(rl.fileSizeBytes)})
+            </Typography>
+          )}
+          <DownloadStatusChip status={rl.downloadStatus} skipReason={rl.skipReason} />
+        </Box>
       ))}
       {needsCollapse && (
         <Button
