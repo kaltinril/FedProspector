@@ -1,16 +1,206 @@
 # Phase 115M: FPDS Contract Data Enrichment
 
-**Status:** PLANNED
-**Priority:** MEDIUM -- enriches existing data with fields already available in the API
-**Dependencies:** None (existing FPDS loader + table)
+**Status:** COMPLETE (code complete 2026-04-13; backfill load pending)
+**Priority:** HIGH -- feeds directly into pricing accuracy and core WOSB/8(a) mission
+**Dependencies:** Phase 115L (fh_org_id resolution -- DONE)
 
 ---
 
 ## Summary
 
-An audit of our SAM.gov API specifications revealed that the Contract Awards API returns many fields we don't currently load into `fpds_contract`. These fields are available for free in data we already download -- we just ignore them during ETL. This phase adds the most impactful missing fields.
+The SAM.gov Contract Awards API returns fields we currently throw away during ETL. This phase adds the three that genuinely improve end-user outcomes, plus wires one existing field into PricingService where it belongs.
 
-### Agency/Org Coding Systems Context
+**Scope**: 3 new columns + 1 JSON blob + 1 existing-field activation. That's it.
+
+**Design principle**: Every field must have a named consumer that produces a better result for the user. Fields that would only be "displayed" or "could inform" a service are deferred. Our scoring services (PWin, GoNoGo, IVS, OpenDoor) are outcome-based models -- injecting process metadata flags into them adds noise, not signal.
+
+---
+
+## Feature 1: Awardee Socioeconomic Flags (CRITICAL)
+
+| Column | Type | Contents |
+|--------|------|----------|
+| `awardee_socioeconomic` | JSON | `{sba8a, wosb, edwosb, sdvosb, hubzone, veteranOwned, smallBusiness, smallDisadvantagedBusiness}` |
+
+**Why**: The API returns 9+ certification fields (`sbaCertified8aProgramParticipant`, `sbaCertifiedWomenOwnedSmallBusiness`, `sbaCertifiedEconomicallyDisadvantagedWomenOwnedSmallBusiness`, `sbaCertifiedHubZoneFirm`, etc.) that we completely ignore. For a system whose entire purpose is finding WOSB/8(a) contracts to bid on, this is the single highest-value addition.
+
+Today we can only see that a contract WAS set aside (via `set_aside_type`), but not whether the awardee actually held the certification. These are different things -- many awards go to vendors who aren't certified in the set-aside category.
+
+**Consumers**:
+- `CompetitorStrengthService` -- certification portfolio scoring (weight 0.20). Currently infers certification from SAM entity data, which only shows *current* status. FPDS socioeconomic flags give point-in-time certification status at award time.
+- `v_set_aside_trend` -- answer "how many WOSB-certified firms actually won WOSB set-asides?" vs non-certified firms winning set-aside contracts.
+- `v_competitor_analysis` -- add socioeconomic profile from historical awards per competitor.
+- `CompetitorDossierPage.tsx` -- display certification history from award records.
+- `MarketIntelService` -- market share analysis segmented by business type.
+
+MySQL 8.x generated columns for high-frequency queries:
+
+```sql
+ALTER TABLE fpds_contract
+    ADD COLUMN is_wosb_awardee BOOLEAN GENERATED ALWAYS AS (JSON_EXTRACT(awardee_socioeconomic, '$.wosb') = CAST('true' AS JSON)) STORED,
+    ADD COLUMN is_8a_awardee BOOLEAN GENERATED ALWAYS AS (JSON_EXTRACT(awardee_socioeconomic, '$.sba8a') = CAST('true' AS JSON)) STORED,
+    ADD INDEX idx_fpds_wosb (is_wosb_awardee),
+    ADD INDEX idx_fpds_8a (is_8a_awardee);
+```
+
+---
+
+## Feature 2: Source Selection Code (HIGH)
+
+| Column | API Field | Type |
+|--------|-----------|------|
+| `source_selection_code` | `sourceSelectionProcess.code` | VARCHAR(10) |
+
+**Why**: LPTA (Lowest Price Technically Acceptable) and Best Value are fundamentally different pricing regimes. In LPTA, the lowest technically-acceptable price wins -- you need P10-P25 comparables. In Best Value, technical factors matter -- P50 is appropriate. Our Price-to-Win engine currently mixes both in the same comparable set, producing a meaningless average.
+
+**Consumer**:
+- `PricingService.EstimatePriceToWinAsync()` (line ~156) -- filter comparable awards by source selection method, then adjust target percentile. This is the primary consumer and the reason to add the field.
+- `v_price_to_win_comparable` (86_v_price_to_win.sql) -- add as filter column so the view supports segmentation.
+
+**Why not PWinService or GoNoGo?** These are outcome-based models. PWin's Competition Level factor already uses vendor counts per NAICS. Source selection method is procurement process metadata -- it doesn't tell you how many competitors exist or how strong they are. Adding it would dilute existing signals.
+
+---
+
+## Feature 3: Contract Bundling Code (MEDIUM)
+
+| Column | API Field | Type |
+|--------|-----------|------|
+| `contract_bundling_code` | `contractBundling.code` | VARCHAR(10) |
+
+**Why**: Bundled contracts consolidate multiple smaller requirements into one large contract, making them harder for small businesses to win. This is directly relevant to the WOSB/8(a) mission -- capture managers need to see bundling patterns when evaluating agencies and NAICS codes.
+
+**Consumers**:
+- `v_procurement_intelligence` -- add bundling indicator to the procurement profile so users see it on the Opportunity Detail page alongside other contract characteristics.
+- Agency pattern analytics -- "what % of this agency's contracts in this NAICS are bundled?" is actionable intelligence for Go/No-Go decisions made by humans, not by the scoring formula.
+
+**Why not scoring services?** Bundling is a per-contract fact about the predecessor award, not a predictive signal about the current opportunity. GoNoGo's 0-40 scale is 4 orthogonal factors (set-aside, time, NAICS, value) and adding a 5th would either dilute each factor or break the scale. Users can factor bundling into their manual assessment using the displayed data.
+
+---
+
+## Feature 4: Activate type_of_contract_pricing in PricingService
+
+This field is ALREADY in `fpds_contract` and loaded by the ETL, but PricingService ignores it.
+
+- **Field**: `type_of_contract_pricing` (VARCHAR(10)) -- FFP, T&M, Cost-Plus, etc.
+- **Service**: `PricingService.EstimatePriceToWinAsync()` (line ~156) -- FFP and T&M contracts have fundamentally different pricing dynamics. Comparing FFP awards against T&M awards is apples-to-oranges. Filter comparable awards by contract pricing type.
+- **View**: Update `v_price_to_win_comparable` to include `type_of_contract_pricing` as a filter column (it's already in the underlying table).
+
+No DDL or ETL changes needed -- just service and view updates.
+
+---
+
+## Deferred to Phase 500
+
+Fields from the original 115M spec or the first rewrite that don't earn their place:
+
+| Field | Reason Deferred |
+|-------|----------------|
+| `solicitation_procedures_code` | "Sealed bid vs negotiated" is procurement trivia. No service consumes it for a better result. |
+| `subcontract_plan_code` | Plan required != plan executed. OpenDoorService already scores actual subaward behavior, which is the real signal. |
+| `performance_based_flag` | "Different proposal structure" is vague. No formula change, no user-facing improvement. |
+| `multiyear_contract_flag` | IVS already detects multiyear contracts from modification history with more granularity than a boolean flag. |
+| `consolidated_contract_flag` | Redundant with bundling. One signal is enough. |
+| `ultimate_contract_value` / `total_ultimate_contract_value` | Likely duplicates `base_and_all_options`. Unverified distinction. |
+| `funding_office_code/name` | Already have funding_agency + funding_subtier. Marginal. |
+| `contracting_department_code/name` | Already have agency_id + fh_org_id from 115L. Redundant. |
+| `reason_not_awarded_sb` | Interesting post-mortem data but no consumer. |
+| `cost_or_pricing_data_code` | No consumer. Speculative. |
+| `contract_financing_code` | No consumer. Speculative. |
+| `major_program_code` | No consumer. Speculative. |
+
+### Existing unused fields NOT being activated
+
+These fields are already in `fpds_contract` and remain display-only. Forcing them into scoring models would add noise:
+
+| Field | Why Not |
+|-------|---------|
+| `extent_competed` | PWin already measures competition via vendor counts per NAICS. This is a per-contract categorical flag, not a market signal. |
+| `type_of_contract` | Displayed in DTOs. No scoring or pricing formula benefits from this beyond what `type_of_contract_pricing` already provides. |
+| `psc_code` | Narrowing Price-to-Win comparables by PSC on top of NAICS would reduce sample size below useful thresholds for most codes. |
+| `pop_state` | Geo-adjusting IGCE labor rates sounds good in theory but requires a separate regional cost index dataset we don't have. |
+| `far1102_exception_code` | Niche procurement edge case. Not actionable for end users. |
+| `co_bus_size_determination` | Never referenced. No consumer. |
+
+---
+
+## Implementation
+
+### DDL Migration
+
+```sql
+ALTER TABLE fpds_contract
+    ADD COLUMN source_selection_code VARCHAR(10) DEFAULT NULL,
+    ADD COLUMN contract_bundling_code VARCHAR(10) DEFAULT NULL,
+    ADD COLUMN awardee_socioeconomic JSON DEFAULT NULL;
+
+-- Generated columns for high-frequency JSON queries
+ALTER TABLE fpds_contract
+    ADD COLUMN is_wosb_awardee BOOLEAN GENERATED ALWAYS AS (JSON_EXTRACT(awardee_socioeconomic, '$.wosb') = CAST('true' AS JSON)) STORED,
+    ADD COLUMN is_8a_awardee BOOLEAN GENERATED ALWAYS AS (JSON_EXTRACT(awardee_socioeconomic, '$.sba8a') = CAST('true' AS JSON)) STORED,
+    ADD INDEX idx_fpds_wosb (is_wosb_awardee),
+    ADD INDEX idx_fpds_8a (is_8a_awardee);
+```
+
+### ETL Changes (awards_loader.py)
+
+Add to `_normalize_award()` (after line ~530):
+- `sourceSelectionProcess.code` --> `source_selection_code`
+- `contractBundling.code` --> `contract_bundling_code`
+- Socioeconomic flags from `awardeeData.certifications` + `awardeeData.socioEconomicData` --> `awardee_socioeconomic` JSON
+
+Add new fields to `_AWARD_HASH_FIELDS` and `_UPSERT_COLS`.
+
+### C# Entity Changes (FpdsContract.cs)
+
+Add properties with `[Column("snake_case")]` attributes:
+
+```csharp
+[Column("source_selection_code")]
+public string? SourceSelectionCode { get; set; }
+
+[Column("contract_bundling_code")]
+public string? ContractBundlingCode { get; set; }
+
+[Column("awardee_socioeconomic", TypeName = "json")]
+public string? AwardeeSocioeconomic { get; set; }
+```
+
+### View Updates
+
+| View | Change |
+|------|--------|
+| `v_price_to_win_comparable` | Add `source_selection_code`, `type_of_contract_pricing` as filter columns |
+| `v_procurement_intelligence` | Add `source_selection_code`, `contract_bundling_code` |
+| `v_competitor_analysis` | Add socioeconomic aggregation from `awardee_socioeconomic` |
+| `v_set_aside_trend` | Add awardee certification breakdown using generated columns |
+
+### Service Updates
+
+| Service | Method | Change |
+|---------|--------|--------|
+| `PricingService` | `EstimatePriceToWinAsync` | Filter by `source_selection_code`; adjust target percentile (LPTA=P20, BV=P50) |
+| `PricingService` | `EstimatePriceToWinAsync` | Filter by `type_of_contract_pricing` (existing field, newly consumed) |
+| `CompetitorStrengthService` | certification scoring | Use `awardee_socioeconomic` for point-in-time cert status |
+
+### Backfill
+
+Re-run full FPDS load (`python main.py load awards --full-refresh`) to populate new columns on existing 225K records.
+
+---
+
+## Build Order
+
+1. **DDL migration** -- add 3 columns + 2 generated columns + 2 indexes
+2. **ETL changes** -- update `_normalize_award()`, `_UPSERT_COLS`, `_AWARD_HASH_FIELDS`
+3. **Full refresh load** -- backfill 225K records
+4. **C# entity** -- add 3 properties with `[Column]` attributes
+5. **View updates** -- update 4 views
+6. **Service updates** -- wire `source_selection_code` + `type_of_contract_pricing` into PricingService, `awardee_socioeconomic` into CompetitorStrengthService
+7. **UI updates** -- display socioeconomic flags on CompetitorDossierPage, bundling on procurement intelligence
+
+---
+
+## Agency/Org Coding Systems Context
 
 Federal organizations have THREE different identifier schemes, all stored in our `federal_organization` table:
 
@@ -20,140 +210,15 @@ Federal organizations have THREE different identifier schemes, all stored in our
 | **Agency Code** | `12K3` | FPDS-level agency/sub-tier identifier. | `fpds_contract.agency_id` |
 | **FPDS Office Code** | `127SWF` | Contracting office identifier. | `fpds_contract.contracting_office_id`, opportunity `contracting_office_id` |
 
-All three map to the same org hierarchy in `federal_organization`. Cross-table agency matching (Phase 115L) needs to account for all three code types when joining across data sources.
+All three map to the same org hierarchy in `federal_organization`. Cross-table agency matching (Phase 115L -- DONE) accounts for all three code types.
 
 ---
 
-## Feature 1: Competition & Procurement Strategy Fields
+## Entity Management API (Future Phase 115N)
 
-New columns on `fpds_contract`:
-
-| Column | API Field | Type | Why Valuable |
-|--------|-----------|------|-------------|
-| `source_selection_code` | `sourceSelectionProcess.code` | VARCHAR(10) | How the winner was chosen -- lowest price technically acceptable (LPTA) vs best value tradeoff. Directly shapes bid strategy. |
-| `solicitation_procedures_code` | `solicitationProcedures.code` | VARCHAR(10) | Simplified acquisition, sealed bid, negotiated, sole source. Determines proposal complexity. |
-| `contract_bundling_code` | `contractBundling.code` | VARCHAR(10) | Whether contract was bundled. High relevance for WOSB/8(a) -- bundled contracts are harder for small businesses. |
-| `subcontract_plan_code` | `subcontractPlan.code` | VARCHAR(10) | Whether subcontracting plan required. Indicates teaming/subcontracting opportunities. |
-| `performance_based_flag` | `performanceBasedServiceContract.code` | VARCHAR(5) | Whether contract is performance-based. Affects proposal writing and pricing approach. |
-| `multiyear_contract_flag` | `multiyearContract.code` | VARCHAR(5) | Whether contract spans multiple fiscal years. Affects pricing and commitment risk. |
-| `consolidated_contract_flag` | `consolidatedContract.code` | VARCHAR(5) | Whether contract was consolidated. Another bundling signal for small business strategy. |
-
----
-
-## Feature 2: Contract Value Fields
-
-| Column | API Field | Type | Why Valuable |
-|--------|-----------|------|-------------|
-| `ultimate_contract_value` | `ultimateContractValue` | DECIMAL(15,2) | Total ceiling value including all options -- more complete than `base_and_all_options` for some records. |
-| `total_ultimate_contract_value` | `totalUltimateContractValue` | DECIMAL(15,2) | Aggregate across all modifications. True total commitment. |
-
----
-
-## Feature 3: Funding Organization Fields
-
-| Column | API Field | Type | Why Valuable |
-|--------|-----------|------|-------------|
-| `funding_office_code` | `fundingOffice.code` | VARCHAR(20) | Identifies the office funding the work (vs contracting office). Different org may fund vs contract. |
-| `funding_office_name` | `fundingOffice.name` | VARCHAR(200) | Human-readable funding office name. |
-| `contracting_department_code` | `contractingDepartment.code` | VARCHAR(10) | Department-level code from FPDS data. Helps Phase 115L agency normalization -- this is the CGAC-equivalent that's already in the API response. |
-| `contracting_department_name` | `contractingDepartment.name` | VARCHAR(200) | Department name from FPDS (canonical format). |
-
----
-
-## Feature 4: Awardee Socioeconomic Flags
-
-The FPDS API returns detailed socioeconomic classification of the awardee. Rather than adding 15+ boolean columns, store as a JSON column:
-
-| Column | Type | Contents |
-|--------|------|----------|
-| `awardee_socioeconomic` | JSON | Object with boolean flags: `sba8a`, `wosb`, `edwosb`, `sdvosb`, `hubzone`, `veteranOwned`, `smallBusiness`, `smallDisadvantagedBusiness` |
-
-Example queries:
-
-```sql
--- Find contracts won by WOSB firms
-SELECT * FROM fpds_contract WHERE JSON_EXTRACT(awardee_socioeconomic, '$.wosb') = true;
-
--- Find 8(a) set-aside wins
-SELECT * FROM fpds_contract WHERE JSON_EXTRACT(awardee_socioeconomic, '$.sba8a') = true AND set_aside_type LIKE '%8(a)%';
-```
-
-MySQL 8.x supports JSON indexing via generated columns if query performance becomes an issue.
-
-**These flags are arguably the highest-value addition for the project's core mission of finding WOSB and 8(a) contracts to bid on.** Knowing which past awardees were WOSB/8(a) certified directly feeds set-aside analysis and competitive positioning.
-
----
-
-## Feature 5: Additional Procurement Intelligence
-
-Lower priority but still useful:
-
-| Column | API Field | Type | Why |
-|--------|-----------|------|-----|
-| `reason_not_awarded_sb` | `reasonNotAwardedToSmallBusiness` | VARCHAR(200) | Explains why small biz didn't win. Post-mortem intelligence. |
-| `cost_or_pricing_data_code` | `costOrPricingData.code` | VARCHAR(10) | Whether cost/pricing data was required. Indicates procurement rigor. |
-| `contract_financing_code` | `contractFinancing.code` | VARCHAR(10) | How contract is financed (advance payments, progress payments, etc.). |
-| `major_program_code` | `majorProgramCode` | VARCHAR(50) | Program identification for tracking specific programs across contracts. |
-
----
-
-## Implementation
-
-### DDL Migration
-
-Single migration file with ALTER TABLE statements adding all new columns:
-
-```sql
-ALTER TABLE fpds_contract
-    ADD COLUMN source_selection_code VARCHAR(10) DEFAULT NULL,
-    ADD COLUMN solicitation_procedures_code VARCHAR(10) DEFAULT NULL,
-    ADD COLUMN contract_bundling_code VARCHAR(10) DEFAULT NULL,
-    ADD COLUMN subcontract_plan_code VARCHAR(10) DEFAULT NULL,
-    ADD COLUMN performance_based_flag VARCHAR(5) DEFAULT NULL,
-    ADD COLUMN multiyear_contract_flag VARCHAR(5) DEFAULT NULL,
-    ADD COLUMN consolidated_contract_flag VARCHAR(5) DEFAULT NULL,
-    ADD COLUMN ultimate_contract_value DECIMAL(15,2) DEFAULT NULL,
-    ADD COLUMN total_ultimate_contract_value DECIMAL(15,2) DEFAULT NULL,
-    ADD COLUMN funding_office_code VARCHAR(20) DEFAULT NULL,
-    ADD COLUMN funding_office_name VARCHAR(200) DEFAULT NULL,
-    ADD COLUMN contracting_department_code VARCHAR(10) DEFAULT NULL,
-    ADD COLUMN contracting_department_name VARCHAR(200) DEFAULT NULL,
-    ADD COLUMN awardee_socioeconomic JSON DEFAULT NULL,
-    -- Feature 5 (lower priority)
-    ADD COLUMN reason_not_awarded_sb VARCHAR(200) DEFAULT NULL,
-    ADD COLUMN cost_or_pricing_data_code VARCHAR(10) DEFAULT NULL,
-    ADD COLUMN contract_financing_code VARCHAR(10) DEFAULT NULL,
-    ADD COLUMN major_program_code VARCHAR(50) DEFAULT NULL;
-```
-
-### ETL Changes
-
-Modify `fpds_loader.py` to extract these additional fields from the API response during load. These are all in the same API response we already download -- just need to add column mappings.
-
-### Backfill Strategy
-
-Re-run a full FPDS load to populate new columns on existing 225K records. Or if we store raw JSON from FPDS loads, parse from stored data.
-
----
-
-## Build Order
-
-1. DDL migration (add columns)
-2. Update `fpds_loader.py` column mappings
-3. Full refresh load to backfill
-4. Update C# entities (add properties with `[Column]` attributes)
-5. Update relevant C# services to use new fields (PricingService, MarketIntelService)
-6. Add UI display for socioeconomic flags and competition strategy data
-
----
-
-## Entity Management API (Future Phase)
-
-The SAM.gov Entity Management API provides vendor registration data (SAM registrations) that we don't load at all. This is a larger effort deserving its own phase but would enable:
+The SAM.gov Entity Management API provides vendor registration data that we do not load at all. This is a larger effort deserving its own phase but would enable:
 
 - Competitor profiling (what NAICS/PSC codes competitors register for)
 - Certification verification (cross-check 8(a)/WOSB/HUBZone status)
 - Security clearance filtering
 - Geographic market analysis
-
-Recommend deferring to a separate phase (115N or similar).

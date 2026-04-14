@@ -27,7 +27,80 @@ import { queryKeys } from '@/queries/queryKeys';
 import { formatDate } from '@/utils/dateFormatters';
 import { formatCurrency, formatNumber } from '@/utils/formatters';
 import { buildPlaceOfPerformance } from '@/utils/format';
+import Chip from '@mui/material/Chip';
 import type { AwardDetail, AwardSearchResult, TransactionDto, MonthlySpendDto, SubawardDetailDto } from '@/types/api';
+
+// ---------------------------------------------------------------------------
+// Source selection & bundling helpers
+// ---------------------------------------------------------------------------
+
+const SOURCE_SELECTION_LABELS: Record<string, string> = {
+  LPTA: 'Lowest Price Technically Acceptable',
+  BV: 'Best Value Tradeoff',
+  SB: 'Sealed Bid',
+  SP: 'Simplified Procedures',
+  AE: 'Architect-Engineer',
+  BVTO: 'Best Value Trade-Off',
+};
+
+function formatSourceSelection(code: string | null | undefined): string | null {
+  if (!code) return null;
+  return SOURCE_SELECTION_LABELS[code] ?? code;
+}
+
+function formatBundling(code: string | null | undefined): React.ReactNode | null {
+  if (!code) return null;
+  if (code === 'H' || code === 'BUNDLED') {
+    return <Chip label="Bundled" size="small" color="warning" variant="outlined" />;
+  }
+  if (code === 'D' || code === 'NOTBUNDLED') {
+    return 'Not Bundled';
+  }
+  return code;
+}
+
+interface SocioeconomicFlags {
+  sba8a?: boolean;
+  wosb?: boolean;
+  edwosb?: boolean;
+  sdvosb?: boolean;
+  hubzone?: boolean;
+  veteranOwned?: boolean;
+  smallBusiness?: boolean;
+  smallDisadvantagedBusiness?: boolean;
+}
+
+type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
+
+const SOCIO_LABELS: { key: keyof SocioeconomicFlags; label: string; color: ChipColor }[] = [
+  { key: 'sba8a', label: '8(a)', color: 'primary' },
+  { key: 'wosb', label: 'WOSB', color: 'secondary' },
+  { key: 'edwosb', label: 'EDWOSB', color: 'secondary' },
+  { key: 'sdvosb', label: 'SDVOSB', color: 'info' },
+  { key: 'hubzone', label: 'HUBZone', color: 'success' },
+  { key: 'veteranOwned', label: 'Vet', color: 'info' },
+  { key: 'smallBusiness', label: 'SB', color: 'default' },
+  { key: 'smallDisadvantagedBusiness', label: 'SDB', color: 'warning' },
+];
+
+function parseSocioeconomicChips(json: string | null | undefined): React.ReactNode | null {
+  if (!json) return null;
+  let flags: SocioeconomicFlags;
+  try {
+    flags = JSON.parse(json) as SocioeconomicFlags;
+  } catch {
+    return null;
+  }
+  const active = SOCIO_LABELS.filter((s) => flags[s.key]);
+  if (active.length === 0) return null;
+  return (
+    <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+      {active.map((s) => (
+        <Chip key={s.key} label={s.label} size="small" color={s.color} variant="outlined" />
+      ))}
+    </Box>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Column definitions
@@ -112,11 +185,14 @@ function ContractDetailsTab({ award }: { award: AwardDetail }) {
     { label: 'NAICS Code', value: award.naicsCode },
     { label: 'PSC Code', value: award.pscCode },
     { label: 'Set-Aside Type', value: award.setAsideType },
+    { label: 'Source Selection', value: formatSourceSelection(award.sourceSelectionCode) },
+    { label: 'Contract Bundling', value: formatBundling(award.contractBundlingCode) },
     { label: 'Extent Competed', value: award.extentCompeted ?? 'N/A' },
     {
       label: 'Number of Offers',
       value: award.numberOfOffers != null ? formatNumber(award.numberOfOffers) : 'N/A',
     },
+    { label: 'Awardee Socioeconomic', value: parseSocioeconomicChips(award.awardeeSocioeconomic) },
     { label: 'Description', value: award.description, fullWidth: true },
     {
       label: 'Place of Performance',

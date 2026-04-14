@@ -7,6 +7,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
+import Alert from '@mui/material/Alert';
 import LinearProgress from '@mui/material/LinearProgress';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
@@ -42,6 +43,19 @@ const CONTRACT_TYPE_OPTIONS = [
   { value: 'FFP', label: 'Firm Fixed Price (FFP)' },
   { value: 'T&M', label: 'Time & Materials (T&M)' },
   { value: 'Cost-Plus', label: 'Cost-Plus' },
+];
+
+const SOURCE_SELECTION_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'LPTA', label: 'LPTA' },
+  { value: 'BV', label: 'Best Value' },
+];
+
+const CONTRACT_PRICING_TYPE_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'FFP', label: 'FFP' },
+  { value: 'T&M', label: 'T&M' },
+  { value: 'COST', label: 'Cost-Plus' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -179,6 +193,8 @@ export default function PriceToWinPage() {
   const [setAsideType, setSetAsideType] = useState('');
   const [contractType, setContractType] = useState('');
   const [estimatedScope, setEstimatedScope] = useState('');
+  const [sourceSelection, setSourceSelection] = useState('');
+  const [contractPricingType, setContractPricingType] = useState('');
 
   const mutation = useMutation({
     mutationFn: (request: PriceToWinRequest) => estimatePriceToWin(request),
@@ -194,9 +210,11 @@ export default function PriceToWinPage() {
       setAsideType: setAsideType || undefined,
       contractType: contractType || undefined,
       estimatedScope: estimatedScope.trim() || undefined,
+      sourceSelectionCode: sourceSelection || undefined,
+      contractPricingType: contractPricingType || undefined,
     };
     mutation.mutate(request);
-  }, [naicsCode, agencyName, setAsideType, contractType, estimatedScope, mutation]);
+  }, [naicsCode, agencyName, setAsideType, contractType, estimatedScope, sourceSelection, contractPricingType, mutation]);
 
   const comparableColumns = useMemo(() => buildComparableColumns(), []);
 
@@ -251,6 +269,32 @@ export default function PriceToWinPage() {
               ))}
             </Select>
           </FormControl>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel id="source-selection-label">Source Selection</InputLabel>
+            <Select
+              labelId="source-selection-label"
+              value={sourceSelection}
+              label="Source Selection"
+              onChange={(e: SelectChangeEvent) => setSourceSelection(e.target.value)}
+            >
+              {SOURCE_SELECTION_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel id="pricing-type-label">Pricing Type</InputLabel>
+            <Select
+              labelId="pricing-type-label"
+              value={contractPricingType}
+              label="Pricing Type"
+              onChange={(e: SelectChangeEvent) => setContractPricingType(e.target.value)}
+            >
+              {CONTRACT_PRICING_TYPE_OPTIONS.map((opt) => (
+                <MenuItem key={opt.value} value={opt.value}>{opt.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
           <TextField
             size="small"
             label="Estimated Scope ($)"
@@ -301,6 +345,20 @@ export default function PriceToWinPage() {
             />
           </Box>
 
+          {/* Filter fallback warning */}
+          {result.filterFallback && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Not enough comparable contracts with this filter — showing all contracts
+            </Alert>
+          )}
+
+          {/* Source selection regime */}
+          {result.sourceSelectionRegime && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Source Selection Regime: <strong>{result.sourceSelectionRegime}</strong>
+            </Typography>
+          )}
+
           {/* Price range */}
           <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
             <Typography variant="subtitle1" fontWeight={600} gutterBottom>
@@ -325,7 +383,7 @@ export default function PriceToWinPage() {
             />
             <StatCard
               label="Sole Source %"
-              value={`${(result.competitionStats.soloSourcePct * 100).toFixed(0)}%`}
+              value={`${result.competitionStats.soloSourcePct.toFixed(0)}%`}
             />
             <StatCard
               label="Median Award Value"

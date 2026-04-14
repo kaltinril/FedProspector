@@ -18,7 +18,9 @@ SELECT
         ORDER BY esc.sba_type_code SEPARATOR '; ') AS sba_certifications,
     COALESCE(MAX(fc_agg.past_contracts), 0) AS past_contracts,
     MAX(fc_agg.total_obligated) AS total_obligated,
-    MAX(fc_agg.most_recent_award) AS most_recent_award
+    MAX(fc_agg.most_recent_award) AS most_recent_award,
+    COALESCE(MAX(fc_agg.wosb_award_count), 0) AS wosb_award_count,
+    COALESCE(MAX(fc_agg.sba8a_award_count), 0) AS sba8a_award_count
 FROM entity e
 LEFT JOIN ref_naics_code n ON n.naics_code = e.primary_naics
 LEFT JOIN ref_naics_code sector
@@ -33,7 +35,9 @@ LEFT JOIN (
     SELECT vendor_uei,
            COUNT(*) AS past_contracts,
            SUM(dollars_obligated) AS total_obligated,
-           MAX(date_signed) AS most_recent_award
+           MAX(date_signed) AS most_recent_award,
+           SUM(CASE WHEN JSON_EXTRACT(awardee_socioeconomic, '$.wosb') = CAST('true' AS JSON) THEN 1 ELSE 0 END) AS wosb_award_count,
+           SUM(CASE WHEN JSON_EXTRACT(awardee_socioeconomic, '$.sba8a') = CAST('true' AS JSON) THEN 1 ELSE 0 END) AS sba8a_award_count
     FROM fpds_contract
     GROUP BY vendor_uei
 ) fc_agg ON fc_agg.vendor_uei = e.uei_sam

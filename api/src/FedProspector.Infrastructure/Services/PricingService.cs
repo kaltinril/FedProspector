@@ -9,6 +9,18 @@ namespace FedProspector.Infrastructure.Services;
 
 public class PricingService : IPricingService
 {
+    /// <summary>
+    /// Maps UI-friendly pricing type labels to FPDS type_of_contract_pricing codes.
+    /// FPDS stores single-letter codes (J, T, K, etc.) and occasionally spelled-out
+    /// values (FFP, TM, CPFF, etc.).  The UI sends "FFP", "T&amp;M", or "COST".
+    /// </summary>
+    private static readonly Dictionary<string, List<string>> PricingTypeCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["FFP"]  = new() { "J", "FFP" },
+        ["T&M"]  = new() { "T", "TM" },
+        ["COST"] = new() { "K", "L", "R", "S", "U", "V", "Y", "CPFF", "CPAF", "CPIF" },
+    };
+
     private readonly FedProspectorDbContext _context;
     private readonly ILogger<PricingService> _logger;
 
@@ -166,6 +178,36 @@ public class PricingService : IPricingService
             ? EscapeLikeWildcards(request.AgencyName)
             : null;
 
+        // When FPDS-only filters are requested, pre-fetch matching PIIDs from fpds_contract
+        var hasFpdsFilters = !string.IsNullOrWhiteSpace(request.SourceSelectionCode)
+                             || !string.IsNullOrWhiteSpace(request.ContractPricingType);
+        HashSet<string>? fpdsMatchingPiids = null;
+        bool filterFallback = false;
+
+        if (hasFpdsFilters)
+        {
+            var fpdsFilterQuery = _context.FpdsContracts.AsNoTracking()
+                .Where(c => c.NaicsCode == request.NaicsCode
+                            && c.ModificationNumber == "0"
+                            && c.DateSigned != null
+                            && c.DateSigned >= fiveYearsAgo);
+
+            if (!string.IsNullOrWhiteSpace(request.SourceSelectionCode))
+                fpdsFilterQuery = fpdsFilterQuery.Where(c => c.SourceSelectionCode == request.SourceSelectionCode);
+
+            if (!string.IsNullOrWhiteSpace(request.ContractPricingType)
+                && PricingTypeCodes.TryGetValue(request.ContractPricingType, out var codes))
+                fpdsFilterQuery = fpdsFilterQuery.Where(c => c.TypeOfContractPricing != null
+                                                             && codes.Contains(c.TypeOfContractPricing));
+
+            var matchedIds = await fpdsFilterQuery
+                .Select(c => c.ContractId)
+                .Distinct()
+                .ToListAsync();
+
+            fpdsMatchingPiids = new HashSet<string>(matchedIds, StringComparer.OrdinalIgnoreCase);
+        }
+
         // Primary award value analysis uses usaspending_award (28.7M rows, authoritative source)
         var query = _context.UsaspendingAwards.AsNoTracking()
             .Where(a => a.NaicsCode == request.NaicsCode
@@ -201,7 +243,29 @@ public class PricingService : IPricingService
             return new PriceToWinResponse { Confidence = 0 };
         }
 
-        var values = awards
+        // Apply FPDS cross-filter on PIID if source selection / contract pricing filters are active
+        var filteredAwards = awards;
+        if (fpdsMatchingPiids != null)
+        {
+            var fpdsFiltered = awards
+                .Where(a => a.ContractId != null && fpdsMatchingPiids.Contains(a.ContractId))
+                .ToList();
+
+            if (fpdsFiltered.Count >= 5)
+            {
+                filteredAwards = fpdsFiltered;
+            }
+            else
+            {
+                // Below useful threshold — fall back to unfiltered and note it
+                filterFallback = true;
+                _logger.LogInformation(
+                    "FPDS filter reduced comparable set to {Count} (below threshold of 5), falling back to unfiltered",
+                    fpdsFiltered.Count);
+            }
+        }
+
+        var values = filteredAwards
             .Select(a => a.BaseAndAllOptionsValue!.Value)
             .OrderBy(v => v)
             .ToList();
@@ -210,12 +274,27 @@ public class PricingService : IPricingService
         var p50 = Percentile(values, 50);
         var p75 = Percentile(values, 75);
 
+        // Adjust target percentile based on source selection regime
+        // LPTA rewards lowest price → target P25; Best Value weighs technical factors → P50
+        decimal targetEstimate = p50;
+        string? sourceSelectionRegime = null;
+
+        if (!filterFallback && !string.IsNullOrWhiteSpace(request.SourceSelectionCode))
+        {
+            sourceSelectionRegime = request.SourceSelectionCode;
+            targetEstimate = request.SourceSelectionCode.ToUpperInvariant() switch
+            {
+                "LPTA" => p25,
+                _ => p50  // Best Value and other regimes use median
+            };
+        }
+
         // Competition stats from FPDS supplement (NumberOfOffers is FPDS-only)
         var competitionStats = await GetCompetitionStatsFromFpdsAsync(
             request.NaicsCode, fiveYearsAgo, escapedAgency, values, p50);
 
         // Top 20 comparable awards
-        var comparableAwards = awards.Take(20).Select(a =>
+        var comparableAwards = filteredAwards.Take(20).Select(a =>
         {
             int? popMonths = null;
             if (a.StartDate.HasValue && a.EndDate.HasValue)
@@ -237,7 +316,7 @@ public class PricingService : IPricingService
         }).ToList();
 
         // Confidence based on sample size
-        var confidence = awards.Count switch
+        var confidence = filteredAwards.Count switch
         {
             >= 100 => 0.9m,
             >= 50 => 0.8m,
@@ -250,10 +329,12 @@ public class PricingService : IPricingService
         return new PriceToWinResponse
         {
             LowEstimate = p25,
-            TargetEstimate = p50,
+            TargetEstimate = targetEstimate,
             HighEstimate = p75,
             Confidence = confidence,
-            ComparableCount = awards.Count,
+            ComparableCount = filteredAwards.Count,
+            SourceSelectionRegime = sourceSelectionRegime,
+            FilterFallback = filterFallback,
             ComparableAwards = comparableAwards,
             CompetitionStats = competitionStats
         };

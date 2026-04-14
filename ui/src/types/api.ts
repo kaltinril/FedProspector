@@ -273,6 +273,9 @@ export interface AwardDetail {
   popZip?: string | null;
   extentCompeted?: string | null;
   numberOfOffers?: number | null;
+  sourceSelectionCode?: string | null;
+  contractBundlingCode?: string | null;
+  awardeeSocioeconomic?: string | null;
   solicitationNumber?: string | null;
   solicitationDate?: string | null;
   transactions: TransactionDto[];
@@ -1678,6 +1681,8 @@ export interface PriceToWinRequest {
   setAsideType?: string;
   contractType?: string;
   estimatedScope?: string;
+  sourceSelectionCode?: string;
+  contractPricingType?: string;
 }
 
 export interface PriceToWinResponse {
@@ -1688,6 +1693,8 @@ export interface PriceToWinResponse {
   comparableCount: number;
   comparableAwards: ComparableAward[];
   competitionStats: CompetitionStats;
+  sourceSelectionRegime?: string | null;
+  filterFallback?: boolean;
 }
 
 export interface ComparableAward {

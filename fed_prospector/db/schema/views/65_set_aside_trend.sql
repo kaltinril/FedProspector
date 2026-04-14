@@ -16,7 +16,9 @@ SELECT
     COALESCE(ref.category, fc.set_aside_type) AS set_aside_category,
     COUNT(*) AS contract_count,
     SUM(fc.base_and_all_options) AS total_value,
-    AVG(fc.base_and_all_options) AS avg_value
+    AVG(fc.base_and_all_options) AS avg_value,
+    SUM(CASE WHEN JSON_EXTRACT(fc.awardee_socioeconomic, '$.wosb') = CAST('true' AS JSON) THEN 1 ELSE 0 END) AS wosb_awardee_count,
+    SUM(CASE WHEN JSON_EXTRACT(fc.awardee_socioeconomic, '$.sba8a') = CAST('true' AS JSON) THEN 1 ELSE 0 END) AS sba8a_awardee_count
 FROM fpds_contract fc
 LEFT JOIN ref_set_aside_type ref ON fc.set_aside_type = ref.set_aside_code
 WHERE fc.modification_number = '0'

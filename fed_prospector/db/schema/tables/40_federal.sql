@@ -69,6 +69,11 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     ultimate_completion_date DATE,
     type_of_contract_pricing VARCHAR(10),
     co_bus_size_determination VARCHAR(50),
+    source_selection_code       VARCHAR(10)   DEFAULT NULL COMMENT 'LPTA vs Best Value vs sealed bid — sourceSelectionProcess.code',
+    contract_bundling_code      VARCHAR(10)   DEFAULT NULL COMMENT 'Whether contract was bundled — contractBundling.code',
+    awardee_socioeconomic       JSON          DEFAULT NULL COMMENT 'Awardee cert flags: sba8a, wosb, edwosb, sdvosb, hubzone, etc.',
+    is_wosb_awardee             BOOLEAN       GENERATED ALWAYS AS (JSON_EXTRACT(awardee_socioeconomic, '$.wosb') = CAST('true' AS JSON)) STORED,
+    is_8a_awardee               BOOLEAN       GENERATED ALWAYS AS (JSON_EXTRACT(awardee_socioeconomic, '$.sba8a') = CAST('true' AS JSON)) STORED,
     fh_org_id            INT DEFAULT NULL,
     record_hash              CHAR(64),
     first_loaded_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -87,7 +92,9 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     INDEX idx_fpds_far1102 (far1102_exception_code),
     INDEX idx_fpds_solicitation (solicitation_number),
     KEY idx_fpds_vendor_name (vendor_name(50)),
-    INDEX idx_fpds_fh_org (fh_org_id)
+    INDEX idx_fpds_fh_org (fh_org_id),
+    INDEX idx_fpds_wosb (is_wosb_awardee),
+    INDEX idx_fpds_8a (is_8a_awardee)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS agency_name_alias (

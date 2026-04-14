@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FedProspector.Core.DTOs.Intelligence;
 using FedProspector.Core.Interfaces;
 using FedProspector.Infrastructure.Data;
@@ -39,6 +40,16 @@ public class CompetitorStrengthService : ICompetitorStrengthService
     };
 
     private static readonly string[] AllCertCodes = ["8W", "A2", "A4", "2X", "XX", "QF", "A5"];
+
+    // Maps FPDS awardee_socioeconomic JSON keys to the same cert type names used above
+    private static readonly Dictionary<string, string> FpdsSocioKeyToCertName = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["wosb"] = "WOSB",
+        ["edwosb"] = "EDWOSB",
+        ["sba8a"] = "8(a)",
+        ["hubzone"] = "HUBZone",
+        ["sdvosb"] = "SDVOSB"
+    };
 
     public CompetitorStrengthService(FedProspectorDbContext context, ILogger<CompetitorStrengthService> logger)
     {
@@ -365,24 +376,19 @@ public class CompetitorStrengthService : ICompetitorStrengthService
 
     /// <summary>
     /// Factor 3: Certification Portfolio (weight 0.20) — breadth of set-aside eligibility.
+    /// Combines current SAM entity business types with point-in-time FPDS award certifications.
     /// </summary>
     private async Task<CsiFactorDto> ScoreCertificationPortfolioAsync(string vendorUei, string? setAsideCode)
     {
         const decimal weight = 0.20m;
 
+        // Source 1: Current SAM entity business type codes
         var vendorCertCodes = await _context.EntityBusinessTypes
             .AsNoTracking()
             .Where(bt => bt.UeiSam == vendorUei && AllCertCodes.Contains(bt.BusinessTypeCode))
             .Select(bt => bt.BusinessTypeCode)
             .Distinct()
             .ToListAsync();
-
-        if (vendorCertCodes.Count == 0)
-        {
-            // No certs found; could be a large business competitor
-            return MakeFactor("Certification Portfolio", 10, weight,
-                "No set-aside certifications found (may be large business)", false);
-        }
 
         // Count distinct certification types (group related codes)
         var certTypes = new HashSet<string>();
@@ -392,6 +398,20 @@ public class CompetitorStrengthService : ICompetitorStrengthService
                 certTypes.Add(name);
         }
 
+        // Source 2: Point-in-time FPDS award socioeconomic data
+        var fpdsCertTypes = await GetFpdsSocioeconomicCertTypesAsync(vendorUei);
+        foreach (var certType in fpdsCertTypes)
+        {
+            certTypes.Add(certType);
+        }
+
+        if (certTypes.Count == 0)
+        {
+            // No certs found from either source; could be a large business competitor
+            return MakeFactor("Certification Portfolio", 10, weight,
+                "No set-aside certifications found (may be large business)", false);
+        }
+
         // Each cert type = 20 points, max 100
         var score = Math.Min(100, certTypes.Count * 20);
 
@@ -399,15 +419,58 @@ public class CompetitorStrengthService : ICompetitorStrengthService
         if (!string.IsNullOrWhiteSpace(setAsideCode)
             && SetAsideCertRequirements.TryGetValue(setAsideCode, out var requiredCodes))
         {
-            var hasRequired = vendorCertCodes.Any(c => requiredCodes.Contains(c));
+            var hasRequired = vendorCertCodes.Any(c => requiredCodes.Contains(c))
+                || requiredCodes.Any(code => CertCodeToName.TryGetValue(code, out var name) && certTypes.Contains(name));
             if (hasRequired)
             {
                 score = Math.Min(100, score + 20);
             }
         }
 
-        var detail = $"Certifications: {string.Join(", ", certTypes.Order())} ({certTypes.Count} type(s))";
+        var source = fpdsCertTypes.Count > 0 ? "SAM + FPDS award history" : "SAM";
+        var detail = $"Certifications: {string.Join(", ", certTypes.Order())} ({certTypes.Count} type(s), source: {source})";
         return MakeFactor("Certification Portfolio", score, weight, detail, true);
+    }
+
+    /// <summary>
+    /// Extract certification type names from FPDS awardee_socioeconomic JSON across all awards for a vendor.
+    /// Returns the union of all certifications that were true on any award.
+    /// </summary>
+    private async Task<HashSet<string>> GetFpdsSocioeconomicCertTypesAsync(string vendorUei)
+    {
+        var certTypes = new HashSet<string>();
+
+        var socioJsonValues = await _context.FpdsContracts
+            .AsNoTracking()
+            .Where(c => c.VendorUei == vendorUei
+                        && c.ModificationNumber == "0"
+                        && c.AwardeeSocioeconomic != null)
+            .Select(c => c.AwardeeSocioeconomic!)
+            .Distinct()
+            .ToListAsync();
+
+        foreach (var json in socioJsonValues)
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    if (prop.Value.ValueKind == JsonValueKind.True
+                        && FpdsSocioKeyToCertName.TryGetValue(prop.Name, out var certName))
+                    {
+                        certTypes.Add(certName);
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogDebug("Failed to parse awardee_socioeconomic JSON for {Uei}: {Error}",
+                    vendorUei, ex.Message);
+            }
+        }
+
+        return certTypes;
     }
 
     /// <summary>

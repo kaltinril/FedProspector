@@ -37,6 +37,8 @@ SELECT
     fc.ultimate_completion_date,
     fc.type_of_contract,
     fc.type_of_contract_pricing,
+    fc.source_selection_code,
+    fc.contract_bundling_code,
     -- USASpending fields
     ua.total_obligation AS total_spent,
     ua.base_and_all_options_value AS usa_ceiling,

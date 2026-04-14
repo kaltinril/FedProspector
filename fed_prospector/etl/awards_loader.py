@@ -29,6 +29,7 @@ _AWARD_HASH_FIELDS = [
     "set_aside_type", "extent_competed", "number_of_offers",
     "date_signed", "effective_date", "completion_date",
     "pop_state", "pop_country",
+    "source_selection_code", "contract_bundling_code",
 ]
 
 # All fpds_contract columns used in upsert (order matters for values list)
@@ -47,9 +48,24 @@ _UPSERT_COLS = [
     "reason_for_modification", "solicitation_number",
     "solicitation_date", "ultimate_completion_date",
     "type_of_contract_pricing", "co_bus_size_determination",
+    "source_selection_code", "contract_bundling_code", "awardee_socioeconomic",
     "fh_org_id",
     "record_hash", "last_load_id",
 ]
+
+
+def _is_true(val):
+    """Check if a SAM API value represents a truthy/yes value.
+
+    The API returns booleans, "Y"/"N", "Yes"/"No", "true"/"false" inconsistently.
+    """
+    if val is None:
+        return False
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, str):
+        return val.strip().lower() in ("y", "yes", "true", "1")
+    return bool(val)
 
 
 def _make_composite_key(contract_id, modification_number):
@@ -446,6 +462,38 @@ class AwardsLoader(StagingMixin):
         far_exception = awardee_data.get("far41102Exception") or {}
         transaction_data = award_details.get("transactionData") or {}
 
+        # --- Source selection and contract bundling ---
+        source_selection = competition_info.get("sourceSelectionProcess") or {}
+        contract_bundling = acq_data.get("contractBundling") or {}
+
+        # --- Awardee socioeconomic certifications ---
+        certs = awardee_data.get("certifications") or {}
+        socio_econ_data = awardee_data.get("socioEconomicData") or {}
+        socio = {}
+        socio["sba8a"] = _is_true(certs.get("sbaCertified8aProgramParticipant"))
+        socio["wosb"] = _is_true(certs.get("sbaCertifiedWomenOwnedSmallBusiness"))
+        socio["edwosb"] = _is_true(
+            certs.get("sbaCertifiedEconomicallyDisadvantagedWomenOwnedSmallBusiness")
+        )
+        socio["hubzone"] = _is_true(certs.get("sbaCertifiedHubZoneFirm"))
+        socio["sdvosb"] = _is_true(
+            socio_econ_data.get("serviceDisabledVeteranOwnedBusiness")
+        )
+        socio["veteranOwned"] = _is_true(
+            socio_econ_data.get("veteranOwnedBusiness")
+        )
+        socio["smallBusiness"] = _is_true(
+            socio_econ_data.get("smallBusiness")
+        )
+        socio["smallDisadvantagedBusiness"] = (
+            _is_true(certs.get("sbaCertifiedSmallDisadvantagedBusiness"))
+            or _is_true(certs.get("selfCertifiedSmallDisadvantagedBusiness"))
+        )
+        # Only store if at least one flag is True; avoid all-false JSON blobs
+        awardee_socioeconomic = (
+            json.dumps(socio) if any(socio.values()) else None
+        )
+
         # CO business size determination can be an array; take first entry
         co_biz_size_list = pref_programs.get(
             "contractingOfficerBusinessSizeDetermination"
@@ -526,6 +574,9 @@ class AwardsLoader(StagingMixin):
                                         ),
             "type_of_contract_pricing": _s(contract_pricing.get("code")),
             "co_bus_size_determination": _s(co_biz_size),
+            "source_selection_code":    _s(source_selection.get("code")),
+            "contract_bundling_code":   _s(contract_bundling.get("code")),
+            "awardee_socioeconomic":    awardee_socioeconomic,
             "fh_org_id":                self._resolve_fh_org_id(
                                             _s(contracting_office.get("code")),
                                             _s(contracting_dept.get("code")),

@@ -32,6 +32,7 @@ function splitTags(raw: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
+
 type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'success' | 'warning';
 
 function registrationChip(status: string | null | undefined) {
@@ -69,6 +70,18 @@ function ContractHistoryTab({ d }: { d: CompetitorDossierDto }) {
         <Card variant="outlined">
           <CardContent>
             <Typography variant="subtitle1" gutterBottom>FPDS Contract History</Typography>
+            {d.sbaCertifications && (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                  Socioeconomic Certifications
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                  {splitTags(d.sbaCertifications).map((cert) => (
+                    <Chip key={cert} label={cert} size="small" color="primary" variant="outlined" />
+                  ))}
+                </Box>
+              </Box>
+            )}
             <KeyFactsGrid
               facts={[
                 { label: '3-Year Count', value: formatNumber(d.fpdsCount3yr) },

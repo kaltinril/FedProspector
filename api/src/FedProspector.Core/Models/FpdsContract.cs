@@ -126,6 +126,17 @@ public class FpdsContract
     [MaxLength(50)]
     public string? CoBusSizeDetermination { get; set; }
 
+    [Column("source_selection_code")]
+    [MaxLength(10)]
+    public string? SourceSelectionCode { get; set; }
+
+    [Column("contract_bundling_code")]
+    [MaxLength(10)]
+    public string? ContractBundlingCode { get; set; }
+
+    [Column("awardee_socioeconomic", TypeName = "json")]
+    public string? AwardeeSocioeconomic { get; set; }
+
     [MaxLength(64)]
     public string? RecordHash { get; set; }
 

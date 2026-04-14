@@ -314,6 +314,9 @@ public class AwardService : IAwardService
                 NumberOfOffers = contract.NumberOfOffers,
                 SolicitationNumber = contract.SolicitationNumber,
                 SolicitationDate = contract.SolicitationDate,
+                SourceSelectionCode = contract.SourceSelectionCode,
+                ContractBundlingCode = contract.ContractBundlingCode,
+                AwardeeSocioeconomic = contract.AwardeeSocioeconomic,
                 FhOrgId = contract.FhOrgId,
                 Transactions = transactions,
                 VendorProfile = vendorProfile

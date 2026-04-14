@@ -8,6 +8,7 @@ SELECT
     fc.agency_name                AS contracting_agency_name,
     fc.set_aside_type             AS type_of_set_aside,
     fc.type_of_contract_pricing,
+    fc.source_selection_code,
     fc.base_and_all_options       AS base_and_all_options_value,
     fc.dollars_obligated,
     fc.number_of_offers,

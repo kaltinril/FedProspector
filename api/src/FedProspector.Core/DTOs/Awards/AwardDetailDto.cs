@@ -41,6 +41,9 @@ public class AwardDetailDto
     public int? NumberOfOffers { get; set; }
     public string? SolicitationNumber { get; set; }
     public DateOnly? SolicitationDate { get; set; }
+    public string? SourceSelectionCode { get; set; }
+    public string? ContractBundlingCode { get; set; }
+    public string? AwardeeSocioeconomic { get; set; }
     public int? FhOrgId { get; set; }
 
     // Nested
