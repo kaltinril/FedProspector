@@ -7,6 +7,16 @@
 
 ---
 
+## Why This Phase Matters — A Concrete Example (2026-04-15)
+
+The daily job's `usaspending_bulk` step took **15 minutes**. 11 of those were spent in post-load `fh_org_id` resolution: 80 individual UPDATEs against the 28.8M-row `usaspending_award` table, each doing a near-full table scan because no index existed on `last_load_id`.
+
+The fix was adding index #12 to the table. This works, but it's a band-aid — we shouldn't need to keep adding indexes every time we need data out of a table. `usaspending_award` now has 12 indexes on a table that receives bulk INSERTs daily. Each index slows writes and consumes disk/RAM.
+
+The real problem: post-load enrichment (fh_org_id, agency codes) runs UPDATE-WHERE against a massive denormalized table instead of resolving during load or working against a small pending-changes table. Phase 200's normalization and the `NormalizationMixin` concept (resolve FKs at load time) would eliminate this entire class of problem. Until then, we're papering over schema design with indexes.
+
+---
+
 ## Objective
 
 Reduce data bloat, eliminate redundancy, and normalize the database schema. The current 42-table design has grown organically with significant denormalization — entity names, agency names, code descriptions, and location data are duplicated across many tables instead of using FK relationships to existing reference and master tables.

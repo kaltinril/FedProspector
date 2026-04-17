@@ -77,6 +77,9 @@ CREATE TABLE IF NOT EXISTS usaspending_award (
 -- Phase 127: optimize expiring contracts query (end_date range + award_type + naics filter)
 CREATE INDEX IF NOT EXISTS idx_usa_end_date_type_naics ON usaspending_award (end_date, award_type, naics_code);
 
+-- Scope post-load resolution (fh_org_id, agency codes) to new rows instead of full-table scan
+CREATE INDEX IF NOT EXISTS idx_usa_last_load_id ON usaspending_award (last_load_id);
+
 -- Transaction-level spending detail for burn rate analysis
 CREATE TABLE IF NOT EXISTS usaspending_transaction (
     id                          BIGINT AUTO_INCREMENT PRIMARY KEY,
