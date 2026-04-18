@@ -41,7 +41,7 @@ def download_attachments(notice_id, batch_size, max_file_size, missing_only,
     downloader = AttachmentDownloader()
     active_msg = ", active_only=True" if active_only else ""
     logger.info(
-        "Starting attachment download (batch_size=%d, max_file_size=%dMB, delay=%.1fs%s)",
+        "Starting attachment download (batch_size=%d, max_file_size=%dMB, delay=%gs%s)",
         batch_size, max_file_size, delay, active_msg,
     )
     click.echo(
