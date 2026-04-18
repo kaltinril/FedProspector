@@ -154,7 +154,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 115L | Agency Code Normalization | COMPLETE | [115L-AGENCY-CODE-NORMALIZATION.md](phases/completed/115L-AGENCY-CODE-NORMALIZATION.md) |
 | 115M | FPDS Contract Data Enrichment | COMPLETE | [115M-FPDS-DATA-ENRICHMENT.md](phases/completed/115M-FPDS-DATA-ENRICHMENT.md) |
 | 116 | Daily Job Performance & Resource Link Architecture | COMPLETE | [116-DAILY-JOB-PERFORMANCE.md](phases/completed/116-DAILY-JOB-PERFORMANCE.md) |
-| 117 | Daily Job Optimization | PLANNED | [117-DAILY-JOB-OPTIMIZATION.md](phases/117-DAILY-JOB-OPTIMIZATION.md) |
+| 117 | Daily Job Optimization | COMPLETE | [117-DAILY-JOB-OPTIMIZATION.md](phases/completed/117-DAILY-JOB-OPTIMIZATION.md) |
 | 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |
