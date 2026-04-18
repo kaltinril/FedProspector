@@ -20,12 +20,41 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from config.settings import ATTACHMENT_DIR as _DEFAULT_ATTACHMENT_DIR
 from db.connection import get_connection
 from etl.etl_utils import extract_resource_guid
 from etl.load_manager import LoadManager
 _ALLOWED_PREFIXES = ("https://sam.gov/", "https://api.sam.gov/")
+
+
+def _parse_retry_after(header_value: str | None, default_seconds: int) -> int:
+    """Parse a Retry-After header into seconds.
+
+    Handles both the integer-seconds form ("60") and the HTTP-date form
+    ("Wed, 21 Oct 2026 07:28:00 GMT"). Returns ``default_seconds`` when the
+    header is missing or unparseable.
+    """
+    if not header_value:
+        return default_seconds
+    header_value = header_value.strip()
+    # Integer seconds
+    try:
+        return max(0, int(header_value))
+    except ValueError:
+        pass
+    # HTTP date
+    try:
+        from email.utils import parsedate_to_datetime
+        retry_at = parsedate_to_datetime(header_value)
+        if retry_at is not None:
+            now = datetime.now(retry_at.tzinfo) if retry_at.tzinfo else datetime.now()
+            delta = (retry_at - now).total_seconds()
+            return max(0, int(delta))
+    except (TypeError, ValueError):
+        pass
+    return default_seconds
 
 
 def _parse_content_disposition(header: str) -> str | None:
@@ -58,11 +87,20 @@ _PERMANENT_HTTP_CODES = {400, 403, 404, 410}
 # Max retries for transient failures (5xx, timeouts) before auto-skipping
 _MAX_DOWNLOAD_RETRIES = 3
 
+# Max retries for HTTP 429 rate-limit responses before giving up on a file.
+# 429 is transient (should succeed later) so it does not increment the
+# permanent-failure retry counter.
+_MAX_RATE_LIMIT_RETRIES = 3
+
+# Default seconds to wait when a 429 response omits the Retry-After header.
+_DEFAULT_RATE_LIMIT_WAIT = 60
+
 
 class AttachmentDownloader:
     """Download SAM.gov opportunity attachments and track in normalized tables."""
 
-    def __init__(self, db_connection=None, load_manager=None, attachment_dir=None):
+    def __init__(self, db_connection=None, load_manager=None, attachment_dir=None,
+                 session=None):
         """Initialize the downloader.
 
         Args:
@@ -70,9 +108,23 @@ class AttachmentDownloader:
                            interface compatibility with other loaders.
             load_manager: Optional LoadManager instance.
             attachment_dir: Override base directory for downloaded files.
+            session: Optional pre-configured requests.Session. If omitted, a
+                     new Session with HTTPAdapter connection pooling is built.
+                     The Session is shared across all worker threads — GET is
+                     thread-safe for our usage and the adapter's connection
+                     pool handles concurrency.
         """
         self.load_manager = load_manager or LoadManager()
         self.attachment_dir = Path(attachment_dir) if attachment_dir else _DEFAULT_ATTACHMENT_DIR
+
+        if session is None:
+            session = requests.Session()
+            # Retries handled in application code (429 + transient-failure logic),
+            # so disable urllib3-level retries to avoid double counting.
+            adapter = HTTPAdapter(pool_connections=20, pool_maxsize=20, max_retries=0)
+            session.mount("http://", adapter)
+            session.mount("https://", adapter)
+        self.session = session
 
     # =================================================================
     # Public entry point
@@ -85,9 +137,9 @@ class AttachmentDownloader:
         max_file_size_mb=50,
         missing_only=True,
         check_changed=False,
-        delay=0.1,
+        delay=0.05,
         active_only=False,
-        workers=5,
+        workers=10,
     ):
         """Download attachments for opportunities with resource_links.
 
@@ -101,7 +153,7 @@ class AttachmentDownloader:
             delay: Seconds to wait between downloads (rate limiting).
             active_only: If True, only process opportunities whose
                          response_deadline is in the future (or NULL).
-            workers: Number of concurrent download threads (default 5).
+            workers: Number of concurrent download threads (default 10).
 
         Returns:
             dict with keys: downloaded, skipped, failed, total_urls
@@ -484,54 +536,92 @@ class AttachmentDownloader:
             )
             return "skipped"
 
-        # Make the request, following redirects manually to validate target
-        try:
-            resp = requests.get(
-                url,
-                allow_redirects=False,
-                timeout=_REQUEST_TIMEOUT,
-                stream=True,
-            )
-        except requests.RequestException as exc:
-            logger.warning("Request failed for %s: %s", url, exc)
-            self._mark_transient_failure(notice_id, url, load_id, "network_error")
-            return "failed"
-
-        # Handle 303 redirect (SAM.gov -> S3)
-        if resp.status_code in (301, 302, 303, 307, 308):
-            redirect_url = resp.headers.get("Location")
-            if not redirect_url:
-                logger.warning("Redirect with no Location header for %s", url)
-                self._upsert_attachment_row(
-                    notice_id, url, download_status="failed", load_id=load_id,
-                )
-                return "failed"
-
-            # Validate redirect target
-            if not _ALLOWED_REDIRECT_PATTERN.match(redirect_url):
-                logger.warning("Blocked redirect to non-S3 target: %s -> %s",
-                               url, redirect_url)
-                self._upsert_attachment_row(
-                    notice_id, url, download_status="skipped", load_id=load_id,
-                )
-                return "skipped"
-
-            # Extract filename from 303 response headers before following redirect
-            filename = self._extract_filename(resp, url)
-
-            resp.close()
+        # Make the request, following redirects manually to validate target.
+        # 429 responses trigger an in-process retry with Retry-After backoff;
+        # they do NOT count against the permanent-failure retry counter.
+        rate_limit_attempts = 0
+        while True:
             try:
-                resp = requests.get(
-                    redirect_url,
+                resp = self.session.get(
+                    url,
+                    allow_redirects=False,
                     timeout=_REQUEST_TIMEOUT,
                     stream=True,
                 )
             except requests.RequestException as exc:
-                logger.warning("Redirect download failed for %s: %s", url, exc)
+                logger.warning("Request failed for %s: %s", url, exc)
                 self._mark_transient_failure(notice_id, url, load_id, "network_error")
                 return "failed"
-        else:
-            filename = self._extract_filename(resp, url)
+
+            # Handle 303 redirect (SAM.gov -> S3)
+            if resp.status_code in (301, 302, 303, 307, 308):
+                redirect_url = resp.headers.get("Location")
+                if not redirect_url:
+                    resp.close()
+                    logger.warning("Redirect with no Location header for %s", url)
+                    self._upsert_attachment_row(
+                        notice_id, url, download_status="failed", load_id=load_id,
+                    )
+                    return "failed"
+
+                # Validate redirect target
+                if not _ALLOWED_REDIRECT_PATTERN.match(redirect_url):
+                    resp.close()
+                    logger.warning("Blocked redirect to non-S3 target: %s -> %s",
+                                   url, redirect_url)
+                    self._upsert_attachment_row(
+                        notice_id, url, download_status="skipped", load_id=load_id,
+                    )
+                    return "skipped"
+
+                # Extract filename from 303 response headers before following redirect
+                filename = self._extract_filename(resp, url)
+
+                resp.close()
+                try:
+                    resp = self.session.get(
+                        redirect_url,
+                        timeout=_REQUEST_TIMEOUT,
+                        stream=True,
+                    )
+                except requests.RequestException as exc:
+                    logger.warning("Redirect download failed for %s: %s", url, exc)
+                    self._mark_transient_failure(notice_id, url, load_id, "network_error")
+                    return "failed"
+            else:
+                filename = self._extract_filename(resp, url)
+
+            # 429 — rate limited. Honor Retry-After and try again (capped).
+            if resp.status_code == 429:
+                retry_after = _parse_retry_after(
+                    resp.headers.get("Retry-After"), _DEFAULT_RATE_LIMIT_WAIT,
+                )
+                resp.close()
+                rate_limit_attempts += 1
+                if rate_limit_attempts > _MAX_RATE_LIMIT_RETRIES:
+                    reason = "max_retries_http_429"
+                    guid_for_log = resource_guid or url
+                    logger.warning(
+                        "Rate limited on GUID %s after %d attempts — giving up (%s)",
+                        guid_for_log, _MAX_RATE_LIMIT_RETRIES, reason,
+                    )
+                    self._upsert_attachment_row(
+                        notice_id, url, filename=filename,
+                        download_status="skipped",
+                        skip_reason=reason, load_id=load_id,
+                    )
+                    return "skipped"
+                guid_for_log = resource_guid or url
+                logger.warning(
+                    "Rate limited on GUID %s, sleeping %ds (attempt %d/%d)",
+                    guid_for_log, retry_after, rate_limit_attempts,
+                    _MAX_RATE_LIMIT_RETRIES,
+                )
+                time.sleep(retry_after)
+                continue
+
+            # Non-429, non-redirect response — exit retry loop and handle below.
+            break
 
         if resp.status_code != 200:
             resp.close()

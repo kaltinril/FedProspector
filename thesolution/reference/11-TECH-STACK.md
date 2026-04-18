@@ -1,6 +1,6 @@
 # Tech Stack Reference
 
-Last updated: 2026-04-01
+Last updated: 2026-04-17
 
 ---
 
@@ -38,6 +38,7 @@ Last updated: 2026-04-01
 | striprtf | 0.0.29 | Rich Text Format extraction |
 | odfpy | 1.4.1 | OpenDocument .odt text extraction |
 | olefile | 0.47 | OLE2 file inspection (IRM/DRM detection) |
+| pebble | >=5.0 | ProcessPool with per-task timeout kill/respawn (attachment text extraction — Phase 117C) |
 
 ### Dev/Testing
 

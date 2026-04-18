@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS attachment_document (
     page_count             INT,
     is_scanned             TINYINT DEFAULT 0,
     ocr_quality            ENUM('good','fair','poor'),
-    extraction_status      ENUM('pending','extracted','failed','unsupported') DEFAULT 'pending',
+    extraction_status      ENUM('pending','extracted','failed','unsupported','timeout') DEFAULT 'pending',
     text_hash              CHAR(64),
     extracted_at           DATETIME,
     extraction_retry_count INT DEFAULT 0,

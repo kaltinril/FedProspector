@@ -891,7 +891,8 @@ class AttachmentTextExtractor:
     # Public API
     # ------------------------------------------------------------------
 
-    def extract_text(self, notice_id=None, batch_size=100, force=False, workers=10):
+    def extract_text(self, notice_id=None, batch_size=100, force=False, workers=10,
+                     timeout_seconds=120):
         """Extract text from pending downloaded attachments.
 
         Args:
@@ -899,14 +900,23 @@ class AttachmentTextExtractor:
             batch_size: Max attachments to process per run.
             force: If True, re-extract even if already extracted.
             workers: Number of concurrent file extraction processes (default 10).
+            timeout_seconds: Per-file wall-clock timeout in seconds (default 120).
+                When exceeded, the worker is SIGTERM'd, the document is marked
+                extraction_status='timeout', and the pool continues with a
+                respawned worker.
 
         Returns:
-            dict with keys: processed, extracted, failed, unsupported, skipped
+            dict with keys: processed, extracted, failed, unsupported, timeout, skipped
         """
         load_id = self.load_manager.start_load(
             source_system="ATTACHMENT_TEXT",
             load_type="INCREMENTAL",
-            parameters={"notice_id": notice_id, "batch_size": batch_size, "force": force},
+            parameters={
+                "notice_id": notice_id,
+                "batch_size": batch_size,
+                "force": force,
+                "timeout_seconds": timeout_seconds,
+            },
         )
 
         stats = {
@@ -914,6 +924,7 @@ class AttachmentTextExtractor:
             "extracted": 0,
             "failed": 0,
             "unsupported": 0,
+            "timeout": 0,
             "skipped": 0,
         }
 
@@ -928,7 +939,8 @@ class AttachmentTextExtractor:
                 )
                 return {"processed": 0, "succeeded": 0, "failed": 0, "skipped": 0}
 
-            from concurrent.futures import ProcessPoolExecutor, as_completed
+            from concurrent.futures import TimeoutError as FuturesTimeoutError, as_completed
+            from pebble import ProcessPool
             from tqdm import tqdm
 
             pbar = tqdm(
@@ -941,7 +953,12 @@ class AttachmentTextExtractor:
             actual_workers = min(workers, len(rows))
             attachment_dir_str = str(self.attachment_dir)
 
-            with ProcessPoolExecutor(max_workers=actual_workers) as executor:
+            # Use pebble.ProcessPool (not concurrent.futures.ProcessPoolExecutor)
+            # because it supports per-task timeouts that actually SIGTERM stuck
+            # workers and respawn them. stdlib ProcessPoolExecutor cannot cancel
+            # running tasks and future.result(timeout=N) inside as_completed is
+            # a no-op.
+            with ProcessPool(max_workers=actual_workers) as pool:
                 futures = {}
                 for row in rows:
                     file_path = row.get("file_path")
@@ -949,24 +966,52 @@ class AttachmentTextExtractor:
                     content_type = (row.get("content_type") or "").lower()
                     ext = os.path.splitext(filename)[1].lower() if filename else ""
 
-                    future = executor.submit(
-                        _extract_file, file_path, content_type, ext, filename, attachment_dir_str,
+                    future = pool.schedule(
+                        _extract_file,
+                        args=(file_path, content_type, ext, filename, attachment_dir_str),
+                        timeout=timeout_seconds,
                     )
                     futures[future] = row
 
-                for future in as_completed(futures):
+                # pebble.ProcessFuture is compatible with concurrent.futures.as_completed
+                for future in as_completed(list(futures.keys())):
                     row = futures[future]
                     notice_id_val = row.get("notice_id") or "?"
                     filename = row.get("filename") or "unknown"
                     attachment_id = row["attachment_id"]
 
+                    timed_out = False
                     try:
                         result = future.result()
+                    except FuturesTimeoutError:
+                        # Worker was SIGTERM'd by pebble after timeout_seconds.
+                        # Pool has already respawned the replacement worker.
+                        timed_out = True
+                        result = None
                     except Exception as e:
                         # Subprocess crashed hard (should be rare)
                         result = {"status": "failed", "error": str(e)}
 
-                    if result["status"] == "extracted":
+                    if timed_out:
+                        logger.warning(
+                            "Extraction timeout after %ds for attachment %s (%s, notice=%s)",
+                            timeout_seconds, attachment_id, filename, notice_id_val,
+                        )
+                        try:
+                            self._mark_timeout(attachment_id, load_id)
+                        except Exception as mark_err:
+                            logger.error(
+                                "Failed to mark timeout for attachment %s: %s",
+                                attachment_id, mark_err,
+                            )
+                        self.load_manager.log_record_error(
+                            load_id,
+                            record_identifier=str(attachment_id),
+                            error_type="EXTRACTION_TIMEOUT",
+                            error_message=f"Timed out after {timeout_seconds}s",
+                        )
+                        stats["timeout"] += 1
+                    elif result["status"] == "extracted":
                         try:
                             self._save_extraction(
                                 attachment_id=attachment_id,
@@ -1001,7 +1046,7 @@ class AttachmentTextExtractor:
 
                     stats["processed"] += 1
                     pbar.set_postfix_str(
-                        f"ok={stats['extracted']} fail={stats['failed']} unsup={stats['unsupported']} | {notice_id_val} | {filename}"
+                        f"ok={stats['extracted']} fail={stats['failed']} unsup={stats['unsupported']} timeout={stats['timeout']} | {notice_id_val} | {filename}"
                     )
                     pbar.update(1)
 
@@ -1013,13 +1058,14 @@ class AttachmentTextExtractor:
                 records_inserted=stats["extracted"],
                 records_updated=0,
                 records_unchanged=stats["skipped"],
-                records_errored=stats["failed"] + stats["unsupported"],
+                records_errored=stats["failed"] + stats["unsupported"] + stats["timeout"],
             )
             logger.info(
-                "Extraction complete: %d extracted, %d failed, %d unsupported, %d skipped",
+                "Extraction complete: %d extracted, %d failed, %d unsupported, %d timeout, %d skipped",
                 stats["extracted"],
                 stats["failed"],
                 stats["unsupported"],
+                stats["timeout"],
                 stats["skipped"],
             )
         except Exception as e:
@@ -1247,6 +1293,31 @@ class AttachmentTextExtractor:
             cursor.execute(
                 "UPDATE attachment_document SET "
                 "extraction_status = 'unsupported', extracted_at = %s, last_load_id = %s "
+                "WHERE document_id = %s",
+                (datetime.now(), load_id, document_id),
+            )
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            if not self.db_connection:
+                conn.close()
+
+    def _mark_timeout(self, attachment_id, load_id):
+        """Mark document extraction as timed out.
+
+        Note: attachment_id here is actually document_id (mapped in _fetch_pending).
+        """
+        document_id = attachment_id
+        conn = self.db_connection or get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "UPDATE attachment_document SET "
+                "extraction_status = 'timeout', extraction_retry_count = extraction_retry_count + 1, "
+                "extracted_at = %s, last_load_id = %s "
                 "WHERE document_id = %s",
                 (datetime.now(), load_id, document_id),
             )

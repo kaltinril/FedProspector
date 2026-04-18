@@ -15,7 +15,9 @@ import hashlib
 import json
 import logging
 import os
+import random
 import re
+import time
 from collections import Counter
 from datetime import datetime
 
@@ -23,6 +25,64 @@ from db.connection import get_connection
 from etl.load_manager import LoadManager
 
 logger = logging.getLogger("fed_prospector.etl.attachment_intel_extractor")
+
+
+# ======================================================================
+# Parallel worker (Phase 117E)
+# ======================================================================
+
+_DEADLOCK_RETRY_MAX = 3
+_DEADLOCK_RETRY_BASE_SLEEP = 0.05  # seconds; exponential backoff + jitter
+
+
+def _is_deadlock_error(exc) -> bool:
+    """Detect MySQL InnoDB deadlock errors across mysql.connector variants.
+
+    Deadlock = errno 1213 (ER_LOCK_DEADLOCK). Safe to retry: InnoDB has already
+    rolled back the losing transaction.
+    """
+    errno = getattr(exc, "errno", None)
+    if errno == 1213:
+        return True
+    # Fallback: some wrappers bury the code in the message
+    return "1213" in str(exc) and "Deadlock" in str(exc)
+
+
+def _process_notice_worker(args):
+    """ProcessPoolExecutor worker - module-level for Windows `spawn` compatibility.
+
+    `self.load_manager` in the parent holds live DB connections and is NOT
+    picklable. Each worker process instantiates its own `LoadManager` and
+    `AttachmentIntelExtractor`; DB connections are acquired from the
+    module-global pool lazily per worker process.
+
+    Retries on InnoDB deadlock (errno 1213) up to _DEADLOCK_RETRY_MAX times
+    with exponential backoff + jitter. Under parallel `--force`, shared-
+    document cleanup and cross-notice evidence writes can deadlock; the
+    losing transaction is auto-rolled-back so a fresh retry is safe.
+
+    Args:
+        args: 5-tuple (notice_id, method, load_id, force, description_only).
+              Packed as a tuple so `executor.map` can dispatch a single iterable.
+
+    Returns:
+        (notice_id, stats_dict_or_None, error_message_or_None)
+    """
+    notice_id, method, load_id, force, description_only = args
+    for attempt in range(_DEADLOCK_RETRY_MAX):
+        try:
+            lm = LoadManager()
+            extractor = AttachmentIntelExtractor(load_manager=lm, dump_on_error=False)
+            extractor._description_only = description_only
+            stats = extractor._process_notice(notice_id, method, load_id, force=force)
+            return (notice_id, stats, None)
+        except Exception as e:  # noqa: BLE001 - must not raise across process boundary
+            if _is_deadlock_error(e) and attempt + 1 < _DEADLOCK_RETRY_MAX:
+                backoff = _DEADLOCK_RETRY_BASE_SLEEP * (2 ** attempt) + random.random() * 0.05
+                time.sleep(backoff)
+                continue
+            return (notice_id, None, f"{type(e).__name__}: {e}")
+    return (notice_id, None, "Deadlock retry exhausted")
 
 # ======================================================================
 # Regex Pattern Library
@@ -395,7 +455,7 @@ class AttachmentIntelExtractor:
     # Public API
     # ------------------------------------------------------------------
 
-    def extract_intel(self, notice_id=None, batch_size=100, method="keyword", force=False, description_only=False):
+    def extract_intel(self, notice_id=None, batch_size=100, method="keyword", force=False, description_only=False, workers=4):
         """Extract intelligence from attachment text and opportunity descriptions.
 
         Args:
@@ -404,6 +464,8 @@ class AttachmentIntelExtractor:
             method: Extraction method label (default 'keyword').
             force: If True, re-extract even if already processed.
             description_only: If True, only process description_text (no attachments).
+            workers: Number of parallel worker processes (default 4). workers=1
+                     runs serially in the current process (back-compat + debugging).
 
         Returns:
             dict with keys: notices_processed, intel_rows_upserted,
@@ -420,6 +482,7 @@ class AttachmentIntelExtractor:
                 "method": method,
                 "force": force,
                 "description_only": description_only,
+                "workers": workers,
             },
         )
 
@@ -434,38 +497,73 @@ class AttachmentIntelExtractor:
             total_eligible = self._count_eligible_notices(notice_id, method, force)
             remaining = total_eligible - len(notice_ids)
             logger.info(
-                "Found %d notices to extract intel from (load_id=%d) — %d total eligible, %d remaining after this batch",
-                len(notice_ids), load_id, total_eligible, remaining,
+                "Found %d notices to extract intel from (load_id=%d, workers=%d) - %d total eligible, %d remaining after this batch",
+                len(notice_ids), load_id, workers, total_eligible, remaining,
             )
 
             from tqdm import tqdm
 
             pbar = tqdm(
-                notice_ids,
+                total=len(notice_ids),
                 desc="Intel extraction",
                 unit="notice",
                 bar_format="{desc}: {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
             )
-            for nid in pbar:
-                try:
-                    result = self._process_notice(nid, method, load_id, force=force)
-                    stats["notices_processed"] += 1
-                    stats["intel_rows_upserted"] += result["intel_upserted"]
-                    stats["source_rows_inserted"] += result["sources_inserted"]
-                except Exception as e:
-                    stats["notices_processed"] += 1
-                    self.load_manager.log_record_error(
-                        load_id,
-                        record_identifier=nid,
-                        error_type="INTEL_EXTRACTION_ERROR",
-                        error_message=str(e),
-                    )
-                    logger.error("Intel extraction failed for %s: %s", nid, e)
-                    if self.dump_on_error:
-                        raise
-                pbar.set_postfix_str(
-                    f"intel={stats['intel_rows_upserted']}"
-                )
+
+            if workers <= 1:
+                # Serial path - preserved for debugging + back-compat
+                for nid in notice_ids:
+                    try:
+                        result = self._process_notice(nid, method, load_id, force=force)
+                        stats["notices_processed"] += 1
+                        stats["intel_rows_upserted"] += result["intel_upserted"]
+                        stats["source_rows_inserted"] += result["sources_inserted"]
+                    except Exception as e:
+                        stats["notices_processed"] += 1
+                        self.load_manager.log_record_error(
+                            load_id,
+                            record_identifier=nid,
+                            error_type="INTEL_EXTRACTION_ERROR",
+                            error_message=str(e),
+                        )
+                        logger.error("Intel extraction failed for %s: %s", nid, e)
+                        if self.dump_on_error:
+                            raise
+                    pbar.update(1)
+                    pbar.set_postfix_str(f"intel={stats['intel_rows_upserted']}")
+            else:
+                # Parallel path (Phase 117E) - ProcessPoolExecutor + module-level worker.
+                # Args are packed as tuples so executor.map can dispatch a single iterable.
+                from concurrent.futures import ProcessPoolExecutor
+
+                work_items = [
+                    (nid, method, load_id, force, description_only)
+                    for nid in notice_ids
+                ]
+
+                with ProcessPoolExecutor(max_workers=workers) as executor:
+                    for notice_id_done, result, error in executor.map(
+                        _process_notice_worker, work_items, chunksize=10,
+                    ):
+                        stats["notices_processed"] += 1
+                        if error is not None:
+                            # Worker-side exception - log serially in parent
+                            # (LoadManager is not picklable).
+                            self.load_manager.log_record_error(
+                                load_id,
+                                record_identifier=notice_id_done,
+                                error_type="INTEL_EXTRACTION_ERROR",
+                                error_message=error,
+                            )
+                            logger.error("Intel extraction failed for %s: %s", notice_id_done, error)
+                            if self.dump_on_error:
+                                raise RuntimeError(f"{notice_id_done}: {error}")
+                        else:
+                            stats["intel_rows_upserted"] += result["intel_upserted"]
+                            stats["source_rows_inserted"] += result["sources_inserted"]
+                        pbar.update(1)
+                        pbar.set_postfix_str(f"intel={stats['intel_rows_upserted']}")
+
             pbar.close()
 
             self.load_manager.complete_load(
@@ -765,6 +863,38 @@ class AttachmentIntelExtractor:
     # Internal: process one notice
     # ------------------------------------------------------------------
 
+    def _get_existing_intel_hash(self, document_id, method):
+        """Return the extracted-text hash stored with the current intel row.
+
+        Reads `document_intel_summary.source_text_hash` for (document_id, method).
+        Used to short-circuit redundant work: if the text we're about to process
+        hashes to the same value that was already used to produce an intel row,
+        we can skip the regex scan + UPSERT + evidence replace entirely.
+
+        Returns the hex-digest string, or None if no intel row exists yet.
+
+        Note: this is the EXTRACTED TEXT hash (post-extraction, post-decoding),
+        NOT the file-bytes hash (`sam_attachment.content_hash`). A .docx and
+        its converted .pdf have different file-bytes hashes but can share the
+        same extracted-text hash — we want this check to skip work across
+        such conversions.
+        """
+        if document_id is None:
+            return None
+        conn = get_connection()
+        cur = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT source_text_hash FROM document_intel_summary "
+                "WHERE document_id = %s AND extraction_method = %s",
+                (document_id, method),
+            )
+            row = cur.fetchone()
+            return row[0] if row else None
+        finally:
+            cur.close()
+            conn.close()
+
     def _process_notice(self, notice_id, method, load_id, force=False):
         """Process all text sources for a single notice.
 
@@ -803,9 +933,29 @@ class AttachmentIntelExtractor:
                     self._stamp_keyword_analyzed_by_doc(document_id)
                 continue
             document_ids_seen.add(document_id)
-            source_intel = self._consolidate_matches(source_matches)
             source_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
+            # 117E: skip redundant work on shared documents.
+            #
+            # 34% of attachments are referenced by >1 notice. Without this
+            # check, every notice processing such an attachment would re-run
+            # the regex scan + UPSERT + evidence replace — wasting CPU and
+            # creating a race window with other workers.
+            #
+            # Match key is the EXTRACTED TEXT hash, not the file-bytes hash,
+            # so this skip fires even when the same content was uploaded as
+            # two different file formats (e.g., .docx + .pdf of same doc).
+            # When force=True (manual re-extraction), we always do the work.
+            if not force and document_id is not None:
+                existing_hash = self._get_existing_intel_hash(document_id, method)
+                if existing_hash == source_hash:
+                    # Intel already exists for this document from text with
+                    # identical content. Evidence rows from that prior run
+                    # are still valid. Just stamp analyzed_at and move on.
+                    self._stamp_keyword_analyzed_by_doc(document_id)
+                    continue
+
+            source_intel = self._consolidate_matches(source_matches)
             intel_id = self._upsert_intel_row(
                 notice_id, document_id, method, source_hash, source_intel, load_id,
             )

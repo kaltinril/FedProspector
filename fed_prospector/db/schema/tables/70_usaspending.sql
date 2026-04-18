@@ -80,6 +80,10 @@ CREATE INDEX IF NOT EXISTS idx_usa_end_date_type_naics ON usaspending_award (end
 -- Scope post-load resolution (fh_org_id, agency codes) to new rows instead of full-table scan
 CREATE INDEX IF NOT EXISTS idx_usa_last_load_id ON usaspending_award (last_load_id);
 
+-- Phase 117A: covering index for refresh_usaspending_award_summary() ROLLUP query
+-- Enables index-only scan (no clustered-row access) for the daily summary refresh
+CREATE INDEX IF NOT EXISTS idx_usa_summary_cover ON usaspending_award (naics_code, awarding_agency_cgac, recipient_uei, total_obligation);
+
 -- Transaction-level spending detail for burn rate analysis
 CREATE TABLE IF NOT EXISTS usaspending_transaction (
     id                          BIGINT AUTO_INCREMENT PRIMARY KEY,

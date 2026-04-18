@@ -16,11 +16,11 @@ from config.logging_config import setup_logging
               help="Only download attachments not yet stored locally")
 @click.option("--check-changed", is_flag=True, default=False,
               help="Re-download if remote file has changed (hash check)")
-@click.option("--delay", type=float, default=0.1, show_default=True,
+@click.option("--delay", type=float, default=0.05, show_default=True,
               help="Delay in seconds between API requests")
 @click.option("--active-only", is_flag=True, default=False,
               help="Only download for opportunities with future response deadlines")
-@click.option("--workers", type=int, default=5, show_default=True,
+@click.option("--workers", type=int, default=10, show_default=True,
               help="Number of concurrent download threads")
 def download_attachments(notice_id, batch_size, max_file_size, missing_only,
                          check_changed, delay, active_only, workers):
@@ -76,7 +76,9 @@ def download_attachments(notice_id, batch_size, max_file_size, missing_only,
               help="Re-extract text even if already extracted")
 @click.option("--workers", type=int, default=10, show_default=True,
               help="Number of concurrent extraction threads")
-def extract_attachment_text(notice_id, batch_size, force, workers):
+@click.option("--timeout", type=int, default=120, show_default=True,
+              help="Per-file extraction timeout in seconds")
+def extract_attachment_text(notice_id, batch_size, force, workers, timeout):
     """Extract text content from downloaded attachments.
 
     Parses PDF, DOCX, and other document formats to extract raw text
@@ -93,8 +95,8 @@ def extract_attachment_text(notice_id, batch_size, force, workers):
 
     extractor = AttachmentTextExtractor()
     logger.info(
-        "Starting attachment text extraction (batch_size=%d, force=%s)",
-        batch_size, force,
+        "Starting attachment text extraction (batch_size=%d, force=%s, timeout=%ds)",
+        batch_size, force, timeout,
     )
     click.echo(f"Extracting text from attachments (batch_size={batch_size})...")
 
@@ -104,6 +106,7 @@ def extract_attachment_text(notice_id, batch_size, force, workers):
             batch_size=batch_size,
             force=force,
             workers=workers,
+            timeout_seconds=timeout,
         )
     except Exception as e:
         import threading
@@ -116,7 +119,8 @@ def extract_attachment_text(notice_id, batch_size, force, workers):
     click.echo(
         f"Done. Extracted {stats.get('extracted', 0)} attachments, "
         f"skipped {stats.get('skipped', 0)}, "
-        f"failed {stats.get('failed', 0)}"
+        f"failed {stats.get('failed', 0)}, "
+        f"timeout {stats.get('timeout', 0)}"
     )
 
 
@@ -132,7 +136,9 @@ def extract_attachment_text(notice_id, batch_size, force, workers):
               help="Re-extract intel even if already extracted")
 @click.option("--dump", is_flag=True, default=False,
               help="Dump intel dict to JSON file on DB insert error and stop")
-def extract_attachment_intel(notice_id, batch_size, method, force, dump):
+@click.option("--workers", type=int, default=4, show_default=True,
+              help="Number of parallel worker processes (1 = serial, for debugging)")
+def extract_attachment_intel(notice_id, batch_size, method, force, dump, workers):
     """Extract structured intelligence from attachment text.
 
     Parses extracted text to identify key requirements, evaluation
@@ -143,6 +149,7 @@ def extract_attachment_intel(notice_id, batch_size, method, force, dump):
         python main.py extract attachment-intel
         python main.py extract attachment-intel --method regex
         python main.py extract attachment-intel --notice-id abc123 --force
+        python main.py extract attachment-intel --workers 1   # serial, for debugging
     """
     logger = setup_logging()
 
@@ -150,12 +157,12 @@ def extract_attachment_intel(notice_id, batch_size, method, force, dump):
 
     extractor = AttachmentIntelExtractor(dump_on_error=dump)
     logger.info(
-        "Starting attachment intel extraction (batch_size=%d, method=%s, force=%s)",
-        batch_size, method, force,
+        "Starting attachment intel extraction (batch_size=%d, method=%s, force=%s, workers=%d)",
+        batch_size, method, force, workers,
     )
     click.echo(
         f"Extracting intelligence from attachments "
-        f"(batch_size={batch_size}, method={method})..."
+        f"(batch_size={batch_size}, method={method}, workers={workers})..."
     )
 
     stats = extractor.extract_intel(
@@ -163,6 +170,7 @@ def extract_attachment_intel(notice_id, batch_size, method, force, dump):
         batch_size=batch_size,
         method=method,
         force=force,
+        workers=workers,
     )
 
     click.echo(
@@ -179,7 +187,9 @@ def extract_attachment_intel(notice_id, batch_size, method, force, dump):
               help="Number of notices to process per batch")
 @click.option("--force", is_flag=True, default=False,
               help="Re-extract intel even if already extracted")
-def extract_description_intel(notice_id, batch_size, force):
+@click.option("--workers", type=int, default=4, show_default=True,
+              help="Number of parallel worker processes (1 = serial, for debugging)")
+def extract_description_intel(notice_id, batch_size, force, workers):
     """Extract structured intelligence from opportunity description text.
 
     Runs keyword/regex patterns against opportunity description_text to
@@ -201,12 +211,12 @@ def extract_description_intel(notice_id, batch_size, force):
 
     extractor = AttachmentIntelExtractor()
     logger.info(
-        "Starting description intel extraction (batch_size=%d, force=%s)",
-        batch_size, force,
+        "Starting description intel extraction (batch_size=%d, force=%s, workers=%d)",
+        batch_size, force, workers,
     )
     click.echo(
         f"Extracting intelligence from descriptions "
-        f"(batch_size={batch_size})..."
+        f"(batch_size={batch_size}, workers={workers})..."
     )
 
     stats = extractor.extract_intel(
@@ -215,6 +225,7 @@ def extract_description_intel(notice_id, batch_size, force):
         method="description_keyword",
         force=force,
         description_only=True,
+        workers=workers,
     )
 
     click.echo(
