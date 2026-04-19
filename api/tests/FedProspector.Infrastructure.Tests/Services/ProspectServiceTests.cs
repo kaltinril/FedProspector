@@ -17,6 +17,7 @@ public class ProspectServiceTests : IDisposable
     private readonly Mock<IGoNoGoScoringService> _scoringServiceMock;
     private readonly Mock<IActivityLogService> _activityLogMock;
     private readonly Mock<INotificationService> _notificationMock;
+    private readonly Mock<IPipelineService> _pipelineServiceMock;
 
     public ProspectServiceTests()
     {
@@ -29,12 +30,14 @@ public class ProspectServiceTests : IDisposable
         _scoringServiceMock = new Mock<IGoNoGoScoringService>();
         _activityLogMock = new Mock<IActivityLogService>();
         _notificationMock = new Mock<INotificationService>();
+        _pipelineServiceMock = new Mock<IPipelineService>();
 
         _service = new ProspectService(
             _context,
             _scoringServiceMock.Object,
             _activityLogMock.Object,
             _notificationMock.Object,
+            _pipelineServiceMock.Object,
             NullLogger<ProspectService>.Instance);
     }
 

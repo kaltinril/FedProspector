@@ -1,6 +1,6 @@
 # Phase 310: Dependency Updates & Package Maintenance
 
-**Status:** PLANNED
+**Status:** IN PROGRESS — PRs 1–6 done, PR 7 deferred (ecosystem), PRs 8–9 deferred (separate session), PR 10 in progress
 **Priority:** HIGH (6 open security advisories across UI + Python)
 **Dependencies:** None
 **Validated against live state:** 2026-04-18
@@ -201,14 +201,23 @@ Each PR is standalone — if one breaks, it can be reverted without blocking the
 2. `npm ci` in `ui/` — verify lockfile format still resolves
 3. Regenerate lockfile if needed
 
-### PR 7 — ESLint 9 → 10
-1. Bump eslint 9.39.4 → 10.2.1, @eslint/js 9.39.4 → 10.0.1
+### PR 7 — ESLint 9 → 10 — **DEFERRED**
+
+**Status:** Deferred (2026-04-18) until the ESLint 10 ecosystem catches up.
+
+**Blocker:** `eslint-plugin-jsx-a11y@6.10.2` (latest on npm) declares peer `eslint ^3 || ... || ^9` — does not accept ESLint 10. It is the de-facto JSX accessibility linter with no real replacement; removing it would drop a11y linting coverage. `typescript-eslint@8.58.2` and `eslint-plugin-react-hooks@7.1.1` already support ESLint 10; jsx-a11y is the sole holdout. Tracking issue: jsx-a11y #1075 (filed 2026-02-09, no progress as of 2026-04-18).
+
+**No security pressure:** ESLint 9.x has zero open advisories. Only old ReDoS < 4.18.2 is flagged on npm audit, and we're far past that.
+
+**Resume conditions:** (a) jsx-a11y ships a release with `eslint ^10` in peer range, OR (b) a viable replacement emerges. When either happens, reopen this PR with the original plan:
+
+1. Bump eslint 9.39.4 → 10.x latest, @eslint/js 9.39.4 → 10.x latest
 2. Keep typescript-eslint on a version that still supports TS 5.x (so this PR doesn't force TS 6 yet)
 3. `npm run lint` — fix any violations from 3 new `recommended` rules (`no-unassigned-vars`, `no-useless-assignment`, `preserve-caught-error`)
 4. `npm run build`
 
 ### PR 8 — MUI v7 → v9 (largest effort; do AFTER everything above has shipped and stabilized)
-Only start this PR after PRs 1–7 have merged, run in prod for at least a few days, and the codebase is proven stable. Gives MUI v9 time to accumulate post-GA bug-fix patches (watch for 9.0.x or 9.1 release before starting).
+Only start this PR after PRs 1–6 have merged (PR 7 is deferred; see above), run in prod for at least a few days, and the codebase is proven stable. Gives MUI v9 time to accumulate post-GA bug-fix patches (watch for 9.0.x or 9.1 release before starting).
 
 1. Read MUI migration guides v7→v9 (MUI skipped v8 for core, so one guide — but @mui/x-* went v8→v9 on its own guide)
 2. Run MUI codemods: `npx @mui/codemod@latest v9.0.0/preset-safe ui/src` (commit alone — reversible baseline)
@@ -398,3 +407,22 @@ End-state check after all PRs ship:
 - `cd api && dotnet list package --outdated` = only EF Core / Pomelo rows (held at 9.x until Pomelo ships 10)
 - `cd api && dotnet list package --vulnerable` = empty
 - Tech stack doc in [../reference/11-TECH-STACK.md](../reference/11-TECH-STACK.md) reflects new versions
+
+---
+
+## Progress Log
+
+- **2026-04-18 — PR 1 (UI security) landed.** axios 1.13.6 (pinned) → ^1.15.0, vite 8.0.1 → 8.0.8, dompurify 3.3.3 → 3.4.0. `npm audit` UI = 0 vulns.
+- **2026-04-18 — PR 2 (Python security + patch/minor) landed.** anthropic 0.86.0 → 0.96.0 (fixes GHSA-w828-4qhx-vxx3 and GHSA-q5f5-3gjm-7mfm), requests 2.32.5 → 2.33.1, lxml 6.0.2 → 6.1.0, click 8.3.1 → 8.3.2, rapidfuzz 3.14.3 → 3.14.5, pytest 9.0.2 → 9.0.3.
+- **2026-04-18 — PR 3 (.NET minor/patch) landed.** JwtBearer / Mvc.Testing / Logging.Abstractions 10.0.5 → 10.0.6, Microsoft.OpenApi 3.4.0 → 3.5.2, Swashbuckle.AspNetCore 10.1.5 → 10.1.7, Microsoft.NET.Test.Sdk 18.3.0 → 18.4.0. EF Core family held at 9.x (Pomelo has no 10.x).
+- **2026-04-18 — PR 4 (coverlet.collector 8 → 10) landed.** Bumped across all 3 test csproj files.
+- **2026-04-18 — PR 5 (UI patch/minor non-security) landed.** react / react-dom 19.2.0 → 19.2.5, react-router-dom 7.13.1 → 7.14.1, @tanstack/react-query + devtools 5.91.x → 5.99.1, react-hook-form 7.71.2 → 7.72.1, prettier 3.8.1 → 3.8.3, globals 17.4.0 → 17.5.0, eslint-plugin-react-hooks 7.0.1 → 7.1.1, typescript-eslint 8.57.1 → 8.58.2, @mui/material + icons-material 7.3.9 → 7.3.10 (patch only; v9 deferred), @mui/x-charts + x-data-grid 8.27.5 → 8.28.2 (patch only; v9 deferred).
+- **2026-04-18 — PR 6 (npm CLI bump) landed.** npm 10.9.4 → 11.12.1 on local machine.
+- **2026-04-18 — PR 7 (ESLint 9 → 10) deferred.** Blocked on `eslint-plugin-jsx-a11y` ecosystem support for ESLint 10. No security pressure (ESLint 9.x has 0 open advisories). Resume when jsx-a11y ships a release with `eslint ^10` in peer range.
+- **2026-04-18 — PR 8 (MUI v7 → v9) deferred to separate session.** Requires 16–24h of focused DataGrid + Charts audit; out of scope for this session.
+- **2026-04-18 — PR 9 (TypeScript 5.9 → 6.0) deferred to separate session.** Sequencing rule: TS 6 ships after MUI v9 stabilizes.
+- **2026-04-18 — PR 10 (Docs) in progress.** Tech stack doc and this phase file updated to reflect PRs 1–6. Phase NOT marked COMPLETE — three PRs outstanding.
+- **2026-04-18 — Bonus cleanup (landed alongside PRs 1–6):**
+  - Fixed compile error in `api/tests/FedProspector.Infrastructure.Tests/Services/ProspectServiceTests.cs` (missing `IPipelineService` mock).
+  - Fixed 3 stale `AuthServiceTests` cases (invite code hex pattern, role rename, error text).
+  - Added `FedProspector.Infrastructure.Tests` to `api/FedProspector.slnx` — previously omitted by oversight. CI now runs its 319 tests.

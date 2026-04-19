@@ -7,5 +7,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/FedProspector.Api.Tests/FedProspector.Api.Tests.csproj" />
     <Project Path="tests/FedProspector.Core.Tests/FedProspector.Core.Tests.csproj" />
+    <Project Path="tests/FedProspector.Infrastructure.Tests/FedProspector.Infrastructure.Tests.csproj" />
   </Folder>
 </Solution>

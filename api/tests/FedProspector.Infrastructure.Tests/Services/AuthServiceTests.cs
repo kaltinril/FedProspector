@@ -356,11 +356,14 @@ public class AuthServiceTests : IDisposable
     {
         SeedOrganization(orgId: 2, name: "Invite Org");
 
+        // Invite codes must match ^[a-f0-9]{64}$ (enforced by AuthService)
+        const string validInviteCode = "a1b2c3d4e5f60718293a4b5c6d7e8f901a2b3c4d5e6f708192a3b4c5d6e7f890";
+
         var invite = new OrganizationInvite
         {
             OrganizationId = 2,
             Email = "invited@example.com",
-            InviteCode = "VALID-CODE-123",
+            InviteCode = validInviteCode,
             OrgRole = "member",
             InvitedBy = 1,
             ExpiresAt = DateTime.UtcNow.AddDays(7),
@@ -375,7 +378,7 @@ public class AuthServiceTests : IDisposable
             Email = "invited@example.com",
             Password = "Password@1!",
             DisplayName = "Invited User",
-            InviteCode = "VALID-CODE-123"
+            InviteCode = validInviteCode
         };
 
         var result = await _service.RegisterAsync(request, isAdminRegistration: false);
@@ -420,11 +423,14 @@ public class AuthServiceTests : IDisposable
     [Fact]
     public async Task RegisterAsync_InviteEmailMismatch_Fails()
     {
+        // Invite codes must match ^[a-f0-9]{64}$ (enforced by AuthService)
+        const string mismatchInviteCode = "deadbeef0123456789abcdef0123456789abcdef0123456789abcdef01234567";
+
         var invite = new OrganizationInvite
         {
             OrganizationId = 1,
             Email = "original@example.com",
-            InviteCode = "MISMATCH-CODE",
+            InviteCode = mismatchInviteCode,
             OrgRole = "member",
             InvitedBy = 1,
             ExpiresAt = DateTime.UtcNow.AddDays(7),
@@ -439,7 +445,7 @@ public class AuthServiceTests : IDisposable
             Email = "different@example.com",
             Password = "Password@1!",
             DisplayName = "Mismatch User",
-            InviteCode = "MISMATCH-CODE"
+            InviteCode = mismatchInviteCode
         };
 
         var result = await _service.RegisterAsync(request, isAdminRegistration: false);
@@ -544,7 +550,9 @@ public class AuthServiceTests : IDisposable
         profile.DisplayName.Should().Be("Profile User");
         profile.Email.Should().Be("profile@example.com");
         profile.Username.Should().Be("testuser");
-        profile.Role.Should().Be("USER");
+        // Profile DTO's Role is sourced from AppUser.OrgRole (organization-scoped role),
+        // not the legacy global Role column. Default seeded OrgRole is "member".
+        profile.Role.Should().Be("member");
         profile.IsOrgAdmin.Should().BeFalse();
     }
 
