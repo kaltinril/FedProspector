@@ -216,34 +216,42 @@ builder.Services.AddCors(options =>
 });
 
 // --- Rate Limiting ---
+// NOTE (2026-04-18): All PermitLimit values set to int.MaxValue — effectively disabled.
+// Rationale: internal tool, small user base, heavy data-exploration workloads. Prior
+// limits (esp. `search` at 1000/min/user) were getting hit by normal click-through
+// navigation and causing 429s which the UI treats as auth failures, bouncing users to
+// /login. Infrastructure is intentionally left in place so limits can be re-enabled
+// per-policy by adjusting numbers below. REVISIT if: (a) the API is ever exposed to
+// the public internet, (b) user base grows significantly, (c) we see abuse patterns
+// in logs, or (d) we want to gate auth endpoints against credential-stuffing attacks.
 const int rateLimitRetryAfterSeconds = 60;
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-    // Auth endpoints: 10/min per IP
+    // Auth endpoints: effectively unlimited (was 10/min per IP — REVISIT for prod-exposed deployments)
     options.AddPolicy("auth", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 10,
+                PermitLimit = int.MaxValue,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
 
-    // Global login rate limit: 100 total login attempts per minute (all IPs combined)
+    // Global login rate limit: effectively unlimited (was 100/min total — REVISIT for prod-exposed deployments)
     options.AddPolicy("login_global", _ =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: "global_login",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 100,
+                PermitLimit = int.MaxValue,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
 
-    // Search/read endpoints: 1000/min per user
+    // Search/read endpoints: effectively unlimited (was 1000/min per user — hit during normal navigation; REVISIT if scaling up)
     options.AddPolicy("search", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
@@ -252,12 +260,12 @@ builder.Services.AddRateLimiter(options =>
                           ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 1000,
+                PermitLimit = int.MaxValue,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
 
-    // Write endpoints: 30/min per user
+    // Write endpoints: effectively unlimited (was 30/min per user — REVISIT for prod-exposed deployments or abuse-pattern mitigation)
     options.AddPolicy("write", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
@@ -266,12 +274,12 @@ builder.Services.AddRateLimiter(options =>
                           ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 30,
+                PermitLimit = int.MaxValue,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));
 
-    // Admin endpoints: 30/min per user
+    // Admin endpoints: effectively unlimited (was 30/min per user — REVISIT if admin surface grows or is exposed publicly)
     options.AddPolicy("admin", context =>
         RateLimitPartition.GetFixedWindowLimiter(
             partitionKey: context.User?.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value
@@ -280,7 +288,7 @@ builder.Services.AddRateLimiter(options =>
                           ?? "unknown",
             factory: _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 30,
+                PermitLimit = int.MaxValue,
                 Window = TimeSpan.FromMinutes(1),
                 QueueLimit = 0
             }));

@@ -29,13 +29,18 @@ public class AuthService : IAuthService
     private static readonly ConcurrentDictionary<string, List<DateTime>> _failedLoginTracker = new();
 
     // Invite code lockout tracking (in-memory, since model doesn't have these fields)
-    private const int MaxInviteAttempts = 5;
+    // NOTE (2026-04-18): MaxInviteAttempts set to int.MaxValue — effectively disabled.
+    // REVISIT for prod-exposed deployments — this is the only defense against invite-code
+    // brute-forcing of the 64-hex-char regex space.
+    private const int MaxInviteAttempts = int.MaxValue;
     private const int MaxInviteTrackingEntries = 10_000;
     private static readonly Regex InviteCodePattern = new(@"^[a-f0-9]{64}$", RegexOptions.Compiled);
     private static readonly ConcurrentDictionary<string, int> _inviteFailedAttempts = new();
 
     // Registration rate limiting: track attempts per IP
-    private const int MaxRegisterAttemptsPerMinute = 3;
+    // NOTE (2026-04-18): MaxRegisterAttemptsPerMinute set to int.MaxValue — effectively disabled.
+    // REVISIT for prod-exposed deployments — backstops the ASP.NET Core rate limiter for register endpoint.
+    private const int MaxRegisterAttemptsPerMinute = int.MaxValue;
     private static readonly ConcurrentDictionary<string, List<DateTime>> _registerAttemptTracker = new();
 
     // Token lifetimes
