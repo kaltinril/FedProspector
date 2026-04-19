@@ -255,7 +255,6 @@ export default function BidScenarioPage() {
           </Box>
         }
       />
-
       {/* Scenario tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
@@ -264,7 +263,6 @@ export default function BidScenarioPage() {
           ))}
         </Tabs>
       </Box>
-
       {current && currentTotals && (
         <Box>
           {/* Scenario name */}
@@ -278,7 +276,9 @@ export default function BidScenarioPage() {
 
           {/* Labor lines */}
           <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+            <Typography variant="subtitle1" gutterBottom sx={{
+              fontWeight: 600
+            }}>
               Labor Lines
             </Typography>
             {current.laborLines.map((line, li) => (
@@ -332,7 +332,9 @@ export default function BidScenarioPage() {
 
           {/* Cost structure */}
           <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+            <Typography variant="subtitle1" gutterBottom sx={{
+              fontWeight: 600
+            }}>
               Cost Structure
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
@@ -405,40 +407,63 @@ export default function BidScenarioPage() {
           <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap' }}>
             <Card variant="outlined" sx={{ flex: 1, minWidth: 130 }}>
               <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Typography variant="caption" color="text.secondary">Direct Labor</Typography>
-                <Typography variant="h6" fontWeight={600}>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Direct Labor</Typography>
+                <Typography variant="h6" sx={{
+                  fontWeight: 600
+                }}>
                   {formatCurrency(currentTotals.directLabor)}
                 </Typography>
               </CardContent>
             </Card>
             <Card variant="outlined" sx={{ flex: 1, minWidth: 130 }}>
               <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Typography variant="caption" color="text.secondary">Indirect Costs</Typography>
-                <Typography variant="h6" fontWeight={600}>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Indirect Costs</Typography>
+                <Typography variant="h6" sx={{
+                  fontWeight: 600
+                }}>
                   {formatCurrency(currentTotals.overhead + currentTotals.ga)}
                 </Typography>
               </CardContent>
             </Card>
             <Card variant="outlined" sx={{ flex: 1, minWidth: 130 }}>
               <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Typography variant="caption" color="text.secondary">Total Cost</Typography>
-                <Typography variant="h6" fontWeight={600}>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Total Cost</Typography>
+                <Typography variant="h6" sx={{
+                  fontWeight: 600
+                }}>
                   {formatCurrency(currentTotals.totalCost)}
                 </Typography>
               </CardContent>
             </Card>
             <Card variant="outlined" sx={{ flex: 1, minWidth: 130 }}>
               <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Typography variant="caption" color="text.secondary">Fee</Typography>
-                <Typography variant="h6" fontWeight={600}>
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Fee</Typography>
+                <Typography variant="h6" sx={{
+                  fontWeight: 600
+                }}>
                   {formatCurrency(currentTotals.fee)}
                 </Typography>
               </CardContent>
             </Card>
             <Card variant="outlined" sx={{ flex: 1, minWidth: 130 }}>
               <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-                <Typography variant="caption" color="text.secondary">Total Price</Typography>
-                <Typography variant="h5" fontWeight={700} color="primary.main">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>Total Price</Typography>
+                <Typography
+                  variant="h5"
+                  sx={{
+                    fontWeight: 700,
+                    color: "primary.main"
+                  }}>
                   {formatCurrency(currentTotals.totalPrice)}
                 </Typography>
               </CardContent>
@@ -446,14 +471,14 @@ export default function BidScenarioPage() {
           </Box>
         </Box>
       )}
-
       {/* SCA Compliance Check */}
       {current && <ScaComplianceSection scenario={current} />}
-
       {/* Comparison chart */}
       {scenarios.length > 1 && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+          <Typography variant="subtitle1" gutterBottom sx={{
+            fontWeight: 600
+          }}>
             Scenario Comparison
           </Typography>
           <BarChart
@@ -519,10 +544,11 @@ function ScaComplianceSection({ scenario }: { scenario: BidScenario }) {
 
   return (
     <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
-      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+      <Typography variant="subtitle1" gutterBottom sx={{
+        fontWeight: 600
+      }}>
         SCA Compliance Check
       </Typography>
-
       {/* Work location */}
       <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -563,19 +589,21 @@ function ScaComplianceSection({ scenario }: { scenario: BidScenario }) {
           {mutation.isPending ? 'Checking...' : 'Check SCA Compliance'}
         </Button>
       </Box>
-
       {!hasLinesWithIds && (
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mb: 1
+          }}>
           Select labor categories from the autocomplete to enable compliance checking.
         </Typography>
       )}
-
       {mutation.isError && (
         <Typography variant="body2" color="error" sx={{ mb: 1 }}>
           Failed to check compliance. Please try again.
         </Typography>
       )}
-
       {/* Results */}
       {result && (
         <Box>

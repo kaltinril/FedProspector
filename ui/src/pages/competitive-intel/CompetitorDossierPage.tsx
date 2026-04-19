@@ -72,7 +72,13 @@ function ContractHistoryTab({ d }: { d: CompetitorDossierDto }) {
             <Typography variant="subtitle1" gutterBottom>FPDS Contract History</Typography>
             {d.sbaCertifications && (
               <Box sx={{ mb: 2 }}>
-                <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    mb: 0.5,
+                    display: 'block'
+                  }}>
                   Socioeconomic Certifications
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
@@ -98,7 +104,6 @@ function ContractHistoryTab({ d }: { d: CompetitorDossierDto }) {
           </CardContent>
         </Card>
       </Grid>
-
       {/* USASpending */}
       <Grid size={{ xs: 12, md: 6 }}>
         <Card variant="outlined">
@@ -135,33 +140,35 @@ function CapabilitiesTab({ d }: { d: CompetitorDossierDto }) {
           {naicsList.length > 0 ? naicsList.map((n) => (
             <Chip key={n} label={n} size="small" variant="outlined" />
           )) : (
-            <Typography variant="body2" color="text.secondary">None registered</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>None registered</Typography>
           )}
         </Box>
       </Box>
-
       <Divider />
-
       <Box>
         <Typography variant="subtitle1" gutterBottom>SBA Certifications</Typography>
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {certList.length > 0 ? certList.map((c) => (
             <Chip key={c} label={c} size="small" color="primary" variant="outlined" />
           )) : (
-            <Typography variant="body2" color="text.secondary">None listed</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>None listed</Typography>
           )}
         </Box>
       </Box>
-
       <Divider />
-
       <Box>
         <Typography variant="subtitle1" gutterBottom>Business Types</Typography>
         <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
           {bizTypes.length > 0 ? bizTypes.map((b) => (
             <Chip key={b} label={b} size="small" variant="outlined" />
           )) : (
-            <Typography variant="body2" color="text.secondary">None listed</Typography>
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>None listed</Typography>
           )}
         </Box>
       </Box>

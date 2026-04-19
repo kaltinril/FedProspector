@@ -173,7 +173,6 @@ export default function NotificationCenterPage() {
           </Button>
         }
       />
-
       {/* Filter bar */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <FormControlLabel
@@ -195,10 +194,8 @@ export default function NotificationCenterPage() {
           ))}
         </TextField>
       </Box>
-
       {/* Loading state */}
       {isLoading && <LoadingState message="Loading notifications..." />}
-
       {/* Empty state */}
       {!isLoading && notifications && notifications.items.length === 0 && (
         <Box
@@ -211,12 +208,13 @@ export default function NotificationCenterPage() {
           }}
         >
           <CheckCircleOutlined sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
-          <Typography variant="h6" color="text.secondary">
+          <Typography variant="h6" sx={{
+            color: "text.secondary"
+          }}>
             You're all caught up!
           </Typography>
         </Box>
       )}
-
       {/* Notification feed */}
       {!isLoading && notifications && notifications.items.length > 0 && (
         <Stack spacing={1}>
@@ -250,11 +248,15 @@ export default function NotificationCenterPage() {
                   {n.title}
                 </Typography>
                 {n.message && (
-                  <Typography variant="body2" color="text.secondary" noWrap>
+                  <Typography variant="body2" noWrap sx={{
+                    color: "text.secondary"
+                  }}>
                     {n.message}
                   </Typography>
                 )}
-                <Typography variant="caption" color="text.disabled">
+                <Typography variant="caption" sx={{
+                  color: "text.disabled"
+                }}>
                   {formatRelative(n.createdAt)}
                 </Typography>
               </Box>

@@ -94,7 +94,6 @@ export default function ProfilePage() {
   return (
     <Box>
       <PageHeader title="Profile" subtitle="Manage your account settings" />
-
       {/* Profile Info Card */}
       <Card sx={{ mb: 3 }}>
         <CardHeader
@@ -165,21 +164,26 @@ export default function ProfilePage() {
 
           <Box sx={{ mt: 3, display: 'flex', flexDirection: 'column', gap: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Role:
               </Typography>
               <Chip label={user.role} size="small" color="primary" variant="outlined" />
             </Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Created: {formatDate(user.createdAt)}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Last login: {formatDate(user.lastLoginAt)}
             </Typography>
           </Box>
         </CardContent>
       </Card>
-
       {/* Change Password Card */}
       <Card>
         <CardHeader title="Change Password" />

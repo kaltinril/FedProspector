@@ -45,10 +45,14 @@ function FunnelBar({
   return (
     <Box sx={{ mb: 2 }}>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-        <Typography variant="body2" fontWeight={600}>
+        <Typography variant="body2" sx={{
+          fontWeight: 600
+        }}>
           {stage.status.replace(/_/g, ' ')}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {stage.prospectCount} prospect{stage.prospectCount !== 1 ? 's' : ''}
         </Typography>
       </Box>
@@ -101,9 +105,10 @@ function ConversionRates({ stages }: { stages: PipelineFunnelDto[] }) {
 
   if (conversions.length === 0) {
     return (
-      <Typography variant="body2" color="text.secondary">
-        Not enough data to calculate conversion rates.
-      </Typography>
+      <Typography variant="body2" sx={{
+        color: "text.secondary"
+      }}>Not enough data to calculate conversion rates.
+              </Typography>
     );
   }
 
@@ -123,7 +128,9 @@ function ConversionRates({ stages }: { stages: PipelineFunnelDto[] }) {
           <Typography variant="body2">
             {c.from} &rarr; {c.to}
           </Typography>
-          <Typography variant="body2" fontWeight={600}>
+          <Typography variant="body2" sx={{
+            fontWeight: 600
+          }}>
             {c.rate}
           </Typography>
         </Box>
@@ -181,41 +188,60 @@ export default function PipelineAnalyticsPage() {
         title="Pipeline Analytics"
         subtitle="Funnel visualization, conversion rates, and win metrics"
       />
-
       {/* Summary cards */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 4 }}>
           <Paper sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h3" fontWeight={700} color="primary.main">
+            <Typography
+              variant="h3"
+              sx={{
+                fontWeight: 700,
+                color: "primary.main"
+              }}>
               {totalProspects}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Total Prospects
             </Typography>
           </Paper>
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
           <Paper sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h3" fontWeight={700} color="success.main">
+            <Typography
+              variant="h3"
+              sx={{
+                fontWeight: 700,
+                color: "success.main"
+              }}>
               {winRate != null ? `${winRate.toFixed(1)}%` : 'N/A'}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Win Rate
             </Typography>
           </Paper>
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
           <Paper sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h3" fontWeight={700} color="secondary.main">
+            <Typography
+              variant="h3"
+              sx={{
+                fontWeight: 700,
+                color: "secondary.main"
+              }}>
               {formatCurrency(totalValue, true)}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Total Pipeline Value
             </Typography>
           </Paper>
         </Grid>
       </Grid>
-
       {/* Funnel + Conversion */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }}>
         <Grid size={{ xs: 12, md: 8 }}>
@@ -228,7 +254,9 @@ export default function PipelineAnalyticsPage() {
                 <FunnelBar key={stage.status} stage={stage} maxCount={maxCount} />
               ))
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No pipeline data available.
               </Typography>
             )}
@@ -263,7 +291,9 @@ export default function PipelineAnalyticsPage() {
                   <Typography variant="body2">
                     {s.status.replace(/_/g, ' ')}
                   </Typography>
-                  <Typography variant="body2" fontWeight={600}>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 600
+                  }}>
                     {s.avgHoursInPriorStatus != null
                       ? `${(s.avgHoursInPriorStatus / 24).toFixed(1)}d`
                       : '--'}
@@ -271,7 +301,9 @@ export default function PipelineAnalyticsPage() {
                 </Box>
               ))}
             {sortedStages.filter((s) => s.avgHoursInPriorStatus != null).length === 0 && (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No timing data available yet.
               </Typography>
             )}

@@ -99,7 +99,9 @@ const columns: GridColDef[] = [
     width: 150,
     valueGetter: (_value, row) => row.lastUpdatedAt,
     renderCell: (params) => (
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" sx={{
+        color: "text.secondary"
+      }}>
         {formatRelative(params.value as string)}
       </Typography>
     ),

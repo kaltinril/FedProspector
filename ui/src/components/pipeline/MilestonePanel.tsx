@@ -231,7 +231,6 @@ export function MilestonePanel({ prospectId, responseDeadline }: MilestonePanelP
           Generate Timeline
         </Button>
       </Box>
-
       {/* Milestone list */}
       {sortedMilestones.length === 0 ? (
         <EmptyState
@@ -271,7 +270,9 @@ export function MilestonePanel({ prospectId, responseDeadline }: MilestonePanelP
                       />
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>
                         {m.milestoneName}
                       </Typography>
                     </TableCell>
@@ -286,12 +287,16 @@ export function MilestonePanel({ prospectId, responseDeadline }: MilestonePanelP
                       </Box>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         {m.completedDate ? formatDate(m.completedDate) : '--'}
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         {m.notes ?? '--'}
                       </Typography>
                     </TableCell>
@@ -321,7 +326,6 @@ export function MilestonePanel({ prospectId, responseDeadline }: MilestonePanelP
           </Table>
         </TableContainer>
       )}
-
       {/* Add Dialog */}
       <Dialog open={addOpen} onClose={() => setAddOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add Milestone</DialogTitle>
@@ -363,7 +367,6 @@ export function MilestonePanel({ prospectId, responseDeadline }: MilestonePanelP
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Edit Dialog */}
       <Dialog open={!!editItem} onClose={() => setEditItem(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Edit Milestone</DialogTitle>
@@ -405,12 +408,16 @@ export function MilestonePanel({ prospectId, responseDeadline }: MilestonePanelP
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Generate Timeline Dialog */}
       <Dialog open={genOpen} onClose={() => setGenOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Generate Timeline</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             Select a template to generate milestones based on the response deadline
             ({responseDeadline ? formatDate(responseDeadline) : 'not set'}).
           </Typography>
@@ -439,7 +446,6 @@ export function MilestonePanel({ prospectId, responseDeadline }: MilestonePanelP
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Delete Confirm */}
       <ConfirmDialog
         open={!!deleteItem}

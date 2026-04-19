@@ -99,7 +99,6 @@ export default function PipelineCalendarPage() {
   return (
     <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
       <PageHeader title="Pipeline Calendar" subtitle="Prospects by response deadline" />
-
       {/* Month navigation */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -119,7 +118,6 @@ export default function PipelineCalendarPage() {
           </IconButton>
         </Box>
       </Paper>
-
       {/* Calendar grid */}
       <Paper sx={{ overflow: 'hidden' }}>
         {/* Weekday header */}
@@ -136,7 +134,9 @@ export default function PipelineCalendarPage() {
                 borderColor: 'divider',
               }}
             >
-              <Typography variant="caption" fontWeight={600}>
+              <Typography variant="caption" sx={{
+                fontWeight: 600
+              }}>
                 {day}
               </Typography>
             </Grid>
@@ -168,13 +168,14 @@ export default function PipelineCalendarPage() {
                 >
                   <Typography
                     variant="caption"
-                    fontWeight={today ? 700 : 400}
                     color={today ? 'primary.main' : 'text.secondary'}
-                    sx={{ display: 'block', mb: 0.5 }}
-                  >
+                    sx={{
+                      fontWeight: today ? 700 : 400,
+                      display: 'block',
+                      mb: 0.5
+                    }}>
                     {format(day, 'd')}
                   </Typography>
-
                   {dayEvents.slice(0, 3).map((event) => (
                     <Tooltip
                       key={event.prospectId}
@@ -204,7 +205,9 @@ export default function PipelineCalendarPage() {
                     </Tooltip>
                   ))}
                   {dayEvents.length > 3 && (
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       +{dayEvents.length - 3} more
                     </Typography>
                   )}

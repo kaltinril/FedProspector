@@ -47,9 +47,10 @@ function ReadOnlyCertView({ certs }: { certs: OrgCertificationDto[] }) {
         Certifications are managed by your SAM.gov entity registration. To update them, modify
         your SAM.gov registration and refresh from the Organization &rarr; Entity Linking tab.
       </Alert>
-
       {activeCerts.length === 0 ? (
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           No certifications found on your linked SAM.gov entity.
         </Typography>
       ) : (
@@ -132,12 +133,16 @@ export function CertificationsStep({
       <Typography variant="h6" sx={{ mb: 1 }}>
         Certifications
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 3
+        }}>
         {hasSelfEntity
           ? 'Your certifications have been synced from your linked SAM.gov entity.'
           : 'Select the certifications your company holds. These help match you to set-aside opportunities.'}
       </Typography>
-
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
           <CircularProgress size={24} />
@@ -164,7 +169,9 @@ export function CertificationsStep({
                     control={
                       <Checkbox checked={checked} onChange={() => handleToggle(type)} />
                     }
-                    label={<Typography fontWeight={checked ? 600 : 400}>{type}</Typography>}
+                    label={<Typography sx={{
+                      fontWeight: checked ? 600 : 400
+                    }}>{type}</Typography>}
                   />
                   <Collapse in={checked}>
                     <Box sx={{ display: 'flex', gap: 2, mt: 1.5, ml: 4 }}>
@@ -196,7 +203,6 @@ export function CertificationsStep({
           </Box>
         </>
       )}
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
         <Button onClick={onBack}>Back</Button>
         <Button variant="contained" size="large" onClick={onNext}>

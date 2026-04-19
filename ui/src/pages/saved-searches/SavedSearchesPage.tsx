@@ -18,7 +18,7 @@ import TextField from '@mui/material/TextField';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined';
 import { useSnackbar } from 'notistack';
@@ -203,7 +203,9 @@ function SavedSearchDialog({ open, editing, onClose, onSave, saving }: SavedSear
       onClose={onClose}
       maxWidth="sm"
       fullWidth
-      TransitionProps={{ onEnter: handleEnter }}
+      slotProps={{
+        transition: { onEnter: handleEnter }
+      }}
     >
       <DialogTitle>{editing ? 'Edit Saved Search' : 'New Saved Search'}</DialogTitle>
       <DialogContent dividers>
@@ -224,7 +226,12 @@ function SavedSearchDialog({ open, editing, onClose, onSave, saving }: SavedSear
             onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
           />
 
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              color: "text.secondary",
+              mt: 1
+            }}>
             Filter Criteria
           </Typography>
 
@@ -410,7 +417,9 @@ function RunResultsDialog({ result, onClose, navigate }: RunResultsDialogProps) 
     <Dialog open onClose={onClose} maxWidth="lg" fullWidth>
       <DialogTitle>
         Results: {result.searchName}
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {result.totalCount} total, {result.newCount} new
         </Typography>
       </DialogTitle>

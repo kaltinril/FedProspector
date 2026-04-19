@@ -167,13 +167,17 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
           >
             <Box sx={{ width: 360, maxHeight: 400 }}>
               <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Typography variant="subtitle1" fontWeight={600}>Notifications</Typography>
+                <Typography variant="subtitle1" sx={{
+                  fontWeight: 600
+                }}>Notifications</Typography>
                 {unreadCount > 0 && <Chip label={`${unreadCount} unread`} size="small" color="primary" />}
               </Box>
               <Divider />
               {recentNotifications.length === 0 ? (
                 <Box sx={{ p: 3, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">No notifications</Typography>
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>No notifications</Typography>
                 </Box>
               ) : (
                 <List disablePadding>
@@ -186,9 +190,10 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
                         <ListItemText
                           primary={notif.title}
                           secondary={formatRelative(notif.createdAt)}
-                          primaryTypographyProps={{ noWrap: true, fontSize: '0.875rem' }}
-                          secondaryTypographyProps={{ fontSize: '0.75rem' }}
-                        />
+                          slotProps={{
+                            primary: { noWrap: true, sx: { fontSize: '0.875rem' } },
+                            secondary: { sx: { fontSize: '0.75rem' } }
+                          }} />
                       </ListItemButton>
                     </ListItem>
                   ))}
@@ -245,7 +250,9 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
               <Typography variant="subtitle2" noWrap>
                 {user.displayName}
               </Typography>
-              <Typography variant="body2" color="text.secondary" noWrap>
+              <Typography variant="body2" noWrap sx={{
+                color: "text.secondary"
+              }}>
                 {user.email ?? user.username}
               </Typography>
             </Box>

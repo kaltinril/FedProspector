@@ -28,7 +28,13 @@ export default function NotFoundPage() {
       <Typography variant="h4" component="h1" gutterBottom sx={{ mt: 2 }}>
         Page Not Found
       </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4, maxWidth: 480 }}>
+      <Typography
+        variant="body1"
+        sx={{
+          color: "text.secondary",
+          mb: 4,
+          maxWidth: 480
+        }}>
         The page you're looking for doesn't exist or has been moved.
       </Typography>
       <Stack direction="row" spacing={2}>

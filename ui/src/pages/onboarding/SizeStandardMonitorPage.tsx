@@ -65,7 +65,6 @@ export default function SizeStandardMonitorPage() {
         title="Size Standard Monitor"
         subtitle={`Monitoring ${alerts.length} NAICS code${alerts.length !== 1 ? 's' : ''} against SBA thresholds`}
       />
-
       <Grid container spacing={2}>
         {alerts.map((alert) => {
           const pct = alert.pctOfThreshold ?? 0;
@@ -96,7 +95,12 @@ export default function SizeStandardMonitorPage() {
                   </Box>
 
                   {alert.sizeStandardType && (
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                        mb: 1
+                      }}>
                       Type: {alert.sizeStandardType}
                     </Typography>
                   )}
@@ -116,7 +120,13 @@ export default function SizeStandardMonitorPage() {
                       color={progressColor(pct)}
                       sx={{ height: 10, borderRadius: 5 }}
                     />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        mt: 0.5,
+                        display: 'block'
+                      }}>
                       {pct.toFixed(1)}% of threshold
                     </Typography>
                   </Box>

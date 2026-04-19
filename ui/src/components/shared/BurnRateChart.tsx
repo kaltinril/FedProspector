@@ -43,10 +43,14 @@ export function BurnRateChart({
               mb: 0.5,
             }}
           >
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Obligated: {formatCurrency(totalObligated)}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Ceiling: {formatCurrency(baseAndAllOptions)}
             </Typography>
           </Box>
@@ -58,9 +62,11 @@ export function BurnRateChart({
           />
           <Typography
             variant="caption"
-            color="text.secondary"
-            sx={{ mt: 0.5, display: 'block' }}
-          >
+            sx={{
+              color: "text.secondary",
+              mt: 0.5,
+              display: 'block'
+            }}>
             {progressPct.toFixed(1)}% of ceiling obligated
           </Typography>
         </Box>
@@ -78,6 +84,7 @@ export function BurnRateChart({
               data: data.map((d) => d.amount),
               label: 'Amount',
               valueFormatter: (v) => formatCurrency(v),
+              showMark: true,
             },
           ]}
           height={300}

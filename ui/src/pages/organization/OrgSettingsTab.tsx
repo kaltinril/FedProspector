@@ -73,7 +73,6 @@ export function OrgSettingsTab() {
           {error}
         </Alert>
       )}
-
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-end', gap: 1 }}>
           <TextField
@@ -118,15 +117,21 @@ export function OrgSettingsTab() {
           size="small"
         />
 
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           Max Users: {org.maxUsers}
         </Typography>
         {org.subscriptionTier && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Subscription: {org.subscriptionTier}
           </Typography>
         )}
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           Created: {formatDate(org.createdAt)}
         </Typography>
       </Box>

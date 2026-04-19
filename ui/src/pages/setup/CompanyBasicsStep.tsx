@@ -138,7 +138,6 @@ export function CompanyBasicsStep({ data, onNext }: CompanyBasicsStepProps) {
       <Typography variant="h6" sx={{ mb: 2 }}>
         Company Information
       </Typography>
-
       <Grid container spacing={2}>
         {/* Name Section */}
         <Grid size={{ xs: 12, sm: 6 }}>
@@ -251,7 +250,12 @@ export function CompanyBasicsStep({ data, onNext }: CompanyBasicsStepProps) {
 
         {/* Address Section */}
         <Grid size={12}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              color: "text.secondary",
+              mt: 1
+            }}>
             Business Address
           </Typography>
         </Grid>
@@ -320,7 +324,12 @@ export function CompanyBasicsStep({ data, onNext }: CompanyBasicsStepProps) {
 
         {/* Contact Section */}
         <Grid size={12}>
-          <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 1 }}>
+          <Typography
+            variant="subtitle2"
+            sx={{
+              color: "text.secondary",
+              mt: 1
+            }}>
             Contact Information
           </Typography>
         </Grid>
@@ -343,7 +352,6 @@ export function CompanyBasicsStep({ data, onNext }: CompanyBasicsStepProps) {
           />
         </Grid>
       </Grid>
-
       <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 3 }}>
         <Button type="submit" variant="contained" size="large">
           Next

@@ -194,7 +194,6 @@ export default function UserManagementTab() {
         paginationModel={{ page: page - 1, pageSize }}
         onPaginationModelChange={handlePaginationChange}
       />
-
       {/* Reset Password Confirmation */}
       <ConfirmDialog
         open={confirmResetUser != null}
@@ -206,12 +205,16 @@ export default function UserManagementTab() {
         onCancel={() => setConfirmResetUser(null)}
         loading={resetPassword.isPending}
       />
-
       {/* Temporary Password Dialog */}
       <Dialog open={tempPassword != null} onClose={() => setTempPassword(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Password Reset Successful</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             Share this temporary password with the user securely. They will be required to change it on
             next login.
           </Typography>
@@ -236,7 +239,13 @@ export default function UserManagementTab() {
               </IconButton>
             </Tooltip>
           </Box>
-          <Typography variant="caption" color="warning.main" sx={{ mt: 1, display: 'block' }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "warning.main",
+              mt: 1,
+              display: 'block'
+            }}>
             This password will not be shown again. Make sure to copy it before closing this dialog.
           </Typography>
         </DialogContent>

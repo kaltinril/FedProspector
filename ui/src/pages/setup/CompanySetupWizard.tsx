@@ -284,14 +284,20 @@ export function CompanySetupWizard() {
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
       <Box sx={{ textAlign: 'center', mb: 4 }}>
-        <Typography variant="h4" component="h1" fontWeight={700}>
+        <Typography variant="h4" component="h1" sx={{
+          fontWeight: 700
+        }}>
           Company Setup
         </Typography>
-        <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
+        <Typography
+          variant="body1"
+          sx={{
+            color: "text.secondary",
+            mt: 1
+          }}>
           Let&apos;s get your company profile configured for federal contracting.
         </Typography>
       </Box>
-
       <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
         {STEPS.map((label) => (
           <Step key={label}>
@@ -299,7 +305,6 @@ export function CompanySetupWizard() {
           </Step>
         ))}
       </Stepper>
-
       <Paper sx={{ p: { xs: 2, sm: 4 } }}>{renderStep()}</Paper>
     </Container>
   );

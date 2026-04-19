@@ -71,14 +71,18 @@ export function ProfileCompletenessCard() {
                   justifyContent: 'center',
                 }}
               >
-                <Typography variant="h6" component="div" color="text.secondary">
+                <Typography variant="h6" component="div" sx={{
+                  color: "text.secondary"
+                }}>
                   {pct}%
                 </Typography>
               </Box>
             </Box>
             <Box>
               <Typography variant="h6">Profile Completeness</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {profile.organizationName ?? 'Your Organization'}
               </Typography>
             </Box>
@@ -102,7 +106,9 @@ export function ProfileCompletenessCard() {
                   </ListItemIcon>
                   <ListItemText
                     primary={getRecommendation(field)}
-                    primaryTypographyProps={{ variant: 'body2' }}
+                    slotProps={{
+                      primary: { variant: 'body2' }
+                    }}
                   />
                 </ListItem>
               ))}
@@ -112,7 +118,9 @@ export function ProfileCompletenessCard() {
           {/* Show completed fields summary */}
           {pct < 100 && (
             <Box sx={{ mt: 1 }}>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 Completed:
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 0.5 }}>
@@ -141,7 +149,6 @@ export function ProfileCompletenessCard() {
           )}
         </CardContent>
       </Card>
-
       <UeiImportDialog
         open={ueiDialogOpen}
         onClose={() => setUeiDialogOpen(false)}

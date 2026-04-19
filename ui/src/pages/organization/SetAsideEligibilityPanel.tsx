@@ -197,7 +197,6 @@ export function SetAsideEligibilityPanel({
       <Typography variant="h6" gutterBottom>
         Set-Aside Eligibility
       </Typography>
-
       {isLoading ? (
         <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
           <CircularProgress size={24} />
@@ -213,7 +212,12 @@ export function SetAsideEligibilityPanel({
         </Alert>
       ) : (
         <Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             Synced from SAM.gov entity registrations.
           </Typography>
 
@@ -264,7 +268,13 @@ export function SetAsideEligibilityPanel({
           {/* Based on: cert list */}
           <Divider sx={{ my: 1.5 }} />
 
-          <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 1 }}>
+          <Typography
+            variant="caption"
+            component="div"
+            sx={{
+              color: "text.secondary",
+              mt: 1
+            }}>
             Based on:{' '}
             {activeCerts.map((cert, idx) => {
               const normalized = normalizeCertType(cert.certificationType);
@@ -307,7 +317,6 @@ export function SetAsideEligibilityPanel({
           </Typography>
         </Box>
       )}
-
       {/* Add certification section */}
       {!isLoading && (
         <Box sx={{ mt: 2 }}>

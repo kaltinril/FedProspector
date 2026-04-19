@@ -127,7 +127,6 @@ export default function SubBenchmarkPage() {
         title="Subcontracting Benchmarks"
         subtitle="Subcontracting activity and sub-to-prime ratios by NAICS"
       />
-
       {/* Filters */}
       <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <TextField
@@ -153,9 +152,7 @@ export default function SubBenchmarkPage() {
           />
         )}
       </Box>
-
       {isLoading && <LoadingState message="Loading subcontracting data..." />}
-
       {benchmarksError && (
         <ErrorState
           title="Failed to load benchmarks"
@@ -163,11 +160,12 @@ export default function SubBenchmarkPage() {
           onRetry={() => refetchBenchmarks()}
         />
       )}
-
       {/* Benchmark table */}
       {!benchmarksLoading && benchmarks && (
         <Box sx={{ mb: 3 }}>
-          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+          <Typography variant="subtitle1" gutterBottom sx={{
+            fontWeight: 600
+          }}>
             Subcontracting Benchmarks
           </Typography>
           <DataTable
@@ -181,11 +179,12 @@ export default function SubBenchmarkPage() {
           />
         </Box>
       )}
-
       {/* Sub-to-prime ratio chart */}
       {ratios && ratios.length > 0 && (
         <Paper variant="outlined" sx={{ p: 2 }}>
-          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+          <Typography variant="subtitle1" gutterBottom sx={{
+            fontWeight: 600
+          }}>
             Sub-to-Prime Ratio by NAICS
           </Typography>
           <BarChart

@@ -48,7 +48,12 @@ export function UeiImportDialog({ open, onClose }: UeiImportDialogProps) {
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle>Import Organization Data from UEI</DialogTitle>
       <DialogContent>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mb: 2
+          }}>
           Enter your Unique Entity Identifier (UEI) to auto-populate organization
           fields from SAM.gov registration data.
         </Typography>
@@ -58,10 +63,12 @@ export function UeiImportDialog({ open, onClose }: UeiImportDialogProps) {
           value={uei}
           onChange={(e) => setUei(e.target.value)}
           fullWidth
-          inputProps={{ maxLength: 13 }}
           placeholder="e.g. ABCD1234EFGH5"
           disabled={importMutation.isPending}
           sx={{ mb: 2 }}
+          slotProps={{
+            htmlInput: { maxLength: 13 }
+          }}
         />
 
         {importMutation.isError && (
@@ -87,7 +94,9 @@ export function UeiImportDialog({ open, onClose }: UeiImportDialogProps) {
                   </ListItemIcon>
                   <ListItemText
                     primary={field}
-                    primaryTypographyProps={{ variant: 'body2' }}
+                    slotProps={{
+                      primary: { variant: 'body2' }
+                    }}
                   />
                 </ListItem>
               ))}
@@ -98,7 +107,9 @@ export function UeiImportDialog({ open, onClose }: UeiImportDialogProps) {
                   </ListItemIcon>
                   <ListItemText
                     primary={`${result.naicsCodesImported} NAICS code${result.naicsCodesImported !== 1 ? 's' : ''} imported`}
-                    primaryTypographyProps={{ variant: 'body2' }}
+                    slotProps={{
+                      primary: { variant: 'body2' }
+                    }}
                   />
                 </ListItem>
               )}
@@ -109,7 +120,9 @@ export function UeiImportDialog({ open, onClose }: UeiImportDialogProps) {
                   </ListItemIcon>
                   <ListItemText
                     primary={`${result.certificationsImported} certification${result.certificationsImported !== 1 ? 's' : ''} imported`}
-                    primaryTypographyProps={{ variant: 'body2' }}
+                    slotProps={{
+                      primary: { variant: 'body2' }
+                    }}
                   />
                 </ListItem>
               )}

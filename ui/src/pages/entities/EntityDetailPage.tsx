@@ -426,11 +426,11 @@ function ExclusionCheckTab({ uei }: { uei: string }) {
           CLEAR -- No active exclusions found
         </Alert>
       )}
-
-      <Typography variant="body2" color="text.secondary">
+      <Typography variant="body2" sx={{
+        color: "text.secondary"
+      }}>
         Last checked: {formatDateTime(data.checkedAt)}
       </Typography>
-
       {data.isExcluded && data.activeExclusions.length > 0 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 1.5 }}>

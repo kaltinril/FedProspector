@@ -69,7 +69,9 @@ const columns: GridColDef<ScaAreaRateDto>[] = [
     align: 'right',
     headerAlign: 'right',
     renderCell: (params) => (
-      <Typography variant="body2" fontWeight={500}>
+      <Typography variant="body2" sx={{
+        fontWeight: 500
+      }}>
         {formatCurrency(params.value as number)}
       </Typography>
     ),
@@ -93,7 +95,9 @@ const columns: GridColDef<ScaAreaRateDto>[] = [
     align: 'right',
     headerAlign: 'right',
     renderCell: (params) => (
-      <Typography variant="body2" fontWeight={600}>
+      <Typography variant="body2" sx={{
+        fontWeight: 600
+      }}>
         {formatCurrency(params.value as number)}
       </Typography>
     ),

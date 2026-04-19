@@ -8,9 +8,9 @@ import LinearProgress from '@mui/material/LinearProgress';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import type { GridColDef } from '@mui/x-data-grid';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 import StorageIcon from '@mui/icons-material/Storage';
 
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -93,10 +93,14 @@ function SummaryCard({
           {icon}
         </Box>
         <Box>
-          <Typography variant="h5" fontWeight="bold">
+          <Typography variant="h5" sx={{
+            fontWeight: "bold"
+          }}>
             {value}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {title}
           </Typography>
         </Box>

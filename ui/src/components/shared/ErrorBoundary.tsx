@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -37,9 +37,12 @@ export function ErrorBoundary({ children, onReset }: ErrorBoundaryProps) {
             </Typography>
             <Typography
               variant="body2"
-              color="text.secondary"
-              sx={{ mb: 3, maxWidth: 500, wordBreak: 'break-word' }}
-            >
+              sx={{
+                color: "text.secondary",
+                mb: 3,
+                maxWidth: 500,
+                wordBreak: 'break-word'
+              }}>
               {message}
             </Typography>
             <Button variant="contained" onClick={resetErrorBoundary}>

@@ -130,7 +130,12 @@ function ScopeSummaryCard({ summary, methods }: { summary: string; methods: stri
         </IconButton>
       </Box>
       <Collapse in={expanded}>
-        <Typography variant="body2" color="text.secondary" sx={{ whiteSpace: 'pre-line' }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            whiteSpace: 'pre-line'
+          }}>
           {summary}
         </Typography>
       </Collapse>
@@ -199,12 +204,19 @@ function MergedSourceBlock({ passage }: { passage: MergedSourcePassageDto }) {
           ) : null;
         })()}
         {passage.highlights.length > 1 && (
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             {passage.highlights.length} matches
           </Typography>
         )}
       </Box>
-      <Typography variant="caption" color="text.secondary" display="block">
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+          display: "block"
+        }}>
         {passage.filename}
         {passage.pageNumber != null ? `, p.${passage.pageNumber}` : ''}
       </Typography>
@@ -242,7 +254,12 @@ function AISourceItem({ src }: { src: IntelSourceDto }) {
         )}
       </Box>
       {src.sourceFilename && (
-        <Typography variant="caption" color="text.secondary" display="block">
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            display: "block"
+          }}>
           {src.sourceFilename}
         </Typography>
       )}
@@ -292,7 +309,12 @@ function IntelCard({ label, fieldName, fieldKey, value, sources, intel }: IntelC
     <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardContent sx={{ flexGrow: 1, pb: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0 }}>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              flexShrink: 0
+            }}>
             {label}
           </Typography>
           <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'nowrap', justifyContent: 'flex-end', overflow: 'hidden', minWidth: 0 }}>
@@ -313,7 +335,13 @@ function IntelCard({ label, fieldName, fieldKey, value, sources, intel }: IntelC
                       <Tooltip key={method} title={methodValue || ''}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flexShrink: 1 }}>
                           <Chip label={METHOD_LABELS[method] || method} size="small" variant="outlined" sx={{ fontSize: '0.6rem', height: 18, flexShrink: 0 }} />
-                          <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 120 }}>
+                          <Typography
+                            variant="caption"
+                            noWrap
+                            sx={{
+                              color: "text.secondary",
+                              maxWidth: 120
+                            }}>
                             {methodValue || '\u2014'}
                           </Typography>
                         </Box>
@@ -343,7 +371,6 @@ function IntelCard({ label, fieldName, fieldKey, value, sources, intel }: IntelC
           {value}
         </Typography>
       </CardContent>
-
       {/* AI Analysis detail text (expandable) */}
       {detailText && (
         <Box sx={{ px: 2, pb: 0.5 }}>
@@ -351,7 +378,9 @@ function IntelCard({ label, fieldName, fieldKey, value, sources, intel }: IntelC
             sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
             onClick={() => setDetailExpanded((prev) => !prev)}
           >
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               AI Analysis
             </Typography>
             <IconButton size="small" sx={{ ml: 'auto', transform: detailExpanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
@@ -360,14 +389,18 @@ function IntelCard({ label, fieldName, fieldKey, value, sources, intel }: IntelC
           </Box>
           <Collapse in={detailExpanded}>
             <Box sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1, mb: 1 }}>
-              <Typography variant="body2" color="text.primary" sx={{ whiteSpace: 'pre-wrap' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.primary",
+                  whiteSpace: 'pre-wrap'
+                }}>
                 {detailText}
               </Typography>
             </Box>
           </Collapse>
         </Box>
       )}
-
       {/* Source provenance (expandable, merged from API) */}
       {(() => {
         const fieldPassages = (intel.mergedPassages ?? []).filter(p => p.fieldName === fieldName);
@@ -381,7 +414,9 @@ function IntelCard({ label, fieldName, fieldKey, value, sources, intel }: IntelC
               sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
               onClick={() => setSourcesExpanded((prev) => !prev)}
             >
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 View Sources ({totalPassages}{totalMatches !== totalPassages ? ` from ${totalMatches} matches` : ''})
               </Typography>
               <IconButton size="small" sx={{ ml: 'auto', transform: sourcesExpanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
@@ -437,7 +472,9 @@ function ListCard({ label, fieldName, items, sources, intel }: ListCardProps) {
     <Card variant="outlined" sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <CardContent sx={{ flexGrow: 1, pb: 1 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             {label} ({items.length})
           </Typography>
           <Chip
@@ -462,7 +499,6 @@ function ListCard({ label, fieldName, items, sources, intel }: ListCardProps) {
           </Button>
         )}
       </CardContent>
-
       {(() => {
         const fieldPassages = (intel.mergedPassages ?? []).filter(p => p.fieldName === fieldName);
         const aiSrcs = fieldSources.filter(s => s.extractionMethod?.startsWith('ai_'));
@@ -475,7 +511,9 @@ function ListCard({ label, fieldName, items, sources, intel }: ListCardProps) {
               sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
               onClick={() => setExpanded((prev) => !prev)}
             >
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 View Sources ({totalPassages}{totalMatches !== totalPassages ? ` from ${totalMatches} matches` : ''})
               </Typography>
               <IconButton size="small" sx={{ ml: 'auto', transform: expanded ? 'rotate(180deg)' : 'none', transition: '0.2s' }}>
@@ -591,7 +629,14 @@ function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[
                       </Box>
                     )}
                     {scopeText && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, fontStyle: 'italic' }}>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "text.secondary",
+                          display: 'block',
+                          mt: 0.5,
+                          fontStyle: 'italic'
+                        }}>
                         {scopeText}
                       </Typography>
                     )}
@@ -723,7 +768,11 @@ function AttachmentsTable({ attachments, noticeId }: { attachments: AttachmentSu
     const isPending = pendingAnalysis.has(key);
 
     if (isGone || att.extractionStatus.toLowerCase() !== 'extracted') {
-      return <Typography variant="body2" color="text.disabled">&mdash;</Typography>;
+      return (
+        <Typography variant="body2" sx={{
+          color: "text.disabled"
+        }}>&mdash;</Typography>
+      );
     }
 
     if (isPending) {
@@ -1009,7 +1058,9 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
       <DialogTitle>Analyze Documents with AI?</DialogTitle>
       <DialogContent>
         {estimateError ? (
-          <Typography color="text.secondary">
+          <Typography sx={{
+            color: "text.secondary"
+          }}>
             Unable to estimate cost. Proceed anyway?
           </Typography>
         ) : estimate && estimate.remainingToAnalyze === 0 ? (
@@ -1017,13 +1068,17 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             <Typography gutterBottom>
               All {estimate.attachmentCount} document{estimate.attachmentCount !== 1 ? 's' : ''} already have AI analysis. Re-analyze?
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Model: Claude {estimate.model}
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>
               Estimated cost: ${estimate.estimatedCostUsd.toFixed(4)}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               ~{formatTokens(estimate.estimatedInputTokens)} input tokens, ~{formatTokens(estimate.estimatedOutputTokens)} output tokens
             </Typography>
           </>
@@ -1032,18 +1087,24 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             <Typography gutterBottom>
               {estimate.remainingToAnalyze} document{estimate.remainingToAnalyze !== 1 ? 's' : ''} to analyze
               {estimate.alreadyAnalyzed > 0 && (
-                <Typography component="span" color="text.secondary">
+                <Typography component="span" sx={{
+                  color: "text.secondary"
+                }}>
                   {' '}({estimate.alreadyAnalyzed} already analyzed)
                 </Typography>
               )}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Model: Claude {estimate.model}
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, mt: 1 }}>
               Estimated cost: ${estimate.estimatedCostUsd.toFixed(4)}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               ~{formatTokens(estimate.estimatedInputTokens)} input tokens, ~{formatTokens(estimate.estimatedOutputTokens)} output tokens
             </Typography>
           </>
@@ -1131,7 +1192,12 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
           <Typography variant="subtitle1" gutterBottom>
             Attachments Cataloged but Not Yet Analyzed
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             {intel.attachmentCount} attachment{intel.attachmentCount !== 1 ? 's' : ''} found. Run analysis to extract intelligence.
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center' }}>
@@ -1193,7 +1259,9 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
             color={getConfidenceColor(intel.overallConfidence)}
             size="small"
           />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {intel.analyzedCount} of {intel.attachmentCount} attachment{intel.attachmentCount !== 1 ? 's' : ''} analyzed
           </Typography>
           {/* Show chips for all available extraction methods */}
@@ -1252,12 +1320,10 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
           </Box>
         </Box>
       </Paper>
-
       {/* Scope Summary — prominent AI-generated summary */}
       {intel.scopeSummary && (
         <ScopeSummaryCard summary={intel.scopeSummary} methods={availableMethods} />
       )}
-
       {/* Intel Summary Cards */}
       {hasAnyIntel ? (
         <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -1288,12 +1354,10 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
           />
         </Paper>
       )}
-
       {/* Per-Attachment Breakdown (Problem 7) */}
       {intel.perAttachmentIntel && intel.perAttachmentIntel.length > 0 && (
         <PerAttachmentBreakdown items={intel.perAttachmentIntel} />
       )}
-
       {/* Attachments Table */}
       <AttachmentsTable attachments={intel.attachments ?? []} noticeId={noticeId} />
       {estimateDialog}

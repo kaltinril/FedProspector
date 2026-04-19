@@ -113,10 +113,17 @@ export default function LoginPage() {
       <Card sx={{ maxWidth: 440, width: '100%' }}>
         <CardContent sx={{ p: { xs: 2, sm: 4 } }}>
           <Box sx={{ textAlign: 'center', mb: 4 }}>
-            <Typography variant="h4" component="h1" fontWeight={700}>
+            <Typography variant="h4" component="h1" sx={{
+              fontWeight: 700
+            }}>
               FedProspect
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mt: 1
+              }}>
               Federal Contract Prospecting System
             </Typography>
           </Box>
@@ -169,7 +176,9 @@ export default function LoginPage() {
           </Box>
 
           <Box sx={{ textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Have an invite?{' '}
               <Link component={RouterLink} to="/register" underline="hover">
                 Create an account

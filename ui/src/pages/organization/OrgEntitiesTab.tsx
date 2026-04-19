@@ -170,24 +170,20 @@ export function OrgEntitiesTab() {
           {successMessage}
         </Alert>
       )}
-
       {linkMutation.isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {(linkMutation.error as Error)?.message || 'Failed to link entity'}
         </Alert>
       )}
-
       {mutationError && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setMutationError(null)}>
           {mutationError}
         </Alert>
       )}
-
       <SetAsideEligibilityPanel
         linkedEntities={linkedEntities}
         isLoadingEntities={isLoading}
       />
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Typography variant="h6">Linked Entities</Typography>
         {hasSelf && (
@@ -201,12 +197,15 @@ export function OrgEntitiesTab() {
           </Button>
         )}
       </Box>
-
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 2
+        }}>
         Link your SAM.gov entity (SELF) and teaming/JV partners to auto-populate NAICS codes,
         certifications, and improve pWin scoring accuracy.
       </Typography>
-
       {/* Search section */}
       <Paper sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" gutterBottom>
@@ -253,17 +252,23 @@ export function OrgEntitiesTab() {
                 {searchResults.map((entity) => (
                   <TableRow key={entity.ueiSam} hover>
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500}>
+                      <Typography variant="body2" sx={{
+                        fontWeight: 500
+                      }}>
                         {entity.legalBusinessName}
                       </Typography>
                       {entity.dbaName && (
-                        <Typography variant="caption" color="text.secondary">
+                        <Typography variant="caption" sx={{
+                          color: "text.secondary"
+                        }}>
                           DBA: {entity.dbaName}
                         </Typography>
                       )}
                     </TableCell>
                     <TableCell>
-                      <Typography variant="body2" fontFamily="monospace">
+                      <Typography variant="body2" sx={{
+                        fontFamily: "monospace"
+                      }}>
                         {entity.ueiSam}
                       </Typography>
                     </TableCell>
@@ -294,7 +299,6 @@ export function OrgEntitiesTab() {
           </TableContainer>
         )}
       </Paper>
-
       {/* Linked entities table */}
       {isLoading ? (
         <CircularProgress />
@@ -325,27 +329,37 @@ export function OrgEntitiesTab() {
               {linkedEntities.map((link: OrganizationEntityDto) => (
                 <TableRow key={link.id}>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>
                       {link.legalBusinessName || link.ueiSam}
                     </Typography>
                     {link.cageCode && (
-                      <Typography variant="caption" color="text.secondary">
+                      <Typography variant="caption" sx={{
+                        color: "text.secondary"
+                      }}>
                         CAGE: {link.cageCode}
                       </Typography>
                     )}
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" fontFamily="monospace">
+                    <Typography variant="body2" sx={{
+                      fontFamily: "monospace"
+                    }}>
                       {link.ueiSam}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     {link.partnerUei ? (
-                      <Typography variant="body2" fontFamily="monospace">
+                      <Typography variant="body2" sx={{
+                        fontFamily: "monospace"
+                      }}>
                         {link.partnerUei}
                       </Typography>
                     ) : (
-                      <Typography variant="body2" color="text.secondary">-</Typography>
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>-</Typography>
                     )}
                   </TableCell>
                   <TableCell>
@@ -374,17 +388,20 @@ export function OrgEntitiesTab() {
           </Table>
         </TableContainer>
       )}
-
       {/* Link confirmation dialog */}
       <Dialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} disableRestoreFocus maxWidth="sm" fullWidth>
         <DialogTitle>Link Entity</DialogTitle>
         <DialogContent>
           {selectedEntity && (
             <Box sx={{ mb: 2 }}>
-              <Typography variant="subtitle1" fontWeight={500}>
+              <Typography variant="subtitle1" sx={{
+                fontWeight: 500
+              }}>
                 {selectedEntity.legalBusinessName}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 UEI: {selectedEntity.ueiSam}
                 {selectedEntity.primaryNaics && ` | Primary NAICS: ${selectedEntity.primaryNaics}`}
               </Typography>
@@ -411,8 +428,10 @@ export function OrgEntitiesTab() {
             placeholder="13-character UEI for JV filings"
             value={partnerUei}
             onChange={(e) => setPartnerUei(e.target.value.toUpperCase())}
-            inputProps={{ maxLength: 13 }}
             sx={{ mb: 2 }}
+            slotProps={{
+              htmlInput: { maxLength: 13 }
+            }}
           />
           <TextField
             fullWidth

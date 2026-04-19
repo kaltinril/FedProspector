@@ -1,7 +1,7 @@
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
-import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
+import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined';
 
 interface ErrorStateProps {
   title?: string;
@@ -32,7 +32,13 @@ export function ErrorState({
       <Typography variant="h6" gutterBottom>
         {title}
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, maxWidth: 400 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 3,
+          maxWidth: 400
+        }}>
         {message}
       </Typography>
       {onRetry && (

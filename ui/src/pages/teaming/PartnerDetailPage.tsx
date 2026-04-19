@@ -75,7 +75,9 @@ function CapabilitiesTab({ risk }: { risk: PartnerRiskDto }) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Box>
         <Typography variant="subtitle1" gutterBottom>Certifications</Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {risk.certificationCount > 0
             ? `${risk.certificationCount} active certification(s)`
             : 'No certifications on record'}
@@ -375,12 +377,13 @@ function NetworkTab({ uei }: { uei: string }) {
           variant={depth === 2 ? 'filled' : 'outlined'}
         />
         {data && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {data.length} connection{data.length !== 1 ? 's' : ''}
           </Typography>
         )}
       </Box>
-
       {isLoading && <LoadingState message="Loading network..." />}
       {!isLoading && (
         <DataTable

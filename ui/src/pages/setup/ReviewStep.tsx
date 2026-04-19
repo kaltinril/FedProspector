@@ -33,20 +33,25 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
       <Typography variant="h6" sx={{ mb: 2 }}>
         Review & Complete Setup
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 3
+        }}>
         Review your information below. Click &quot;Edit&quot; on any section to make changes.
       </Typography>
-
       {saveError && (
         <Alert severity="error" sx={{ mb: 3 }}>
           {saveError}
         </Alert>
       )}
-
       {/* Company Info */}
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 600
+          }}>
             Company Information
           </Typography>
           <Button size="small" startIcon={<EditIcon />} onClick={() => onGoToStep(0)}>
@@ -74,11 +79,12 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
           <InfoItem label="Website" value={data.website} />
         </Box>
       </Paper>
-
       {/* NAICS Codes */}
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 600
+          }}>
             NAICS Codes ({data.naicsCodes.length})
           </Typography>
           <Button size="small" startIcon={<EditIcon />} onClick={() => onGoToStep(1)}>
@@ -87,7 +93,9 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
         </Box>
         <Divider sx={{ mb: 1.5 }} />
         {data.naicsCodes.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             No NAICS codes added.
           </Typography>
         ) : (
@@ -114,23 +122,28 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
         {(data.employeeCount || data.annualRevenue) && (
           <Box sx={{ mt: 1, display: 'flex', gap: 3 }}>
             {data.employeeCount && (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Employees: {data.employeeCount.toLocaleString()}
               </Typography>
             )}
             {data.annualRevenue && (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Annual Revenue: {formatCurrency(data.annualRevenue)}
               </Typography>
             )}
           </Box>
         )}
       </Paper>
-
       {/* Certifications */}
       <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 600
+          }}>
             Certifications
           </Typography>
           <Button size="small" startIcon={<EditIcon />} onClick={() => onGoToStep(2)}>
@@ -139,11 +152,15 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
         </Box>
         <Divider sx={{ mb: 1.5 }} />
         {data.noCertifications ? (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             No certifications.
           </Typography>
         ) : data.certifications.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             No certifications selected.
           </Typography>
         ) : (
@@ -164,11 +181,12 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
           </List>
         )}
       </Paper>
-
       {/* Past Performance */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle1" fontWeight={600}>
+          <Typography variant="subtitle1" sx={{
+            fontWeight: 600
+          }}>
             Past Performance
           </Typography>
           <Button size="small" startIcon={<EditIcon />} onClick={() => onGoToStep(3)}>
@@ -177,7 +195,9 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
         </Box>
         <Divider sx={{ mb: 1.5 }} />
         {data.skipPastPerformance || data.pastPerformances.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {data.skipPastPerformance ? 'Skipped.' : 'No contracts added.'}
           </Typography>
         ) : (
@@ -198,7 +218,6 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
           </List>
         )}
       </Paper>
-
       <Box sx={{ display: 'flex', justifyContent: 'center' }}>
         <Button
           variant="contained"
@@ -218,7 +237,9 @@ export function ReviewStep({ data, onGoToStep, onComplete, isSaving, saveError }
 function InfoItem({ label, value }: { label: string; value: string | undefined | null }) {
   return (
     <Box>
-      <Typography variant="caption" color="text.secondary">
+      <Typography variant="caption" sx={{
+        color: "text.secondary"
+      }}>
         {label}
       </Typography>
       <Typography variant="body2">{value || '-'}</Typography>

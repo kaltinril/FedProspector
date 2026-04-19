@@ -139,7 +139,6 @@ export default function GapAnalysisPage() {
   return (
     <Box>
       <PageHeader title="Capability Gap Analysis" subtitle="Identify gaps and find partners to fill them" />
-
       {/* Filter */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3 }}>
         <TextField
@@ -151,9 +150,7 @@ export default function GapAnalysisPage() {
           placeholder="Filter by NAICS..."
         />
       </Box>
-
       {isLoading && <LoadingState message="Analyzing capability gaps..." />}
-
       {!isLoading && data && (
         <>
           {/* Your organization's NAICS codes */}
@@ -169,7 +166,9 @@ export default function GapAnalysisPage() {
                   ))}
                 </Box>
               ) : (
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   No NAICS codes configured for your organization. Visit Organization settings to add them.
                 </Typography>
               )}
@@ -182,14 +181,21 @@ export default function GapAnalysisPage() {
           <Typography variant="h6" gutterBottom>
             Suggested Partners to Fill Gaps
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             These partners have capabilities in NAICS codes where your organization lacks experience.
           </Typography>
 
           {data.gapFillingPartners.length === 0 ? (
             <Card variant="outlined">
               <CardContent>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   No gap-filling partners found. Try adjusting your NAICS filter or adding more NAICS codes to your organization profile.
                 </Typography>
               </CardContent>

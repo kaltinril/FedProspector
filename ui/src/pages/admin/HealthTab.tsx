@@ -46,14 +46,15 @@ export default function HealthTab() {
           </IconButton>
         </Tooltip>
       </Box>
-
       <Grid container spacing={3}>
         {/* Database Status */}
         <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <Typography variant="subtitle1" fontWeight="bold">
+                <Typography variant="subtitle1" sx={{
+                  fontWeight: "bold"
+                }}>
                   Database
                 </Typography>
                 <Chip
@@ -63,7 +64,12 @@ export default function HealthTab() {
                 />
               </Box>
               {data.database.description && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    mb: 1
+                  }}>
                   {data.database.description}
                 </Typography>
               )}
@@ -88,7 +94,9 @@ export default function HealthTab() {
           <Card>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <Typography variant="subtitle1" fontWeight="bold">
+                <Typography variant="subtitle1" sx={{
+                  fontWeight: "bold"
+                }}>
                   ETL Freshness
                 </Typography>
                 <Chip
@@ -98,7 +106,12 @@ export default function HealthTab() {
                 />
               </Box>
               {data.etlFreshness.description && (
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    mb: 1
+                  }}>
                   {data.etlFreshness.description}
                 </Typography>
               )}
@@ -123,7 +136,12 @@ export default function HealthTab() {
           <Grid size={{ xs: 12 }}>
             <Card>
               <CardContent>
-                <Typography variant="subtitle1" fontWeight="bold" sx={{ mb: 2 }}>
+                <Typography
+                  variant="subtitle1"
+                  sx={{
+                    fontWeight: "bold",
+                    mb: 2
+                  }}>
                   Additional Details
                 </Typography>
                 <Table size="small">

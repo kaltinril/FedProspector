@@ -294,9 +294,14 @@ function OpportunitiesTab({ fhOrgId }: { fhOrgId: string }) {
 
   if (!isLoading && (data?.totalCount ?? 0) === 0 && !hasFilters) {
     return (
-      <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
-        No opportunities found for this organization.
-      </Typography>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          py: 4,
+          textAlign: 'center'
+        }}>No opportunities found for this organization.
+              </Typography>
     );
   }
 
@@ -350,7 +355,13 @@ function OpportunitiesTab({ fhOrgId }: { fhOrgId: string }) {
         </FormControl>
       </Box>
       {!isLoading && (data?.totalCount ?? 0) === 0 && hasFilters ? (
-        <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            py: 4,
+            textAlign: 'center'
+          }}>
           No opportunities match the selected filters.
         </Typography>
       ) : (
@@ -432,7 +443,13 @@ export default function OrganizationDetailPage() {
             content: hasChildren ? (
               <ChildrenTab fhOrgId={org.fhOrgId} />
             ) : (
-              <Typography variant="body2" color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                  py: 4,
+                  textAlign: 'center'
+                }}>
                 No child organizations.
               </Typography>
             ),
@@ -449,7 +466,6 @@ export default function OrganizationDetailPage() {
   return (
     <Box>
       <BackToSearch searchPath="/hierarchy" label="Back to hierarchy" />
-
       {/* Breadcrumb from parent chain */}
       {org.parentChain && org.parentChain.length > 0 && (
         <Breadcrumbs sx={{ mb: 2 }} aria-label="organization hierarchy">
@@ -474,12 +490,15 @@ export default function OrganizationDetailPage() {
               {parent.fhOrgName}
             </Link>
           ))}
-          <Typography color="text.primary" sx={{ fontWeight: 500 }}>
+          <Typography
+            sx={{
+              color: "text.primary",
+              fontWeight: 500
+            }}>
             {org.fhOrgName}
           </Typography>
         </Breadcrumbs>
       )}
-
       {/* Header */}
       <PageHeader
         title={org.fhOrgName}
@@ -511,7 +530,6 @@ export default function OrganizationDetailPage() {
           </Box>
         }
       />
-
       {/* Identifier chips below header */}
       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
         {org.agencyCode && (
@@ -524,7 +542,6 @@ export default function OrganizationDetailPage() {
           <Chip label={`FPDS: ${org.oldfpdsOfficeCode}`} size="small" variant="outlined" />
         )}
       </Box>
-
       <TabbedDetailPage tabs={tabs} />
     </Box>
   );

@@ -384,7 +384,6 @@ function DocumentRegistrySection({ proposal }: { proposal: ProposalDetailDto }) 
           Add Document
         </Button>
       </Box>
-
       {proposal.documents.length === 0 ? (
         <EmptyState title="No documents" message="Add document metadata to track proposal artifacts." />
       ) : (
@@ -413,7 +412,6 @@ function DocumentRegistrySection({ proposal }: { proposal: ProposalDetailDto }) 
           </Table>
         </TableContainer>
       )}
-
       {/* Add Document Dialog */}
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add Document</DialogTitle>
@@ -476,7 +474,9 @@ function LessonsLearnedSection({ proposal }: { proposal: ProposalDetailDto }) {
           {proposal.lessonsLearned}
         </Typography>
       ) : (
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           No lessons learned recorded yet. Use the Edit Proposal section above to add notes.
         </Typography>
       )}
@@ -537,35 +537,44 @@ export default function ProposalDetailPage() {
     <Box>
       {/* Navigation */}
       <BackToSearch searchPath={`/prospects/${prospectId}`} label="Back to prospect" />
-
       {/* Breadcrumb */}
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+          display: 'block',
+          mb: 1
+        }}>
         Dashboard &gt; Prospects &gt; {proposal.prospectTitle ?? `Prospect #${prospectId}`} &gt; Proposal #{proposal.proposalNumber ?? proposal.proposalId}
       </Typography>
-
       {/* Header */}
       <PageHeader
         title={`Proposal ${proposal.proposalNumber ?? `#${proposal.proposalId}`}`}
         subtitle={proposal.opportunityTitle ?? undefined}
       />
-
       {/* Summary bar */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
           <Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Status
             </Typography>
             <StatusChip status={proposal.proposalStatus} />
           </Box>
           <Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Submission Deadline
             </Typography>
             <DeadlineCountdown deadline={proposal.submissionDeadline ?? null} />
           </Box>
           <Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Estimated Value
             </Typography>
             <Typography variant="body1">
@@ -573,7 +582,9 @@ export default function ProposalDetailPage() {
             </Typography>
           </Box>
           <Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Win Probability
             </Typography>
             <Typography variant="body1">
@@ -582,7 +593,6 @@ export default function ProposalDetailPage() {
           </Box>
         </Box>
       </Paper>
-
       {/* Sections */}
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
         <EditProposalSection proposal={proposal} />

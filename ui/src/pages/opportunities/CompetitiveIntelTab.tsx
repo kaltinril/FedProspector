@@ -66,12 +66,16 @@ function SetAsideShiftCard({ shift }: { shift: SetAsideShiftDto }) {
       )}
       {shift.predecessorVendorName && (
         <Box sx={{ mt: 1 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Predecessor: {shift.predecessorVendorName}
             {shift.predecessorVendorUei ? ` (${shift.predecessorVendorUei})` : ''}
           </Typography>
           {(shift.predecessorDateSigned || shift.predecessorValue != null) && (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               {shift.predecessorDateSigned ? `Signed ${formatDate(shift.predecessorDateSigned)}` : ''}
               {shift.predecessorDateSigned && shift.predecessorValue != null ? ' — ' : ''}
               {shift.predecessorValue != null ? formatCurrency(shift.predecessorValue) : ''}
@@ -108,7 +112,9 @@ function CompetitionLevelCard({ landscape }: { landscape: CompetitiveLandscapeDt
           color={chipColor}
           sx={{ fontWeight: 600, fontSize: '0.875rem' }}
         />
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {landscape.distinctVendorCount} distinct vendors in scope
         </Typography>
         {landscape.fallbackScope === 'NAICS' && (
@@ -144,7 +150,12 @@ function LikelyCompetitorsTable({ competitors }: { competitors: LikelyCompetitor
       <Typography variant="subtitle2" sx={{ mb: 1 }}>
         Likely Competitors
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 1
+        }}>
         Based on recent awards to the same agency in this NAICS code.
       </Typography>
       <TableContainer>
@@ -272,7 +283,6 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
       ) : (
         <CompetitionLevelCard landscape={landscape} />
       )}
-
       {/* 2. Set-Aside Shift Indicator */}
       {shiftLoading ? (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
@@ -288,7 +298,6 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
       ) : shiftData ? (
         <SetAsideShiftCard shift={shiftData} />
       ) : null}
-
       {/* 3. Incumbent Analysis */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
@@ -370,7 +379,6 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
           </Box>
         )}
       </Paper>
-
       {/* 3a. Incumbent Vulnerability Score */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
@@ -382,7 +390,9 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
             <Skeleton variant="rectangular" height={120} />
           </Box>
         ) : !ivsData ? (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             No incumbent vulnerability data available.
           </Typography>
         ) : (
@@ -410,7 +420,9 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
                   variant="outlined"
                 />
               </Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Data completeness: {ivsData.dataCompletenessPercent}%
               </Typography>
             </Box>
@@ -456,7 +468,6 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
           </Box>
         )}
       </Paper>
-
       {/* 3b. Scoped Top Competitors (from competitive landscape endpoint) */}
       {landscape && landscape.topVendors.length > 0 && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
@@ -470,13 +481,18 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
             title="Top Competitors (Scoped)"
           />
           {landscape.fallbackScope === 'NAICS' && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                mt: 1,
+                display: 'block'
+              }}>
               Showing NAICS-wide data — agency-scoped results had too few vendors.
             </Typography>
           )}
         </Paper>
       )}
-
       {/* 3c. Competitor Strength Index */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -488,12 +504,19 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
             <Skeleton variant="rectangular" height={160} />
           </Box>
         ) : !csiData || csiData.competitors.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             No competitor strength data available.
           </Typography>
         ) : (
           <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mb: 2
+              }}>
               {csiData.totalCompetitorsFound} competitors found
             </Typography>
             <TableContainer>
@@ -543,7 +566,6 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
           </Box>
         )}
       </Paper>
-
       {/* 4. NAICS-wide Market Context */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
@@ -588,7 +610,6 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
           </Box>
         )}
       </Paper>
-
       {/* 5. NAICS Set-Aside Trend Chart */}
       {opp.naicsCode && (
         <Paper variant="outlined" sx={{ p: 2 }}>
@@ -615,12 +636,10 @@ export default function CompetitiveIntelTab({ opp }: { opp: OpportunityDetail })
           )}
         </Paper>
       )}
-
       {/* 6. Partner Compatibility */}
       <Box sx={{ mt: 3 }}>
         <PartnerCompatibilitySection noticeId={opp.noticeId} />
       </Box>
-
       {/* 7. Open Door Primes */}
       {opp.naicsCode && (
         <Box sx={{ mt: 3 }}>

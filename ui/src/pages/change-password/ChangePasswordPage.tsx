@@ -85,7 +85,9 @@ export default function ChangePasswordPage() {
       <Card sx={{ maxWidth: 480, width: '100%' }}>
         <CardContent sx={{ p: { xs: 2, sm: 4 } }}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
-            <Typography variant="h4" component="h1" fontWeight={700}>
+            <Typography variant="h4" component="h1" sx={{
+              fontWeight: 700
+            }}>
               FedProspect
             </Typography>
           </Box>

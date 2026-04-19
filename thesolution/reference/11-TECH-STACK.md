@@ -69,10 +69,10 @@ Last updated: 2026-04-18
 
 | Package | Version | Purpose |
 |---------|---------|---------|
-| @mui/material | 7.3.10 | Component library |
-| @mui/icons-material | 7.3.10 | Icon set |
-| @mui/x-data-grid | 8.28.2 | Data tables |
-| @mui/x-charts | 8.28.2 | Charts |
+| @mui/material | 9.0.0 | Component library |
+| @mui/icons-material | 9.0.0 | Icon set |
+| @mui/x-data-grid | 9.0.2 | Data tables |
+| @mui/x-charts | 9.0.2 | Charts |
 | @emotion/react | 11.14.0 | CSS-in-JS (MUI styling) |
 | @emotion/styled | 11.14.1 | Styled components |
 

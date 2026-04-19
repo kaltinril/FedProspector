@@ -230,7 +230,6 @@ function OverviewTab({
           )}
         </Paper>
       )}
-
       {/* Score Breakdown */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
@@ -247,12 +246,13 @@ function OverviewTab({
         {scoreBreakdown ? (
           <ScoreBreakdownPanel breakdown={scoreBreakdown} />
         ) : (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             No score breakdown available. Click Recalculate to generate.
           </Typography>
         )}
       </Paper>
-
       {/* Win Probability & Financials */}
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
@@ -313,7 +313,9 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdownDto }) {
           <Box key={c.label} sx={{ mb: 2 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
               <Typography variant="body2">{c.label}</Typography>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {c.data.score}/{c.data.max}
               </Typography>
             </Box>
@@ -322,13 +324,14 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdownDto }) {
               value={valuePct}
               sx={{ height: 8, borderRadius: 4 }}
             />
-            <Typography variant="caption" color="text.secondary">
+            <Typography variant="caption" sx={{
+              color: "text.secondary"
+            }}>
               {c.data.detail}
             </Typography>
           </Box>
         );
       })}
-
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, mt: 3 }}>
         <PWinGauge
           score={pct}
@@ -337,10 +340,14 @@ function ScoreBreakdownPanel({ breakdown }: { breakdown: ScoreBreakdownDto }) {
           showCategory={false}
         />
         <Box>
-          <Typography variant="h6" fontWeight={700}>
+          <Typography variant="h6" sx={{
+            fontWeight: 700
+          }}>
             {breakdown.totalScore}/{breakdown.maxScore}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Overall Score ({Math.round(pct)}%)
           </Typography>
         </Box>
@@ -415,7 +422,6 @@ function NotesTab({
           Submit
         </Button>
       </Paper>
-
       {/* Note feed */}
       {sortedNotes.length === 0 ? (
         <EmptyState
@@ -433,7 +439,9 @@ function NotesTab({
               <Typography variant="subtitle2">
                 {note.createdBy?.displayName ?? 'Unknown'}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 {formatRelative(note.createdAt)}
               </Typography>
             </Box>
@@ -880,7 +888,6 @@ export default function ProspectDetailPage() {
     <TabbedDetailPage tabs={tabs}>
       {/* Back button */}
       <BackToSearch searchPath="/prospects" />
-
       {/* Header */}
       <PageHeader
         title={opp?.title ?? 'Untitled Prospect'}
@@ -894,7 +901,6 @@ export default function ProspectDetailPage() {
           </Box>
         }
       />
-
       {/* Summary row */}
       <Box
         sx={{
@@ -918,7 +924,9 @@ export default function ProspectDetailPage() {
         <DeadlineCountdown deadline={opp?.responseDeadline ?? null} />
 
         {detail.scoreBreakdown && (
-          <Typography variant="body2" fontWeight={600}>
+          <Typography variant="body2" sx={{
+            fontWeight: 600
+          }}>
             Score: {detail.scoreBreakdown.totalScore}/{detail.scoreBreakdown.maxScore}
           </Typography>
         )}

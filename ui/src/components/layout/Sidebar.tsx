@@ -205,9 +205,10 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
           {!collapsed && (
             <ListItemText
               primary={item.label}
-              primaryTypographyProps={{
-                fontSize: '0.875rem',
-                fontWeight: active ? 600 : 400,
+              slotProps={{
+                primary: {
+                  sx: { fontSize: '0.875rem', fontWeight: active ? 600 : 400 },
+                }
               }}
             />
           )}

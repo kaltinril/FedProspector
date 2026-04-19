@@ -238,20 +238,21 @@ function ProspectCardContent({ prospect, onClick, isDragOverlay, onStatusChange 
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography
               variant="body2"
-              fontWeight={600}
               sx={{
+                fontWeight: 600,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
+                whiteSpace: 'nowrap'
+              }}>
               {prospect.opportunityTitle ?? 'Untitled'}
             </Typography>
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
               <DeadlineCountdown deadline={prospect.responseDeadline ?? null} showDate={false} />
               {prospect.estimatedValue != null && (
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   {formatCurrency(prospect.estimatedValue, true)}
                 </Typography>
               )}
@@ -259,7 +260,9 @@ function ProspectCardContent({ prospect, onClick, isDragOverlay, onStatusChange 
 
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
               {prospect.assignedToName && (
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   {prospect.assignedToName}
                 </Typography>
               )}
@@ -498,14 +501,15 @@ function KanbanView({ prospects, isLoading, onCardClick, onStatusChange, statusF
               />
             }
             label={
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Show completed/archived{terminalCount > 0 ? ` (${terminalCount})` : ''}
               </Typography>
             }
           />
         </Box>
       )}
-
       <DndContext
         sensors={sensors}
         collisionDetection={closestCorners}

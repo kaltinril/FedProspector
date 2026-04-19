@@ -164,10 +164,8 @@ export default function HierarchyBrowsePage() {
         title="Federal Hierarchy"
         subtitle="Browse and search the federal government organization structure"
       />
-
       {/* Admin refresh panel */}
       {isSystemAdmin && <HierarchyRefreshPanel />}
-
       {/* Toolbar: Search | Status | Level | View */}
       <Box
         sx={{
@@ -183,14 +181,16 @@ export default function HierarchyBrowsePage() {
           placeholder="Search organizations..."
           value={localKeyword}
           onChange={(e) => setLocalKeyword(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
-              </InputAdornment>
-            ),
-          }}
           sx={{ minWidth: 260 }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+            }
+          }}
         />
         <ToggleButtonGroup
           size="small"
@@ -235,7 +235,6 @@ export default function HierarchyBrowsePage() {
           </ToggleButtonGroup>
         )}
       </Box>
-
       <Paper
         variant="outlined"
         sx={{

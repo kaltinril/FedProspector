@@ -67,7 +67,12 @@ export function LoadingState({
     >
       <CircularProgress />
       {message && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+            mt: 2
+          }}>
           {message}
         </Typography>
       )}

@@ -51,7 +51,9 @@ const columns: GridColDef[] = [
     align: 'right',
     headerAlign: 'right',
     renderCell: (params) => (
-      <Typography variant="body2" fontWeight={600}>
+      <Typography variant="body2" sx={{
+        fontWeight: 600
+      }}>
         {formatCurrency(params.value as number | null, true)}
       </Typography>
     ),
@@ -117,31 +119,43 @@ export default function RevenueForecastPage() {
         title="Revenue Forecast"
         subtitle="Monthly pipeline projections weighted by win probability"
       />
-
       {/* Summary */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6 }}>
           <Paper sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h4" fontWeight={700} color="primary.main">
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 700,
+                color: "primary.main"
+              }}>
               {formatCurrency(totalWeighted, true)}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Total Weighted Forecast
             </Typography>
           </Paper>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <Paper sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="h4" fontWeight={700} color="text.secondary">
+            <Typography
+              variant="h4"
+              sx={{
+                fontWeight: 700,
+                color: "text.secondary"
+              }}>
               {formatCurrency(totalUnweighted, true)}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Total Unweighted Value
             </Typography>
           </Paper>
         </Grid>
       </Grid>
-
       {/* Chart */}
       <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
@@ -167,12 +181,13 @@ export default function RevenueForecastPage() {
             />
           </Box>
         ) : (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             No chart data available.
           </Typography>
         )}
       </Paper>
-
       {/* Table */}
       <Paper sx={{ p: { xs: 2, md: 3 } }}>
         <Typography variant="h6" sx={{ mb: 2 }}>

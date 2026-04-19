@@ -419,7 +419,6 @@ export default function TargetOpportunityPage() {
         title="Target Opportunities"
         subtitle="Opportunities matched to your company's NAICS codes, certifications, and past performance"
       />
-
       <SearchFilters
         filters={FILTER_CONFIGS}
         values={editingValues}
@@ -427,13 +426,13 @@ export default function TargetOpportunityPage() {
         onClear={handleClearFilters}
         onSearch={handleSearch}
       />
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {data ? `${data.totalCount.toLocaleString()} results` : ''}
         </Typography>
       </Box>
-
       <DataTable
         columns={columns}
         rows={data?.items ?? []}

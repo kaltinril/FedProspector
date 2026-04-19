@@ -22,7 +22,9 @@ export function AdminGuard({ children }: AdminGuardProps) {
         }}
       >
         <Typography variant="h4">Access Denied</Typography>
-        <Typography variant="body1" color="text.secondary">
+        <Typography variant="body1" sx={{
+          color: "text.secondary"
+        }}>
           You do not have permission to view this page.
         </Typography>
       </Box>

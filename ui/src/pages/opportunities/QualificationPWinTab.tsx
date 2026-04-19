@@ -15,7 +15,7 @@ import TableRow from '@mui/material/TableRow';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlined';
 
 import PWinGauge from '@/components/shared/PWinGauge';
 import { QualificationChecklist } from '@/components/shared/QualificationChecklist';
@@ -97,25 +97,39 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
 
               {/* Right: Factor breakdown */}
               <Box sx={{ flex: 1, width: '100%' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    color: "text.secondary",
+                    mb: 1.5
+                  }}>
                   Score Factors
                 </Typography>
                 {pwin.factors.map((factor) => (
                   <Box key={factor.name} sx={{ mb: 1.5, opacity: factor.hadRealData === false ? 0.55 : 1 }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        <Typography variant="body2" fontWeight={500}>
+                        <Typography variant="body2" sx={{
+                          fontWeight: 500
+                        }}>
                           {factor.name}
                         </Typography>
                         {factor.hadRealData === false && (
                           <Tooltip title="Based on default — no data available" arrow>
-                            <Typography variant="caption" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "text.secondary",
+                                fontStyle: 'italic'
+                              }}>
                               (default)
                             </Typography>
                           </Tooltip>
                         )}
                       </Box>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography variant="body2" sx={{
+                        color: "text.secondary"
+                      }}>
                         {factor.score} (wt {Math.round(factor.weight * 100)}%)
                       </Typography>
                     </Box>
@@ -124,7 +138,9 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
                       value={factor.score}
                       sx={{ height: 8, borderRadius: 1 }}
                     />
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       {factor.detail}
                     </Typography>
                   </Box>
@@ -135,7 +151,12 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
             {/* Suggestions */}
             {pwin.suggestions.length > 0 && (
               <Alert severity="info" sx={{ mt: 3 }}>
-                <Typography variant="body2" fontWeight={600} sx={{ mb: 0.5 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    fontWeight: 600,
+                    mb: 0.5
+                  }}>
                   Suggestions to improve your score
                 </Typography>
                 <Box component="ul" sx={{ m: 0, pl: 2 }}>
@@ -160,7 +181,9 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
                 onClick={() => setExplainerOpen(!explainerOpen)}
               >
                 <HelpOutlineIcon fontSize="small" sx={{ mr: 0.5 }} />
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" sx={{
+                  color: "text.secondary"
+                }}>
                   How is this calculated?
                 </Typography>
                 <IconButton size="small">
@@ -190,7 +213,9 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
                       {PWIN_FORMULA.map((row) => (
                         <TableRow key={row.factor}>
                           <TableCell>
-                            <Typography variant="body2" fontWeight={500}>{row.factor}</Typography>
+                            <Typography variant="body2" sx={{
+                              fontWeight: 500
+                            }}>{row.factor}</Typography>
                           </TableCell>
                           <TableCell align="center">{row.weight}</TableCell>
                           <TableCell>
@@ -200,7 +225,13 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
                       ))}
                     </TableBody>
                   </Table>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      mt: 1,
+                      display: 'block'
+                    }}>
                     Categories: High (70-100), Medium (40-69), Low (15-39), Very Low (0-14).
                     Scores use all linked entity UEIs (SELF + JV Partners + Teaming Partners) for FPDS and subaward queries.
                   </Typography>
@@ -210,7 +241,6 @@ export default function QualificationPWinTab({ opp }: { opp: OpportunityDetail }
           </Box>
         )}
       </Paper>
-
       {/* Qualification Section */}
       <Paper variant="outlined" sx={{ p: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>

@@ -46,7 +46,9 @@ export default function PartnerCompatibilitySection({ noticeId }: Props) {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>Potential Teaming Partners</Typography>
-          <Typography color="text.secondary">No potential partners found based on subaward data for this opportunity.</Typography>
+          <Typography sx={{
+            color: "text.secondary"
+          }}>No potential partners found based on subaward data for this opportunity.</Typography>
         </CardContent>
       </Card>
     );

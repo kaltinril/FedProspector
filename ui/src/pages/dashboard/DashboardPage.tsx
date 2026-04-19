@@ -77,10 +77,14 @@ function StatCard({
           {icon}
         </Box>
         <Box>
-          <Typography variant="h5" fontWeight="bold">
+          <Typography variant="h5" sx={{
+            fontWeight: "bold"
+          }}>
             {value}
           </Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {title}
           </Typography>
         </Box>
@@ -112,7 +116,9 @@ const dueColumns: GridColDef[] = [
         <Typography
           variant="body2"
           color={isExpired ? 'error.main' : 'text.primary'}
-          fontWeight={isExpired ? 'bold' : undefined}
+          sx={{
+            fontWeight: isExpired ? 'bold' : undefined
+          }}
         >
           {text}
         </Typography>
@@ -184,7 +190,12 @@ export default function DashboardPage() {
           <Typography variant="h5" gutterBottom>
             No active prospects
           </Typography>
-          <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+          <Typography
+            variant="body1"
+            sx={{
+              color: "text.secondary",
+              mb: 3
+            }}>
             Get started by searching for opportunities and adding them to your
             pipeline.
           </Typography>
@@ -220,7 +231,6 @@ export default function DashboardPage() {
   return (
     <Box sx={{ p: { xs: 2, sm: 3, md: 4 } }}>
       <PageHeader title="Dashboard" subtitle="Pipeline overview and key metrics" />
-
       {/* Row 1: Key Metrics */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
@@ -268,7 +278,6 @@ export default function DashboardPage() {
           </Grid>
         )}
       </Grid>
-
       {/* Row 2: Intelligence Widgets */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
         {/* Top Recommendations */}
@@ -302,9 +311,10 @@ export default function DashboardPage() {
                     <ListItemText
                       primary={rec.title ?? rec.solicitationNumber ?? rec.noticeId}
                       secondary={rec.departmentName ? <AgencyLink name={rec.departmentName} agencyCode={rec.contractingOfficeId ?? undefined} fhOrgId={rec.fhOrgId} /> : undefined}
-                      primaryTypographyProps={{ variant: 'body2', fontWeight: 500, noWrap: true }}
-                      secondaryTypographyProps={{ variant: 'caption', noWrap: true, component: 'div' as const }}
-                    />
+                      slotProps={{
+                        primary: { variant: 'body2', noWrap: true, sx: { fontWeight: 500 } },
+                        secondary: { variant: 'caption', noWrap: true, component: 'div' as const }
+                      }} />
                     <Box sx={{ display: 'flex', gap: 1, ml: 1, flexShrink: 0 }}>
                       {rec.daysRemaining != null && (
                         <Chip
@@ -358,9 +368,10 @@ export default function DashboardPage() {
                     <ListItemText
                       primary={contract.description ?? contract.piid}
                       secondary={contract.vendorName ?? undefined}
-                      primaryTypographyProps={{ variant: 'body2', fontWeight: 500, noWrap: true }}
-                      secondaryTypographyProps={{ variant: 'caption', noWrap: true }}
-                    />
+                      slotProps={{
+                        primary: { variant: 'body2', noWrap: true, sx: { fontWeight: 500 } },
+                        secondary: { variant: 'caption', noWrap: true }
+                      }} />
                     <Box sx={{ display: 'flex', gap: 1, ml: 1, flexShrink: 0 }}>
                       {contract.contractValue != null && (
                         <Chip
@@ -386,7 +397,6 @@ export default function DashboardPage() {
           </Paper>
         </Grid>
       </Grid>
-
       {/* Row 3: Pipeline Overview */}
       <Paper sx={{ p: { xs: 2, md: 3 }, mb: 3 }}>
         <Typography variant="h6" sx={{ mb: 2 }}>
@@ -414,12 +424,13 @@ export default function DashboardPage() {
             />
           </Box>
         ) : (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             No pipeline data available.
           </Typography>
         )}
       </Paper>
-
       {/* Row 3: Due This Week + Workload */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, md: 7 }}>
@@ -460,14 +471,15 @@ export default function DashboardPage() {
                 />
               </Box>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No assignee data available.
               </Typography>
             )}
           </Paper>
         </Grid>
       </Grid>
-
       {/* Row 4: Win/Loss + Recent Saved Searches */}
       <Grid container spacing={{ xs: 1.5, sm: 2, md: 3 }}>
         <Grid size={{ xs: 12, md: 6 }}>
@@ -490,7 +502,9 @@ export default function DashboardPage() {
                 />
               </Box>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No outcome data yet.
               </Typography>
             )}
@@ -534,7 +548,9 @@ export default function DashboardPage() {
                 ))}
               </List>
             ) : (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No saved searches yet. Save a search from the opportunities
                 page to see it here.
               </Typography>

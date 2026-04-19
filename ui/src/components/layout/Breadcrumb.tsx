@@ -50,7 +50,12 @@ export function Breadcrumb() {
 
         if (isLast) {
           return (
-            <Typography key={path} color="text.primary" sx={{ fontWeight: 500 }}>
+            <Typography
+              key={path}
+              sx={{
+                color: "text.primary",
+                fontWeight: 500
+              }}>
               {label}
             </Typography>
           );

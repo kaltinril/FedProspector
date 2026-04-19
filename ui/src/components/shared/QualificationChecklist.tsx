@@ -9,7 +9,7 @@ import { useTheme } from '@mui/material/styles';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CancelIcon from '@mui/icons-material/Cancel';
 import WarningIcon from '@mui/icons-material/Warning';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutlined';
 
 interface QualificationItem {
   name: string;
@@ -90,7 +90,9 @@ export function QualificationChecklist({
             fontSize: '0.875rem',
           }}
         />
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           <Box
             component="span"
             sx={{ color: 'success.main', fontWeight: 600 }}
@@ -110,15 +112,17 @@ export function QualificationChecklist({
           </Box>
         </Typography>
       </Box>
-
       {/* Grouped checks */}
       {Object.entries(groups).map(([category, items]) => (
         <Box key={category} sx={{ mb: 2 }}>
           <Typography
             variant="subtitle2"
-            color="text.secondary"
-            sx={{ mb: 0.5, textTransform: 'uppercase', letterSpacing: 0.5 }}
-          >
+            sx={{
+              color: "text.secondary",
+              mb: 0.5,
+              textTransform: 'uppercase',
+              letterSpacing: 0.5
+            }}>
             {category}
           </Typography>
           <List disablePadding>

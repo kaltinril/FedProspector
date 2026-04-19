@@ -34,10 +34,17 @@ export function KeyFactsGrid({ facts, columns = 2 }: KeyFactsGridProps) {
             gridColumn: fact.fullWidth ? { md: `1 / -1` } : undefined,
           }}
         >
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 0.5
+            }}>
             {fact.label}
           </Typography>
-          <Typography variant="body1" component="div" color="text.primary">
+          <Typography variant="body1" component="div" sx={{
+            color: "text.primary"
+          }}>
             {fact.value}
           </Typography>
         </Box>

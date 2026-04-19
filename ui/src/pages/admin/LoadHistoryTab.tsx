@@ -165,7 +165,9 @@ export default function LoadHistoryTab() {
         const msg = params.value as string | null;
         if (!msg) return '--';
         return (
-          <Typography variant="body2" color="error.main" noWrap title={msg}>
+          <Typography variant="body2" noWrap title={msg} sx={{
+            color: "error.main"
+          }}>
             {msg}
           </Typography>
         );
@@ -237,7 +239,6 @@ export default function LoadHistoryTab() {
           slotProps={{ htmlInput: { min: 1, max: 365 } }}
         />
       </Box>
-
       {isLoading ? (
         <LoadingState variant="skeleton" rows={10} />
       ) : !data ? (
@@ -262,7 +263,9 @@ export default function LoadHistoryTab() {
           {expandedRow != null && (
             <Collapse in={expandedRow != null}>
               <Box sx={{ p: 2, bgcolor: 'error.50', borderRadius: 1, mt: 1 }}>
-                <Typography variant="subtitle2" color="error.main" gutterBottom>
+                <Typography variant="subtitle2" gutterBottom sx={{
+                  color: "error.main"
+                }}>
                   Error Details (Load #{expandedRow})
                 </Typography>
                 <Typography

@@ -644,14 +644,20 @@ export default function AwardDetailPage() {
           <Typography variant="h6" gutterBottom>
             Award Not Yet Loaded
           </Typography>
-          <Typography color="text.secondary" sx={{ mb: 3 }}>
+          <Typography
+            sx={{
+              color: "text.secondary",
+              mb: 3
+            }}>
             This contract has not been loaded into FedProspect yet.
             Click below to fetch the data from USASpending.gov.
           </Typography>
           {isLoadingData ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <CircularProgress size={32} />
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Loading data from USASpending.gov...
               </Typography>
             </Box>
@@ -698,18 +704,15 @@ export default function AwardDetailPage() {
   return (
     <Box>
       <BackToSearch searchPath="/awards" />
-
       <PageHeader
         title={`Contract: ${award.contractId}`}
         subtitle={award.solicitationNumber ?? undefined}
       />
-
       {showPartialBanner && (
         <Alert severity="info" sx={{ mb: 2 }}>
           Partial data available from USASpending.gov. Full contract details from FPDS are loading in the background.
         </Alert>
       )}
-
       {/* Summary bar */}
       <Paper variant="outlined" sx={{ p: { xs: 1.5, sm: 2 }, mb: { xs: 2, md: 3 } }}>
         <Box
@@ -721,7 +724,9 @@ export default function AwardDetailPage() {
           }}
         >
           <Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Vendor
             </Typography>
             {award.vendorUei ? (
@@ -744,7 +749,9 @@ export default function AwardDetailPage() {
           </Box>
           {award.idvPiid && (
             <Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Parent Contract
               </Typography>
               <Typography variant="body1">{award.idvPiid}</Typography>
@@ -752,7 +759,9 @@ export default function AwardDetailPage() {
           )}
           {award.agencyName && (
             <Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Agency
               </Typography>
               <Typography variant="body1">
@@ -762,7 +771,9 @@ export default function AwardDetailPage() {
           )}
           {award.fundingAgencyName && award.fundingAgencyName !== award.agencyName && (
             <Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Funding Agency
               </Typography>
               <Typography variant="body1">
@@ -771,7 +782,9 @@ export default function AwardDetailPage() {
             </Box>
           )}
           <Box>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Total Value
             </Typography>
             <Typography variant="body1">
@@ -780,7 +793,9 @@ export default function AwardDetailPage() {
           </Box>
           {dateRangeText && (
             <Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Period
               </Typography>
               <Typography variant="body1">{dateRangeText}</Typography>
@@ -788,7 +803,6 @@ export default function AwardDetailPage() {
           )}
         </Box>
       </Paper>
-
       {/* Tabs */}
       <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
         <Tabs
@@ -803,7 +817,6 @@ export default function AwardDetailPage() {
           <Tab label="Subcontractors" value="subcontractors" />
         </Tabs>
       </Box>
-
       <Box sx={{ pt: 3 }}>
         {activeTab === 'details' && <ContractDetailsTab award={award} />}
         {activeTab === 'financials' && (

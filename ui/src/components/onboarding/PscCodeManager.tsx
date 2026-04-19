@@ -54,8 +54,10 @@ export function PscCodeManager() {
             onChange={(e) => setNewCode(e.target.value)}
             size="small"
             placeholder="e.g. D302"
-            inputProps={{ maxLength: 10 }}
             disabled={addMutation.isPending}
+            slotProps={{
+              htmlInput: { maxLength: 10 }
+            }}
           />
           <Button
             variant="contained"

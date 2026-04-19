@@ -172,7 +172,9 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <Card variant="outlined" sx={{ flex: 1, minWidth: 150 }}>
       <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" sx={{
+          color: "text.secondary"
+        }}>
           {label}
         </Typography>
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
@@ -224,7 +226,6 @@ export default function PriceToWinPage() {
         title="Price-to-Win Estimator"
         subtitle="Estimate competitive pricing based on comparable awards"
       />
-
       {/* Input form */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -312,10 +313,8 @@ export default function PriceToWinPage() {
           </Button>
         </Box>
       </Paper>
-
       {/* Loading */}
       {mutation.isPending && <LoadingState message="Analyzing comparable awards..." />}
-
       {/* Error */}
       {mutation.isError && (
         <ErrorState
@@ -324,17 +323,20 @@ export default function PriceToWinPage() {
           onRetry={handleSubmit}
         />
       )}
-
       {/* Results */}
       {result && (
         <Box>
           {/* Confidence bar */}
           <Box sx={{ mb: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Confidence
               </Typography>
-              <Typography variant="body2" fontWeight={600}>
+              <Typography variant="body2" sx={{
+                fontWeight: 600
+              }}>
                 {(result.confidence * 100).toFixed(0)}% ({result.comparableCount} comparable awards)
               </Typography>
             </Box>
@@ -354,14 +356,21 @@ export default function PriceToWinPage() {
 
           {/* Source selection regime */}
           {result.sourceSelectionRegime && (
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+                mb: 2
+              }}>
               Source Selection Regime: <strong>{result.sourceSelectionRegime}</strong>
             </Typography>
           )}
 
           {/* Price range */}
           <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+            <Typography variant="subtitle1" gutterBottom sx={{
+              fontWeight: 600
+            }}>
               Estimated Price Range
             </Typography>
             <PriceRangeBar
@@ -394,7 +403,9 @@ export default function PriceToWinPage() {
           {/* Comparable awards table */}
           {result.comparableAwards.length > 0 && (
             <Box>
-              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+              <Typography variant="subtitle1" gutterBottom sx={{
+                fontWeight: 600
+              }}>
                 Comparable Awards
               </Typography>
               <DataTable

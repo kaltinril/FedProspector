@@ -33,14 +33,24 @@ function MethodCard({ method }: { method: IgceMethodResult }) {
   return (
     <Card variant="outlined" sx={{ flex: 1, minWidth: 280 }}>
       <CardContent>
-        <Typography variant="subtitle2" fontWeight={600} gutterBottom>
+        <Typography variant="subtitle2" gutterBottom sx={{
+          fontWeight: 600
+        }}>
           {method.methodName}
         </Typography>
-        <Typography variant="h5" fontWeight={700} color="primary.main" gutterBottom>
+        <Typography
+          variant="h5"
+          gutterBottom
+          sx={{
+            fontWeight: 700,
+            color: "primary.main"
+          }}>
           {formatCurrency(method.estimate)}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             Confidence
           </Typography>
           <LinearProgress
@@ -49,11 +59,15 @@ function MethodCard({ method }: { method: IgceMethodResult }) {
             color={confidenceColor}
             sx={{ flex: 1, height: 6, borderRadius: 1 }}
           />
-          <Typography variant="caption" fontWeight={600}>
+          <Typography variant="caption" sx={{
+            fontWeight: 600
+          }}>
             {confidencePct.toFixed(0)}%
           </Typography>
         </Box>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {method.explanation}
         </Typography>
         <Chip
@@ -133,7 +147,6 @@ export default function IgcePage() {
         title="IGCE Estimator"
         subtitle="Independent Government Cost Estimate based on market data"
       />
-
       {/* Input form */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" gutterBottom>
@@ -181,7 +194,9 @@ export default function IgcePage() {
         </Box>
 
         {/* Labor mix */}
-        <Typography variant="body2" color="text.secondary" gutterBottom>
+        <Typography variant="body2" gutterBottom sx={{
+          color: "text.secondary"
+        }}>
           Labor Mix (optional)
         </Typography>
         {laborMix.map((line, i) => (
@@ -233,10 +248,8 @@ export default function IgcePage() {
           </Button>
         </Box>
       </Paper>
-
       {/* Loading */}
       {mutation.isPending && <LoadingState message="Generating IGCE estimate..." />}
-
       {/* Error */}
       {mutation.isError && (
         <ErrorState
@@ -245,7 +258,6 @@ export default function IgcePage() {
           onRetry={handleSubmit}
         />
       )}
-
       {/* Results */}
       {result && (
         <Box>
@@ -263,10 +275,17 @@ export default function IgcePage() {
             }}
           >
             <Box>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 Weighted Estimate
               </Typography>
-              <Typography variant="h4" fontWeight={700} color="primary.main">
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 700,
+                  color: "primary.main"
+                }}>
                 {formatCurrency(result.weightedEstimate)}
               </Typography>
             </Box>

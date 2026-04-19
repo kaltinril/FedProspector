@@ -52,7 +52,9 @@ export default function OpenDoorSection({ naicsCode }: Props) {
       <Card>
         <CardContent>
           <Typography variant="h6" gutterBottom>Open Door Primes</Typography>
-          <Typography color="text.secondary">No prime contractor engagement data found for this NAICS code.</Typography>
+          <Typography sx={{
+            color: "text.secondary"
+          }}>No prime contractor engagement data found for this NAICS code.</Typography>
         </CardContent>
       </Card>
     );
@@ -63,7 +65,9 @@ export default function OpenDoorSection({ naicsCode }: Props) {
       <CardContent>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
           <Typography variant="h6">Open Door Primes</Typography>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Primes most engaged with small business subs in NAICS {naicsCode}
           </Typography>
         </Box>

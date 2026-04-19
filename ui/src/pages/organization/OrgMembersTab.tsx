@@ -126,7 +126,6 @@ export function OrgMembersTab() {
           </Button>
         </Box>
       )}
-
       <TableContainer>
         <Table size="small">
           <TableHead>
@@ -145,7 +144,13 @@ export function OrgMembersTab() {
                   <Typography variant="body2">
                     {member.displayName}
                     {member.userId === user?.userId && (
-                      <Typography component="span" variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{
+                          color: "text.secondary",
+                          ml: 1
+                        }}>
                         (you)
                       </Typography>
                     )}
@@ -173,7 +178,6 @@ export function OrgMembersTab() {
           </TableBody>
         </Table>
       </TableContainer>
-
       {/* Invite Dialog */}
       <Dialog
         open={inviteDialogOpen}
@@ -220,7 +224,6 @@ export function OrgMembersTab() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Add User Dialog */}
       <Dialog
         open={addUserOpen}

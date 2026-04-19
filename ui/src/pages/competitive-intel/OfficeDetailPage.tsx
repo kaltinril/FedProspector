@@ -29,7 +29,9 @@ function DistributionBar({ items, title }: { items: DistributionItem[]; title: s
     return (
       <Box>
         <Typography variant="subtitle2" gutterBottom>{title}</Typography>
-        <Typography variant="body2" color="text.secondary">No data available</Typography>
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>No data available</Typography>
       </Box>
     );
   }

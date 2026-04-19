@@ -157,7 +157,9 @@ function SummaryCard({ type, count }: { type: GapType; count: number }) {
         <Typography variant="h4" color={`${config.color}.main`}>
           {count}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {config.label}
         </Typography>
       </CardContent>
@@ -180,7 +182,12 @@ function GapSection({
       <Typography variant="h6" sx={{ mb: 0.5 }}>
         {title}
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 1.5
+        }}>
         {config.description}
       </Typography>
       <DataTable

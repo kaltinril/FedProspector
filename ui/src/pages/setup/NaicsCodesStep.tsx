@@ -123,7 +123,6 @@ export function NaicsCodesStep({ data, onChange, onNext, onBack }: NaicsCodesSte
       <Typography variant="h6" sx={{ mb: 2 }}>
         NAICS Codes & Size Standards
       </Typography>
-
       <Autocomplete
         options={searchResults ?? []}
         getOptionLabel={(option) => `${option.code} - ${option.title}`}
@@ -141,28 +140,28 @@ export function NaicsCodesStep({ data, onChange, onNext, onBack }: NaicsCodesSte
             label="Search NAICS Codes"
             placeholder="Type code or keyword..."
             slotProps={{
+              ...params.slotProps,
+
               input: {
-                ...params.InputProps,
+                ...params.slotProps.input,
                 endAdornment: (
                   <>
                     {searching ? <CircularProgress size={20} /> : null}
-                    {params.InputProps.endAdornment}
+                    {params.slotProps.input.endAdornment}
                   </>
                 ),
-              },
+              }
             }}
           />
         )}
         noOptionsText={debouncedSearch.length < 2 ? 'Type at least 2 characters' : 'No results'}
         sx={{ mb: 3 }}
       />
-
       {validationError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {validationError}
         </Alert>
       )}
-
       {data.naicsCodes.length > 0 && (
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
           <Table size="small">
@@ -210,11 +209,15 @@ export function NaicsCodesStep({ data, onChange, onNext, onBack }: NaicsCodesSte
           </Table>
         </TableContainer>
       )}
-
-      <Typography variant="subtitle2" color="text.secondary" sx={{ mt: 2, mb: 1 }}>
+      <Typography
+        variant="subtitle2"
+        sx={{
+          color: "text.secondary",
+          mt: 2,
+          mb: 1
+        }}>
         Size Standard Information
       </Typography>
-
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, sm: 4 }}>
           <TextField
@@ -262,7 +265,6 @@ export function NaicsCodesStep({ data, onChange, onNext, onBack }: NaicsCodesSte
           </TextField>
         </Grid>
       </Grid>
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
         <Button onClick={onBack}>Back</Button>
         <Button variant="contained" size="large" onClick={handleNext}>

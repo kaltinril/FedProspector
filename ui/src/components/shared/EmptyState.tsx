@@ -35,9 +35,11 @@ export function EmptyState({
       </Typography>
       <Typography
         variant="body2"
-        color="text.secondary"
-        sx={{ mb: 3, maxWidth: 400 }}
-      >
+        sx={{
+          color: "text.secondary",
+          mb: 3,
+          maxWidth: 400
+        }}>
         {message}
       </Typography>
       {action}

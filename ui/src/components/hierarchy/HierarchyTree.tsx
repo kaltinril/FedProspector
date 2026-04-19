@@ -84,10 +84,12 @@ function TreeNode({
         <ListItemIcon sx={{ minWidth: 32 }}>{icon}</ListItemIcon>
         <ListItemText
           primary={name}
-          primaryTypographyProps={{
-            variant: 'body2',
-            noWrap: false,
-            fontWeight: isSelected ? 600 : 400,
+          slotProps={{
+            primary: {
+              variant: 'body2',
+              noWrap: false,
+              sx: { fontWeight: isSelected ? 600 : 400 },
+            }
           }}
         />
         {hasChildren && (
@@ -114,7 +116,6 @@ function TreeNode({
           </Box>
         )}
       </ListItemButton>
-
       {hasChildren && (
         <Collapse in={open} timeout="auto" unmountOnExit>
           <List disablePadding>
@@ -155,9 +156,13 @@ export function HierarchyTree({ selectedId, status, keyword, onSelect }: Hierarc
 
   if (!departments || departments.length === 0) {
     return (
-      <Typography variant="body2" color="text.secondary" sx={{ p: 2 }}>
-        No departments found.
-      </Typography>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          p: 2
+        }}>No departments found.
+              </Typography>
     );
   }
 

@@ -97,21 +97,23 @@ export function PastPerformanceStep({
       <Typography variant="h6" sx={{ mb: 1 }}>
         Past Performance
       </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 2
+        }}>
         Add relevant contract history. This step is optional.
       </Typography>
-
       <Button variant="outlined" onClick={handleSkip} sx={{ mb: 3 }}>
         Skip for Now
       </Button>
-
       {hasUei && (
         <Alert severity="info" sx={{ mb: 2 }}>
           After setup, you can view contracts associated with your UEI from the Organization
           settings.
         </Alert>
       )}
-
       {/* Add Contract Form */}
       <Paper variant="outlined" sx={{ mb: 3 }}>
         <Button
@@ -178,15 +180,17 @@ export function PastPerformanceStep({
                       {...params}
                       label="NAICS Code"
                       slotProps={{
+                        ...params.slotProps,
+
                         input: {
-                          ...params.InputProps,
+                          ...params.slotProps.input,
                           endAdornment: (
                             <>
                               {searchingNaics ? <CircularProgress size={20} /> : null}
-                              {params.InputProps.endAdornment}
+                              {params.slotProps.input.endAdornment}
                             </>
                           ),
-                        },
+                        }
                       }}
                     />
                   )}
@@ -247,7 +251,6 @@ export function PastPerformanceStep({
           </Box>
         </Collapse>
       </Paper>
-
       {/* Contracts List */}
       {pastPerformances.length > 0 && (
         <TableContainer component={Paper} variant="outlined" sx={{ mb: 3 }}>
@@ -284,7 +287,6 @@ export function PastPerformanceStep({
           </Table>
         </TableContainer>
       )}
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
         <Button onClick={onBack}>Back</Button>
         <Button variant="contained" size="large" onClick={onNext}>

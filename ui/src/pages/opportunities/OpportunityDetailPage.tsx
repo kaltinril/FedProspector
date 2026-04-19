@@ -197,7 +197,12 @@ function ResourceLinksSection({ resourceLinks }: { resourceLinks: ResourceLinkDi
 
   return (
     <Box sx={{ mt: 2 }}>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+          mb: 0.5
+        }}>
         Resource Links ({resourceLinks.length})
       </Typography>
       {visible.map((rl, idx) => (
@@ -212,7 +217,12 @@ function ResourceLinksSection({ resourceLinks }: { resourceLinks: ResourceLinkDi
             {rl.label}
           </Link>
           {rl.fileSizeBytes != null && (
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                ml: 1
+              }}>
               ({formatFileSize(rl.fileSizeBytes)})
             </Typography>
           )}
@@ -266,7 +276,9 @@ function QualificationSummary({
           <Skeleton variant="text" width={180} />
         </Box>
       ) : isError || !qual ? (
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           Could not load qualification data.
         </Typography>
       ) : (
@@ -276,7 +288,9 @@ function QualificationSummary({
             color={QUAL_STATUS_COLOR[qual.overallStatus] ?? 'default'}
             size="small"
           />
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             {qual.passCount} Pass &middot; {qual.failCount} Fail &middot; {qual.warningCount} Warning
           </Typography>
           <Button size="small" onClick={onViewDetails}>
@@ -410,7 +424,9 @@ function OverviewTab({
             </>
           ) : (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 No description loaded. A description URL is available on SAM.gov.
               </Typography>
               <Button
@@ -432,7 +448,6 @@ function OverviewTab({
           )}
         </Paper>
       )}
-
       {/* Key Facts */}
       <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
         <Typography variant="subtitle2" sx={{ mb: 2 }}>
@@ -459,7 +474,6 @@ function OverviewTab({
           <ResourceLinksSection resourceLinks={resourceLinks} />
         )}
       </Paper>
-
       {/* Points of Contact */}
       {opp.pointsOfContact && opp.pointsOfContact.length > 0 && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
@@ -473,12 +487,16 @@ function OverviewTab({
             {opp.pointsOfContact.map((poc, i) => (
               <Box key={i} sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-                  <Typography variant="body2" fontWeight="bold">
+                  <Typography variant="body2" sx={{
+                    fontWeight: "bold"
+                  }}>
                     {poc.fullName}
                   </Typography>
                   <Chip label={poc.pocType} size="small" variant="outlined" />
                   {poc.title && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       {poc.title}
                     </Typography>
                   )}
@@ -490,12 +508,16 @@ function OverviewTab({
                     </Link>
                   )}
                   {poc.phone && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       {poc.phone}
                     </Typography>
                   )}
                   {poc.fax && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" sx={{
+                      color: "text.secondary"
+                    }}>
                       Fax: {poc.fax}
                     </Typography>
                   )}
@@ -506,7 +528,6 @@ function OverviewTab({
           </Box>
         </Paper>
       )}
-
       {/* OQS (passed from Recommended page) */}
       {oqScoreState && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
@@ -526,14 +547,15 @@ function OverviewTab({
               />
             )}
             {oqScoreState.oqScoreFactors.length > 0 && (
-              <Typography variant="body2" color="text.secondary">
+              <Typography variant="body2" sx={{
+                color: "text.secondary"
+              }}>
                 {oqScoreState.oqScoreFactors.map((f) => `${f.name}: ${f.score} (wt ${(f.weight * 100).toFixed(0)}%)`).join(' \u00b7 ')}
               </Typography>
             )}
           </Box>
         </Paper>
       )}
-
       {/* Win Probability */}
       {(pWinLoading || (pWinScore != null && pWinCategory)) && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
@@ -551,20 +573,22 @@ function OverviewTab({
           )}
         </Paper>
       )}
-
       {/* Qualification Summary */}
       <QualificationSummary noticeId={opp.noticeId} onViewDetails={onViewQualification} />
-
       {/* Similar Opportunities ("More Like This") */}
       <SimilarOpportunitiesPanel noticeId={opp.noticeId} maxResults={10} />
-
       {/* Amendment History */}
       {opp.amendments && opp.amendments.length > 0 && (
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
             Amendment History
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             This solicitation has {opp.amendments.length + 1} version{opp.amendments.length > 0 ? 's' : ''}. You are viewing the latest.
           </Typography>
           <TableContainer component={Paper} variant="outlined" sx={{ overflowX: 'auto' }}>
@@ -736,7 +760,6 @@ function HistoryTab({ opp }: { opp: OpportunityDetail }) {
           <KeyFactsGrid facts={incumbentFacts} columns={2} />
         </Paper>
       )}
-
       {/* Burn Rate Chart — only for recompetes with contract data */}
       {isRecompete && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
@@ -748,14 +771,18 @@ function HistoryTab({ opp }: { opp: OpportunityDetail }) {
           />
         </Paper>
       )}
-
       {/* Solicitation Timeline — amendment history for all opportunities */}
       {hasAmendments && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
             Solicitation Timeline
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              mb: 2
+            }}>
             This solicitation has {opp.amendments!.length + 1} version{opp.amendments!.length > 0 ? 's' : ''} in the SAM.gov record.
           </Typography>
           <TableContainer sx={{ overflowX: 'auto' }}>
@@ -806,7 +833,6 @@ function HistoryTab({ opp }: { opp: OpportunityDetail }) {
           </TableContainer>
         </Paper>
       )}
-
       {/* Related awards table */}
       {opp.relatedAwards.length > 0 && (
         <Paper variant="outlined" sx={{ p: 2 }}>
@@ -953,7 +979,9 @@ function SaveSearchSimilarDialog({
           onChange={(e) => setName(e.target.value)}
         />
         <Box sx={{ mt: 2 }}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" sx={{
+            color: "text.secondary"
+          }}>
             Pre-populated criteria:
           </Typography>
           {opp.naicsCode && (
@@ -1134,7 +1162,6 @@ export default function OpportunityDetailPage() {
     <TabbedDetailPage tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
       {/* Back button */}
       <BackToSearch searchPath="/opportunities" />
-
       {/* Header */}
       <PageHeader
         title={opp.title ?? 'Untitled Opportunity'}
@@ -1171,14 +1198,12 @@ export default function OpportunityDetailPage() {
           </Box>
         }
       />
-
       {/* Save Search Similar Dialog */}
       <SaveSearchSimilarDialog
         open={saveSearchOpen}
         onClose={() => setSaveSearchOpen(false)}
         opp={opp}
       />
-
       {/* Auto-match reasoning banner (Phase 91-D2) */}
       {opp.prospect?.source && opp.prospect.source !== 'MANUAL' && (
         <Paper
@@ -1194,7 +1219,9 @@ export default function OpportunityDetailPage() {
           }}
         >
           <AutoAwesomeIcon color="info" fontSize="small" />
-          <Typography variant="body2" color="info.dark">
+          <Typography variant="body2" sx={{
+            color: "info.dark"
+          }}>
             Auto-matched via{' '}
             {opp.prospect.source === 'AUTO_RECOMPETE' ? 'recompete detection' : 'saved search'}
           </Typography>
@@ -1209,7 +1236,6 @@ export default function OpportunityDetailPage() {
           )}
         </Paper>
       )}
-
       {/* Summary row: deadline, chips, estimated value */}
       <Box
         sx={{

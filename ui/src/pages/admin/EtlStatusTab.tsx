@@ -51,7 +51,6 @@ export default function EtlStatusTab() {
           ))}
         </Box>
       )}
-
       {/* Source Status Table */}
       <Paper sx={{ mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', p: 2 }}>
@@ -78,10 +77,14 @@ export default function EtlStatusTab() {
               {data.sources.map((src) => (
                 <TableRow key={src.sourceSystem}>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
+                    <Typography variant="body2" sx={{
+                      fontWeight: 500
+                    }}>
                       {src.label}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography variant="caption" sx={{
+                      color: "text.secondary"
+                    }}>
                       {src.sourceSystem}
                     </Typography>
                   </TableCell>
@@ -112,7 +115,6 @@ export default function EtlStatusTab() {
           </Table>
         </TableContainer>
       </Paper>
-
       {/* API Usage */}
       {data.apiUsage.length > 0 && (
         <Paper sx={{ mb: 3, p: 2 }}>
@@ -125,10 +127,14 @@ export default function EtlStatusTab() {
             return (
               <Box key={usage.sourceSystem} sx={{ mb: 2 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {usage.sourceSystem}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
+                  <Typography variant="body2" sx={{
+                    color: "text.secondary"
+                  }}>
                     {formatNumber(usage.requestsMade)} / {formatNumber(usage.maxRequests)}
                     {' '}({formatNumber(usage.remaining)} remaining)
                   </Typography>
@@ -140,7 +146,9 @@ export default function EtlStatusTab() {
                   sx={{ height: 8, borderRadius: 1 }}
                 />
                 {usage.lastRequestAt && (
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>
                     Last request: {formatRelative(usage.lastRequestAt)}
                   </Typography>
                 )}
@@ -149,7 +157,6 @@ export default function EtlStatusTab() {
           })}
         </Paper>
       )}
-
       {/* Recent Errors */}
       {data.recentErrors.length > 0 && (
         <Paper sx={{ p: 2 }}>
@@ -168,11 +175,15 @@ export default function EtlStatusTab() {
             <Box sx={{ mt: 1 }}>
               {data.recentErrors.map((err: RecentErrorDto, idx: number) => (
                 <Alert key={idx} severity="error" sx={{ mb: 1 }}>
-                  <Typography variant="body2" fontWeight={500}>
+                  <Typography variant="body2" sx={{
+                    fontWeight: 500
+                  }}>
                     {err.sourceSystem}
                     {err.loadType ? ` - ${err.loadType}` : ''}
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">
+                  <Typography variant="caption" sx={{
+                    color: "text.secondary"
+                  }}>
                     {formatDateTime(err.startedAt)}
                   </Typography>
                   {err.errorMessage && (

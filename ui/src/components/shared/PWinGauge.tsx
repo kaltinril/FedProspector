@@ -100,7 +100,9 @@ export default function PWinGauge({
             inset: 0,
           }}
         >
-          <Typography variant={textVariant} fontWeight={700}>
+          <Typography variant={textVariant} sx={{
+            fontWeight: 700
+          }}>
             {Math.round(score)}%
           </Typography>
         </Box>

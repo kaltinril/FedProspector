@@ -251,7 +251,6 @@ export default function EscalationPage() {
         title="Rate Escalation Forecast"
         subtitle="Historical trends and projected rate escalation"
       />
-
       {/* Filters */}
       <Box sx={{ display: 'flex', gap: 2, mb: 3, flexWrap: 'wrap', alignItems: 'center' }}>
         <Autocomplete
@@ -292,15 +291,17 @@ export default function EscalationPage() {
           />
         )}
       </Box>
-
       {!selectedCategory && (
-        <Typography color="text.secondary" sx={{ mt: 4, textAlign: 'center' }}>
+        <Typography
+          sx={{
+            color: "text.secondary",
+            mt: 4,
+            textAlign: 'center'
+          }}>
           Select a labor category to view rate escalation data
         </Typography>
       )}
-
       {trendsLoading && <LoadingState message="Loading rate trends..." />}
-
       {trendsError && (
         <ErrorState
           title="Failed to load trends"
@@ -308,11 +309,12 @@ export default function EscalationPage() {
           onRetry={() => refetchTrends()}
         />
       )}
-
       {/* Chart */}
       {selectedCategory && chartData.allYears.length > 0 && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+          <Typography variant="subtitle1" gutterBottom sx={{
+            fontWeight: 600
+          }}>
             Rate Trend & Forecast: {selectedCategory.name}
           </Typography>
           <LineChart
@@ -343,12 +345,14 @@ export default function EscalationPage() {
                 label: 'Historical Avg Rate',
                 color: COLORS.avg,
                 connectNulls: false,
+                showMark: true,
               },
               {
                 data: chartData.forecastRates,
                 label: 'Forecast',
                 color: COLORS.forecast,
                 connectNulls: false,
+                showMark: true,
               },
               {
                 data: chartData.confLow,
@@ -373,15 +377,22 @@ export default function EscalationPage() {
           />
         </Paper>
       )}
-
       {/* YoY Table */}
       {trends && trends.length > 0 && (
         <Box>
-          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+          <Typography variant="subtitle1" gutterBottom sx={{
+            fontWeight: 600
+          }}>
             Year-over-Year Rate Changes
           </Typography>
           {hasLowCountYears && (
-            <Typography variant="caption" color="warning.main" sx={{ mb: 1, display: 'block' }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "warning.main",
+                mb: 1,
+                display: 'block'
+              }}>
               * Years with fewer than {MIN_DATA_POINTS} data points may not be statistically reliable.
               These years are excluded from the chart.
             </Typography>

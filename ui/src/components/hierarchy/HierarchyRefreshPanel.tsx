@@ -57,7 +57,9 @@ export function HierarchyRefreshPanel() {
 
         {/* API key selector */}
         <Box sx={{ mb: 1.5 }}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography variant="caption" sx={{
+            color: "text.secondary"
+          }}>
             API Key
           </Typography>
           <RadioGroup
@@ -70,7 +72,9 @@ export function HierarchyRefreshPanel() {
               control={<Radio size="small" />}
               label={
                 <Typography variant="body2">
-                  Key 1 <Typography component="span" variant="caption" color="text.secondary">(10/day)</Typography>
+                  Key 1 <Typography component="span" variant="caption" sx={{
+                  color: "text.secondary"
+                }}>(10/day)</Typography>
                 </Typography>
               }
             />
@@ -79,7 +83,9 @@ export function HierarchyRefreshPanel() {
               control={<Radio size="small" />}
               label={
                 <Typography variant="body2">
-                  Key 2 <Typography component="span" variant="caption" color="text.secondary">(1,000/day)</Typography>
+                  Key 2 <Typography component="span" variant="caption" sx={{
+                  color: "text.secondary"
+                }}>(1,000/day)</Typography>
                 </Typography>
               }
             />
@@ -143,7 +149,9 @@ export function HierarchyRefreshPanel() {
         {status && (
           <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
             <Box>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" sx={{
+                color: "text.secondary"
+              }}>
                 Last Refresh
               </Typography>
               <Typography variant="body2">
@@ -152,7 +160,9 @@ export function HierarchyRefreshPanel() {
             </Box>
             {status.lastRefreshRecordCount != null && (
               <Box>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   Records Loaded
                 </Typography>
                 <Typography variant="body2">
@@ -162,7 +172,9 @@ export function HierarchyRefreshPanel() {
             )}
             {status.levelsLoaded && status.levelsLoaded.length > 0 && (
               <Box>
-                <Typography variant="caption" color="text.secondary">
+                <Typography variant="caption" sx={{
+                  color: "text.secondary"
+                }}>
                   By Level
                 </Typography>
                 <Typography variant="body2">
@@ -176,13 +188,14 @@ export function HierarchyRefreshPanel() {
         {isRunning && (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
             <CircularProgress size={16} />
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               Refresh in progress...
             </Typography>
           </Box>
         )}
       </CardContent>
-
       <ConfirmDialog
         open={confirmDialog.open}
         title={confirmDialog.title}

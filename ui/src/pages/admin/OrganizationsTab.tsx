@@ -131,7 +131,6 @@ export default function OrganizationsTab() {
           Create Organization Owner
         </Button>
       </Box>
-
       {isError ? (
         <Alert severity="error">Failed to load organizations</Alert>
       ) : isLoading ? (
@@ -197,7 +196,9 @@ export default function OrganizationsTab() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={8} align="center">
-                    <Typography color="text.secondary">No organizations found.</Typography>
+                    <Typography sx={{
+                      color: "text.secondary"
+                    }}>No organizations found.</Typography>
                   </TableCell>
                 </TableRow>
               )}
@@ -205,7 +206,6 @@ export default function OrganizationsTab() {
           </Table>
         </TableContainer>
       )}
-
       {/* Create Organization Dialog */}
       <Dialog
         open={orgDialogOpen}
@@ -222,7 +222,9 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
-            inputProps={{ minLength: 2, maxLength: 100 }}
+            slotProps={{
+              htmlInput: { minLength: 2, maxLength: 100 }
+            }}
           />
           <TextField
             label="Slug"
@@ -236,8 +238,10 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
-            inputProps={{ minLength: 2, maxLength: 50, pattern: '[a-z0-9-]+' }}
             helperText="URL-friendly identifier (lowercase letters, numbers, hyphens)"
+            slotProps={{
+              htmlInput: { minLength: 2, maxLength: 50, pattern: '[a-z0-9-]+' }
+            }}
           />
         </DialogContent>
         <DialogActions>
@@ -251,7 +255,6 @@ export default function OrganizationsTab() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Create Owner Dialog */}
       <Dialog
         open={ownerDialogOpen}
@@ -292,7 +295,9 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
-            inputProps={{ minLength: 2, maxLength: 100 }}
+            slotProps={{
+              htmlInput: { minLength: 2, maxLength: 100 }
+            }}
           />
           <TextField
             label="Password"
@@ -302,7 +307,9 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
-            inputProps={{ minLength: 8 }}
+            slotProps={{
+              htmlInput: { minLength: 8 }
+            }}
           />
         </DialogContent>
         <DialogActions>
@@ -322,7 +329,6 @@ export default function OrganizationsTab() {
           </Button>
         </DialogActions>
       </Dialog>
-
       {/* Add User to Organization Dialog */}
       <Dialog
         open={userDialogOpen}
@@ -363,7 +369,9 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
-            inputProps={{ minLength: 2, maxLength: 100 }}
+            slotProps={{
+              htmlInput: { minLength: 2, maxLength: 100 }
+            }}
           />
           <TextField
             label="Password"
@@ -373,8 +381,10 @@ export default function OrganizationsTab() {
             fullWidth
             margin="normal"
             required
-            inputProps={{ minLength: 8 }}
             helperText="User will be required to change this on first login"
+            slotProps={{
+              htmlInput: { minLength: 8 }
+            }}
           />
           <TextField
             label="Role"

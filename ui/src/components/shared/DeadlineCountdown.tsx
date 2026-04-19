@@ -43,18 +43,20 @@ export function DeadlineCountdown({
 }: DeadlineCountdownProps) {
   if (!deadline) {
     return (
-      <Typography variant="body2" color="text.secondary">
-        --
-      </Typography>
+      <Typography variant="body2" sx={{
+        color: "text.secondary"
+      }}>--
+              </Typography>
     );
   }
 
   const parsed = parseISO(deadline);
   if (!isValid(parsed)) {
     return (
-      <Typography variant="body2" color="text.secondary">
-        --
-      </Typography>
+      <Typography variant="body2" sx={{
+        color: "text.secondary"
+      }}>--
+              </Typography>
     );
   }
 
@@ -65,7 +67,9 @@ export function DeadlineCountdown({
     <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 1 }}>
       <Chip label={label} color={color} size="small" variant="filled" />
       {showDate && (
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {formattedDate}
         </Typography>
       )}

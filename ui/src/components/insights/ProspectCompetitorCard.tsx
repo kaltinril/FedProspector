@@ -3,7 +3,7 @@ import Chip from '@mui/material/Chip';
 import Skeleton from '@mui/material/Skeleton';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import PeopleOutlineIcon from '@mui/icons-material/PeopleOutline';
+import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlined';
 
 import { useProspectCompetitorSummary } from '@/queries/useInsights';
 import { formatCurrency } from '@/utils/formatters';
@@ -39,21 +39,29 @@ export function ProspectCompetitorCard({ prospectId }: ProspectCompetitorCardPro
       title={
         <Box>
           {data.likelyIncumbent && (
-            <Typography variant="caption" display="block">
+            <Typography variant="caption" sx={{
+              display: "block"
+            }}>
               Incumbent: {data.likelyIncumbent}
             </Typography>
           )}
           {data.incumbentContractValue != null && (
-            <Typography variant="caption" display="block">
+            <Typography variant="caption" sx={{
+              display: "block"
+            }}>
               Contract value: {formatCurrency(data.incumbentContractValue, true)}
             </Typography>
           )}
           {data.incumbentContractEnd && (
-            <Typography variant="caption" display="block">
+            <Typography variant="caption" sx={{
+              display: "block"
+            }}>
               Contract ends: {data.incumbentContractEnd}
             </Typography>
           )}
-          <Typography variant="caption" display="block">
+          <Typography variant="caption" sx={{
+            display: "block"
+          }}>
             Est. competitors: {data.estimatedCompetitorCount}
           </Typography>
         </Box>

@@ -1,6 +1,6 @@
 # Phase 310: Dependency Updates & Package Maintenance
 
-**Status:** IN PROGRESS — PRs 1–6 done, PR 7 deferred (ecosystem), PRs 8–9 deferred (separate session), PR 10 in progress
+**Status:** IN PROGRESS — PRs 1–6 + 8 done, PR 7 deferred (ecosystem lag), PR 9 deferred (after PR 8 stabilizes), PR 10 in progress
 **Priority:** HIGH (6 open security advisories across UI + Python)
 **Dependencies:** None
 **Validated against live state:** 2026-04-18
@@ -419,7 +419,7 @@ End-state check after all PRs ship:
 - **2026-04-18 — PR 5 (UI patch/minor non-security) landed.** react / react-dom 19.2.0 → 19.2.5, react-router-dom 7.13.1 → 7.14.1, @tanstack/react-query + devtools 5.91.x → 5.99.1, react-hook-form 7.71.2 → 7.72.1, prettier 3.8.1 → 3.8.3, globals 17.4.0 → 17.5.0, eslint-plugin-react-hooks 7.0.1 → 7.1.1, typescript-eslint 8.57.1 → 8.58.2, @mui/material + icons-material 7.3.9 → 7.3.10 (patch only; v9 deferred), @mui/x-charts + x-data-grid 8.27.5 → 8.28.2 (patch only; v9 deferred).
 - **2026-04-18 — PR 6 (npm CLI bump) landed.** npm 10.9.4 → 11.12.1 on local machine.
 - **2026-04-18 — PR 7 (ESLint 9 → 10) deferred.** Blocked on `eslint-plugin-jsx-a11y` ecosystem support for ESLint 10. No security pressure (ESLint 9.x has 0 open advisories). Resume when jsx-a11y ships a release with `eslint ^10` in peer range.
-- **2026-04-18 — PR 8 (MUI v7 → v9) deferred to separate session.** Requires 16–24h of focused DataGrid + Charts audit; out of scope for this session.
+- **2026-04-18 — PR 8 (MUI v7 → v9) landed.** @mui/material + @mui/icons-material 7.3.10 → 9.0.0 (MUI core skipped v8). @mui/x-charts + @mui/x-data-grid 8.28.2 → 9.0.2. 81 source files touched via 3 codemods (`deprecations/all`, `v9.0.0/charts/preset-safe`, `v9.0.0/system-props`) plus 13 manual fixes (8 `*Outline` icon imports → `*Outlined`, 5 ListItemText sites moved `fontWeight`/`fontSize` into `sx`). DataGrid audit: 0 manual fixes needed — codebase already on v8-stable idioms. Charts: 0 manual beyond codemod. All 4 UI gates green (build, tsc, lint @ 31 baseline, 0 audit vulns). Browser smoke validated: 37 routes tested, 0 runtime crashes, 0 MUI deprecation warnings. Phase doc's pessimistic `preset-safe` codemod path doesn't exist on npm — real command set above.
 - **2026-04-18 — PR 9 (TypeScript 5.9 → 6.0) deferred to separate session.** Sequencing rule: TS 6 ships after MUI v9 stabilizes.
 - **2026-04-18 — PR 10 (Docs) in progress.** Tech stack doc and this phase file updated to reflect PRs 1–6. Phase NOT marked COMPLETE — three PRs outstanding.
 - **2026-04-18 — Bonus cleanup (landed alongside PRs 1–6):**

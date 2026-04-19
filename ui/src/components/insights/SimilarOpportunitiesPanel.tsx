@@ -76,7 +76,6 @@ export function SimilarOpportunitiesPanel({
           {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
         </IconButton>
       </Box>
-
       {/* Content */}
       <Collapse in={expanded}>
         <Box sx={{ px: 2, pb: 2 }}>
@@ -95,7 +94,9 @@ export function SimilarOpportunitiesPanel({
           )}
 
           {!isLoading && !isError && count === 0 && (
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" sx={{
+              color: "text.secondary"
+            }}>
               No similar opportunities found.
             </Typography>
           )}
@@ -148,19 +149,23 @@ export function SimilarOpportunitiesPanel({
                           </Typography>
                         )}
                         {item.matchPostedDate && (
-                          <Typography variant="caption" component="span" color="text.disabled">
+                          <Typography variant="caption" component="span" sx={{
+                            color: "text.disabled"
+                          }}>
                             Posted {formatDate(item.matchPostedDate)}
                           </Typography>
                         )}
                       </Box>
                     }
-                    primaryTypographyProps={{
-                      variant: 'body2',
-                      fontWeight: 500,
-                      noWrap: true,
-                    }}
-                    secondaryTypographyProps={{ component: 'div' as const }}
-                  />
+                    slotProps={{
+                      primary: {
+                        variant: 'body2',
+                        noWrap: true,
+                        sx: { fontWeight: 500 },
+                      },
+
+                      secondary: { component: 'div' as const }
+                    }} />
                   <Box sx={{ display: 'flex', gap: 1, ml: 1, flexShrink: 0, alignItems: 'center' }}>
                     {item.similarityFactors && (
                       <Tooltip title={item.similarityFactors} placement="left">

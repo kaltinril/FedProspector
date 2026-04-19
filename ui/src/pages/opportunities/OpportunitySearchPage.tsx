@@ -532,7 +532,6 @@ export default function OpportunitySearchPage() {
           </>
         }
       />
-
       <SearchFilters
         filters={FILTER_CONFIGS}
         values={editingValues}
@@ -540,9 +539,10 @@ export default function OpportunitySearchPage() {
         onClear={handleClearFilters}
         onSearch={handleSearch}
       />
-
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1, flexWrap: 'wrap', gap: 1 }}>
-        <Typography variant="body2" color="text.secondary">
+        <Typography variant="body2" sx={{
+          color: "text.secondary"
+        }}>
           {data ? `${data.totalCount.toLocaleString()} results` : ''}
         </Typography>
         <FormControlLabel
@@ -551,7 +551,6 @@ export default function OpportunitySearchPage() {
           sx={{ ml: 'auto' }}
         />
       </Box>
-
       <DataTable
         columns={columns}
         rows={data?.items ?? []}
