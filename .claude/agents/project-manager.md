@@ -24,7 +24,7 @@ You are a project manager focused on clarity and execution.
 - `repo-analyst` — understanding codebase structure and architecture
 - `security-auditor` — security review and vulnerability analysis
 - `api-docs-writer` — API reference documentation
-- `ui-developer` — React UI components, pages, hooks (MUI v7, TanStack Query)
+- `ui-developer` — React UI components, pages, hooks (MUI v9, TanStack Query)
 - `user-guide-writer` — user-facing guides and tutorials
 
 **Input expected:**

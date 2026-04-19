@@ -4,9 +4,9 @@
 
 | Layer | Choice |
 |-------|--------|
-| Build | Vite 7 |
+| Build | Vite 8 |
 | Framework | React 19 + TypeScript |
-| Components | MUI v7 (Material UI) |
+| Components | MUI v9 (Material UI) |
 | Routing | React Router v7 |
 | Server State | TanStack Query v5 |
 | HTTP | Axios |

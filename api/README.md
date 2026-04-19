@@ -117,5 +117,5 @@ All endpoints require authentication except `/auth/login`, `/auth/register`, and
 - **Auth**: httpOnly cookie-based (access_token, refresh_token, XSRF-TOKEN). Not Bearer header auth despite JWT under the hood.
 - **Multi-tenant**: Public data (opportunities, awards, entities) is shared. Capture data (prospects, saved searches, proposals) is isolated per organization.
 - **Schema ownership**: EF Core migrations own application tables (app_user, organization, prospect, saved_search, etc.). Python DDL owns ETL/data tables (opportunity, award, entity, etc.). Do not create EF migrations for ETL tables.
-- **Rate limiting**: Auth endpoints (login, register) are rate-limited to prevent brute force.
+- **Rate limiting**: ASP.NET Core rate limiter is wired in (policies: `auth`, `login_global`, `search`, `write`, `admin`) but all `PermitLimit` values are set to `int.MaxValue` — effectively disabled. See `Program.cs` rate limiter section for the REVISIT criteria (public internet exposure, user-base growth, abuse patterns).
 - **Logging**: Serilog to console and rolling file (`logs/fedprospector-{date}.log`).

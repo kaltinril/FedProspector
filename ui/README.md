@@ -2,7 +2,7 @@
 
 Frontend web application for the Federal Contract Prospecting System.
 
-**Stack**: Vite 8 + React 19 + TypeScript + MUI v7
+**Stack**: Vite 8 + React 19 + TypeScript + MUI v9
 
 ## Quick Start
 
@@ -20,4 +20,4 @@ cd ui && npm run dev                  # http://localhost:5173
 - **Auth**: httpOnly cookie-based, CSRF protection, silent refresh
 - **State**: TanStack Query v5 for server state, React Context for UI state
 - **HTTP**: Axios with typed wrappers in `src/api/`
-- **Components**: MUI v7 with dark/light theme support
+- **Components**: MUI v9 with dark/light theme support

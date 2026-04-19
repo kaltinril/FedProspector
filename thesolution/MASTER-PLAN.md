@@ -19,7 +19,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | Rate Limit Strategy | Bulk extracts first, API for incremental | Monthly extract = 1 call for all entities. |
 | Credentials | `.env` + python-dotenv | Never hardcode. |
 | Web API | ASP.NET Core (.NET 10) | Type-safe, high-perf backend. EF Core for MySQL. |
-| Frontend | Vite 8 + React 19 + TypeScript + MUI v7 | Modern stack, enterprise component library. |
+| Frontend | Vite 8 + React 19 + TypeScript + MUI v9 | Modern stack, enterprise component library. |
 | Multi-Tenancy | Shared public data + org-isolated capture data | Government data shared; prospects/proposals private per company. |
 
 ## Phase Roadmap
