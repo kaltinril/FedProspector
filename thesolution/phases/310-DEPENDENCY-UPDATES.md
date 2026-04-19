@@ -1,6 +1,6 @@
 # Phase 310: Dependency Updates & Package Maintenance
 
-**Status:** IN PROGRESS — PRs 1–6 + 8 done, PR 7 deferred (ecosystem lag), PR 9 deferred (after PR 8 stabilizes), PR 10 in progress
+**Status:** IN PROGRESS — PRs 1–6 + 8 done, PR 9 pending (TS 6), PR 10 in progress. PR 7 (ESLint 10) extracted to [Phase 311](311-ESLINT-10-UPGRADE.md) due to indefinite ecosystem blocker.
 **Priority:** HIGH (6 open security advisories across UI + Python)
 **Dependencies:** None
 **Validated against live state:** 2026-04-18
@@ -17,7 +17,7 @@ Live audit found 6 open security advisories:
 
 **One hard blocker to going latest everywhere:** `Pomelo.EntityFrameworkCore.MySql` has no 10.x release on nuget.org (latest stable 9.0.0 as of 2026-04-18), so `Microsoft.EntityFrameworkCore.*` must stay on 9.x to remain Pomelo-compatible.
 
-**Execution strategy — order matters:** Land every other upgrade first (security + patch/minor across UI, Python, .NET, plus ESLint 10). Validate the codebase is stable. Then tackle **MUI v7→v9** (biggest migration). Then **TypeScript 5.9→6.0** last, once everything else is proven stable.
+**Execution strategy — order matters:** Land every other upgrade first (security + patch/minor across UI, Python, .NET). Validate the codebase is stable. Then tackle **MUI v7→v9** (biggest migration). Then **TypeScript 5.9→6.0** last, once everything else is proven stable.
 
 Rationale for the ordering:
 - **MUI v9 was released 2026-04-07** (11 days ago as of 2026-04-18). Doing it last gives v9 a few more weeks of real-world bug-fix releases before we adopt.
@@ -35,7 +35,7 @@ Rationale for the ordering:
 | dompurify | 3.4.0 | 0 | Go latest |
 | @mui/material | 9.0.0 | 0 | Go latest (v7 → v9; MUI skipped v8 → actually a 1-major jump). **Ship after all other PRs.** v9 released 2026-04-07. |
 | typescript | 6.0.3 | 0 | Go latest |
-| eslint | 10.2.1 | 0 (only old ReDoS < 4.18.2) | Go latest |
+| eslint | 10.2.1 | 0 (only old ReDoS < 4.18.2) | **Hold on 9.x** — ESLint 10 extracted to [Phase 311](311-ESLINT-10-UPGRADE.md) |
 | coverlet.collector | 10.0.0 | 0 | Go latest |
 | Pomelo.EntityFrameworkCore.MySql | **9.0.0** | 0 | **Stay on 9.x** — no 10.x exists |
 | Microsoft.EntityFrameworkCore.* | 9.0.7 → **9.0.x patch only** | 0 | Stay on 9.x to match Pomelo |
@@ -90,10 +90,10 @@ Both affect the Claude SDK's Memory Tool. Confirm with `grep -r "beta.memory\|me
 | @mui/x-charts | ^8.27.5 | **9.0.2** | Major | Align with MUI v9 |
 | @mui/x-data-grid | ^8.27.5 | **9.0.2** | Major | Align with MUI v9 |
 | typescript | ~5.9.3 | **6.0.3** | Major | First TS 6.x — run `tsc --noEmit` before committing. Land in **PR 9** (dead last), after MUI v9 has stabilized. |
-| eslint | ^9.39.3 | **10.2.1** | Major | Flat config already in use |
-| @eslint/js | ^9.39.1 | **10.0.1** | Major | Match eslint |
-| eslint-plugin-react-hooks | ^7.0.1 | **7.1.1** | Minor | Verify peer-dep range allows ESLint 10 |
-| typescript-eslint | ^8.57.1 | **8.58.2** (PR 5) → bump again in PR 9 | Patch now, then bump to a TS 6-supporting version when PR 9 lands |
+| eslint | ^9.39.3 | **9.39.4** (stay on 9.x) | Held | ESLint 10 extracted to [Phase 311](311-ESLINT-10-UPGRADE.md) |
+| @eslint/js | ^9.39.1 | **9.39.4** (stay on 9.x) | Held | Match eslint; see Phase 311 |
+| eslint-plugin-react-hooks | ^7.0.1 | **7.1.1** | Minor | |
+| typescript-eslint | ^8.57.1 | **8.58.2** | Patch | Bump again in PR 9 to a TS 6-supporting version when TypeScript 6 lands |
 | prettier | ^3.8.1 | **3.8.3** | Patch | |
 | globals | ^17.4.0 | **17.5.0** | Patch | |
 | @types/node | ^22.0.0 | **^22.19.17** (stay on 22) | Compat | Match Node 22 runtime; going to 25 adds APIs we can't use |
@@ -162,7 +162,7 @@ pdfminer.six 20251230 → 20260107, pydantic 2.12.5 → 2.13.2, pydantic_core 2.
 
 Each PR is standalone — if one breaks, it can be reverted without blocking the others.
 
-**Ordering principle:** security first → low-risk drop-ins → ESLint 10 → MUI v9 → TypeScript 6 last. MUI v9 and TypeScript 6 are the two biggest migrations; doing them sequentially (not bundled) makes debugging clearer, and TypeScript 6 goes dead last so we don't compound stricter type-check errors on top of a just-landed UI library migration.
+**Ordering principle:** security first → low-risk drop-ins → MUI v9 → TypeScript 6 last. MUI v9 and TypeScript 6 are the two biggest migrations; doing them sequentially (not bundled) makes debugging clearer, and TypeScript 6 goes dead last so we don't compound stricter type-check errors on top of a just-landed UI library migration.
 
 **All target versions verified as stable `latest` dist-tag releases (2026-04-18)** — no betas, alphas, RCs, or canary builds. Runtimes targeted are LTS tracks (Node 22 LTS "Jod", .NET 10 LTS, MySQL 8.4 LTS, Python 3.14). Only caveat: the Python `anthropic` SDK is at 0.96.0 because the SDK itself is still pre-1.0 (not available as 1.x); each 0.x release is a production release, not a prerelease in the SemVer sense.
 
@@ -201,23 +201,12 @@ Each PR is standalone — if one breaks, it can be reverted without blocking the
 2. `npm ci` in `ui/` — verify lockfile format still resolves
 3. Regenerate lockfile if needed
 
-### PR 7 — ESLint 9 → 10 — **DEFERRED**
+### PR 7 — ESLint 9 → 10 — **EXTRACTED TO PHASE 311**
 
-**Status:** Deferred (2026-04-18) until the ESLint 10 ecosystem catches up.
-
-**Blocker:** `eslint-plugin-jsx-a11y@6.10.2` (latest on npm) declares peer `eslint ^3 || ... || ^9` — does not accept ESLint 10. It is the de-facto JSX accessibility linter with no real replacement; removing it would drop a11y linting coverage. `typescript-eslint@8.58.2` and `eslint-plugin-react-hooks@7.1.1` already support ESLint 10; jsx-a11y is the sole holdout. Tracking issue: jsx-a11y #1075 (filed 2026-02-09, no progress as of 2026-04-18).
-
-**No security pressure:** ESLint 9.x has zero open advisories. Only old ReDoS < 4.18.2 is flagged on npm audit, and we're far past that.
-
-**Resume conditions:** (a) jsx-a11y ships a release with `eslint ^10` in peer range, OR (b) a viable replacement emerges. When either happens, reopen this PR with the original plan:
-
-1. Bump eslint 9.39.4 → 10.x latest, @eslint/js 9.39.4 → 10.x latest
-2. Keep typescript-eslint on a version that still supports TS 5.x (so this PR doesn't force TS 6 yet)
-3. `npm run lint` — fix any violations from 3 new `recommended` rules (`no-unassigned-vars`, `no-useless-assignment`, `preserve-caught-error`)
-4. `npm run build`
+PR 7 extracted to Phase 311 on 2026-04-18 due to `eslint-plugin-jsx-a11y` ecosystem blocker with no timeline. See [311-ESLINT-10-UPGRADE.md](311-ESLINT-10-UPGRADE.md).
 
 ### PR 8 — MUI v7 → v9 (largest effort; do AFTER everything above has shipped and stabilized)
-Only start this PR after PRs 1–6 have merged (PR 7 is deferred; see above), run in prod for at least a few days, and the codebase is proven stable. Gives MUI v9 time to accumulate post-GA bug-fix patches (watch for 9.0.x or 9.1 release before starting).
+Only start this PR after PRs 1–6 have merged, run in prod for at least a few days, and the codebase is proven stable. Gives MUI v9 time to accumulate post-GA bug-fix patches (watch for 9.0.x or 9.1 release before starting).
 
 1. Read MUI migration guides v7→v9 (MUI skipped v8 for core, so one guide — but @mui/x-* went v8→v9 on its own guide)
 2. Run MUI codemods: `npx @mui/codemod@latest v9.0.0/preset-safe ui/src` (commit alone — reversible baseline)
@@ -255,7 +244,7 @@ When `Pomelo.EntityFrameworkCore.MySql` 10.x ships, bundle EF Core 9 → 10 + Po
 | anthropic 0.86 → 0.96 breaks call sites | Review SDK CHANGELOG; search call sites in `fed_prospector/` |
 | MUI v7 → v9 visual regressions | Screenshot diff critical pages before/after; MUI codemods do most renames |
 | TypeScript 6 stricter checks fail type-check | Run `tsc --noEmit` in isolation before committing |
-| typescript-eslint peer range excludes TS 6 | Gate check in PR 8; split if needed |
+| typescript-eslint peer range excludes TS 6 | Gate check in PR 9; split if needed |
 | coverlet 10 changes coverage format | Gate on CI coverage parser; easy revert |
 | npm 11 lockfile format incompatibility | Regenerate lockfile; low risk |
 | Pomelo 10 never ships → stuck on EF Core 9 | Not blocking — 9.x is fully supported. Watch release notes. |
@@ -273,7 +262,6 @@ When `Pomelo.EntityFrameworkCore.MySql` 10.x ships, bundle EF Core 9 → 10 + Po
 | Python all | Low | < 30 minutes | 1 line (requirements.txt) |
 | .NET all (excluding EF Core) | Low | < 1 hour | None — csproj bumps only |
 | TypeScript 5.9 → 6.0 | Medium | 1–2 hours | Run `tsc`; audit `as any` casts |
-| ESLint 9 → 10 | Low | 1 hour | Fix new `recommended` rule violations |
 | coverlet.collector 8 → 10 | Low | < 15 minutes | None — CI doesn't consume coverage |
 | **MUI v7 → v9** | **Medium–High** | **16–24 hours** | **~58 files, ~800 modifications** |
 
@@ -304,15 +292,9 @@ When `Pomelo.EntityFrameworkCore.MySql` 10.x ships, bundle EF Core 9 → 10 + Po
 - **One `as any` cast to audit:** [ui/src/pages/opportunities/DocumentIntelligenceTab.tsx](../../ui/src/pages/opportunities/DocumentIntelligenceTab.tsx) — `methodIntel[fieldKey]`. TS 6's stricter inference may reject this; replace with a proper discriminated union or index type
 - **Process:** bump → `tsc --noEmit` → fix errors one file at a time → commit
 
-### UI: ESLint 9 → 10.2.1
+### UI: ESLint 9 → 10
 
-- **Flat config already in use** — `ui/eslint.config.js` is the only config file; no `.eslintrc*` legacy config
-- **Peer-dep compatibility verified** — `typescript-eslint@8.58.2` officially supports TS 6 ✓; `eslint-plugin-react-hooks@7.1.1` supports ESLint 10 ✓
-- **Expect new violations from 3 new `recommended` rules**:
-  - `no-unassigned-vars`
-  - `no-useless-assignment`
-  - `preserve-caught-error` (may affect `catch (e)` blocks that don't re-throw)
-- **Process:** bump → `npm run lint` → fix violations file-by-file → commit
+Extracted to [Phase 311](311-ESLINT-10-UPGRADE.md) on 2026-04-18. See that phase for peer-dep compatibility notes, the 3 new `recommended` rules to fix, and the upgrade process.
 
 ### UI: MUI v7 → v9 (biggest ticket)
 
@@ -418,7 +400,7 @@ End-state check after all PRs ship:
 - **2026-04-18 — PR 4 (coverlet.collector 8 → 10) landed.** Bumped across all 3 test csproj files.
 - **2026-04-18 — PR 5 (UI patch/minor non-security) landed.** react / react-dom 19.2.0 → 19.2.5, react-router-dom 7.13.1 → 7.14.1, @tanstack/react-query + devtools 5.91.x → 5.99.1, react-hook-form 7.71.2 → 7.72.1, prettier 3.8.1 → 3.8.3, globals 17.4.0 → 17.5.0, eslint-plugin-react-hooks 7.0.1 → 7.1.1, typescript-eslint 8.57.1 → 8.58.2, @mui/material + icons-material 7.3.9 → 7.3.10 (patch only; v9 deferred), @mui/x-charts + x-data-grid 8.27.5 → 8.28.2 (patch only; v9 deferred).
 - **2026-04-18 — PR 6 (npm CLI bump) landed.** npm 10.9.4 → 11.12.1 on local machine.
-- **2026-04-18 — PR 7 (ESLint 9 → 10) deferred.** Blocked on `eslint-plugin-jsx-a11y` ecosystem support for ESLint 10. No security pressure (ESLint 9.x has 0 open advisories). Resume when jsx-a11y ships a release with `eslint ^10` in peer range.
+- **2026-04-18 — PR 7 extracted to Phase 311.** See [311-ESLINT-10-UPGRADE.md](311-ESLINT-10-UPGRADE.md). Removed from Phase 310 scope due to indefinite `eslint-plugin-jsx-a11y` ecosystem blocker.
 - **2026-04-18 — PR 8 (MUI v7 → v9) landed.** @mui/material + @mui/icons-material 7.3.10 → 9.0.0 (MUI core skipped v8). @mui/x-charts + @mui/x-data-grid 8.28.2 → 9.0.2. 81 source files touched via 3 codemods (`deprecations/all`, `v9.0.0/charts/preset-safe`, `v9.0.0/system-props`) plus 13 manual fixes (8 `*Outline` icon imports → `*Outlined`, 5 ListItemText sites moved `fontWeight`/`fontSize` into `sx`). DataGrid audit: 0 manual fixes needed — codebase already on v8-stable idioms. Charts: 0 manual beyond codemod. All 4 UI gates green (build, tsc, lint @ 31 baseline, 0 audit vulns). Browser smoke validated: 37 routes tested, 0 runtime crashes, 0 MUI deprecation warnings. Phase doc's pessimistic `preset-safe` codemod path doesn't exist on npm — real command set above.
 - **2026-04-18 — PR 9 (TypeScript 5.9 → 6.0) deferred to separate session.** Sequencing rule: TS 6 ships after MUI v9 stabilizes.
 - **2026-04-18 — PR 10 (Docs) in progress.** Tech stack doc and this phase file updated to reflect PRs 1–6. Phase NOT marked COMPLETE — three PRs outstanding.
