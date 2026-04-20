@@ -103,9 +103,16 @@ function formatTokens(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1)}K` : `${n}`;
 }
 
-const getMethodFieldValue = (methodIntel: MethodIntelDto, fieldKey: string): string | undefined => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return (methodIntel as any)[fieldKey] as string | undefined;
+/** Keys of MethodIntelDto whose value type is `string | undefined`. */
+type MethodIntelStringKey = NonNullable<{
+  [K in keyof MethodIntelDto]: MethodIntelDto[K] extends string | undefined ? K : never;
+}[keyof MethodIntelDto]>;
+
+const getMethodFieldValue = (
+  methodIntel: MethodIntelDto,
+  fieldKey: MethodIntelStringKey,
+): string | undefined => {
+  return methodIntel[fieldKey];
 };
 
 // ---------------------------------------------------------------------------
@@ -279,7 +286,7 @@ function AISourceItem({ src }: { src: IntelSourceDto }) {
 interface IntelCardProps {
   label: string;
   fieldName: string;
-  fieldKey?: string;
+  fieldKey?: MethodIntelStringKey;
   value: string | null | undefined;
   sources: IntelSourceDto[];
   intel: DocumentIntelligenceDto;
@@ -1230,7 +1237,7 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
   const availableMethods = intel.availableMethods ?? [];
 
   // Build intel card entries
-  type IntelField = { label: string; fieldName: string; fieldKey?: string; value: string | null | undefined };
+  type IntelField = { label: string; fieldName: string; fieldKey?: MethodIntelStringKey; value: string | null | undefined };
   const intelFields: IntelField[] = [
     { label: 'Security Clearance', fieldName: 'clearance_level', fieldKey: 'clearanceLevel', value: [intel.clearanceLevel, intel.clearanceScope].filter(Boolean).join(' - ') || intel.clearanceRequired || null },
     { label: 'Evaluation Method', fieldName: 'eval_method', fieldKey: 'evalMethod', value: intel.evalMethod },
