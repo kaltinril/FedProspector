@@ -1,6 +1,6 @@
 # Tech Stack Reference
 
-Last updated: 2026-04-19
+Last updated: 2026-04-20
 
 ---
 
@@ -63,7 +63,7 @@ Last updated: 2026-04-19
 | vite | 8.0.8 | Build tool + dev server |
 | react | 19.2.5 | UI framework |
 | react-dom | 19.2.5 | React DOM renderer |
-| typescript | 5.9.3 | Type system |
+| typescript | 6.0.3 | Type system |
 
 ### UI Framework & Components
 

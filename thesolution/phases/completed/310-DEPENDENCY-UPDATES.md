@@ -1,6 +1,6 @@
 # Phase 310: Dependency Updates & Package Maintenance
 
-**Status:** IN PROGRESS — PRs 1–6 + 8 done, PR 9 pending (TS 6), PR 10 in progress. PR 7 (ESLint 10) extracted to [Phase 311](311-ESLINT-10-UPGRADE.md) due to indefinite ecosystem blocker.
+**Status:** COMPLETE
 **Priority:** HIGH (6 open security advisories across UI + Python)
 **Dependencies:** None
 **Validated against live state:** 2026-04-18
@@ -404,6 +404,8 @@ End-state check after all PRs ship:
 - **2026-04-18 — PR 8 (MUI v7 → v9) landed.** @mui/material + @mui/icons-material 7.3.10 → 9.0.0 (MUI core skipped v8). @mui/x-charts + @mui/x-data-grid 8.28.2 → 9.0.2. 81 source files touched via 3 codemods (`deprecations/all`, `v9.0.0/charts/preset-safe`, `v9.0.0/system-props`) plus 13 manual fixes (8 `*Outline` icon imports → `*Outlined`, 5 ListItemText sites moved `fontWeight`/`fontSize` into `sx`). DataGrid audit: 0 manual fixes needed — codebase already on v8-stable idioms. Charts: 0 manual beyond codemod. All 4 UI gates green (build, tsc, lint @ 31 baseline, 0 audit vulns). Browser smoke validated: 37 routes tested, 0 runtime crashes, 0 MUI deprecation warnings. Phase doc's pessimistic `preset-safe` codemod path doesn't exist on npm — real command set above.
 - **2026-04-18 — PR 9 (TypeScript 5.9 → 6.0) deferred to separate session.** Sequencing rule: TS 6 ships after MUI v9 stabilizes.
 - **2026-04-18 — PR 10 (Docs) in progress.** Tech stack doc and this phase file updated to reflect PRs 1–6. Phase NOT marked COMPLETE — three PRs outstanding.
+- **2026-04-20 — PR 9 (TypeScript 5.9 → 6.0) landed as commit `54d8066`.** `typescript ~5.9.3 → ~6.0.3`. `typescript-eslint` stayed at 8.58.2 (its peer range `>=4.8.4 <6.1.0` already covers TS 6 — no bump needed). Two source files touched: `ui/tsconfig.app.json` (removed deprecated `baseUrl`; rewrapped `paths` to `./src/*`) and `ui/src/pages/opportunities/DocumentIntelligenceTab.tsx` (replaced `as any` with a proper `MethodIntelStringKey` mapped-type cast). All 4 UI gates green: `tsc -b` 0 errors, `npm run lint` 31 (baseline), `npm run build` 0 errors, `npm audit` 0 vulns. **Heads-up for future readers:** `openapi-typescript@7.13.0` (dev-only `generate-types` codegen) declares peer `typescript: ^5.x` — installs emit a benign ERESOLVE warning under TS 6. No newer upstream release is available yet; workaround is `npm install --legacy-peer-deps`. Codegen still runs fine against the installed TS 6 toolchain.
+- **2026-04-20 — PR 10 (Docs) landed.** Phase doc status flipped to COMPLETE, tech stack doc updated (TypeScript 5.9.3 → 6.0.3), and this file archived to `thesolution/phases/completed/310-DEPENDENCY-UPDATES.md`. MASTER-PLAN row for Phase 310 flipped to COMPLETE and repointed at the archived path.
 - **2026-04-18 — Bonus cleanup (landed alongside PRs 1–6):**
   - Fixed compile error in `api/tests/FedProspector.Infrastructure.Tests/Services/ProspectServiceTests.cs` (missing `IPipelineService` mock).
   - Fixed 3 stale `AuthServiceTests` cases (invite code hex pattern, role rename, error text).
