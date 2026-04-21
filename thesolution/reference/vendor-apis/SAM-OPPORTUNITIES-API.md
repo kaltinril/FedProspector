@@ -160,6 +160,8 @@ The response includes `totalRecords` indicating the total result count for the q
 | `placeOfPerformance.state.code` | string | May contain ISO 3166-2 codes > 2 chars for foreign POP |
 | `active` | string | "Yes" or "No" |
 
+> **Note on `officeAddress`**: The public API returns only `city`, `state`, and `zipcode` subfields under `officeAddress`. Street address is NOT available via this endpoint. Verified against both the GSA open.gsa.gov documentation and direct API calls. For street-level data, see `placeOfPerformance` (which does carry `streetAddress`).
+
 ## Known Issues & Quirks
 
 1. **365-day range rejection**: The API rejects date ranges of exactly 365 days with the error "Date range must be null year(s) apart." Our client uses a maximum of 364 days per chunk (`MAX_DATE_RANGE_DAYS = 364`) to stay safely under the limit.
@@ -175,6 +177,18 @@ The response includes `totalRecords` indicating the total result count for the q
 6. **`pop_state` can contain long ISO codes**: For foreign places of performance, `placeOfPerformance.state.code` can contain ISO 3166-2 subdivision codes longer than 2 characters (e.g., `IN-MH` for Maharashtra, India). Our DB column is `VARCHAR(6)` to accommodate this.
 
 7. **Date format is MM/dd/yyyy**: Not ISO 8601. All date parameters must use `MM/dd/yyyy` format (e.g., `01/15/2026`).
+
+## Related APIs (Not Accessible to Public Consumers)
+
+A separate **Opportunity Management API** exists at `api.sam.gov/prod/opportunity/v1/`, `/v2/`, `/v3/` for contracting officers to submit and manage opportunities. Endpoints include "Get Opportunity by ID," "Download All Attachments as Zip," and "Download Metadata for All Attachments by Opportunity ID" -- which likely return richer data than the public search API.
+
+**We cannot use it.** Access requires:
+- A federal-government System Account (requires .gov/.mil email).
+- Administrator, Contracting Officer, or Contracting Specialist role under the Contract Opportunities domain.
+- IP address whitelisted in the system account profile.
+- "REST API" connection type approved.
+
+FedProspect is a commercial consumer and is ineligible. Documented here so future maintainers don't waste time exploring it.
 
 ## Our Loading Strategy
 
@@ -212,7 +226,7 @@ The `iter_opportunity_pages()` method yields `(opps_list, page_number, total_rec
 
 - **Related tables**: `opportunity` (main), `stg_opportunity_raw` (staging)
 - **Linking fields**: `notice_id` (unique key), `solicitation_number` (links to awards), `naics_code` (links to `naics_code` reference), `classification_code` (links to `psc_code` reference), `awardee_uei` (links to `entity.uei_sam`)
-- **Alternative sources**: None -- SAM.gov Opportunities API is the single authoritative source for active federal solicitations
+- **Alternative sources**: SAM.gov publishes a Contract Opportunities bulk data-services feed at `https://sam.gov/data-services?domain=Contract%20Opportunities%2Fdatagov` (active) and `.../Archived%20Data` (archived). Not currently implemented in our ETL. Could be an alternative to API polling for bulk backfills. Unverified whether the extract carries fields the search API omits (e.g., office street address).
 - **Related APIs**: SAM.gov Contract Awards API (historical award data for the same solicitations), USASpending.gov (spending data for awarded contracts)
 
 ## Troubleshooting

@@ -15,6 +15,8 @@
 | **Loader File** | `fed_prospector/etl/fedhier_loader.py` |
 | **OpenAPI Spec** | `thesolution/sam_gov_api/fh-public-hierarchy.yml`, `thesolution/sam_gov_api/fh-public-org.yml` |
 
+> **Address data is NOT available via this API.** Verified by inspecting 544,501 raw responses cached in `stg_fedhier_raw`. Every record contains only: `aacofficecode, agencycode, cgaclist, createdby, createddate, fhagencyorgname, fhdeptindagencyorgid, fhorgid, fhorgname, fhorgnamehistory, fhorgofficetypelist, fhorgparenthistory, fhorgtype, lastupdateddate, links, oldfpdsofficecode, status, updatedby`. No street, city, state, zip, postal, or address fields appear in any response. Linking federal offices to physical addresses requires a different data source (not currently identified).
+
 ## Purpose & Prospecting Value
 
 The Federal Hierarchy API provides the authoritative organizational structure of the U.S. federal government, from top-level departments and independent agencies down through sub-tier agencies and contracting offices. This three-level hierarchy (Department/Ind. Agency -> Sub-Tier -> Office) is the canonical reference for how federal procurement is organized.
