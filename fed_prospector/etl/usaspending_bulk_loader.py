@@ -1354,13 +1354,17 @@ class USASpendingBulkLoader:
                 )
                 return row
 
-            # Check current load_id for in-progress resume
+            # Check current load_id for in-progress resume.
+            # Include archive_hash so a re-downloaded archive with a different
+            # hash but the same CSV filename does not silently resume on top
+            # of a checkpoint that belonged to a different archive version.
             cursor.execute(
                 "SELECT checkpoint_id, status, completed_batches, "
                 "total_rows_loaded "
                 "FROM usaspending_load_checkpoint "
-                "WHERE load_id = %s AND csv_file_name = %s",
-                (load_id, csv_file_name),
+                "WHERE load_id = %s AND csv_file_name = %s "
+                "AND archive_hash = %s",
+                (load_id, csv_file_name, archive_hash),
             )
             row = cursor.fetchone()
 
