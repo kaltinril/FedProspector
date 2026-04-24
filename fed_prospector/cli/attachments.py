@@ -78,7 +78,14 @@ def download_attachments(notice_id, batch_size, max_file_size, missing_only,
               help="Number of concurrent extraction threads")
 @click.option("--timeout", type=int, default=120, show_default=True,
               help="Per-file extraction timeout in seconds")
-def extract_attachment_text(notice_id, batch_size, force, workers, timeout):
+@click.option("--reset-retries", type=str, default=None,
+              help="Comma-separated document IDs to reset extraction_retry_count to 0, "
+                   "then exit without running extraction.")
+@click.option("--reset-all-retries", is_flag=True, default=False,
+              help="Reset extraction_retry_count to 0 for ALL documents that hit the "
+                   "10-retry cap, then exit without running extraction.")
+def extract_attachment_text(notice_id, batch_size, force, workers, timeout,
+                            reset_retries, reset_all_retries):
     """Extract text content from downloaded attachments.
 
     Parses PDF, DOCX, and other document formats to extract raw text
@@ -88,8 +95,39 @@ def extract_attachment_text(notice_id, batch_size, force, workers, timeout):
         python main.py extract attachment-text
         python main.py extract attachment-text --notice-id abc123
         python main.py extract attachment-text --force --batch-size 50
+        python main.py extract attachment-text --reset-retries 123,456,789
+        python main.py extract attachment-text --reset-all-retries
     """
     logger = setup_logging()
+
+    if reset_retries or reset_all_retries:
+        from db.connection import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            if reset_all_retries:
+                cursor.execute(
+                    "UPDATE attachment_document SET extraction_retry_count = 0 "
+                    "WHERE extraction_retry_count >= 10"
+                )
+            else:
+                ids = [int(x.strip()) for x in reset_retries.split(",") if x.strip()]
+                if not ids:
+                    click.echo("Error: --reset-retries requires at least one document ID", err=True)
+                    raise SystemExit(1)
+                placeholders = ",".join(["%s"] * len(ids))
+                cursor.execute(
+                    f"UPDATE attachment_document SET extraction_retry_count = 0 "
+                    f"WHERE document_id IN ({placeholders})",
+                    ids,
+                )
+            conn.commit()
+            click.echo(f"Reset extraction_retry_count for {cursor.rowcount} document(s).")
+            logger.info("Reset extraction_retry_count for %d document(s)", cursor.rowcount)
+        finally:
+            cursor.close()
+            conn.close()
+        return
 
     from etl.attachment_text_extractor import AttachmentTextExtractor
 
