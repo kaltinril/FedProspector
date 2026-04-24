@@ -1445,9 +1445,12 @@ class USASpendingBulkLoader:
         bulk CSVs that contain multiple rows per award (contract modifications).
         """
         col_list = ", ".join(LOAD_COLUMNS)
-        prefixed_col_list = ", ".join(f"t.{c}" for c in LOAD_COLUMNS)
+        prefixed_col_list = ", ".join(f"new.{c}" for c in LOAD_COLUMNS)
+        # MySQL 8.0.20+ row-alias syntax (replaces deprecated VALUES()).
+        # The derived table is aliased as "new" so the ON DUPLICATE KEY UPDATE
+        # clause can reference incoming row values via new.<col>.
         update_parts = [
-            f"{c} = VALUES({c})" for c in _UPDATE_COLUMNS
+            f"{c} = new.{c}" for c in _UPDATE_COLUMNS
         ]
         update_parts.append("last_loaded_at = NOW()")
         update_parts.append("deleted_at = NULL")
@@ -1459,7 +1462,7 @@ class USASpendingBulkLoader:
             f"    PARTITION BY generated_unique_award_id "
             f"    ORDER BY last_modified_date DESC"
             f"  ) AS rn FROM tmp_usaspending_bulk"
-            f") t WHERE t.rn = 1 "
+            f") new WHERE new.rn = 1 "
             f"ON DUPLICATE KEY UPDATE "
             + ", ".join(update_parts)
         )
