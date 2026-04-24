@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     INDEX idx_opp_type (type),
     INDEX idx_opp_active (active),
     INDEX idx_opp_sol (solicitation_number),
-    KEY idx_opp_department (department_name(50)),
+    KEY idx_opp_department (department_name),
     INDEX idx_opp_dept_cgac (department_cgac),
     INDEX idx_opp_fh_org (fh_org_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
