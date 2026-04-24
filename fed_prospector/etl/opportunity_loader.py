@@ -269,6 +269,12 @@ class OpportunityLoader(StagingMixin):
 
                 # --- Phase 3: Batch upsert changed records ---
                 if changed_records:
+                    pre_phase3_stats = {
+                        "records_inserted": stats["records_inserted"],
+                        "records_updated": stats["records_updated"],
+                        "records_unchanged": stats["records_unchanged"],
+                        "records_errored": stats["records_errored"],
+                    }
                     try:
                         upsert_rows = []
                         for _raw, opp_data, _nid, _nh, _p, _oh in changed_records:
@@ -281,7 +287,7 @@ class OpportunityLoader(StagingMixin):
                         # Count inserts vs updates, upsert POCs, log history
                         all_history_rows = []
                         for _raw, opp_data, notice_id, new_hash, pocs, old_hash in changed_records:
-                            if notice_id in existing_hashes:
+                            if old_hash is not None:
                                 stats["records_updated"] += 1
                                 # History logging for updates
                                 old_record = old_records.get(notice_id)
@@ -322,6 +328,12 @@ class OpportunityLoader(StagingMixin):
                             len(changed_records), batch_exc,
                         )
                         conn.rollback()
+                        # Reset stats so the fallback loop doesn't double-count
+                        # any records that were tallied before the exception.
+                        stats["records_inserted"] = pre_phase3_stats["records_inserted"]
+                        stats["records_updated"] = pre_phase3_stats["records_updated"]
+                        stats["records_unchanged"] = pre_phase3_stats["records_unchanged"]
+                        stats["records_errored"] = pre_phase3_stats["records_errored"]
                         for raw, opp_data, notice_id, new_hash, pocs, old_hash in changed_records:
                             try:
                                 outcome = self._upsert_opportunity(cursor, opp_data, load_id)
