@@ -626,19 +626,21 @@ class OpportunityLoader(StagingMixin):
             # Get the officer_id (either newly inserted or existing)
             officer_id = cursor.lastrowid
             if officer_id == 0:
-                # ON DUPLICATE KEY UPDATE: lastrowid is 0, need to look up
+                # ON DUPLICATE KEY UPDATE: lastrowid is 0, need to look up.
+                # Use NULL-safe equality (<=>) so a row with NULL email is
+                # matched correctly — the unique key is (full_name, email).
                 cursor.execute(
                     "SELECT officer_id FROM contracting_officer "
-                    "WHERE full_name = %s AND email = %s",
+                    "WHERE full_name = %s AND email <=> %s",
                     (poc["full_name"], poc["email"]),
                 )
                 row = cursor.fetchone()
                 if row is None:
-                    self.logger.warning(
-                        "Could not find officer_id for %s / %s",
-                        poc["full_name"], poc["email"],
+                    raise RuntimeError(
+                        f"contracting_officer lookup returned no row after "
+                        f"upsert for full_name={poc['full_name']!r} "
+                        f"email={poc['email']!r}"
                     )
-                    continue
                 officer_id = row["officer_id"]
 
             # Map POC type to uppercase for consistency
