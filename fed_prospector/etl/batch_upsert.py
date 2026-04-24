@@ -50,11 +50,12 @@ def build_upsert_sql(table: str, columns: list[str], pk_fields: set[str],
     ts_col_names = ", ".join(timestamp_cols.keys())
     ts_col_values = ", ".join(timestamp_cols.values())
 
-    # ON DUPLICATE KEY UPDATE: all non-PK columns + last_loaded_at
+    # ON DUPLICATE KEY UPDATE: all non-PK columns + last_loaded_at.
+    # Row-alias `AS new` syntax (MySQL 8.0.20+); VALUES() is deprecated.
     update_parts = []
     for c in columns:
         if c not in pk_fields:
-            update_parts.append(f"{c} = VALUES({c})")
+            update_parts.append(f"{c} = new.{c}")
 
     # Always update last_loaded_at on duplicate
     if "last_loaded_at" in timestamp_cols:
@@ -64,7 +65,7 @@ def build_upsert_sql(table: str, columns: list[str], pk_fields: set[str],
 
     sql = (
         f"INSERT INTO {table} ({col_list}, {ts_col_names}) "
-        f"VALUES ({placeholders}, {ts_col_values}) "
+        f"VALUES ({placeholders}, {ts_col_values}) AS new "
         f"ON DUPLICATE KEY UPDATE {update_clause}"
     )
     return sql
