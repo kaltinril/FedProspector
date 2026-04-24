@@ -452,12 +452,14 @@ class OpportunityLoader(StagingMixin):
         # Parse award amount to string for Decimal column
         award_amount = self._parse_decimal(award.get("amount"))
 
-        # JSON-encode resource links
+        # JSON-encode resource links (skip if already a JSON string)
         resource_links_raw = raw.get("resourceLinks")
-        if resource_links_raw is not None:
-            resource_links = json.dumps(resource_links_raw)
-        else:
+        if resource_links_raw is None:
             resource_links = None
+        elif isinstance(resource_links_raw, str):
+            resource_links = resource_links_raw
+        else:
+            resource_links = json.dumps(resource_links_raw)
 
         # Parse department hierarchy from dot-separated path
         parent_path = raw.get("fullParentPathName") or ""
