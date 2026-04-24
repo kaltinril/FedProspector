@@ -684,21 +684,24 @@ class AttachmentDownloader:
         hasher = hashlib.sha256()
         file_size = 0
         try:
+            oversize = False
             with open(dest_path, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=_CHUNK_SIZE):
                     if chunk:
                         file_size += len(chunk)
                         if file_size > max_file_size_bytes:
                             logger.info("File exceeded max size during download: %s", url)
-                            f.close()
-                            dest_path.unlink(missing_ok=True)
-                            self._upsert_attachment_row(
-                                notice_id, url, download_status="skipped",
-                                content_type=content_type_clean, load_id=load_id,
-                            )
-                            return "skipped"
+                            oversize = True
+                            break
                         f.write(chunk)
                         hasher.update(chunk)
+            if oversize:
+                dest_path.unlink(missing_ok=True)
+                self._upsert_attachment_row(
+                    notice_id, url, download_status="skipped",
+                    content_type=content_type_clean, load_id=load_id,
+                )
+                return "skipped"
         except Exception:
             logger.exception("Error writing file for %s", url)
             dest_path.unlink(missing_ok=True)
