@@ -166,8 +166,12 @@ class AwardsLoader(StagingMixin):
         """Process a batch of awards under an existing load_id.
 
         Unlike load_awards(), does NOT start or complete a load — caller
-        manages the load lifecycle.  Pre-fetches existing hashes on first
-        call (lazy init).
+        manages the load lifecycle.
+
+        A3: Hashes are fetched lazily per-batch by composite key rather than
+        loading the full fpds_contract table (500K+ rows) into memory. The
+        per-batch dict accumulates across calls so repeated keys aren't
+        re-fetched.
 
         Args:
             awards_data: list of raw award dicts from SAM Contract Awards API.
@@ -177,14 +181,20 @@ class AwardsLoader(StagingMixin):
             dict with keys: records_read, records_inserted, records_updated,
                 records_unchanged, records_errored.
         """
-        # Lazy-init hash cache on first call
+        # Persistent hash cache across batches; populated lazily per-batch.
         if not hasattr(self, "_existing_hashes") or self._existing_hashes is None:
-            self._existing_hashes = self._get_existing_hashes()
+            self._existing_hashes = {}
+
+        keys = self._extract_composite_keys(awards_data)
+        self._fetch_hashes_for_keys(keys, self._existing_hashes)
 
         return self._process_awards(list(awards_data), load_id, self._existing_hashes)
 
     def load_awards(self, awards_data, load_id):
         """Main entry point. Process list of raw SAM Awards API response dicts.
+
+        A3: Hashes are fetched lazily per-batch by composite key rather than
+        loading the full fpds_contract table into memory.
 
         Args:
             awards_data: list of raw award dicts from SAM Contract Awards API
@@ -201,7 +211,9 @@ class AwardsLoader(StagingMixin):
             len(awards_data), load_id,
         )
 
-        existing_hashes = self._get_existing_hashes()
+        existing_hashes = {}
+        keys = self._extract_composite_keys(awards_data)
+        self._fetch_hashes_for_keys(keys, existing_hashes)
         stats = self._process_awards(awards_data, load_id, existing_hashes)
 
         self.logger.info(
@@ -637,6 +649,10 @@ class AwardsLoader(StagingMixin):
         Since the PK is (contract_id, modification_number), we concatenate
         them with a pipe separator for the in-memory dict.
 
+        NOTE (A3): Prefer `_fetch_hashes_for_keys()` for per-batch lookups
+        targeted by the records being processed; this full-table variant is
+        retained for ad-hoc/test usage.
+
         Args:
             where_clause: Optional additional WHERE condition (e.g.
                 "AND naics_code = %s"). Must start with "AND".
@@ -663,6 +679,73 @@ class AwardsLoader(StagingMixin):
                 key = _make_composite_key(row[0], row[1])
                 result[key] = row[2]
             return result
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _extract_composite_keys(self, awards_data):
+        """Pull (contract_id, modification_number) tuples from raw award dicts.
+
+        Used by A3 lazy hash lookup to query only the keys we're about to
+        process instead of loading the full fpds_contract table.
+        """
+        keys = []
+        for raw in awards_data:
+            if not isinstance(raw, dict):
+                continue
+            contract_id_block = raw.get("contractId") or {}
+            piid = contract_id_block.get("piid")
+            if not piid:
+                continue
+            mod = contract_id_block.get("modificationNumber") or "0"
+            keys.append((piid, mod))
+        return keys
+
+    def _fetch_hashes_for_keys(self, keys, cache):
+        """Populate `cache` with existing record_hash values for the given keys.
+
+        A3: Targeted PK lookup using the (contract_id, modification_number)
+        primary key. Skips keys already in the cache (so repeated batches
+        don't re-query). No-op when `keys` is empty.
+
+        Args:
+            keys: iterable of (contract_id, modification_number) tuples.
+            cache: dict mutated in-place — composite_key -> record_hash.
+        """
+        # Deduplicate and skip already-cached keys
+        wanted = []
+        seen = set()
+        for piid, mod in keys:
+            mod = mod or "0"
+            composite = _make_composite_key(piid, mod)
+            if composite in cache or composite in seen:
+                continue
+            seen.add(composite)
+            wanted.append((piid, mod))
+
+        if not wanted:
+            return
+
+        # Chunk to avoid oversized IN-clause / packet-size issues
+        chunk_size = 500
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            for i in range(0, len(wanted), chunk_size):
+                chunk = wanted[i : i + chunk_size]
+                placeholders = ", ".join(["(%s, %s)"] * len(chunk))
+                sql = (
+                    "SELECT contract_id, modification_number, record_hash "
+                    "FROM fpds_contract "
+                    f"WHERE (contract_id, modification_number) IN ({placeholders}) "
+                    "AND record_hash IS NOT NULL"
+                )
+                params = []
+                for piid, mod in chunk:
+                    params.extend([piid, mod])
+                cursor.execute(sql, params)
+                for row in cursor.fetchall():
+                    cache[_make_composite_key(row[0], row[1])] = row[2]
         finally:
             cursor.close()
             conn.close()
