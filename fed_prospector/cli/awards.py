@@ -12,6 +12,26 @@ from config.logging_config import setup_logging
 from config import settings
 
 
+# Whitelist of valid SAM.gov set-aside codes accepted by the Contract Awards
+# and Opportunities APIs. Sourced from
+# `thesolution/reference/vendor-apis/SAM-OPPORTUNITIES-API.md` (Tier 1-3
+# table) plus the additional officially-supported codes documented in SAM.gov
+# (IEE, ISBEE, RSB, VSA, VSS, BICiv). Validated against the CLI before any
+# API calls are made so that typos fail loudly instead of silently returning
+# zero results.
+VALID_SET_ASIDE_CODES = frozenset({
+    "SBA", "SBP",
+    "8A", "8AN",
+    "HZC", "HZS",
+    "SDVOSBC", "SDVOSBS",
+    "WOSB", "WOSBSS",
+    "EDWOSB", "EDWOSBSS",
+    "IEE", "ISBEE",
+    "RSB",
+    "VSA", "VSS",
+    "BICiv",
+})
+
 # NAICS codes are always 6-digit numbers (per Census Bureau spec).
 _NAICS_RE = re.compile(r"^\d{6}$")
 
@@ -273,6 +293,17 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back
         set_aside_codes = [s.strip() for s in set_aside.split(',') if s.strip()]
     else:
         set_aside_codes = [None]  # Single iteration with no set-aside filter
+
+    # A1: Validate set-aside codes against whitelist
+    invalid_set_asides = [
+        s for s in set_aside_codes if s and s not in VALID_SET_ASIDE_CODES
+    ]
+    if invalid_set_asides:
+        raise click.BadParameter(
+            f"Invalid set-aside code(s): {', '.join(invalid_set_asides)}. "
+            f"Valid codes: {', '.join(sorted(VALID_SET_ASIDE_CODES))}.",
+            param_hint="--set-aside",
+        )
 
     # Date range: explicit dates -> fiscal year -> days-back -> years-back -> watermark -> fallback
     explicit_date_override = (date_from_str is not None or date_to_str is not None or
