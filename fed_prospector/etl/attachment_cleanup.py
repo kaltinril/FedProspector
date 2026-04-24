@@ -148,12 +148,10 @@ class AttachmentFileCleanup:
                   AND EXISTS (
                       SELECT 1 FROM document_intel_summary dis
                       WHERE dis.document_id = ad.document_id
-                        AND dis.extraction_method IN ('keyword', 'heuristic')
-                  )
-                  AND EXISTS (
-                      SELECT 1 FROM document_intel_summary dis
-                      WHERE dis.document_id = ad.document_id
-                        AND dis.extraction_method IN ('ai_haiku', 'ai_sonnet')
+                        AND dis.extraction_method IN ('keyword', 'heuristic', 'ai_haiku', 'ai_sonnet')
+                      GROUP BY dis.document_id
+                      HAVING SUM(dis.extraction_method IN ('keyword', 'heuristic')) > 0
+                         AND SUM(dis.extraction_method IN ('ai_haiku', 'ai_sonnet')) > 0
                   )
             """
             params = []

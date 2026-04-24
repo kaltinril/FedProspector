@@ -852,7 +852,11 @@ def _extract_file(file_path, content_type, ext, filename, attachment_dir):
 
         if not text or not text.strip():
             text = "[No extractable text content]"
-            is_scanned = True
+            # Only preserve is_scanned when the handler actually inspected pages
+            # for image-only content (PDF). For other formats, an empty extraction
+            # means the file genuinely has no text — not that it's scanned.
+            if handler is not _extract_pdf:
+                is_scanned = False
 
         text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
