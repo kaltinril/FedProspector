@@ -777,16 +777,22 @@ class USASpendingBulkLoader:
                 total_batches, BATCH_SIZE,
             )
 
-            # Determine how many batches to skip for resume
+            # Determine how many batches to skip for resume.
+            # Track previously-loaded rows separately from this session's
+            # insertions so the checkpoint receives the correct cumulative
+            # total without double-counting on subsequent resumes
+            # (stats["records_inserted"] reports THIS session only).
             skip_batches = 0
+            previously_loaded_rows = 0
             if checkpoint and checkpoint["completed_batches"] > 0:
                 skip_batches = checkpoint["completed_batches"]
+                previously_loaded_rows = checkpoint["total_rows_loaded"]
                 self.logger.info(
-                    "Resuming from batch %d (skipping %d completed batches)",
+                    "Resuming from batch %d (skipping %d completed batches, "
+                    "%s rows previously loaded)",
                     skip_batches + 1, skip_batches,
+                    f"{previously_loaded_rows:,}",
                 )
-                # Count previously loaded rows toward stats
-                stats["records_inserted"] += checkpoint["total_rows_loaded"]
 
             conn = get_connection()
             self._set_bulk_session_options(conn)
@@ -828,11 +834,14 @@ class USASpendingBulkLoader:
                     elapsed = time.monotonic() - t_start
                     stats["records_inserted"] += loaded
 
-                    # Update checkpoint after each successful batch
+                    # Update checkpoint after each successful batch.
+                    # Persist cumulative total (previous + this session) so a
+                    # later resume sees the true running total, while the
+                    # in-memory stats remain session-only (see U3).
                     if checkpoint:
                         self._update_checkpoint_batch(
                             checkpoint["checkpoint_id"], i,
-                            stats["records_inserted"],
+                            previously_loaded_rows + stats["records_inserted"],
                         )
 
                     # Calculate ETA based on wall time and batches completed
