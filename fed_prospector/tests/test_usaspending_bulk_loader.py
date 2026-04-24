@@ -302,8 +302,8 @@ class TestFormatDuration:
 class TestIndexManagement:
 
     def test_secondary_indexes_count(self):
-        """SECONDARY_INDEXES should have exactly 11 entries."""
-        assert len(USASpendingBulkLoader.SECONDARY_INDEXES) == 11
+        """SECONDARY_INDEXES should have exactly 9 entries."""
+        assert len(USASpendingBulkLoader.SECONDARY_INDEXES) == 9
 
     def test_secondary_indexes_have_name_and_sql(self):
         """Each entry should be a (name, CREATE INDEX ...) tuple."""
@@ -326,10 +326,10 @@ class TestIndexManagement:
             # Should not raise
             loader._drop_secondary_indexes()
 
-        # Should have tried all 11 indexes
-        assert mock_cursor.execute.call_count == 11
+        # Should have tried all 9 indexes
+        assert mock_cursor.execute.call_count == 9
         # Rollback called for each failed DROP
-        assert mock_conn.rollback.call_count == 11
+        assert mock_conn.rollback.call_count == 9
 
     def test_drop_secondary_indexes_succeeds(self):
         """Successful drops should commit after each."""
@@ -342,8 +342,8 @@ class TestIndexManagement:
         with patch("etl.usaspending_bulk_loader.get_connection", return_value=mock_conn):
             loader._drop_secondary_indexes()
 
-        assert mock_cursor.execute.call_count == 11
-        assert mock_conn.commit.call_count == 11
+        assert mock_cursor.execute.call_count == 9
+        assert mock_conn.commit.call_count == 9
 
     def test_recreate_secondary_indexes_calls_create(self):
         """Recreate should execute each CREATE INDEX SQL."""
@@ -356,8 +356,8 @@ class TestIndexManagement:
         with patch("etl.usaspending_bulk_loader.get_connection", return_value=mock_conn):
             loader._recreate_secondary_indexes()
 
-        assert mock_cursor.execute.call_count == 11
-        assert mock_conn.commit.call_count == 11
+        assert mock_cursor.execute.call_count == 9
+        assert mock_conn.commit.call_count == 9
 
         # Verify the actual SQL passed to execute matches the SECONDARY_INDEXES
         executed_sqls = [c[0][0] for c in mock_cursor.execute.call_args_list]
