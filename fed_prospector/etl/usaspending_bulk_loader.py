@@ -106,6 +106,39 @@ _HASH_FIELDS = [
 BATCH_SIZE = 50_000
 
 
+def _open_batch_tsv(final_path):
+    """Open a batch TSV for writing via a .tmp sidecar, returning (file, tmp_path).
+
+    The caller is expected to:
+      - write rows to ``file``
+      - call ``file.close()`` then ``os.replace(tmp_path, final_path)`` on success
+      - call ``_discard_partial_tsv(tmp_path, final_path)`` on error
+
+    Writing through a ``.tmp`` sidecar avoids leaving a half-written batch
+    file at ``final_path`` if disk fills (or any other I/O error occurs)
+    mid-write -- LOAD DATA INFILE would otherwise silently load a truncated
+    or malformed batch.  See Phase 120 finding U6.
+    """
+    tmp_path = final_path + ".tmp"
+    try:
+        f = open(tmp_path, "w", encoding="utf-8", newline="")
+    except OSError:
+        # Nothing was created -- nothing to clean up.
+        raise
+    return f, tmp_path
+
+
+def _discard_partial_tsv(tmp_path, final_path=None):
+    """Remove any partial batch artifacts left behind by a failed write."""
+    for path in (tmp_path, final_path):
+        if not path:
+            continue
+        try:
+            os.unlink(path)
+        except OSError:
+            pass
+
+
 class USASpendingBulkLoader:
     """Loads USASpending bulk CSV downloads into usaspending_award.
 
@@ -727,71 +760,113 @@ class USASpendingBulkLoader:
             batch_num = 0
             batch_rows = 0
             tsv_file = None
+            tsv_tmp_path = None  # Sidecar path for the currently open batch
+            tsv_final_path = None
             tsv_paths = []
 
             csv_read_start = time.monotonic()
 
-            with open(csv_path, "r", encoding="utf-8-sig", newline="") as csv_file:
-                reader = csv.reader(csv_file)
-                header = next(reader)
-                col_idx = {name: i for i, name in enumerate(header)}
+            try:
+                with open(csv_path, "r", encoding="utf-8-sig", newline="") as csv_file:
+                    reader = csv.reader(csv_file)
+                    header = next(reader)
+                    col_idx = {name: i for i, name in enumerate(header)}
 
-                # Log unmapped columns once
-                unmapped = [
-                    c for c in header if c not in CSV_COLUMN_MAP
-                ]
-                if unmapped:
-                    self.logger.debug(
-                        "Unmapped CSV columns (%d): %s",
-                        len(unmapped),
-                        ", ".join(unmapped[:20]),
-                    )
-
-                for row in reader:
-                    stats["records_read"] += 1
-
-                    if stats["records_read"] % 100_000 == 0:
-                        self.logger.info(
-                            "Reading CSV: %s rows processed...",
-                            f"{stats['records_read']:,}",
+                    # Log unmapped columns once
+                    unmapped = [
+                        c for c in header if c not in CSV_COLUMN_MAP
+                    ]
+                    if unmapped:
+                        self.logger.debug(
+                            "Unmapped CSV columns (%d): %s",
+                            len(unmapped),
+                            ", ".join(unmapped[:20]),
                         )
 
-                    try:
-                        normalized = self._normalize_csv_row(
-                            row, fiscal_year, col_idx,
-                        )
-                        if normalized is None:
+                    for row in reader:
+                        stats["records_read"] += 1
+
+                        if stats["records_read"] % 100_000 == 0:
+                            self.logger.info(
+                                "Reading CSV: %s rows processed...",
+                                f"{stats['records_read']:,}",
+                            )
+
+                        try:
+                            normalized = self._normalize_csv_row(
+                                row, fiscal_year, col_idx,
+                            )
+                            if normalized is None:
+                                stats["records_errored"] += 1
+                                continue
+                            normalized["last_load_id"] = load_id
+
+                            # Start new batch file when needed
+                            if tsv_file is None or batch_rows >= BATCH_SIZE:
+                                if tsv_file is not None:
+                                    tsv_file.close()
+                                    # Promote sidecar to final name only after
+                                    # a clean close (U6 -- avoid leaving a
+                                    # partial batch under final_path).
+                                    os.replace(tsv_tmp_path, tsv_final_path)
+                                    tsv_tmp_path = None
+                                batch_num += 1
+                                tsv_final_path = os.path.join(
+                                    tsv_dir, f"batch_{batch_num}.tsv"
+                                )
+                                tsv_paths.append(tsv_final_path)
+                                tsv_file, tsv_tmp_path = _open_batch_tsv(
+                                    tsv_final_path
+                                )
+                                batch_rows = 0
+
+                            values = [
+                                escape_tsv_value(normalized.get(col))
+                                for col in LOAD_COLUMNS
+                            ]
+                        except OSError:
+                            # I/O error opening or rotating batch file -- do
+                            # NOT swallow.  Let outer handler unlink the
+                            # partial sidecar and re-raise (U6).
+                            raise
+                        except Exception as exc:
                             stats["records_errored"] += 1
+                            if stats["records_errored"] <= 10:
+                                self.logger.warning(
+                                    "Error normalizing row #%d: %s",
+                                    stats["records_read"], exc,
+                                )
                             continue
-                        normalized["last_load_id"] = load_id
 
-                        # Start new batch file when needed
-                        if tsv_file is None or batch_rows >= BATCH_SIZE:
-                            if tsv_file is not None:
-                                tsv_file.close()
-                            batch_num += 1
-                            tsv_path = os.path.join(tsv_dir, f"batch_{batch_num}.tsv")
-                            tsv_paths.append(tsv_path)
-                            tsv_file = open(tsv_path, "w", encoding="utf-8", newline="")
-                            batch_rows = 0
-
-                        values = [
-                            escape_tsv_value(normalized.get(col))
-                            for col in LOAD_COLUMNS
-                        ]
+                        # Row write is outside the row-level except so disk
+                        # errors are not silently counted as "normalization
+                        # errors" -- they need to propagate (U6).
                         tsv_file.write("\t".join(values) + "\n")
                         batch_rows += 1
 
-                    except Exception as exc:
-                        stats["records_errored"] += 1
-                        if stats["records_errored"] <= 10:
-                            self.logger.warning(
-                                "Error normalizing row #%d: %s",
-                                stats["records_read"], exc,
-                            )
-
-            if tsv_file is not None:
-                tsv_file.close()
+                if tsv_file is not None:
+                    tsv_file.close()
+                    # Final batch: promote sidecar to final name on clean close
+                    if tsv_tmp_path is not None and tsv_final_path is not None:
+                        os.replace(tsv_tmp_path, tsv_final_path)
+                        tsv_tmp_path = None
+                    tsv_file = None
+            except BaseException:
+                # Cleanup partial batch sidecar before propagating (U6).
+                if tsv_file is not None:
+                    try:
+                        tsv_file.close()
+                    except Exception:
+                        pass
+                _discard_partial_tsv(tsv_tmp_path, None)
+                # Drop the not-yet-promoted final path from tsv_paths so the
+                # downstream loader does not try to LOAD DATA INFILE a missing
+                # file.
+                if tsv_paths and tsv_paths[-1] == tsv_final_path and not (
+                    tsv_final_path and os.path.exists(tsv_final_path)
+                ):
+                    tsv_paths.pop()
+                raise
 
             if stats["records_read"] == 0:
                 self.logger.warning("CSV file was empty: %s", csv_path)
@@ -968,98 +1043,131 @@ class USASpendingBulkLoader:
             batch_num = 0
             batch_rows = 0
             tsv_file = None
+            tsv_tmp_path = None  # Sidecar path for the currently open batch
+            tsv_final_path = None
             tsv_paths = []
 
-            with open(csv_path, "r", encoding="utf-8-sig", newline="") as csv_file:
-                reader = csv.reader(csv_file)
-                header = next(reader)
-                col_idx = {name: i for i, name in enumerate(header)}
+            try:
+                with open(csv_path, "r", encoding="utf-8-sig", newline="") as csv_file:
+                    reader = csv.reader(csv_file)
+                    header = next(reader)
+                    col_idx = {name: i for i, name in enumerate(header)}
 
-                # Locate the correction_delete_ind and award_id_piid columns
-                cdi_index = col_idx.get("correction_delete_ind")
-                piid_index = col_idx.get("award_id_piid")
+                    # Locate the correction_delete_ind and award_id_piid columns
+                    cdi_index = col_idx.get("correction_delete_ind")
+                    piid_index = col_idx.get("award_id_piid")
 
-                if cdi_index is None:
-                    self.logger.warning(
-                        "correction_delete_ind column not found in header — "
-                        "processing all rows as upserts"
-                    )
-                if piid_index is None:
-                    self.logger.warning(
-                        "award_id_piid column not found in header — "
-                        "cannot process delete rows"
-                    )
-
-                for row in reader:
-                    stats["records_read"] += 1
-
-                    if stats["records_read"] % 100_000 == 0:
-                        self.logger.info(
-                            "Reading delta CSV: %s rows processed...",
-                            f"{stats['records_read']:,}",
+                    if cdi_index is None:
+                        self.logger.warning(
+                            "correction_delete_ind column not found in header — "
+                            "processing all rows as upserts"
+                        )
+                    if piid_index is None:
+                        self.logger.warning(
+                            "award_id_piid column not found in header — "
+                            "cannot process delete rows"
                         )
 
-                    # Check correction_delete_ind
-                    cdi_value = ""
-                    if cdi_index is not None and cdi_index < len(row):
-                        cdi_value = row[cdi_index].strip()
+                    for row in reader:
+                        stats["records_read"] += 1
 
-                    if cdi_value == "D":
-                        # Collect PIID for soft-delete; skip upsert pipeline
-                        if piid_index is not None and piid_index < len(row):
-                            piid_val = row[piid_index].strip()
-                            if piid_val:
-                                delete_piids.add(piid_val)
-                        continue
+                        if stats["records_read"] % 100_000 == 0:
+                            self.logger.info(
+                                "Reading delta CSV: %s rows processed...",
+                                f"{stats['records_read']:,}",
+                            )
 
-                    # Normal row (blank or "C") — upsert pipeline
-                    try:
-                        # Derive fiscal year from start_date for delta rows
-                        start_date_idx = col_idx.get(
-                            "period_of_performance_start_date"
-                        )
-                        fy = self._derive_fiscal_year(row, start_date_idx)
-                        fy_counter[fy] += 1
+                        # Check correction_delete_ind
+                        cdi_value = ""
+                        if cdi_index is not None and cdi_index < len(row):
+                            cdi_value = row[cdi_index].strip()
 
-                        normalized = self._normalize_csv_row(
-                            row, fy, col_idx,
-                        )
-                        if normalized is None:
-                            stats["records_errored"] += 1
+                        if cdi_value == "D":
+                            # Collect PIID for soft-delete; skip upsert pipeline
+                            if piid_index is not None and piid_index < len(row):
+                                piid_val = row[piid_index].strip()
+                                if piid_val:
+                                    delete_piids.add(piid_val)
                             continue
-                        normalized["last_load_id"] = load_id
 
-                        # Start new batch file when needed
-                        if tsv_file is None or batch_rows >= BATCH_SIZE:
-                            if tsv_file is not None:
-                                tsv_file.close()
-                            batch_num += 1
-                            tsv_path = os.path.join(
-                                tsv_dir, f"batch_{batch_num}.tsv"
+                        # Normal row (blank or "C") — upsert pipeline
+                        try:
+                            # Derive fiscal year from start_date for delta rows
+                            start_date_idx = col_idx.get(
+                                "period_of_performance_start_date"
                             )
-                            tsv_paths.append(tsv_path)
-                            tsv_file = open(
-                                tsv_path, "w", encoding="utf-8", newline=""
-                            )
-                            batch_rows = 0
+                            fy = self._derive_fiscal_year(row, start_date_idx)
+                            fy_counter[fy] += 1
 
-                        values = [
-                            escape_tsv_value(normalized.get(col))
-                            for col in LOAD_COLUMNS
-                        ]
+                            normalized = self._normalize_csv_row(
+                                row, fy, col_idx,
+                            )
+                            if normalized is None:
+                                stats["records_errored"] += 1
+                                continue
+                            normalized["last_load_id"] = load_id
+
+                            # Start new batch file when needed
+                            if tsv_file is None or batch_rows >= BATCH_SIZE:
+                                if tsv_file is not None:
+                                    tsv_file.close()
+                                    # Promote sidecar to final name only after
+                                    # a clean close (U6).
+                                    os.replace(tsv_tmp_path, tsv_final_path)
+                                    tsv_tmp_path = None
+                                batch_num += 1
+                                tsv_final_path = os.path.join(
+                                    tsv_dir, f"batch_{batch_num}.tsv"
+                                )
+                                tsv_paths.append(tsv_final_path)
+                                tsv_file, tsv_tmp_path = _open_batch_tsv(
+                                    tsv_final_path
+                                )
+                                batch_rows = 0
+
+                            values = [
+                                escape_tsv_value(normalized.get(col))
+                                for col in LOAD_COLUMNS
+                            ]
+                        except OSError:
+                            # I/O error opening or rotating batch file -- do
+                            # NOT swallow.  Let outer handler unlink the
+                            # partial sidecar and re-raise (U6).
+                            raise
+                        except Exception as exc:
+                            stats["records_errored"] += 1
+                            if stats["records_errored"] <= 10:
+                                self.logger.warning(
+                                    "Error normalizing delta row #%d: %s",
+                                    stats["records_read"], exc,
+                                )
+                            continue
+
+                        # Row write outside the row-level except so disk errors
+                        # propagate instead of being miscounted (U6).
                         tsv_file.write("\t".join(values) + "\n")
                         batch_rows += 1
 
-                    except Exception as exc:
-                        stats["records_errored"] += 1
-                        if stats["records_errored"] <= 10:
-                            self.logger.warning(
-                                "Error normalizing delta row #%d: %s",
-                                stats["records_read"], exc,
-                            )
-
-            if tsv_file is not None:
-                tsv_file.close()
+                if tsv_file is not None:
+                    tsv_file.close()
+                    # Final batch: promote sidecar to final name on clean close
+                    if tsv_tmp_path is not None and tsv_final_path is not None:
+                        os.replace(tsv_tmp_path, tsv_final_path)
+                        tsv_tmp_path = None
+                    tsv_file = None
+            except BaseException:
+                # Cleanup partial batch sidecar before propagating (U6).
+                if tsv_file is not None:
+                    try:
+                        tsv_file.close()
+                    except Exception:
+                        pass
+                _discard_partial_tsv(tsv_tmp_path, None)
+                if tsv_paths and tsv_paths[-1] == tsv_final_path and not (
+                    tsv_final_path and os.path.exists(tsv_final_path)
+                ):
+                    tsv_paths.pop()
+                raise
 
             # Log fiscal year distribution
             if fy_counter:
