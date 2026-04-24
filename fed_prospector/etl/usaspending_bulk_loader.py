@@ -1511,16 +1511,20 @@ class USASpendingBulkLoader:
         conn = get_connection()
         cursor = conn.cursor()
         try:
+            # Use GROUP BY / HAVING (single pass over the candidate load_ids)
+            # instead of a correlated NOT EXISTS subquery, which scans the
+            # checkpoint table once per outer row and degrades to O(n^2) as
+            # the checkpoint history grows across many FYs.
             cursor.execute(
-                "SELECT c1.load_id "
-                "FROM usaspending_load_checkpoint c1 "
-                "WHERE c1.fiscal_year = %s AND c1.archive_hash = %s "
-                "  AND c1.status = 'COMPLETE' "
-                "  AND NOT EXISTS ("
-                "    SELECT 1 FROM usaspending_load_checkpoint c2 "
-                "    WHERE c2.load_id = c1.load_id "
-                "      AND c2.status != 'COMPLETE'"
-                "  ) "
+                "SELECT load_id "
+                "FROM usaspending_load_checkpoint "
+                "WHERE load_id IN ("
+                "    SELECT load_id FROM usaspending_load_checkpoint "
+                "    WHERE fiscal_year = %s AND archive_hash = %s "
+                "      AND status = 'COMPLETE'"
+                ") "
+                "GROUP BY load_id "
+                "HAVING SUM(status = 'COMPLETE') = COUNT(*) "
                 "LIMIT 1",
                 (fiscal_year, archive_hash),
             )
