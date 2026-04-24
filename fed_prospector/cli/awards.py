@@ -1,5 +1,6 @@
 """CLI commands for contract award data (Phase 5A)."""
 
+import re
 import sys
 import time
 
@@ -9,6 +10,10 @@ import requests
 from api_clients.base_client import RateLimitExceeded
 from config.logging_config import setup_logging
 from config import settings
+
+
+# NAICS codes are always 6-digit numbers (per Census Bureau spec).
+_NAICS_RE = re.compile(r"^\d{6}$")
 
 
 def _load_awards_for_org(org_identifier, api_key_number, max_calls, dry_run):
@@ -243,6 +248,15 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back
     today = date.today()
 
     naics_codes = [c.strip() for c in naics.split(',') if c.strip()] if naics else []
+
+    # A4: Validate NAICS code format (must be 6-digit number)
+    invalid_naics = [c for c in naics_codes if not _NAICS_RE.match(c)]
+    if invalid_naics:
+        raise click.BadParameter(
+            f"Invalid NAICS code(s): {', '.join(invalid_naics)}. "
+            "NAICS codes must be 6-digit numbers (e.g., 541512).",
+            param_hint="--naics",
+        )
 
     # Apply default filters when none specified (fixes scheduler "no filter" error)
     using_defaults = False
