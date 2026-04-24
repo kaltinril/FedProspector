@@ -269,6 +269,12 @@ class OpportunityLoader(StagingMixin):
 
                 # --- Phase 3: Batch upsert changed records ---
                 if changed_records:
+                    pre_phase3_stats = {
+                        "records_inserted": stats["records_inserted"],
+                        "records_updated": stats["records_updated"],
+                        "records_unchanged": stats["records_unchanged"],
+                        "records_errored": stats["records_errored"],
+                    }
                     try:
                         upsert_rows = []
                         for _raw, opp_data, _nid, _nh, _p, _oh in changed_records:
@@ -281,7 +287,7 @@ class OpportunityLoader(StagingMixin):
                         # Count inserts vs updates, upsert POCs, log history
                         all_history_rows = []
                         for _raw, opp_data, notice_id, new_hash, pocs, old_hash in changed_records:
-                            if notice_id in existing_hashes:
+                            if old_hash is not None:
                                 stats["records_updated"] += 1
                                 # History logging for updates
                                 old_record = old_records.get(notice_id)
@@ -322,6 +328,12 @@ class OpportunityLoader(StagingMixin):
                             len(changed_records), batch_exc,
                         )
                         conn.rollback()
+                        # Reset stats so the fallback loop doesn't double-count
+                        # any records that were tallied before the exception.
+                        stats["records_inserted"] = pre_phase3_stats["records_inserted"]
+                        stats["records_updated"] = pre_phase3_stats["records_updated"]
+                        stats["records_unchanged"] = pre_phase3_stats["records_unchanged"]
+                        stats["records_errored"] = pre_phase3_stats["records_errored"]
                         for raw, opp_data, notice_id, new_hash, pocs, old_hash in changed_records:
                             try:
                                 outcome = self._upsert_opportunity(cursor, opp_data, load_id)
@@ -440,12 +452,14 @@ class OpportunityLoader(StagingMixin):
         # Parse award amount to string for Decimal column
         award_amount = self._parse_decimal(award.get("amount"))
 
-        # JSON-encode resource links
+        # JSON-encode resource links (skip if already a JSON string)
         resource_links_raw = raw.get("resourceLinks")
-        if resource_links_raw is not None:
-            resource_links = json.dumps(resource_links_raw)
-        else:
+        if resource_links_raw is None:
             resource_links = None
+        elif isinstance(resource_links_raw, str):
+            resource_links = resource_links_raw
+        else:
+            resource_links = json.dumps(resource_links_raw)
 
         # Parse department hierarchy from dot-separated path
         parent_path = raw.get("fullParentPathName") or ""
@@ -614,19 +628,21 @@ class OpportunityLoader(StagingMixin):
             # Get the officer_id (either newly inserted or existing)
             officer_id = cursor.lastrowid
             if officer_id == 0:
-                # ON DUPLICATE KEY UPDATE: lastrowid is 0, need to look up
+                # ON DUPLICATE KEY UPDATE: lastrowid is 0, need to look up.
+                # Use NULL-safe equality (<=>) so a row with NULL email is
+                # matched correctly — the unique key is (full_name, email).
                 cursor.execute(
                     "SELECT officer_id FROM contracting_officer "
-                    "WHERE full_name = %s AND email = %s",
+                    "WHERE full_name = %s AND email <=> %s",
                     (poc["full_name"], poc["email"]),
                 )
                 row = cursor.fetchone()
                 if row is None:
-                    self.logger.warning(
-                        "Could not find officer_id for %s / %s",
-                        poc["full_name"], poc["email"],
+                    raise RuntimeError(
+                        f"contracting_officer lookup returned no row after "
+                        f"upsert for full_name={poc['full_name']!r} "
+                        f"email={poc['email']!r}"
                     )
-                    continue
                 officer_id = row["officer_id"]
 
             # Map POC type to uppercase for consistency

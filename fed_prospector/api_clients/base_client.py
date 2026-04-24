@@ -447,11 +447,16 @@ class BaseAPIClient:
                     break
             else:
                 total = data.get(total_key, 0)
+                # Short page = end of results, even if total claims more.
+                short_page = (
+                    results_for_check is not None
+                    and len(results_for_check) < page_size
+                )
                 if pagination_style == "page":
                     page += 1
-                    if page * page_size >= total:
+                    if page * page_size >= total or short_page:
                         break
                 else:
                     offset += page_size
-                    if offset >= total:
+                    if offset >= total or short_page:
                         break

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     award_number         VARCHAR(500),
     award_date           DATE,
     award_amount         DECIMAL(15,2),
-    awardee_uei          VARCHAR(12),
+    awardee_uei          VARCHAR(13),
     awardee_name         VARCHAR(500),
     awardee_cage_code    VARCHAR(10),
     awardee_city         VARCHAR(100),
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     INDEX idx_opp_type (type),
     INDEX idx_opp_active (active),
     INDEX idx_opp_sol (solicitation_number),
-    KEY idx_opp_department (department_name(50)),
+    KEY idx_opp_department (department_name),
     INDEX idx_opp_dept_cgac (department_cgac),
     INDEX idx_opp_fh_org (fh_org_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
