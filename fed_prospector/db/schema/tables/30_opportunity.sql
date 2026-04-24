@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     award_number         VARCHAR(500),
     award_date           DATE,
     award_amount         DECIMAL(15,2),
-    awardee_uei          VARCHAR(12),
+    awardee_uei          VARCHAR(13),
     awardee_name         VARCHAR(500),
     awardee_cage_code    VARCHAR(10),
     awardee_city         VARCHAR(100),
