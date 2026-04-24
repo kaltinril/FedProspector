@@ -239,7 +239,8 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back
     DEFAULT_AWARDS_SET_ASIDES from settings. When no date range is given,
     resumes from the last successful load's watermark date.
 
-    Uses offset-based pagination (100 records per API call). Each page
+    Uses page-based pagination (100 records per API call). SAM.gov's `offset`
+    parameter is actually a 0-based page index, not a record offset. Each page
     counts as one API call against the daily SAM.gov limit. Progress is
     saved after every page for crash-safe resume.
 
@@ -474,6 +475,8 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back
 
                 while calls_made < max_calls:
                     try:
+                        # NOTE (A5): SAM.gov's `offset` parameter behaves as a 0-based
+                        # page index (not a record offset), so we pass the page number.
                         data = client.search_awards(
                             naics_code=naics_code, set_aside=sa_code, agency_code=agency,
                             awardee_uei=awardee_uei, piid=piid,
