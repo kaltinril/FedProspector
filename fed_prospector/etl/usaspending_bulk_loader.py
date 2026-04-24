@@ -304,8 +304,13 @@ class USASpendingBulkLoader:
             "Loading delta file %s (load_id=%d)", delta_filename, load_id
         )
 
-        # Use fiscal_year=0 as sentinel for delta loads
-        DELTA_FY = 0
+        # Use fiscal_year=-1 as sentinel for delta loads.
+        # NOTE: must NOT be 0, because _derive_fiscal_year() returns 0 when
+        # a row's start_date is missing or unparseable. Using -1 keeps the
+        # delta-archive dedup key distinct from per-row "unknown FY" rows,
+        # so delta records with bad dates are not silently deduped against
+        # the delta archive's checkpoint.
+        DELTA_FY = -1
 
         archive_hash = self._compute_archive_hash(zip_path)
         if self._is_fy_already_loaded(DELTA_FY, archive_hash):
