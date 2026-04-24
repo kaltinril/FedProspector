@@ -346,9 +346,11 @@ class TestLoadAwards:
                 change_detector=mock_change_detector,
                 load_manager=mock_load_manager,
             )
-            # Pre-populate hash cache for the _get_existing_hashes call
-            with patch.object(loader, "_get_existing_hashes",
-                              return_value={"GS-35F-0001|P00001": "samehash"}):
+            # A3: hashes are now fetched lazily per-batch. Stub the fetch to
+            # pre-populate the cache for the record under test.
+            def _stub_fetch(keys, cache):
+                cache["GS-35F-0001|P00001"] = "samehash"
+            with patch.object(loader, "_fetch_hashes_for_keys", side_effect=_stub_fetch):
                 stats = loader.load_awards([_make_raw_award()], load_id=1)
 
         assert stats["records_unchanged"] == 1

@@ -1,5 +1,6 @@
 """CLI commands for contract award data (Phase 5A)."""
 
+import re
 import sys
 import time
 
@@ -9,6 +10,30 @@ import requests
 from api_clients.base_client import RateLimitExceeded
 from config.logging_config import setup_logging
 from config import settings
+
+
+# Whitelist of valid SAM.gov set-aside codes accepted by the Contract Awards
+# and Opportunities APIs. Sourced from
+# `thesolution/reference/vendor-apis/SAM-OPPORTUNITIES-API.md` (Tier 1-3
+# table) plus the additional officially-supported codes documented in SAM.gov
+# (IEE, ISBEE, RSB, VSA, VSS, BICiv). Validated against the CLI before any
+# API calls are made so that typos fail loudly instead of silently returning
+# zero results.
+VALID_SET_ASIDE_CODES = frozenset({
+    "SBA", "SBP",
+    "8A", "8AN",
+    "HZC", "HZS",
+    "SDVOSBC", "SDVOSBS",
+    "WOSB", "WOSBSS",
+    "EDWOSB", "EDWOSBSS",
+    "IEE", "ISBEE",
+    "RSB",
+    "VSA", "VSS",
+    "BICiv",
+})
+
+# NAICS codes are always 6-digit numbers (per Census Bureau spec).
+_NAICS_RE = re.compile(r"^\d{6}$")
 
 
 def _load_awards_for_org(org_identifier, api_key_number, max_calls, dry_run):
@@ -214,7 +239,8 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back
     DEFAULT_AWARDS_SET_ASIDES from settings. When no date range is given,
     resumes from the last successful load's watermark date.
 
-    Uses offset-based pagination (100 records per API call). Each page
+    Uses page-based pagination (100 records per API call). SAM.gov's `offset`
+    parameter is actually a 0-based page index, not a record offset. Each page
     counts as one API call against the daily SAM.gov limit. Progress is
     saved after every page for crash-safe resume.
 
@@ -244,6 +270,15 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back
 
     naics_codes = [c.strip() for c in naics.split(',') if c.strip()] if naics else []
 
+    # A4: Validate NAICS code format (must be 6-digit number)
+    invalid_naics = [c for c in naics_codes if not _NAICS_RE.match(c)]
+    if invalid_naics:
+        raise click.BadParameter(
+            f"Invalid NAICS code(s): {', '.join(invalid_naics)}. "
+            "NAICS codes must be 6-digit numbers (e.g., 541512).",
+            param_hint="--naics",
+        )
+
     # Apply default filters when none specified (fixes scheduler "no filter" error)
     using_defaults = False
     if not any([naics, set_aside, agency, awardee_uei, piid, fiscal_year]):
@@ -259,6 +294,17 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back
         set_aside_codes = [s.strip() for s in set_aside.split(',') if s.strip()]
     else:
         set_aside_codes = [None]  # Single iteration with no set-aside filter
+
+    # A1: Validate set-aside codes against whitelist
+    invalid_set_asides = [
+        s for s in set_aside_codes if s and s not in VALID_SET_ASIDE_CODES
+    ]
+    if invalid_set_asides:
+        raise click.BadParameter(
+            f"Invalid set-aside code(s): {', '.join(invalid_set_asides)}. "
+            f"Valid codes: {', '.join(sorted(VALID_SET_ASIDE_CODES))}.",
+            param_hint="--set-aside",
+        )
 
     # Date range: explicit dates -> fiscal year -> days-back -> years-back -> watermark -> fallback
     explicit_date_override = (date_from_str is not None or date_to_str is not None or
@@ -429,6 +475,8 @@ def load_awards(naics, set_aside, agency, awardee_uei, piid, for_org, years_back
 
                 while calls_made < max_calls:
                     try:
+                        # NOTE (A5): SAM.gov's `offset` parameter behaves as a 0-based
+                        # page index (not a record offset), so we pass the page number.
                         data = client.search_awards(
                             naics_code=naics_code, set_aside=sa_code, agency_code=agency,
                             awardee_uei=awardee_uei, piid=piid,
