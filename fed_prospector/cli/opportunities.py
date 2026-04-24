@@ -167,7 +167,8 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
                 "WHERE source_system = 'SAM_OPPORTUNITY' "
                 "AND parameters LIKE %s "
                 "AND parameters LIKE %s "
-                "ORDER BY CAST(JSON_EXTRACT(parameters, '$.pages_fetched') AS UNSIGNED) DESC "
+                "ORDER BY CAST(JSON_EXTRACT(parameters, '$.pages_fetched') AS UNSIGNED) DESC, "
+                "started_at DESC "
                 "LIMIT 1",
                 (f'%"posted_from": "{posted_from_str}"%',
                  f'%"posted_to": "{posted_to_str}"%'),
