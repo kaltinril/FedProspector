@@ -155,7 +155,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 115M | FPDS Contract Data Enrichment | COMPLETE | [115M-FPDS-DATA-ENRICHMENT.md](phases/completed/115M-FPDS-DATA-ENRICHMENT.md) |
 | 116 | Daily Job Performance & Resource Link Architecture | COMPLETE | [116-DAILY-JOB-PERFORMANCE.md](phases/completed/116-DAILY-JOB-PERFORMANCE.md) |
 | 117 | Daily Job Optimization | COMPLETE | [117-DAILY-JOB-OPTIMIZATION.md](phases/completed/117-DAILY-JOB-OPTIMIZATION.md) |
-| 120 | ETL & Pipeline Code Review | PLANNED | [120-ETL-CODE-REVIEW.md](phases/120-ETL-CODE-REVIEW.md) |
+| 120 | ETL & Pipeline Code Review | COMPLETE | [120-ETL-CODE-REVIEW.md](phases/completed/120-ETL-CODE-REVIEW.md) |
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |
 | 122 | Opportunity POC Extraction | COMPLETE | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/completed/122-OPPORTUNITY-POC-EXTRACTION.md) |

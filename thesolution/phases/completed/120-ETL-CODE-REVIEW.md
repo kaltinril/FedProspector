@@ -1,6 +1,6 @@
 # Phase 120: ETL & Pipeline Code Review
 
-**Status:** PLANNED
+**Status:** COMPLETE (2026-04-23)
 **Goal:** Fix bugs, improve performance, and increase accuracy in the core data loading and attachment pipeline commands.
 
 This document captures findings from a comprehensive code review of the production ETL pipeline. Each finding includes severity, file location, and recommended fix.
@@ -18,6 +18,60 @@ All 28 findings were re-validated on 2026-04-23 (32 days after the original 2026
 **Phase scope (actual):** This phase covers `usaspending-bulk`, `opportunities`, `awards`, and the attachment pipeline -- 4 of ~14 ETL CLI command modules. A follow-up phase would be needed for `fedhier`, `exclusions`, `subaward`, `sca`, `bls`, `calc`, `spending`, `entities`, `agencies`, `normalize`, `backfill`, `demand`, and `load_batch`.
 
 See the Implementation Plan section for the trimmed task list reflecting current state.
+
+---
+
+## Implementation Results -- 2026-04-23
+
+All in-scope findings (22 of 28) are RESOLVED. The remaining 6 were either FIXED by prior phase work (P1, P2, P3, P6, A2 -- closed during Phase 110H/110ZZZ/121/131) or audited and confirmed not needed (U7 -- live data fits current widths).
+
+S1 severity verified: MySQL 8.4.8 emits warning `Code 1287` on the deprecated `VALUES()` syntax, NOT an error. Downgraded from CRITICAL to HIGH. Fix landed regardless to future-proof the upgrade path.
+
+### Commits per finding
+
+| Finding | Commit | Resolution summary |
+|---------|--------|--------------------|
+| S1 | `1e1084f`, `60051f8` | Switched `batch_upsert.py` and `usaspending_bulk_loader._upsert_from_temp` to `AS new` row-alias syntax. Verified zero warnings on live MySQL 8.4.8. |
+| U1 | `85ed407` | Added `archive_hash` to in-progress checkpoint resume query. |
+| U2 | `c69484e` | Changed `DELTA_FY` from `0` to `-1` to disambiguate from FY-parse-failure sentinel. |
+| U3 | `634b5ba` | Track session rows separately from cumulative; stats no longer double-count on resume. |
+| U4 | `3da471b` | Replaced O(n^2) `NOT EXISTS` with `GROUP BY ... HAVING` over `idx_fy_hash`. |
+| U5 | `c31b0ae` | Compute SHA-256 `record_hash` via shared `compute_record_hash` helper. |
+| U6 | `aba50b0` | TSV writes via `.tmp` sidecar; partial files cleaned up on error. |
+| U7 | (audit only) | Audit query: max widths are piid=42, sol_id=25, pop_city=27 -- all fit current schema. No ALTER applied. |
+| O1 | `a5c08ec` | Stats classification now keys on `old_hash is not None`; fallback path snapshot/restore prevents double-count. |
+| O2 | `83d5e6f` | Added `len(results) < page_size` short-page break to pagination. |
+| O3 | `63ecb15` | `awardee_uei` widened to `VARCHAR(13)`. **Live DB ALTER applied.** Audit confirmed 12,795 existing rows already <=12 chars (no truncation). |
+| O4 | `51da51d` | NULL-safe `<=>` lookup; missing row raises `RuntimeError` (handled by existing fallback try/except) instead of silent skip. |
+| O5 | `e012ee3` | Skip `json.dumps` when `resource_links_raw` is already a string. |
+| O6 | `b3905bf` | Added `started_at DESC` tiebreaker to resume query. |
+| O7 | `bccbb0e` | Replaced `department_name(50)` prefix with full-column index. **Live DB ALTER applied.** Cardinality 66, max len 69. |
+| A1 | `52f1034` | Set-aside whitelist (18 codes) validated via `click.BadParameter`. |
+| A3 | `7dab903` | Lazy per-batch hash fetch (chunked at 500) replaces full 500K-row scan. |
+| A4 | `13d1b17` | NAICS regex `^\d{6}$` validation. |
+| A5 | `360669b` | Documented SAM.gov page-as-offset behavior (variable was already named `page`). |
+| P1 | (FIXED prior) | Closed by Phase 110H per-document architecture redesign. |
+| P2 | (FIXED prior) | Closed by Phase 110H join restructure. |
+| P3 | (FIXED prior) | Closed by Phase 110H consolidation rewrite. |
+| P4 | `7914a01` | Only set `is_scanned=True` for PDF empty extractions (other handlers no longer misclassified). |
+| P5 | `f9892cf` | Added `--reset-retries <ids>` and `--reset-all-retries` CLI flags to `extract attachment-text`. (Phase 131 covered UI re-analysis but not retry-counter reset.) |
+| P6 | (FIXED prior) | Closed by Phase 121 design change (zero-match documents now stamp `keyword_analyzed_at`). |
+| P7 | `e361eb9` | Removed redundant `f.close()` inside `with open()`. |
+| P8 | `1026bd4` | Collapsed double-EXISTS into single subquery with `GROUP BY ... HAVING SUM(...) > 0` per method bucket. Verified equivalent row counts. |
+| P9 | `93d6aaa` | Added `idx_dis_extraction_method` to `document_intel_summary`. **Live DB ALTER applied.** |
+| A2 | (FIXED prior) | `last_load_id` already in `_UPSERT_COLS`; bug as described doesn't exist. |
+
+### Live DB ALTERs applied (2026-04-23)
+
+```sql
+ALTER TABLE opportunity MODIFY COLUMN awardee_uei VARCHAR(13);
+ALTER TABLE opportunity DROP INDEX idx_opp_department, ADD INDEX idx_opp_department (department_name);
+ALTER TABLE document_intel_summary ADD INDEX idx_dis_extraction_method (extraction_method);
+```
+
+### Out-of-scope observation
+
+`tests/test_usaspending_bulk_loader.py::TestIndexManagement` has 4 pre-existing test failures asserting `len(SECONDARY_INDEXES) == 11` while the loader has 9. Confirmed failing at pre-merge commit `6862945`; not introduced by Phase 120 work. Track as a follow-up.
 
 ---
 
