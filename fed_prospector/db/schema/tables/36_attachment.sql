@@ -91,7 +91,8 @@ CREATE TABLE IF NOT EXISTS document_intel_summary (
     last_load_id           INT,
     extracted_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE INDEX idx_upsert (document_id, extraction_method),
-    INDEX idx_document (document_id)
+    INDEX idx_document (document_id),
+    INDEX idx_dis_extraction_method (extraction_method)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS document_intel_evidence (
