@@ -159,7 +159,10 @@ class TestNormalizeCsvRow:
         row = _make_csv_row()
         result = loader._normalize_csv_row(row, 2026)
         assert result["fpds_enriched_at"] is None
-        assert result["record_hash"] is None
+        # Phase 120 U5: record_hash is computed from a stable column set
+        # so subsequent loads can detect actual content changes.
+        assert isinstance(result["record_hash"], str)
+        assert len(result["record_hash"]) == 64  # SHA-256 hex digest
 
     def test_unmapped_csv_columns_ignored(self):
         """Extra columns in the CSV should not appear in the result."""

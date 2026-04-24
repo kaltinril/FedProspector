@@ -17,6 +17,7 @@ import zipfile
 from db.connection import get_connection
 from etl.etl_utils import escape_tsv_value, parse_date, parse_decimal, refresh_usaspending_award_summary, resolve_usaspending_agency_codes, resolve_usaspending_fh_org_ids
 from etl.load_manager import LoadManager
+from utils.hashing import compute_record_hash
 
 
 # Column mapping: CSV column name -> usaspending_award table column
@@ -74,6 +75,33 @@ LOAD_COLUMNS = [
 
 # Non-PK columns for the ON DUPLICATE KEY UPDATE clause
 _UPDATE_COLUMNS = [c for c in LOAD_COLUMNS if c != "generated_unique_award_id"]
+
+# Stable column set used to compute record_hash for change detection.
+# Mirrors the field set used by the streaming USASpendingLoader so that
+# bulk and incremental loads agree on the hash for the same award.
+_HASH_FIELDS = [
+    "piid",
+    "fain",
+    "uri",
+    "award_type",
+    "recipient_name",
+    "recipient_uei",
+    "total_obligation",
+    "base_and_all_options_value",
+    "start_date",
+    "end_date",
+    "awarding_agency_name",
+    "awarding_sub_agency_name",
+    "funding_agency_name",
+    "naics_code",
+    "psc_code",
+    "type_of_set_aside",
+    "pop_state",
+    "pop_country",
+    "pop_zip",
+    "pop_city",
+    "solicitation_identifier",
+]
 
 BATCH_SIZE = 50_000
 
@@ -1283,7 +1311,9 @@ class USASpendingBulkLoader:
         # Set bulk-load-specific fields
         result["fiscal_year"] = fiscal_year
         result["fpds_enriched_at"] = None
-        result["record_hash"] = None
+        # SHA-256 hash over a stable column set so subsequent loads can detect
+        # actual content changes instead of treating every re-load as new.
+        result["record_hash"] = compute_record_hash(result, _HASH_FIELDS)
 
         return result
 
