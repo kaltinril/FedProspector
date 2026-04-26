@@ -31,7 +31,7 @@ Both hashes are already computed and stored but **never checked for duplicates**
 ## How Hashes Are Computed
 
 - **`content_hash`** (`sam_attachment`): SHA-256 of the raw downloaded file bytes. Computed in `attachment_downloader.py` at download time.
-- **`text_hash`** (`attachment_document`): SHA-256 of the extracted text string (`text.encode("utf-8")`). Computed in `attachment_text_extractor.py` at extraction time (line 858).
+- **`text_hash`** (`attachment_document`): SHA-256 of the extracted text string (`text.encode("utf-8")`). Computed in `attachment_text_extractor.py` at extraction time (line 861).
 
 ## Approach: Prevent Duplicates Upstream
 
@@ -57,7 +57,7 @@ Once deduped, the duplicate `sam_attachment` maps to the existing canonical `att
 
 ### Layer 2: Known-duplicate check in `attachment_downloader.py`
 
-**When:** BEFORE downloading a file, after resolving its `resource_guid`. Inserted between the existing Layer 1 check (line ~383) and the SSRF check (line ~386).
+**When:** BEFORE downloading a file, after resolving its `resource_guid`. Inserted between the existing Layer 1 check (line ~517) and the SSRF check (line ~532).
 
 **Logic:**
 1. Check `attachment_dedup_map` for this `resource_guid`.
@@ -70,7 +70,7 @@ Once deduped, the duplicate `sam_attachment` maps to the existing canonical `att
 
 ### Layer 3: Content-hash dedup in `attachment_downloader.py`
 
-**When:** Immediately after downloading a file and computing its `content_hash`. **CRITICAL: must run BEFORE `_upsert_attachment_row()` (line ~536)** — otherwise an `attachment_document` row with `extraction_status = 'pending'` gets created, the file gets deleted, and the extractor later tries to open a missing file. Insertion point is line ~524, after `content_hash` is computed.
+**When:** Immediately after downloading a file and computing its `content_hash`. **CRITICAL: must run BEFORE `_upsert_attachment_row()` (line ~835)** — otherwise an `attachment_document` row with `extraction_status = 'pending'` gets created, the file gets deleted, and the extractor later tries to open a missing file. Insertion point is line ~713, after `content_hash` is computed.
 
 **Logic:**
 1. Download the file and compute `content_hash` as usual.
@@ -151,7 +151,7 @@ A one-time migration to resolve the ~622 content-hash and ~625 text-hash duplica
 
 If two documents with the same hash appear in the same download/extraction batch:
 - Both could pass the "no existing match" check before either is committed.
-- **Mitigation:** Maintain a thread-safe `seen_hashes` dict (protected by `threading.Lock`) during batch processing. The downloader uses `ThreadPoolExecutor` with 5 workers — the lock protects a tiny dict lookup/insert (microseconds), no performance impact. When a second document with the same hash appears, skip it and let the next ETL run pick it up.
+- **Mitigation:** Maintain a thread-safe `seen_hashes` dict (protected by `threading.Lock`) during batch processing. The downloader uses `ThreadPoolExecutor` with 10 workers (default) — the lock protects a tiny dict lookup/insert (microseconds), no performance impact. When a second document with the same hash appears, skip it and let the next ETL run pick it up.
 
 ## Force Redownload (`--force`)
 
