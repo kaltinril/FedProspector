@@ -1,13 +1,13 @@
 # Phase 125: Keyword Extractor — Switch to Document-Level Filter
 
-**Status:** PLANNED
+**Status:** COMPLETE (2026-04-28)
 **Priority:** Medium (silent data drift; affects amendment attachments)
 **Depends on:** none
-**Surfaced by:** Phase 124 verification — see [completed/124-ATTACHMENT-HASH-DEDUP.md](completed/124-ATTACHMENT-HASH-DEDUP.md) "Known Issues / Follow-ups".
+**Surfaced by:** Phase 124 verification — see [124-ATTACHMENT-HASH-DEDUP.md](124-ATTACHMENT-HASH-DEDUP.md) "Known Issues / Follow-ups".
 
 ## Problem
 
-The keyword intel extractor in [`fed_prospector/etl/attachment_intel_extractor.py`](../../fed_prospector/etl/attachment_intel_extractor.py) selects work at the **notice level**, not the **document level**. Once any document on a notice produces a `document_intel_summary` row, the entire notice is excluded from re-processing.
+The keyword intel extractor in [`fed_prospector/etl/attachment_intel_extractor.py`](../../../fed_prospector/etl/attachment_intel_extractor.py) selects work at the **notice level**, not the **document level**. Once any document on a notice produces a `document_intel_summary` row, the entire notice is excluded from re-processing.
 
 When a SAM.gov notice gets amended later (new attachments added), the daily load extracts text from the new documents (`extraction_status='extracted'`), but the keyword extractor's notice-level filter sees that the notice "already has keyword intel" and skips the entire notice. The new documents never get keyword extraction, never get a `keyword_analyzed_at` timestamp, and never appear in any intel rollup.
 
@@ -23,7 +23,7 @@ The 5,527 figure is the smoking gun: nearly every "missed" document is on a prev
 
 ### The faulty SQL
 
-[`_fetch_eligible_notices`](../../fed_prospector/etl/attachment_intel_extractor.py) (around line 728) uses:
+[`_fetch_eligible_notices`](../../../fed_prospector/etl/attachment_intel_extractor.py) (around line 728) uses:
 
 ```sql
 SELECT DISTINCT n.notice_id FROM (
@@ -59,7 +59,7 @@ The `_description_only` branch must NOT change — descriptions really are per-n
 
 Before any code change, the summary INSERT path needed to be classified to determine whether "second-pass" extractions on a notice that already has a summary row are safe. **Verified during phase planning (2026-04-28):**
 
-`opportunity_attachment_summary` writes use `INSERT ... ON DUPLICATE KEY UPDATE` ([`attachment_intel_extractor.py:1707`](../../fed_prospector/etl/attachment_intel_extractor.py) and again at line 1715). This is the ✅ UPSERT case — new evidence from a re-extracted document merges into the existing summary row. **No schema migration needed; no upsert migration needed.** The fix is purely in `attachment_intel_extractor.py`.
+`opportunity_attachment_summary` writes use `INSERT ... ON DUPLICATE KEY UPDATE` ([`attachment_intel_extractor.py:1707`](../../../fed_prospector/etl/attachment_intel_extractor.py) and again at line 1715). This is the UPSERT case — new evidence from a re-extracted document merges into the existing summary row. **No schema migration needed; no upsert migration needed.** The fix is purely in `attachment_intel_extractor.py`.
 
 ## `--force` semantics post-fix
 
@@ -69,12 +69,12 @@ Decide and document:
 
 ## Tasks
 
-- [ ] **Task 1:** Modify `_fetch_eligible_notices` attachment path (around line 728) to filter by document-level `keyword_analyzed_at IS NULL` instead of notice-level summary existence. Leave the `_description_only` branch unchanged.
-- [ ] **Task 2:** Apply the **same** filter change to `_count_eligible_notices` (around line 803). Both functions are called as a pair from line 496-497; if they disagree, the progress counter shown to the user during a run will be wrong.
-- [ ] **Task 3:** Add per-document `keyword_analyzed_at IS NULL` skip inside the per-notice processing loop. The loop is in `_process_notice` (around line 898) — it's the function that iterates a notice's documents and calls the pattern extractor on each. Skip docs where `keyword_analyzed_at IS NOT NULL` unless `force=True` is passed (Task 4 pairs with this).
-- [ ] **Task 4:** Update `--force` to override the new doc-level skip as well (truly reprocess all docs on selected notices). Existing `--force` behavior already deletes stale `opportunity_attachment_summary` rows for keyword/heuristic methods (around line 2011-2015) and the corresponding `document_intel_summary` rows (around line 2042-2045) — preserve that. The new `--force` semantics are *additive*: still delete those rows, AND override the per-doc `keyword_analyzed_at` skip from Task 3.
-- [ ] **Task 5:** Add `INDEX idx_keyword_analyzed_at (keyword_analyzed_at)` to `attachment_document` in `fed_prospector/db/schema/tables/36_attachment.sql`. **Verified during planning (2026-04-28): no index exists today** — only the column declaration at line 47. The new query in Tasks 1-2 scans on `keyword_analyzed_at IS NULL` and would full-scan ~50K rows without the index. Apply to live DB (per project rule: keep DDL and live DB in sync).
-- [ ] **Task 6:** Tests:
+- [x] **Task 1:** Modify `_fetch_eligible_notices` attachment path (around line 728) to filter by document-level `keyword_analyzed_at IS NULL` instead of notice-level summary existence. Leave the `_description_only` branch unchanged.
+- [x] **Task 2:** Apply the **same** filter change to `_count_eligible_notices` (around line 803). Both functions are called as a pair from line 496-497; if they disagree, the progress counter shown to the user during a run will be wrong.
+- [x] **Task 3:** Add per-document `keyword_analyzed_at IS NULL` skip inside the per-notice processing loop. The loop is in `_process_notice` (around line 898) — it's the function that iterates a notice's documents and calls the pattern extractor on each. Skip docs where `keyword_analyzed_at IS NOT NULL` unless `force=True` is passed (Task 4 pairs with this).
+- [x] **Task 4:** Update `--force` to override the new doc-level skip as well (truly reprocess all docs on selected notices). Existing `--force` behavior already deletes stale `opportunity_attachment_summary` rows for keyword/heuristic methods (around line 2011-2015) and the corresponding `document_intel_summary` rows (around line 2042-2045) — preserve that. The new `--force` semantics are *additive*: still delete those rows, AND override the per-doc `keyword_analyzed_at` skip from Task 3.
+- [x] **Task 5:** Add `INDEX idx_keyword_analyzed_at (keyword_analyzed_at)` to `attachment_document` in `fed_prospector/db/schema/tables/36_attachment.sql`. **Verified during planning (2026-04-28): no index exists today** — only the column declaration at line 47. The new query in Tasks 1-2 scans on `keyword_analyzed_at IS NULL` and would full-scan ~50K rows without the index. Apply to live DB (per project rule: keep DDL and live DB in sync).
+- [x] **Task 6:** Tests:
   - Notice where all docs are already analyzed → not selected
   - Notice with mixed analyzed/unanalyzed → selected, only unanalyzed processed (verify via `keyword_analyzed_at` after the run)
   - Notice with only unanalyzed → selected, all processed
@@ -83,7 +83,15 @@ Decide and document:
   - Description-only path behavior unchanged (regression check)
 
   Reference style: model after `fed_prospector/tests/test_attachment_text_dedup.py` and `test_attachment_dedup_backfill.py` (added by Phase 124) — pytest, fixture-based, mocks `get_connection`.
-- [ ] **Task 7:** Run `python fed_prospector/main.py extract attachment-intel` once after deploy to drain the 5,527-doc backlog. Confirm via `python fed_prospector/main.py health pipeline-status` that "Stage 3 Keyword Intel — remaining" drops to ~5 (the genuine other edge cases). The pipeline-status query that produces this metric lives in [`fed_prospector/cli/attachments.py`](../../fed_prospector/cli/attachments.py) (the `attachment_pipeline_status` command, around the "Stage 3" comment block).
+- [x] **Task 7:** Run `python fed_prospector/main.py extract attachment-intel` once after deploy to drain the 5,527-doc backlog. Confirm via `python fed_prospector/main.py health pipeline-status` that "Stage 3 Keyword Intel — remaining" drops to ~5 (the genuine other edge cases). The pipeline-status query that produces this metric lives in [`fed_prospector/cli/attachments.py`](../../../fed_prospector/cli/attachments.py) (the `attachment_pipeline_status` command, around the "Stage 3" comment block). *Drain in progress: user invoked `python fed_prospector/main.py extract attachment-intel --batch-size 1000`; 3,631 documents stamped, ~1,055 notices remaining at last check. Operational drain continues via daily load.*
+
+## What landed
+
+- **Implementation:** commits `c4dc2ff` (Tasks 1-5: eligibility query, sibling counter, per-doc skip, `--force` override, DDL index), `0611d15` (Task 6: 23 unit tests in `test_attachment_intel_extractor.py`), `beb959d` (doc cleanup).
+- **DDL conflict resolution:** `attachment_document` already had `idx_text_hash` from Phase 124. Both indexes were retained — `idx_text_hash` (Phase 124, dedup lookups) and the new `idx_keyword_analyzed_at` (Phase 125, eligibility scans). No drop, no rename.
+- **Intentional deviation by coder:** the description-only UNION leg in the attachment-path eligibility query was removed as redundant. Notices with only description text (no documents) flow through the dedicated `description_only=True` path via the `extract description-intel` CLI command, which still uses the unchanged notice-level filter from Phase 121. Test #7 in `test_attachment_intel_extractor.py` documents this as intentional separation between attachment-path and description-path eligibility.
+- **Live impact:** the old eligibility query silently returned 0 (the bug — every notice already had a sibling-doc summary). The new document-level query returned 3,561 notices spanning 5,530 documents — a hidden backlog that had been drifting since Phase 110 shipped. The drain has stamped 3,631 docs so far; ~1,055 notices remain and will be picked up by the daily load.
+- **Validated finding for follow-up:** sampling 500 random docs from the backlog showed that most amendments / Q&A / pricing addenda are genuinely keyword-poor under the current pattern set, but ~15-20% of the corpus contains extractable structured data the current patterns miss — contract ceilings ("shall not exceed $X" / "NTE $X", with a `_needs_context_check: "no_bid_bond"` filter to exclude FAR 52.228-1 bid-bond boilerplate), CLIN line items, MIL-STD/ASTM tech specs, NAICS size-standard mentions, and SCA wage determination numbers. Generic FAR/DFARS clause patterns and structural Q&A detection were tested and rejected (40% doc hit rate but no signal; unicode-garbage matches respectively). **See Phase 134 (proposed)** for the new high-precision pattern set.
 
 ## Files Affected
 
@@ -96,7 +104,7 @@ Decide and document:
 ## Out of Scope (decided 2026-04-28)
 
 - **Race-condition mitigation between concurrent extractor runs.** The user manually serializes pipeline operations — no concurrent runs in practice. Skip `SELECT ... FOR UPDATE SKIP LOCKED` or advisory locks unless that operating model changes.
-- **The Stage 4B (description intel) metric in `pipeline-status`.** Same metric-bug pattern as Stage 3 had before [`ddce9e0`](../../fed_prospector/cli/attachments.py), but description intel really IS per-notice — verify the bug exists there before fixing.
+- **The Stage 4B (description intel) metric in `pipeline-status`.** Same metric-bug pattern as Stage 3 had before [`ddce9e0`](../../../fed_prospector/cli/attachments.py), but description intel really IS per-notice — verify the bug exists there before fixing.
 
 ## Notes
 

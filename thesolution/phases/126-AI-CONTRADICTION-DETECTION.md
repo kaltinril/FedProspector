@@ -58,4 +58,5 @@ A contract renewal for "refrigerator replacement" was copied from a prior "house
 1. Should this run as part of the existing AI analysis pass or as a separate analysis step?
 2. How to present contradictions in the UI — warnings on the overview, separate tab section, or integrated into Document Intel?
 3. Should keyword/heuristic extraction also look for simple contradiction patterns (e.g., NAICS mismatch with title keywords)?
+   **Resolved (2026-04-28, post-Phase-125 pattern audit):** No. Keyword/heuristic extraction is too literal for contradiction detection — generic FAR/DFARS clause patterns hit 40% of docs (mostly boilerplate, no signal), and structural Q&A detection produced unicode-garbage matches. NAICS-vs-title mismatch is best computed structurally from the `ref_naics_code` reference table (Phase 129 territory), not regex against attachment text. Contradiction detection stays AI-only.
 4. Token cost implications — cross-referencing multiple documents in one prompt is more expensive
