@@ -13,6 +13,7 @@ Usage:
 import hashlib
 import logging
 import os
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -932,6 +933,14 @@ class AttachmentTextExtractor:
             "skipped": 0,
         }
 
+        # Phase 124: per-run dedup state — reset every run, not in __init__.
+        # _seen_text_hashes maps text_hash -> canonical attachment_id seen in
+        # this batch (defends against duplicates within a single run).
+        self._seen_text_hashes = {}
+        self._seen_lock = threading.Lock()
+        self._layer4_dedup_count = 0
+        self._in_batch_dedup_count = 0
+
         try:
             rows = self._fetch_pending(notice_id, batch_size, force)
             logger.info("Found %d attachments to extract", len(rows))
@@ -1026,6 +1035,22 @@ class AttachmentTextExtractor:
                                 load_id=load_id,
                             )
                             stats["extracted"] += 1
+                            # Phase 124 Layer 4: text-hash dedup check after
+                            # successful extraction. If this document is a
+                            # duplicate of an already-processed canonical, the
+                            # extracted row, file, and opportunity mappings are
+                            # remapped to the canonical and this document is
+                            # removed before downstream intel sees it.
+                            try:
+                                self._handle_text_hash_dedup(
+                                    document_id=attachment_id,
+                                    text_hash=result["text_hash"],
+                                )
+                            except Exception as dedup_err:
+                                logger.error(
+                                    "Layer 4 text-hash dedup failed for document %s: %s",
+                                    attachment_id, dedup_err,
+                                )
                         except Exception as e:
                             self._mark_failed(attachment_id, load_id, str(e))
                             stats["failed"] += 1
@@ -1072,6 +1097,14 @@ class AttachmentTextExtractor:
                 stats["timeout"],
                 stats["skipped"],
             )
+            # Phase 124 Task 9: dedup summary for the run.
+            logger.info(
+                "Dedup: layer4_text_hash_skipped=%d, in_batch_skipped=%d",
+                self._layer4_dedup_count,
+                self._in_batch_dedup_count,
+            )
+            stats["layer4_text_hash_skipped"] = self._layer4_dedup_count
+            stats["in_batch_skipped"] = self._in_batch_dedup_count
         except Exception as e:
             self.load_manager.fail_load(load_id, str(e))
             logger.error("Extraction batch failed: %s", e)
@@ -1255,6 +1288,237 @@ class AttachmentTextExtractor:
         except Exception:
             conn.rollback()
             raise
+        finally:
+            cursor.close()
+            if not self.db_connection:
+                conn.close()
+
+    # ------------------------------------------------------------------
+    # Phase 124 Layer 4: text-hash dedup
+    # ------------------------------------------------------------------
+
+    def _handle_text_hash_dedup(self, document_id, text_hash):
+        """Layer 4 text-hash dedup, called after successful extraction.
+
+        If another already-processed `attachment_document` has the same
+        `text_hash` (the canonical), this method:
+          1. Remaps every `opportunity_attachment` row pointing at the current
+             `sam_attachment.attachment_id` to the canonical `attachment_id`
+             (INSERT IGNORE before DELETE so we never lose a reference).
+          2. Records the mapping in `attachment_dedup_map` with method
+             `'text_hash'` and both content_hash and text_hash populated.
+          3. Deletes the just-extracted `attachment_document` row.
+          4. Deletes the physical file from disk and clears
+             `sam_attachment.file_path` so downstream cleanup leaves it alone.
+
+        Also defends against in-batch duplicates: if two documents in the same
+        run produce the same text_hash, the first wins, the second is treated
+        the same way (the first becomes the canonical for the rest of the
+        batch). All shared state is guarded by `self._seen_lock`.
+
+        Filename-based intel is unaffected — `sam_attachment.filename` is
+        preserved on the deduped row, so filename-only keyword matches still
+        run on the canonical's downstream pass.
+
+        Args:
+            document_id: PK of the attachment_document row we just extracted.
+            text_hash: SHA-256 of the extracted text.
+
+        Returns:
+            True if a duplicate was detected and handled, False otherwise.
+        """
+        if not text_hash:
+            return False
+
+        # Allow callers outside extract_text() (e.g. reextract_single) to use
+        # this method without first initializing the per-run dedup state.
+        if not hasattr(self, "_seen_lock") or self._seen_lock is None:
+            self._seen_lock = threading.Lock()
+        if not hasattr(self, "_seen_text_hashes") or self._seen_text_hashes is None:
+            self._seen_text_hashes = {}
+        if not hasattr(self, "_layer4_dedup_count"):
+            self._layer4_dedup_count = 0
+        if not hasattr(self, "_in_batch_dedup_count"):
+            self._in_batch_dedup_count = 0
+
+        conn = self.db_connection or get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # Resolve the current document's sam_attachment_id and resource_guid.
+            # We need both to remap opportunity_attachment and to record the
+            # dedup map entry.
+            cursor.execute(
+                "SELECT ad.attachment_id AS sam_attachment_id, "
+                "       sa.resource_guid AS resource_guid, "
+                "       sa.content_hash AS content_hash, "
+                "       sa.file_path AS file_path "
+                "FROM attachment_document ad "
+                "JOIN sam_attachment sa ON sa.attachment_id = ad.attachment_id "
+                "WHERE ad.document_id = %s",
+                (document_id,),
+            )
+            current = cursor.fetchone()
+            if not current:
+                return False
+
+            current_sam_id = current["sam_attachment_id"]
+            current_resource_guid = current["resource_guid"]
+            current_content_hash = current["content_hash"]
+            current_file_path = current["file_path"]
+
+            # Find a canonical: a different attachment_document with the same
+            # text_hash whose underlying attachment has been fully processed
+            # (has at least one document_intel_summary row — same signal used
+            # by attachment_cleanup to determine "intel complete").
+            #
+            # Also accept an in-batch canonical: the first document in this run
+            # to record this text_hash wins, so subsequent ones in the same
+            # batch dedup to it even before intel has run.
+            canonical_sam_id = None
+            with self._seen_lock:
+                in_batch_canonical = self._seen_text_hashes.get(text_hash)
+            if in_batch_canonical and in_batch_canonical != current_sam_id:
+                canonical_sam_id = in_batch_canonical
+                in_batch_hit = True
+            else:
+                in_batch_hit = False
+                cursor.execute(
+                    "SELECT ad.attachment_id "
+                    "FROM attachment_document ad "
+                    "WHERE ad.text_hash = %s "
+                    "  AND ad.document_id <> %s "
+                    "  AND ad.extraction_status = 'extracted' "
+                    "  AND EXISTS ( "
+                    "    SELECT 1 FROM document_intel_summary dis "
+                    "    WHERE dis.document_id = ad.document_id "
+                    "  ) "
+                    "ORDER BY ad.document_id "
+                    "LIMIT 1",
+                    (text_hash, document_id),
+                )
+                match = cursor.fetchone()
+                if match:
+                    canonical_sam_id = match["attachment_id"]
+
+            if not canonical_sam_id:
+                # No duplicate found — record this document as the in-batch
+                # canonical for any later siblings sharing the same text and
+                # let the normal pipeline run on it.
+                with self._seen_lock:
+                    # Don't overwrite an existing entry — first one wins.
+                    self._seen_text_hashes.setdefault(text_hash, current_sam_id)
+                return False
+
+            # Resolve canonical resource_guid (best-effort, audit-only).
+            cursor.execute(
+                "SELECT resource_guid FROM sam_attachment WHERE attachment_id = %s",
+                (canonical_sam_id,),
+            )
+            canon_row = cursor.fetchone()
+            canonical_resource_guid = canon_row["resource_guid"] if canon_row else None
+
+            # Perform the remap + dedup writes in a single transaction so we
+            # don't leave the DB in a half-deduped state on failure.
+            write_cursor = conn.cursor()
+            try:
+                # 1. Remap opportunity_attachment: insert canonical row, then
+                #    delete original. INSERT-before-DELETE preserves the link.
+                write_cursor.execute(
+                    "SELECT notice_id, url FROM opportunity_attachment "
+                    "WHERE attachment_id = %s",
+                    (current_sam_id,),
+                )
+                mappings = write_cursor.fetchall()
+                for notice_id, url in mappings:
+                    write_cursor.execute(
+                        "INSERT IGNORE INTO opportunity_attachment "
+                        "(notice_id, attachment_id, url) VALUES (%s, %s, %s)",
+                        (notice_id, canonical_sam_id, url),
+                    )
+                    write_cursor.execute(
+                        "DELETE FROM opportunity_attachment "
+                        "WHERE notice_id = %s AND attachment_id = %s",
+                        (notice_id, current_sam_id),
+                    )
+
+                # 2. Record the dedup decision so Layer 2 catches it on the
+                #    next run without re-downloading.
+                if current_resource_guid:
+                    write_cursor.execute(
+                        "INSERT IGNORE INTO attachment_dedup_map "
+                        "(resource_guid, canonical_attachment_id, dedup_method, "
+                        " content_hash, text_hash) "
+                        "VALUES (%s, %s, 'text_hash', %s, %s)",
+                        (
+                            current_resource_guid,
+                            canonical_sam_id,
+                            current_content_hash,
+                            text_hash,
+                        ),
+                    )
+
+                # 3. Delete the just-extracted attachment_document row.
+                write_cursor.execute(
+                    "DELETE FROM attachment_document WHERE document_id = %s",
+                    (document_id,),
+                )
+
+                # 4. Clear file_path on sam_attachment so cleanup leaves the
+                #    deduped file alone going forward. The sam_attachment row
+                #    stays as Layer 1's "I've seen this URL" record.
+                write_cursor.execute(
+                    "UPDATE sam_attachment SET file_path = NULL "
+                    "WHERE attachment_id = %s",
+                    (current_sam_id,),
+                )
+
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                write_cursor.close()
+
+            # 5. Best-effort: delete the physical file from disk. DB state is
+            #    already correct even if this fails.
+            if current_file_path:
+                try:
+                    full_path = self.attachment_dir / current_file_path
+                    if full_path.is_file():
+                        full_path.unlink()
+                        # Try to remove empty parent dir (resource_guid folder)
+                        try:
+                            parent = full_path.parent
+                            if parent != self.attachment_dir and not any(parent.iterdir()):
+                                parent.rmdir()
+                        except OSError:
+                            pass
+                except Exception as file_err:
+                    logger.warning(
+                        "Layer 4 dedup: failed to delete file %s for resource_guid=%s: %s",
+                        current_file_path, current_resource_guid, file_err,
+                    )
+
+            # 6. Track + log.
+            with self._seen_lock:
+                if in_batch_hit:
+                    self._in_batch_dedup_count += 1
+                else:
+                    self._layer4_dedup_count += 1
+                # Future siblings should also dedup to the canonical, not to
+                # this row (which we just deleted).
+                self._seen_text_hashes[text_hash] = canonical_sam_id
+
+            logger.info(
+                "text-hash dedup: resource_guid=%s is duplicate of canonical "
+                "attachment_id=%s (canonical_resource_guid=%s, method=text_hash, "
+                "in_batch=%s)",
+                current_resource_guid,
+                canonical_sam_id,
+                canonical_resource_guid,
+                in_batch_hit,
+            )
+            return True
         finally:
             cursor.close()
             if not self.db_connection:
