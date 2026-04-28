@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS attachment_document (
     created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_attachment (attachment_id),
     INDEX idx_status (extraction_status),
-    INDEX idx_text_hash (text_hash)
+    INDEX idx_text_hash (text_hash),
+    INDEX idx_keyword_analyzed_at (keyword_analyzed_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS opportunity_attachment (

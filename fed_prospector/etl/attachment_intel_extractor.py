@@ -762,38 +762,34 @@ class AttachmentIntelExtractor:
                 cursor.execute(sql, params)
                 return [row[0] for row in cursor.fetchall()]
 
-            # Find notices with extracted attachments or descriptions
+            # Document-level eligibility: a notice is selected when it has at
+            # least one extracted document still needing keyword analysis.
+            # Per-notice dispatch is preserved (we still return notice_ids), but
+            # the per-document skip in _process_notice ensures already-analyzed
+            # docs aren't re-processed when the same notice has mixed state.
             if force:
                 sql = (
-                    "SELECT DISTINCT n.notice_id FROM ("
-                    "  SELECT m.notice_id FROM opportunity_attachment m "
-                    "  JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
-                    "  WHERE ad.extraction_status = 'extracted' AND ad.extracted_text IS NOT NULL "
-                    "  UNION "
-                    "  SELECT notice_id FROM opportunity "
-                    "  WHERE description_text IS NOT NULL AND description_text != ''"
-                    ") n "
-                    "ORDER BY n.notice_id "
+                    "SELECT DISTINCT m.notice_id "
+                    "FROM opportunity_attachment m "
+                    "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    "WHERE ad.extraction_status = 'extracted' "
+                    "  AND ad.extracted_text IS NOT NULL "
+                    "ORDER BY m.notice_id "
                     "LIMIT %s"
                 )
+                params = [batch_size]
             else:
-                # Exclude notices that already have keyword intel
                 sql = (
-                    "SELECT DISTINCT n.notice_id FROM ("
-                    "  SELECT m.notice_id FROM opportunity_attachment m "
-                    "  JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
-                    "  WHERE ad.extraction_status = 'extracted' AND ad.extracted_text IS NOT NULL "
-                    "  UNION "
-                    "  SELECT notice_id FROM opportunity "
-                    "  WHERE description_text IS NOT NULL AND description_text != ''"
-                    ") n "
-                    "LEFT JOIN opportunity_attachment_summary s "
-                    "  ON n.notice_id = s.notice_id AND s.extraction_method = %s "
-                    "WHERE s.summary_id IS NULL "
-                    "ORDER BY n.notice_id "
+                    "SELECT DISTINCT m.notice_id "
+                    "FROM opportunity_attachment m "
+                    "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    "WHERE ad.extraction_status = 'extracted' "
+                    "  AND ad.extracted_text IS NOT NULL "
+                    "  AND ad.keyword_analyzed_at IS NULL "
+                    "ORDER BY m.notice_id "
                     "LIMIT %s"
                 )
-            params = [batch_size] if force else [method, batch_size]
+                params = [batch_size]
             cursor.execute(sql, params)
             return [row[0] for row in cursor.fetchall()]
         finally:
@@ -827,33 +823,28 @@ class AttachmentIntelExtractor:
                     cursor.execute(sql, [method])
                 return cursor.fetchone()[0]
 
+            # Mirror of _fetch_eligible_notices: count notices with at least one
+            # extracted document still needing keyword analysis. Must match the
+            # fetch query exactly so progress reporting stays consistent.
             if force:
                 sql = (
-                    "SELECT COUNT(DISTINCT n.notice_id) FROM ("
-                    "  SELECT m.notice_id FROM opportunity_attachment m "
-                    "  JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
-                    "  WHERE ad.extraction_status = 'extracted' AND ad.extracted_text IS NOT NULL "
-                    "  UNION "
-                    "  SELECT notice_id FROM opportunity "
-                    "  WHERE description_text IS NOT NULL AND description_text != ''"
-                    ") n"
+                    "SELECT COUNT(DISTINCT m.notice_id) "
+                    "FROM opportunity_attachment m "
+                    "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    "WHERE ad.extraction_status = 'extracted' "
+                    "  AND ad.extracted_text IS NOT NULL"
                 )
                 cursor.execute(sql)
             else:
                 sql = (
-                    "SELECT COUNT(DISTINCT n.notice_id) FROM ("
-                    "  SELECT m.notice_id FROM opportunity_attachment m "
-                    "  JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
-                    "  WHERE ad.extraction_status = 'extracted' AND ad.extracted_text IS NOT NULL "
-                    "  UNION "
-                    "  SELECT notice_id FROM opportunity "
-                    "  WHERE description_text IS NOT NULL AND description_text != ''"
-                    ") n "
-                    "LEFT JOIN opportunity_attachment_summary s "
-                    "  ON n.notice_id = s.notice_id AND s.extraction_method = %s "
-                    "WHERE s.summary_id IS NULL"
+                    "SELECT COUNT(DISTINCT m.notice_id) "
+                    "FROM opportunity_attachment m "
+                    "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    "WHERE ad.extraction_status = 'extracted' "
+                    "  AND ad.extracted_text IS NOT NULL "
+                    "  AND ad.keyword_analyzed_at IS NULL"
                 )
-                cursor.execute(sql, [method])
+                cursor.execute(sql)
             return cursor.fetchone()[0]
         finally:
             cursor.close()
@@ -912,6 +903,16 @@ class AttachmentIntelExtractor:
         if not sources:
             logger.debug("No text sources for %s", notice_id)
             return result
+
+        # Phase 125: skip documents already keyword-analyzed unless --force.
+        # Keeps mixed-state notices (some sibling docs done, amendment doc new)
+        # from re-running patterns on already-processed text. Description-text
+        # sources have document_id=None and are always retained.
+        if not force:
+            sources = self._filter_unanalyzed_sources(sources)
+            if not sources:
+                logger.debug("All documents already keyword-analyzed for %s", notice_id)
+                return result
 
         # Run patterns across all sources, collecting matches
         all_matches = []  # list of (category, match_info_dict)
@@ -1033,6 +1034,34 @@ class AttachmentIntelExtractor:
             conn.close()
 
         return sources
+
+    def _filter_unanalyzed_sources(self, sources):
+        """Drop sources whose document already has keyword_analyzed_at set.
+
+        Description-text sources (document_id is None) always pass through —
+        they have no per-document analyzed flag and are still aggregated into
+        the per-notice summary upsert.
+        """
+        doc_ids = [src[0] for src in sources if src[0] is not None]
+        if not doc_ids:
+            return sources
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            placeholders = ", ".join(["%s"] * len(doc_ids))
+            cursor.execute(
+                f"SELECT document_id FROM attachment_document "
+                f"WHERE document_id IN ({placeholders}) "
+                f"  AND keyword_analyzed_at IS NOT NULL",
+                doc_ids,
+            )
+            already_analyzed = {row[0] for row in cursor.fetchall()}
+        finally:
+            cursor.close()
+            conn.close()
+
+        return [src for src in sources if src[0] is None or src[0] not in already_analyzed]
 
     # ------------------------------------------------------------------
     # Pattern matching engine
