@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS attachment_document (
     last_load_id           INT,
     created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_attachment (attachment_id),
-    INDEX idx_status (extraction_status)
+    INDEX idx_status (extraction_status),
+    INDEX idx_text_hash (text_hash)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS opportunity_attachment (
@@ -165,4 +166,19 @@ CREATE TABLE IF NOT EXISTS opportunity_attachment_summary (
     extracted_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE INDEX idx_upsert (notice_id, extraction_method),
     INDEX idx_notice (notice_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Phase 124: Attachment hash-level deduplication
+-- Maps known-duplicate resource_guid values to canonical attachment_id.
+-- Populated by Layers 3 (content_hash) and 4 (text_hash) when duplicates are
+-- discovered. Checked by Layer 2 before downloading to skip known duplicates
+-- entirely. Soft cache only — no FKs, self-heals when canonical is missing.
+CREATE TABLE IF NOT EXISTS attachment_dedup_map (
+    resource_guid            CHAR(32) NOT NULL PRIMARY KEY,
+    canonical_attachment_id  INT NOT NULL,
+    dedup_method             ENUM('content_hash', 'text_hash') NOT NULL,
+    content_hash             CHAR(64),
+    text_hash                CHAR(64),
+    created_at               DATETIME DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_canonical (canonical_attachment_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
