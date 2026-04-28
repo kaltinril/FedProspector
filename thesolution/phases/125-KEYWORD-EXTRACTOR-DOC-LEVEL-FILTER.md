@@ -45,25 +45,21 @@ LIMIT %s
 
 ## Approach: Switch the attachment path to document-level filtering
 
-Two-part fix:
+Three-part fix:
 
-1. **Eligibility query** — find notices that have at least one document with `keyword_analyzed_at IS NULL`. The query still returns notice_ids (preserves existing per-notice processing dispatch), but the inclusion criterion is "has unprocessed documents", not "has no summary".
+1. **Eligibility query** in `_fetch_eligible_notices` (around line 728) — find notices that have at least one document with `keyword_analyzed_at IS NULL`. The query still returns notice_ids (preserves existing per-notice processing dispatch), but the inclusion criterion is "has unprocessed documents", not "has no summary".
 
-2. **Per-notice processing loop** — when iterating a notice's documents, skip those where `keyword_analyzed_at IS NOT NULL`. Without this, a notice with mixed processed/unprocessed docs would re-pattern-match the already-done ones (waste CPU, but not destructive).
+2. **Sibling counter** in `_count_eligible_notices` (around line 803) — must use the SAME filter as `_fetch_eligible_notices`, otherwise the progress counter and the actual work queue will disagree and `pipeline-status` will report wrong numbers. Both functions are called from line 496-497; treat them as a pair.
+
+3. **Per-notice processing loop** — when iterating a notice's documents, skip those where `keyword_analyzed_at IS NOT NULL`. Without this, a notice with mixed processed/unprocessed docs would re-pattern-match the already-done ones (waste CPU, but not destructive).
 
 The `_description_only` branch must NOT change — descriptions really are per-notice (no document analog), and the current "skip if any summary exists" filter is correct there.
 
-## CRITICAL: Verify before implementing
+## Pre-implementation verification — DONE
 
-Before any code change, **read the summary INSERT path** in `attachment_intel_extractor.py` (and any helpers it calls). The fix only works if the summary write semantics are safe for "second-pass" extractions on a notice that already has a summary row. Three possibilities:
+Before any code change, the summary INSERT path needed to be classified to determine whether "second-pass" extractions on a notice that already has a summary row are safe. **Verified during phase planning (2026-04-28):**
 
-| Behavior | Outcome | Action |
-|---|---|---|
-| ✅ UPSERT (`INSERT ... ON DUPLICATE KEY UPDATE`) | New evidence merges into existing summary | No extra work — fix is just the WHERE clause |
-| ⚠️ `INSERT IGNORE` on `(notice_id, extraction_method)` | New evidence is silently dropped | Must add UPSERT migration to scope |
-| ⚠️ Plain `INSERT` with no unique constraint | Duplicate summary rows per notice — corrupts downstream queries | Must add unique constraint AND UPSERT migration |
-
-**Document the answer in this file before starting Task 2.** If it's anything other than UPSERT, scope grows.
+`opportunity_attachment_summary` writes use `INSERT ... ON DUPLICATE KEY UPDATE` ([`attachment_intel_extractor.py:1707`](../../fed_prospector/etl/attachment_intel_extractor.py) and again at line 1715). This is the ✅ UPSERT case — new evidence from a re-extracted document merges into the existing summary row. **No schema migration needed; no upsert migration needed.** The fix is purely in `attachment_intel_extractor.py`.
 
 ## `--force` semantics post-fix
 
@@ -73,26 +69,29 @@ Decide and document:
 
 ## Tasks
 
-- [ ] **Task 1:** Verify the `opportunity_attachment_summary` INSERT semantics in `attachment_intel_extractor.py`. Document the result in this phase doc under "CRITICAL: Verify". If anything other than UPSERT, expand the task list to include the upsert migration.
-- [ ] **Task 2:** Modify `_fetch_eligible_notices` attachment path to filter by document-level `keyword_analyzed_at IS NULL` instead of notice-level summary existence. Leave `_description_only` branch unchanged.
+- [ ] **Task 1:** Modify `_fetch_eligible_notices` attachment path (around line 728) to filter by document-level `keyword_analyzed_at IS NULL` instead of notice-level summary existence. Leave the `_description_only` branch unchanged.
+- [ ] **Task 2:** Apply the **same** filter change to `_count_eligible_notices` (around line 803). Both functions are called as a pair from line 496-497; if they disagree, the progress counter shown to the user during a run will be wrong.
 - [ ] **Task 3:** Add per-document `keyword_analyzed_at IS NULL` skip inside the per-notice processing loop, so mixed notices don't re-pattern-match completed docs.
 - [ ] **Task 4:** Update `--force` to override the new doc-level skip as well (truly reprocess all docs on selected notices).
-- [ ] **Task 5:** Tests:
+- [ ] **Task 5:** Confirm the new filter doesn't trigger a sequential scan on `attachment_document` — query a `EXPLAIN` on the new `_fetch_eligible_notices` SQL. If `keyword_analyzed_at` doesn't have an index, add one in the schema and apply to live DB. (Per project memory rule "Keep DDL files and live DB in sync".)
+- [ ] **Task 6:** Tests:
   - Notice where all docs are already analyzed → not selected
   - Notice with mixed analyzed/unanalyzed → selected, only unanalyzed processed (verify via `keyword_analyzed_at` after the run)
   - Notice with only unanalyzed → selected, all processed
   - `--force` reprocesses everything regardless of `keyword_analyzed_at`
+  - `_count_eligible_notices` returns the same number as `len(_fetch_eligible_notices(... batch_size=large))`
   - Description-only path behavior unchanged (regression check)
-- [ ] **Task 6:** Run keyword extraction once after deploy to drain the 5,527-doc backlog. Confirm via `pipeline-status` that the "Keyword Intel remaining" count drops to ~5 (the genuine other edge cases).
-- [ ] **Task 7:** If verification (Task 1) revealed `INSERT IGNORE` or no constraint, add the upsert migration as a separate task before Task 2.
+
+  Reference style: model after `fed_prospector/tests/test_attachment_text_dedup.py` and `test_attachment_dedup_backfill.py` (added by Phase 124) — pytest, fixture-based, mocks `get_connection`.
+- [ ] **Task 7:** Run `python fed_prospector/main.py extract attachment-intel` once after deploy to drain the 5,527-doc backlog. Confirm via `python fed_prospector/main.py health pipeline-status` that "Stage 3 Keyword Intel — remaining" drops to ~5 (the genuine other edge cases). The pipeline-status query that produces this metric lives in [`fed_prospector/cli/attachments.py`](../../fed_prospector/cli/attachments.py) (the `attachment_pipeline_status` command, around the "Stage 3" comment block).
 
 ## Files Affected
 
 | File | Change |
 |------|--------|
-| `fed_prospector/etl/attachment_intel_extractor.py` | Eligibility query (attachment path only); per-doc skip in processing loop; `--force` override |
-| `fed_prospector/tests/test_attachment_intel_extractor.py` (new or existing) | New test cases for mixed-state notices |
-| `fed_prospector/db/schema/tables/*` | (Conditional) summary upsert constraint, only if Task 1 reveals it's missing |
+| `fed_prospector/etl/attachment_intel_extractor.py` | Eligibility query in BOTH `_fetch_eligible_notices` and `_count_eligible_notices` (attachment path only); per-doc skip in processing loop; `--force` override |
+| `fed_prospector/tests/test_attachment_intel_extractor.py` (new) | New test cases for mixed-state notices and counter/fetcher agreement |
+| `fed_prospector/db/schema/tables/36_attachment.sql` | (Only if Task 5 reveals missing index) `INDEX idx_keyword_analyzed_at` on `attachment_document(keyword_analyzed_at)` |
 
 ## Out of Scope (decided 2026-04-28)
 
@@ -101,6 +100,7 @@ Decide and document:
 
 ## Notes
 
-- The 5 documents on notices with no keyword summaries are a separate edge case (likely empty extracted_text or other extractor-internal skip). Worth a quick query during Task 6 verification, but probably not worth scope expansion.
-- Once this phase ships, the `pipeline-status` "Keyword Intel remaining" should genuinely reflect "documents the extractor needs to look at next time" — currently it only does after [`ddce9e0`](../../fed_prospector/cli/attachments.py) fixed the metric, but the *count itself* will only become small (≤ ~50 docs from the most recent load) once this filter bug is fixed.
+- The 5 documents on notices with no keyword summaries are a separate edge case (likely empty extracted_text or other extractor-internal skip). Worth a quick query during Task 7 verification, but probably not worth scope expansion.
+- Once this phase ships, the `pipeline-status` "Keyword Intel remaining" should genuinely reflect "documents the extractor needs to look at next time" — currently it only does after commit `ddce9e0` fixed the metric, but the *count itself* will only become small (≤ ~50 docs from the most recent load) once this filter bug is fixed.
 - The Phase 124 dedup means `attachment_dedup_map`-resolved attachments never reach this code path at all (Layer 2 skips them before extraction). So the 5,527 figure is post-dedup and represents real, distinct documents.
+- The existing `--force` path in `attachment_intel_extractor.py` includes summary-row cleanup before re-extraction (search for `_replace_source_rows` or similar `DELETE FROM opportunity_attachment_summary` calls). Task 4 should preserve that behavior — the new `--force` semantics are additive (also override the per-doc `keyword_analyzed_at` skip), not a rewrite of the existing force flow.
