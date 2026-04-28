@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -126,6 +127,19 @@ class AttachmentDownloader:
             session.mount("https://", adapter)
         self.session = session
 
+        # Phase 124: per-run dedup state. Reset at the start of each
+        # download_attachments() call so a long-lived AttachmentDownloader
+        # instance does not carry stale in-batch state across runs.
+        # _seen_content_hashes maps content_hash -> canonical attachment_id
+        # for hashes processed earlier in the *current* batch.
+        self._seen_content_hashes: dict[str, int] = {}
+        self._seen_lock = threading.Lock()
+        self._dedup_stats = {
+            "layer2_skipped": 0,
+            "layer3_deduped": 0,
+            "in_batch_skipped": 0,
+        }
+
     # =================================================================
     # Public entry point
     # =================================================================
@@ -160,6 +174,16 @@ class AttachmentDownloader:
         """
         max_file_size_bytes = max_file_size_mb * 1024 * 1024
         stats = {"downloaded": 0, "skipped": 0, "failed": 0, "total_urls": 0}
+
+        # Phase 124: reset per-run dedup state so concurrent batches and
+        # repeat invocations on the same instance do not leak state.
+        self._seen_content_hashes = {}
+        self._seen_lock = threading.Lock()
+        self._dedup_stats = {
+            "layer2_skipped": 0,
+            "layer3_deduped": 0,
+            "in_batch_skipped": 0,
+        }
 
         # Start ETL load tracking
         load_id = self.load_manager.start_load(
@@ -277,6 +301,13 @@ class AttachmentDownloader:
         logger.info(
             "Attachment download complete: %d downloaded, %d skipped, %d failed (of %d total)",
             stats["downloaded"], stats["skipped"], stats["failed"], stats["total_urls"],
+        )
+        # Phase 124: surface dedup counts on every daily load
+        logger.info(
+            "Dedup: layer2_skipped=%d, layer3_deduped=%d, in_batch_skipped=%d",
+            self._dedup_stats["layer2_skipped"],
+            self._dedup_stats["layer3_deduped"],
+            self._dedup_stats["in_batch_skipped"],
         )
         return stats
 
@@ -516,8 +547,9 @@ class AttachmentDownloader:
         """
         resource_guid = extract_resource_guid(url)
 
-        # Check if resource_guid already has a downloaded file in sam_attachment.
-        # If so, skip download entirely — just insert the mapping row.
+        # Layer 1 (Phase 110ZZZ): resource_guid check — if the same URL has
+        # already been downloaded, skip the network round trip and just add
+        # the mapping row.
         if resource_guid:
             existing = self._check_existing_guid(resource_guid)
             if existing and existing["download_status"] == "downloaded":
@@ -526,6 +558,27 @@ class AttachmentDownloader:
                 logger.debug(
                     "GUID %s already downloaded — added mapping for %s", resource_guid, notice_id
                 )
+                return "skipped"
+
+        # Layer 2 (Phase 124): known-duplicate check. If a prior run already
+        # discovered this resource_guid is a duplicate of another canonical
+        # attachment, skip the download entirely. Bypassed under
+        # check_changed=True so --force always redownloads fresh.
+        if resource_guid and not check_changed:
+            canonical = self._lookup_dedup_map(resource_guid)
+            if canonical:
+                self._insert_mapping_row(
+                    notice_id, url, canonical["canonical_attachment_id"], load_id,
+                )
+                logger.info(
+                    "known duplicate: resource_guid=%s maps to canonical "
+                    "attachment_id=%d (discovered via %s)",
+                    resource_guid,
+                    canonical["canonical_attachment_id"],
+                    canonical["dedup_method"],
+                )
+                with self._seen_lock:
+                    self._dedup_stats["layer2_skipped"] += 1
                 return "skipped"
 
         # SSRF protection
@@ -720,6 +773,60 @@ class AttachmentDownloader:
                 dest_path.unlink(missing_ok=True)
                 return "skipped"
 
+        # Layer 3 (Phase 124): content-hash dedup. If another sam_attachment
+        # already has this content_hash AND its attachment_document is fully
+        # extracted, reuse the canonical instead of creating a new document.
+        # Must run BEFORE _upsert_attachment_row() — otherwise an
+        # attachment_document row in 'pending' would be created for a file
+        # we are about to delete, breaking the extractor's later open.
+        # Bypass when resource_guid is missing (no stable key for dedup map).
+        if resource_guid:
+            # Thread-safe in-batch tracking: if another worker in this same
+            # batch already claimed this content_hash, skip this one and let
+            # the next ETL run pick it up (per Phase 124 spec).
+            with self._seen_lock:
+                in_batch_canonical = self._seen_content_hashes.get(content_hash)
+                if in_batch_canonical is not None:
+                    self._dedup_stats["in_batch_skipped"] += 1
+                    skip_in_batch = True
+                else:
+                    skip_in_batch = False
+
+            if skip_in_batch:
+                logger.info(
+                    "in-batch dedup: resource_guid=%s skipped (another worker "
+                    "is processing the same content_hash this batch)",
+                    resource_guid,
+                )
+                dest_path.unlink(missing_ok=True)
+                return "skipped"
+
+            canonical_id = self._find_canonical_by_content_hash(content_hash)
+            if canonical_id is not None:
+                # Phase 124 Layer 3 hit: dedupe to canonical.
+                # Skip _upsert_attachment_row() entirely — no
+                # attachment_document row should exist for this duplicate.
+                self._record_content_hash_dedup(
+                    resource_guid=resource_guid,
+                    notice_id=notice_id,
+                    url=url,
+                    canonical_attachment_id=canonical_id,
+                    content_hash=content_hash,
+                    load_id=load_id,
+                )
+                dest_path.unlink(missing_ok=True)
+                logger.info(
+                    "content-hash dedup: resource_guid=%s is duplicate of "
+                    "canonical attachment_id=%d",
+                    resource_guid, canonical_id,
+                )
+                with self._seen_lock:
+                    self._dedup_stats["layer3_deduped"] += 1
+                    # Record so a later worker in the same batch with the
+                    # same hash takes the in-batch branch above.
+                    self._seen_content_hashes[content_hash] = canonical_id
+                return "skipped"
+
         # Store relative path from attachment_dir
         relative_path = f"{dir_name}/{filename}"
 
@@ -734,6 +841,21 @@ class AttachmentDownloader:
             downloaded_at=datetime.now(),
             load_id=load_id,
         )
+
+        # Phase 124: under --force/check_changed, the file may have changed
+        # on the server. If a stale attachment_dedup_map entry still points
+        # this resource_guid at a now-different canonical, evict it so the
+        # next normal run treats this as a fresh attachment.
+        if check_changed and resource_guid:
+            self._evict_dedup_map(resource_guid)
+
+        # Record this resource_guid + content_hash as the in-batch canonical
+        # for any later workers that download the same bytes this run.
+        if resource_guid:
+            attachment_id = self._lookup_attachment_id(resource_guid)
+            if attachment_id is not None:
+                with self._seen_lock:
+                    self._seen_content_hashes.setdefault(content_hash, attachment_id)
 
         logger.debug("Downloaded %s (%d bytes, hash=%s)", filename, file_size, content_hash[:12])
         return "downloaded"
@@ -812,6 +934,193 @@ class AttachmentDownloader:
                 (resource_guid,),
             )
             return cursor.fetchone()
+        finally:
+            cursor.close()
+            conn.close()
+
+    # =================================================================
+    # Phase 124 — hash-level dedup helpers (Layer 2 + Layer 3)
+    # =================================================================
+
+    def _lookup_dedup_map(self, resource_guid):
+        """Layer 2 lookup: is this resource_guid a known duplicate?
+
+        Joins to ``sam_attachment`` to validate the canonical attachment
+        still exists. If the canonical is missing (orphaned map entry),
+        the stale ``attachment_dedup_map`` row is deleted and ``None`` is
+        returned so the caller falls through to a normal download
+        (self-healing).
+
+        Returns:
+            dict with ``canonical_attachment_id`` and ``dedup_method`` if
+            a valid mapping exists, else None.
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT m.canonical_attachment_id, m.dedup_method "
+                "FROM attachment_dedup_map m "
+                "JOIN sam_attachment sa "
+                "  ON sa.attachment_id = m.canonical_attachment_id "
+                "WHERE m.resource_guid = %s",
+                (resource_guid,),
+            )
+            row = cursor.fetchone()
+            if row:
+                return row
+
+            # Map row may exist but canonical is gone — self-heal by
+            # deleting the stale entry. Use a separate check to avoid
+            # re-running the JOIN.
+            cursor.execute(
+                "SELECT canonical_attachment_id FROM attachment_dedup_map "
+                "WHERE resource_guid = %s",
+                (resource_guid,),
+            )
+            stale = cursor.fetchone()
+            if stale:
+                logger.info(
+                    "Evicting stale attachment_dedup_map entry for "
+                    "resource_guid=%s (canonical attachment_id=%s missing)",
+                    resource_guid, stale["canonical_attachment_id"],
+                )
+                cursor.execute(
+                    "DELETE FROM attachment_dedup_map WHERE resource_guid = %s",
+                    (resource_guid,),
+                )
+                conn.commit()
+            return None
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _evict_dedup_map(self, resource_guid):
+        """Delete any attachment_dedup_map row for this resource_guid.
+
+        Called under --force/check_changed when the redownloaded content
+        does not match the previously-recorded canonical, indicating the
+        government replaced the file.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "DELETE FROM attachment_dedup_map WHERE resource_guid = %s",
+                (resource_guid,),
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _find_canonical_by_content_hash(self, content_hash):
+        """Layer 3 lookup: is there a canonical sam_attachment with this hash?
+
+        Returns the canonical ``attachment_id`` if a sam_attachment with the
+        same ``content_hash`` already has an ``attachment_document`` row in
+        ``extraction_status='extracted'``. Returns None otherwise.
+        """
+        if not content_hash:
+            return None
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT sa.attachment_id "
+                "FROM sam_attachment sa "
+                "JOIN attachment_document ad "
+                "  ON ad.attachment_id = sa.attachment_id "
+                "WHERE sa.content_hash = %s "
+                "  AND ad.extraction_status = 'extracted' "
+                "ORDER BY sa.attachment_id ASC "
+                "LIMIT 1",
+                (content_hash,),
+            )
+            row = cursor.fetchone()
+            return row[0] if row else None
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _lookup_attachment_id(self, resource_guid):
+        """Return the attachment_id for a resource_guid, or None."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT attachment_id FROM sam_attachment "
+                "WHERE resource_guid = %s",
+                (resource_guid,),
+            )
+            row = cursor.fetchone()
+            return row[0] if row else None
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _record_content_hash_dedup(
+        self,
+        resource_guid,
+        notice_id,
+        url,
+        canonical_attachment_id,
+        content_hash,
+        load_id,
+    ):
+        """Persist a Layer 3 dedup decision.
+
+        - Upserts a sam_attachment row for this resource_guid with
+          download_status='downloaded' but file_path=NULL. This serves as
+          Layer 1's "I've seen this URL" record (per phase doc) without
+          leaving an orphan file path. No attachment_document row is
+          created — that's the whole point of Layer 3.
+        - Inserts the opportunity_attachment mapping pointing to the
+          canonical attachment_id (INSERT IGNORE — idempotent).
+        - Records the resource_guid -> canonical mapping in
+          ``attachment_dedup_map`` with method='content_hash'. Uses
+          REPLACE so a stale entry is overwritten cleanly.
+
+        Note: text_hash is NULL at download time — that's fine. Layer 4
+        (text-hash dedup in the extractor) records text_hash separately.
+        """
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            # 1. Upsert sam_attachment with file_path=NULL so Layer 1 treats
+            #    this URL as already-handled on future runs.
+            cursor.execute(
+                "INSERT INTO sam_attachment "
+                "(resource_guid, url, file_path, download_status, "
+                " content_hash, downloaded_at, last_load_id) "
+                "VALUES (%s, %s, NULL, 'downloaded', %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE "
+                "file_path = NULL, "
+                "download_status = 'downloaded', "
+                "content_hash = COALESCE(VALUES(content_hash), content_hash), "
+                "downloaded_at = COALESCE(VALUES(downloaded_at), downloaded_at), "
+                "last_load_id = VALUES(last_load_id)",
+                (resource_guid, url[:500], content_hash, datetime.now(), load_id),
+            )
+
+            # 2. opportunity_attachment mapping → canonical
+            cursor.execute(
+                "INSERT IGNORE INTO opportunity_attachment "
+                "(notice_id, attachment_id, url, last_load_id) "
+                "VALUES (%s, %s, %s, %s)",
+                (notice_id, canonical_attachment_id, url[:500], load_id),
+            )
+
+            # 3. attachment_dedup_map entry
+            cursor.execute(
+                "REPLACE INTO attachment_dedup_map "
+                "(resource_guid, canonical_attachment_id, dedup_method, "
+                " content_hash, text_hash) "
+                "VALUES (%s, %s, 'content_hash', %s, NULL)",
+                (resource_guid, canonical_attachment_id, content_hash),
+            )
+
+            conn.commit()
         finally:
             cursor.close()
             conn.close()
