@@ -460,14 +460,22 @@ def attachment_pipeline_status():
     for status, cnt in ext_rows:
         click.echo(f"    {status:<14} {cnt:>8,}")
 
-    # Intel extraction (from document_intel_summary)
+    # Intel extraction status — use attachment_document.{keyword,ai}_analyzed_at
+    # rather than document_intel_summary, because the extractors only insert a
+    # summary row when they FIND something. A doc that's been analyzed but
+    # produced zero findings (e.g. blank templates, scanned maps, wage decisions)
+    # has its analyzed_at timestamp set but no summary row — it should count as
+    # "done", not "remaining".
     cursor.execute("""
         SELECT
-            (SELECT COUNT(*) FROM attachment_document WHERE extraction_status = 'extracted') as eligible,
-            (SELECT COUNT(DISTINCT document_id) FROM document_intel_summary
-             WHERE extraction_method IN ('keyword', 'heuristic')) as keyword_done,
-            (SELECT COUNT(DISTINCT document_id) FROM document_intel_summary
-             WHERE extraction_method IN ('ai_haiku', 'ai_sonnet')) as ai_done
+            (SELECT COUNT(*) FROM attachment_document
+             WHERE extraction_status = 'extracted') as eligible,
+            (SELECT COUNT(*) FROM attachment_document
+             WHERE extraction_status = 'extracted'
+               AND keyword_analyzed_at IS NOT NULL) as keyword_done,
+            (SELECT COUNT(*) FROM attachment_document
+             WHERE extraction_status = 'extracted'
+               AND ai_analyzed_at IS NOT NULL) as ai_done
     """)
     row = cursor.fetchone()
     eligible, keyword_done, ai_done = row
