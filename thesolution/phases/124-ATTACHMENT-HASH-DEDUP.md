@@ -1,6 +1,6 @@
 # Phase 124: Attachment Hash-Level Deduplication
 
-**Status:** PLANNED
+**Status:** CODE COMPLETE (2026-04-27) — all 11 tasks built and unit-tested (28 tests passing); backfill execution against live DB pending (run `python main.py maintain backfill-attachment-dedup --dry-run` first, then without `--dry-run`, then `python main.py backfill opportunity-intel` to refresh rollups)
 **Priority:** Medium
 **Depends on:** Phase 110ZZZ (Attachment Deduplication — resource_guid level)
 
