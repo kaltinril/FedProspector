@@ -160,7 +160,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |
 | 122 | Opportunity POC Extraction | COMPLETE | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/completed/122-OPPORTUNITY-POC-EXTRACTION.md) |
 | 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
-| 124 | Attachment Hash-Level Deduplication | CODE COMPLETE (backfill pending) | [124-ATTACHMENT-HASH-DEDUP.md](phases/124-ATTACHMENT-HASH-DEDUP.md) |
+| 124 | Attachment Hash-Level Deduplication | COMPLETE | [124-ATTACHMENT-HASH-DEDUP.md](phases/completed/124-ATTACHMENT-HASH-DEDUP.md) |
 | 126 | AI Contradiction Detection | PLANNED | [126-AI-CONTRADICTION-DETECTION.md](phases/126-AI-CONTRADICTION-DETECTION.md) |
 | 127 | Expiring Contracts — USASpending Integration | COMPLETE | [127-EXPIRING-CONTRACTS-USASPENDING.md](phases/completed/127-EXPIRING-CONTRACTS-USASPENDING.md) |
 | 128 | Federal Identifier Extraction | COMPLETE | [128-IDENTIFIER-EXTRACTION.md](phases/completed/128-IDENTIFIER-EXTRACTION.md) |

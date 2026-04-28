@@ -1,6 +1,6 @@
 # Phase 124: Attachment Hash-Level Deduplication
 
-**Status:** CODE COMPLETE (2026-04-27) — all 11 tasks built and unit-tested (28 tests passing); backfill execution against live DB pending (run `python main.py maintain backfill-attachment-dedup --dry-run` first, then without `--dry-run`, then `python main.py backfill opportunity-intel` to refresh rollups)
+**Status:** COMPLETE (2026-04-28) — all 11 tasks built, tested, and rolled out; backfill executed against live DB. 7,887 dedup_map entries populated (3,228 content_hash + 4,659 text_hash). Layers 2/3/4 are now active for all incoming loads.
 **Priority:** Medium
 **Depends on:** Phase 110ZZZ (Attachment Deduplication — resource_guid level)
 
@@ -13,7 +13,7 @@ Phase 110ZZZ deduplicated attachments by `resource_guid` (the GUID in the SAM.go
 
 Both hashes are already computed and stored but **never checked for duplicates**.
 
-## Current Data (2026-03-27)
+## Pre-backfill Data (2026-03-27, original sample)
 
 | Metric | Count |
 |--------|-------|
@@ -26,7 +26,30 @@ Both hashes are already computed and stored but **never checked for duplicates**
 | Largest `content_hash` group | 31 rows (same file downloaded 31 times) |
 | Largest `text_hash` group | 476 rows (same text extracted 476 times) |
 
-**Impact:** ~1,181 unnecessary text extractions, ~2,829 unnecessary keyword intel runs, and ~2,829 unnecessary AI analysis API calls (~$85 wasted at Haiku pricing). These also create redundant `document_intel_evidence` rows that inflate query results.
+By the time the backfill ran (2026-04-27, after ~4 weeks of additional loads), duplicate counts had grown to 1,677 content_hash groups and 1,803 text_hash groups (3,480 total).
+
+**Original impact estimate:** ~1,181 unnecessary text extractions, ~2,829 unnecessary keyword intel runs, and ~2,829 unnecessary AI analysis API calls (~$85 wasted at Haiku pricing). Redundant `document_intel_evidence` rows also inflated query results.
+
+## Post-backfill State (2026-04-28)
+
+| Metric | Count |
+|--------|-------|
+| Total `sam_attachment` rows | 57,484 |
+| Total `attachment_document` rows | 49,922 |
+| Rows with `content_hash` | 57,107 |
+| Rows with `text_hash` | 48,418 |
+| `attachment_dedup_map` entries (Layer 3) | 3,228 |
+| `attachment_dedup_map` entries (Layer 4) | 4,659 |
+| `attachment_dedup_map` entries (total) | 7,887 |
+| `content_hash` duplicate groups remaining | 0 |
+| `text_hash` duplicate groups remaining | 1 (residual edge case — see Known Issues) |
+
+**Backfill outcome:** 17,231 `opportunity_attachment` rows remapped to canonicals; 10,803 redundant `attachment_document` rows deleted; 58,062 redundant `document_intel_evidence` and 3,730 redundant `document_intel_summary` rows pruned. ~$236.61 in projected forward-looking AI cost avoidance once AI analysis ramps up across the canonical set. Files were already removed by `attachment_cleanup` so 0 bytes were freed by the backfill itself.
+
+## Known Issues / Follow-ups
+
+- **One residual text_hash dup group (3 rows).** All three documents have `keyword_analyzed_at` set but no `document_intel_summary` row (the keyword extractor produced no findings for this file). The Layer 4 backfill query requires the canonical candidate to have a summary row (signal of "fully processed"); when no candidate satisfies this, the group is skipped. Affects very few rows and self-resolves once any of the three eventually gets an AI summary. If we want zero residual at all times, relax the canonical predicate to "any candidate with `keyword_analyzed_at IS NOT NULL`".
+- **Keyword extractor notice-level filter is too aggressive (separate bug, surfaced during Phase 124 verification).** [`attachment_intel_extractor.py:_fetch_eligible_notices`](../../fed_prospector/etl/attachment_intel_extractor.py) joins to `opportunity_attachment_summary` at the *notice* level — once any sibling document on a notice has a summary, the entire notice is excluded from re-processing, so attachments added to that notice in later loads (amendments) silently never get keyword extraction. Live data shows 5,527 of 5,532 unprocessed docs are on notices that already have summaries. Fix: switch the filter to document-level (`WHERE ad.keyword_analyzed_at IS NULL`) so new docs on previously-processed notices get picked up. Should be its own small phase.
 
 ## How Hashes Are Computed
 
