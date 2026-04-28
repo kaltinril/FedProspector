@@ -206,6 +206,7 @@ from cli.attachments import (
     analyze_descriptions, cleanup_attachment_files,
     attachment_pipeline_status,
     migrate_dedup, migrate_files,
+    backfill_attachment_dedup,
     extract_identifiers, cross_ref_identifiers, search_identifiers,
 )
 from cli.bulk_spending import usaspending_bulk
@@ -348,6 +349,7 @@ maintain.add_command(maintain_db, name="db")
 maintain.add_command(cleanup_attachment_files, name="attachment-files")
 maintain.add_command(migrate_dedup, name="migrate-dedup")
 maintain.add_command(migrate_files, name="migrate-files")
+maintain.add_command(backfill_attachment_dedup, name="backfill-attachment-dedup")
 maintain.add_command(normalize_agencies, name="normalize-agencies")
 maintain.add_command(normalize_fh_orgs, name="normalize-fh-orgs")
 
