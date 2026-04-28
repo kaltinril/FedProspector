@@ -559,6 +559,47 @@ def attachment_pipeline_status():
     click.echo(f"    real names      {real_names:>8,}")
     click.echo(f"    generic/missing {generic_names:>8,}")
 
+    # Deduplication (Phase 124)
+    cursor.execute("""
+        SELECT
+            SUM(CASE WHEN dedup_method = 'content_hash' THEN 1 ELSE 0 END) AS content_hash_count,
+            SUM(CASE WHEN dedup_method = 'text_hash' THEN 1 ELSE 0 END) AS text_hash_count,
+            COUNT(*) AS total_count,
+            MAX(created_at) AS last_dedup_at
+        FROM attachment_dedup_map
+    """)
+    dedup_row = cursor.fetchone()
+    if dedup_row:
+        content_dedups = int(dedup_row[0] or 0)
+        text_dedups = int(dedup_row[1] or 0)
+        total_dedups = int(dedup_row[2] or 0)
+        last_dedup_at = dedup_row[3]
+    else:
+        content_dedups = text_dedups = total_dedups = 0
+        last_dedup_at = None
+
+    # Estimated savings (rough — phase 124 calibration at ~$0.03/Haiku call,
+    # ~10s avg for text extraction). Numbers shift over time; treat as a
+    # rough lower bound on what dedup is saving.
+    AVG_EXTRACTION_SEC = 10.0
+    AVG_AI_COST_USD = 0.03
+    extractions_avoided = total_dedups
+    ai_calls_avoided = total_dedups
+    seconds_saved = extractions_avoided * AVG_EXTRACTION_SEC
+    dollars_saved = ai_calls_avoided * AVG_AI_COST_USD
+
+    click.echo()
+    click.echo(f"  Deduplication (Phase 124)")
+    click.echo(f"    total deduped guids   {total_dedups:>8,}")
+    click.echo(f"    Layer 3 (content)     {content_dedups:>8,}")
+    click.echo(f"    Layer 4 (text)        {text_dedups:>8,}")
+    if last_dedup_at:
+        click.echo(f"    most recent dedup     {last_dedup_at}")
+    else:
+        click.echo(f"    most recent dedup     (none yet)")
+    click.echo(f"    extractions avoided   {extractions_avoided:>8,}  (~{seconds_saved/60:.1f} min)")
+    click.echo(f"    AI calls avoided      {ai_calls_avoided:>8,}  (~${dollars_saved:.2f} @ Haiku)")
+
     click.echo()
     click.echo("=" * 55)
 
@@ -730,6 +771,78 @@ def migrate_dedup(dry_run):
         for table, count in stats.items():
             if isinstance(count, int):
                 click.echo(f"  {table}: {count:,}")
+
+
+@click.command("backfill-attachment-dedup")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Show what would be remapped/deleted without modifying data")
+@click.option("--attachment-dir", type=str, default=None,
+              help="Override the base attachment directory (default: ATTACHMENT_DIR env var)")
+def backfill_attachment_dedup(dry_run, attachment_dir):
+    """Backfill: clean up existing attachment hash duplicate groups (Phase 124, Task 10).
+
+    Resolves the ~622 content-hash and ~625 text-hash duplicate groups that
+    pre-date Phase 124's upstream layers. Processes one group at a time, each
+    in its own transaction. Resumable — re-running skips groups already
+    recorded in attachment_dedup_map.
+
+    For each duplicate group, the row with the most complete intel
+    (highest summary+evidence counts, has AI, has keyword) is chosen as
+    canonical. Non-canonicals are remapped in opportunity_attachment, their
+    intel rows are deleted, the non-canonical attachment_document row is
+    deleted, the physical file is deleted, and sam_attachment.file_path is
+    nulled. The sam_attachment row itself is preserved as Layer 1's
+    'I've seen this URL' record.
+
+    After running this for real, re-run:
+        python main.py backfill opportunity-intel
+    to refresh per-opportunity rollups.
+
+    Examples:
+        python main.py maintain backfill-attachment-dedup --dry-run
+        python main.py maintain backfill-attachment-dedup
+    """
+    logger = setup_logging()
+
+    from etl.attachment_dedup_backfill import AttachmentDedupBackfill
+
+    if dry_run:
+        click.echo("DRY RUN — no DB writes, no files will be deleted")
+
+    click.echo("Scanning attachment_document/sam_attachment for duplicate hash groups...")
+
+    backfill = AttachmentDedupBackfill(attachment_dir=attachment_dir)
+    stats = backfill.run(dry_run=dry_run)
+
+    verb = "Would remap" if dry_run else "Remapped"
+    verb_del = "Would delete" if dry_run else "Deleted"
+    size_mb = stats["bytes_freed"] / (1024 * 1024)
+
+    click.echo("")
+    click.echo("=" * 60)
+    click.echo("  Attachment Dedup Backfill " + ("Preview" if dry_run else "Results"))
+    click.echo("=" * 60)
+    click.echo(f"  Groups processed             {stats['groups_processed']:>8,}")
+    click.echo(f"    content_hash groups        {stats['by_method']['content_hash']['groups']:>8,}")
+    click.echo(f"    text_hash groups           {stats['by_method']['text_hash']['groups']:>8,}")
+    click.echo(f"  Groups skipped (empty)       {stats['groups_skipped_empty']:>8,}")
+    click.echo(f"  Rows skipped (already done)  {stats['rows_skipped_resumed']:>8,}")
+    click.echo("")
+    click.echo(f"  {verb} opportunity_attachment {stats['rows_remapped']:>8,}")
+    click.echo(f"  {verb_del} attachment_document    {stats['rows_deleted']:>8,}")
+    click.echo(f"  {verb_del} document_intel_summary {stats['summary_rows_deleted']:>8,}")
+    click.echo(f"  {verb_del} document_intel_evid.   {stats['evidence_rows_deleted']:>8,}")
+    click.echo(f"  {verb_del} files                  {stats['files_deleted']:>8,}")
+    click.echo(f"    bytes freed                {size_mb:>7.1f} MB")
+    click.echo(f"  Files already missing        {stats['files_already_missing']:>8,}")
+    click.echo("=" * 60)
+
+    if dry_run:
+        click.echo("DRY RUN complete. No changes were made.")
+    elif stats["rows_remapped"] or stats["rows_deleted"]:
+        click.echo("")
+        click.echo("NEXT STEP: re-run rollups to reflect the deduped state:")
+        click.echo("  python main.py backfill opportunity-intel")
 
 
 @click.command("migrate-files")
