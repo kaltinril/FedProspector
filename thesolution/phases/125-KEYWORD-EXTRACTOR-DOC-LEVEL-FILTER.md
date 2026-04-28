@@ -91,7 +91,7 @@ Decide and document:
 |------|--------|
 | `fed_prospector/etl/attachment_intel_extractor.py` | Eligibility query in BOTH `_fetch_eligible_notices` and `_count_eligible_notices` (attachment path only); per-doc skip in processing loop; `--force` override |
 | `fed_prospector/tests/test_attachment_intel_extractor.py` (new) | New test cases for mixed-state notices and counter/fetcher agreement |
-| `fed_prospector/db/schema/tables/36_attachment.sql` | (Only if Task 5 reveals missing index) `INDEX idx_keyword_analyzed_at` on `attachment_document(keyword_analyzed_at)` |
+| `fed_prospector/db/schema/tables/36_attachment.sql` | Add `INDEX idx_keyword_analyzed_at` on `attachment_document(keyword_analyzed_at)` (verified missing during planning). Apply to live DB in same step. |
 
 ## Out of Scope (decided 2026-04-28)
 
