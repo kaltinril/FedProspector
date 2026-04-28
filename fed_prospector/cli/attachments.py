@@ -784,9 +784,11 @@ def migrate_dedup(dry_run):
 @click.command("backfill-attachment-dedup")
 @click.option("--dry-run", is_flag=True, default=False,
               help="Show what would be remapped/deleted without modifying data")
+@click.option("--limit", type=int, default=None,
+              help="Process at most N groups, then stop. Use to test on a small batch first (e.g. --limit 1).")
 @click.option("--attachment-dir", type=str, default=None,
               help="Override the base attachment directory (default: ATTACHMENT_DIR env var)")
-def backfill_attachment_dedup(dry_run, attachment_dir):
+def backfill_attachment_dedup(dry_run, limit, attachment_dir):
     """Backfill: clean up existing attachment hash duplicate groups (Phase 124, Task 10).
 
     Resolves the ~622 content-hash and ~625 text-hash duplicate groups that
@@ -820,7 +822,7 @@ def backfill_attachment_dedup(dry_run, attachment_dir):
     click.echo("Scanning attachment_document/sam_attachment for duplicate hash groups...")
 
     backfill = AttachmentDedupBackfill(attachment_dir=attachment_dir)
-    stats = backfill.run(dry_run=dry_run)
+    stats = backfill.run(dry_run=dry_run, limit=limit)
 
     verb = "Would remap" if dry_run else "Remapped"
     verb_del = "Would delete" if dry_run else "Deleted"

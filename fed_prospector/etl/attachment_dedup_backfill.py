@@ -46,11 +46,13 @@ class AttachmentDedupBackfill:
     # Entry point
     # ------------------------------------------------------------------
 
-    def run(self, dry_run=False):
+    def run(self, dry_run=False, limit=None):
         """Run the backfill (or dry-run preview) for both Layer 3 and Layer 4.
 
         Args:
             dry_run: If True, no DB writes or file deletions; only a report.
+            limit: Cap the total number of groups processed across both methods.
+                   None = no cap. Useful for incremental testing.
 
         Returns:
             dict with aggregate stats (groups, rows_remapped, rows_deleted,
@@ -63,8 +65,8 @@ class AttachmentDedupBackfill:
         try:
             # Layer 3 first — content_hash dedup naturally collapses some
             # text_hash groups before Layer 4 runs.
-            self._run_for_method(conn, "content_hash", stats, dry_run)
-            self._run_for_method(conn, "text_hash", stats, dry_run)
+            self._run_for_method(conn, "content_hash", stats, dry_run, limit=limit)
+            self._run_for_method(conn, "text_hash", stats, dry_run, limit=limit)
         finally:
             if not self.db_connection:
                 conn.close()
@@ -104,17 +106,31 @@ class AttachmentDedupBackfill:
     # Per-method orchestration
     # ------------------------------------------------------------------
 
-    def _run_for_method(self, conn, method, stats, dry_run):
-        """Process all duplicate groups for the given dedup_method."""
+    def _run_for_method(self, conn, method, stats, dry_run, limit=None):
+        """Process all duplicate groups for the given dedup_method.
+
+        If `limit` is set, stops once `stats["groups_processed"]` reaches it
+        (cap is shared across both methods).
+        """
+        if limit is not None and stats["groups_processed"] >= limit:
+            return
+
         groups = self._fetch_duplicate_groups(conn, method)
         logger.info(
-            "Layer %s: found %d duplicate group(s) to process (dry_run=%s)",
+            "Layer %s: found %d duplicate group(s) to process (dry_run=%s, limit=%s)",
             "3 (content_hash)" if method == "content_hash" else "4 (text_hash)",
             len(groups),
             dry_run,
+            limit if limit is not None else "none",
         )
 
         for hash_value in groups:
+            if limit is not None and stats["groups_processed"] >= limit:
+                logger.info(
+                    "Hit --limit %d after %s phase; stopping early",
+                    limit, method,
+                )
+                break
             rows = self._fetch_group_rows(conn, method, hash_value)
             if len(rows) < 2:
                 # Group already collapsed by a prior step (e.g. Layer 3 ran first
