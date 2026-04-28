@@ -164,13 +164,13 @@ When `--force` or `check_changed=True` is used:
 
 - [ ] **Task 1:** Schema — add `INDEX idx_text_hash (text_hash)` to `attachment_document`
 - [ ] **Task 2:** Schema — create `attachment_dedup_map` table
-- [ ] **Task 3:** Layer 2 — known-duplicate check in `attachment_downloader.py` before download, with canonical validation and self-healing eviction
-- [ ] **Task 4:** Layer 3 — content-hash check in `attachment_downloader.py` after download but BEFORE `_upsert_attachment_row()`, record to `attachment_dedup_map`, delete file, set `file_path = NULL`
+- [x] **Task 3:** Layer 2 — known-duplicate check in `attachment_downloader.py` before download, with canonical validation and self-healing eviction
+- [x] **Task 4:** Layer 3 — content-hash check in `attachment_downloader.py` after download but BEFORE `_upsert_attachment_row()`, record to `attachment_dedup_map`, delete file, set `file_path = NULL`
 - [ ] **Task 5:** Layer 4 — new `_handle_text_hash_dedup()` method in `attachment_text_extractor.py` after extraction, record to `attachment_dedup_map`, delete document row and file
-- [ ] **Task 6:** `--force` / `check_changed=True` bypasses Layer 2 and re-evaluates Layer 3
-- [ ] **Task 7:** Thread-safe in-batch dedup tracking (`seen_hashes` dict with `threading.Lock`) in both downloader and extractor
+- [x] **Task 6:** `--force` / `check_changed=True` bypasses Layer 2 and re-evaluates Layer 3
+- [~] **Task 7:** Thread-safe in-batch dedup tracking (`seen_hashes` dict with `threading.Lock`) in both downloader and extractor *(downloader half done; extractor half pending)*
 - [ ] **Task 8:** Add dedup stats section to `pipeline-status` CLI command
-- [ ] **Task 9:** Add logging so daily loads report dedup skips (count, canonical references, method)
+- [~] **Task 9:** Add logging so daily loads report dedup skips (count, canonical references, method) *(downloader half done; extractor half pending)*
 - [ ] **Task 10:** Backfill — clean up existing duplicate groups with strict ordering (remap → insert dedup_map → delete evidence → delete summaries → delete documents → delete files)
 - [ ] **Task 11:** Backfill dry-run mode — report what would be remapped/deleted before committing
 
