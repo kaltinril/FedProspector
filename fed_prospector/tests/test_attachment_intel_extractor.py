@@ -422,3 +422,256 @@ class TestProcessNoticeForceBypassesPerDocSkip:
         assert result == {"intel_upserted": 0, "sources_inserted": 0}
         extractor._run_patterns.assert_not_called()
         extractor._upsert_summary_row.assert_not_called()
+
+
+# ===================================================================
+# Phase 125B Task 6 — new pattern categories
+# ===================================================================
+#
+# These tests exercise _run_patterns directly. The method is pure
+# (text in -> matches out) so no DB mocking is required beyond the
+# existing pattern of passing MagicMock() into the constructor.
+
+def _matches_for(extractor, text, *, category=None, pattern_name=None,
+                 attachment_id=1, filename="doc.pdf"):
+    """Run patterns and filter by category and/or pattern_name."""
+    raw = extractor._run_patterns(text, attachment_id, filename)
+    out = []
+    for cat, info in raw:
+        if category is not None and cat != category:
+            continue
+        if pattern_name is not None and info["pattern_name"] != pattern_name:
+            continue
+        out.append((cat, info))
+    return out
+
+
+class TestContractCeilingPattern:
+
+    def test_shall_not_exceed_dollar_amount(self):
+        extractor = _make_extractor()
+        text = "The total contract value shall not exceed $5,000,000 over the period."
+        matches = _matches_for(extractor, text, category="contract_ceiling")
+        assert len(matches) == 1
+        assert matches[0][1]["pattern_name"] == "ceiling_amount"
+        assert "$5,000,000" in matches[0][1]["matched_text"]
+
+    def test_ceiling_of_dollar_amount(self):
+        extractor = _make_extractor()
+        text = "Awarded with a ceiling of $10 million across all CLINs."
+        matches = _matches_for(extractor, text, category="contract_ceiling")
+        assert len(matches) == 1
+        assert "$10" in matches[0][1]["matched_text"]
+
+    def test_nte_dollar_amount(self):
+        extractor = _make_extractor()
+        text = "Issued NTE $2,500,000 for this task."
+        matches = _matches_for(extractor, text, category="contract_ceiling")
+        assert len(matches) == 1
+        assert matches[0][1]["pattern_name"] == "ceiling_amount"
+        assert "$2,500,000" in matches[0][1]["matched_text"]
+
+
+class TestNoBidBondContextCheck:
+    """The no_bid_bond context check suppresses ceiling matches when a
+    bid-bond / proposal-price phrase appears within 120 chars BEFORE the
+    match. The filter must be targeted enough that legitimate contract
+    ceilings still match.
+    """
+
+    def test_bid_price_within_120_chars_suppresses_match(self):
+        extractor = _make_extractor()
+        text = (
+            "The bidder shall furnish a bid bond equal to 20 percent of the bid price "
+            "but not to exceed $500,000 of the contract."
+        )
+        matches = _matches_for(extractor, text, category="contract_ceiling")
+        assert matches == []
+
+    def test_proposal_price_within_120_chars_suppresses_match(self):
+        extractor = _make_extractor()
+        text = (
+            "The proposal price submitted shall not exceed $1,000,000 in the offer."
+        )
+        matches = _matches_for(extractor, text, category="contract_ceiling")
+        assert matches == []
+
+    def test_bid_guarantee_within_120_chars_suppresses_match(self):
+        extractor = _make_extractor()
+        text = (
+            "A bid guarantee equal to twenty percent of the price, "
+            "not to exceed $50,000."
+        )
+        matches = _matches_for(extractor, text, category="contract_ceiling")
+        assert matches == []
+
+    def test_twenty_percent_within_120_chars_suppresses_match(self):
+        extractor = _make_extractor()
+        text = (
+            "The bidder shall furnish twenty percent of the price not to exceed "
+            "$25,000."
+        )
+        matches = _matches_for(extractor, text, category="contract_ceiling")
+        assert matches == []
+
+    def test_real_macc_ceiling_still_matches(self):
+        extractor = _make_extractor()
+        text = "The MACC shall not exceed $175 Million over five years."
+        matches = _matches_for(extractor, text, category="contract_ceiling")
+        assert len(matches) == 1
+        assert "$175" in matches[0][1]["matched_text"]
+
+
+class TestClinStructurePattern:
+
+    def test_clin_with_four_digit_id_matches(self):
+        extractor = _make_extractor()
+        text = "CLIN 0001 - Base Year Services"
+        matches = _matches_for(extractor, text, category="clin_structure")
+        assert len(matches) == 1
+        assert matches[0][1]["matched_text"] == "CLIN 0001"
+
+    def test_clin_with_other_four_digit_id_matches(self):
+        extractor = _make_extractor()
+        text = "See CLIN 1234 in the schedule."
+        matches = _matches_for(extractor, text, category="clin_structure")
+        assert len(matches) == 1
+        assert matches[0][1]["matched_text"] == "CLIN 1234"
+
+    def test_clin_with_non_digit_suffix_does_not_match(self):
+        extractor = _make_extractor()
+        text = "Notes show clin abc test."
+        matches = _matches_for(extractor, text, category="clin_structure")
+        assert matches == []
+
+    def test_nclins_substring_does_not_match(self):
+        extractor = _make_extractor()
+        text = "NCLINS will be issued separately."
+        matches = _matches_for(extractor, text, category="clin_structure")
+        assert matches == []
+
+
+class TestTechSpecsPattern:
+
+    def test_mil_std_matches(self):
+        extractor = _make_extractor()
+        matches = _matches_for(
+            extractor, "See MIL-STD-2073 for packaging.",
+            category="tech_specs",
+        )
+        assert len(matches) == 1
+        assert matches[0][1]["pattern_name"] == "techspec_mil_std"
+        assert "MIL-STD-2073" in matches[0][1]["matched_text"]
+
+    def test_mil_spec_matches(self):
+        extractor = _make_extractor()
+        matches = _matches_for(
+            extractor, "Apply MIL-SPEC-12345 coating.",
+            category="tech_specs",
+        )
+        assert len(matches) == 1
+        assert matches[0][1]["pattern_name"] == "techspec_mil_spec"
+        assert "MIL-SPEC-12345" in matches[0][1]["matched_text"]
+
+    def test_mil_hdbk_with_letter_suffix_matches(self):
+        extractor = _make_extractor()
+        matches = _matches_for(
+            extractor, "Per MIL-HDBK-516C airworthiness.",
+            category="tech_specs",
+        )
+        assert len(matches) == 1
+        assert matches[0][1]["pattern_name"] == "techspec_mil_hdbk"
+        assert "MIL-HDBK-516C" in matches[0][1]["matched_text"]
+
+    def test_mil_prf_with_letter_suffix_matches(self):
+        extractor = _make_extractor()
+        matches = _matches_for(
+            extractor, "Component meets MIL-PRF-19500F qualification.",
+            category="tech_specs",
+        )
+        assert len(matches) == 1
+        assert matches[0][1]["pattern_name"] == "techspec_mil_prf"
+        assert "MIL-PRF-19500F" in matches[0][1]["matched_text"]
+
+    def test_astm_with_letter_dash_digits_matches(self):
+        extractor = _make_extractor()
+        matches = _matches_for(
+            extractor, "Per ASTM D3951-18 standard.",
+            category="tech_specs",
+        )
+        assert len(matches) == 1
+        assert matches[0][1]["pattern_name"] == "techspec_astm"
+        assert "ASTM D3951-18" in matches[0][1]["matched_text"]
+
+    def test_astm_without_revision_suffix_matches(self):
+        extractor = _make_extractor()
+        matches = _matches_for(
+            extractor, "Reference ASTM E814 in section.",
+            category="tech_specs",
+        )
+        assert len(matches) == 1
+        assert matches[0][1]["pattern_name"] == "techspec_astm"
+        assert "ASTM E814" in matches[0][1]["matched_text"]
+
+    def test_invalid_mil_prefix_does_not_match(self):
+        extractor = _make_extractor()
+        matches = _matches_for(
+            extractor, "MIL-XYZ-9999 not real.",
+            category="tech_specs",
+        )
+        assert matches == []
+
+
+class TestNaicsSizeStandardEnhancement:
+    """Phase 125B added a capture group for the dollar amount. Pattern still
+    has value=None, so the dollar amount surfaces via matched_text (and the
+    consolidator's `tag_value if value else matched_text` fallback)."""
+
+    def test_size_standard_is_dollar_million(self):
+        extractor = _make_extractor()
+        text = "NAICS 541330 size standard is $34 million for this code."
+        matches = _matches_for(extractor, text, pattern_name="naics_size_standard")
+        assert len(matches) == 1
+        assert "$34" in matches[0][1]["matched_text"]
+        assert "million" in matches[0][1]["matched_text"].lower()
+
+    def test_size_standard_of_dollar_with_commas(self):
+        extractor = _make_extractor()
+        text = "Size standard of $45,000,000 applies."
+        matches = _matches_for(extractor, text, pattern_name="naics_size_standard")
+        assert len(matches) == 1
+        assert "$45,000,000" in matches[0][1]["matched_text"]
+
+    def test_size_standard_of_dollar_compact_M(self):
+        extractor = _make_extractor()
+        text = "Small business with size standard of $12.5M revenue."
+        matches = _matches_for(extractor, text, pattern_name="naics_size_standard")
+        assert len(matches) == 1
+        assert "$12.5M" in matches[0][1]["matched_text"]
+
+    def test_size_standard_no_preposition_dollar_million(self):
+        extractor = _make_extractor()
+        text = "Size standard $16.5 Million for the NAICS code."
+        matches = _matches_for(extractor, text, pattern_name="naics_size_standard")
+        assert len(matches) == 1
+        assert "$16.5" in matches[0][1]["matched_text"]
+        assert "Million" in matches[0][1]["matched_text"]
+
+
+class TestWageWdNumberEnhancement:
+    """Phase 125B added a capture group for the WD identifier. Pattern still
+    has value=None, so the WD number surfaces via matched_text."""
+
+    def test_wage_determination_no_colon_format(self):
+        extractor = _make_extractor()
+        text = "Wage Determination No.: 2015-5237 applies to this contract."
+        matches = _matches_for(extractor, text, pattern_name="wage_wd_number")
+        assert len(matches) == 1
+        assert "2015-5237" in matches[0][1]["matched_text"]
+
+    def test_wage_determination_bare_number_format(self):
+        extractor = _make_extractor()
+        text = "See Wage Determination 2015-4217 for rates."
+        matches = _matches_for(extractor, text, pattern_name="wage_wd_number")
+        assert len(matches) == 1
+        assert "2015-4217" in matches[0][1]["matched_text"]
