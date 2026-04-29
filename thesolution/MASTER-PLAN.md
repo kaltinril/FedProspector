@@ -162,7 +162,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
 | 124 | Attachment Hash-Level Deduplication | COMPLETE | [124-ATTACHMENT-HASH-DEDUP.md](phases/completed/124-ATTACHMENT-HASH-DEDUP.md) |
 | 125 | Keyword Extractor — Document-Level Filter | COMPLETE | [125-KEYWORD-EXTRACTOR-DOC-LEVEL-FILTER.md](phases/completed/125-KEYWORD-EXTRACTOR-DOC-LEVEL-FILTER.md) |
-| 125B | Keyword Extractor — Pattern Additions | PLANNED | [125B-KEYWORD-EXTRACTOR-PATTERN-ADDITIONS.md](phases/125B-KEYWORD-EXTRACTOR-PATTERN-ADDITIONS.md) |
+| 125B | Keyword Extractor — Pattern Additions | COMPLETE | [125B-KEYWORD-EXTRACTOR-PATTERN-ADDITIONS.md](phases/completed/125B-KEYWORD-EXTRACTOR-PATTERN-ADDITIONS.md) |
 | 126 | AI Contradiction Detection | PLANNED | [126-AI-CONTRADICTION-DETECTION.md](phases/126-AI-CONTRADICTION-DETECTION.md) |
 | 127 | Expiring Contracts — USASpending Integration | COMPLETE | [127-EXPIRING-CONTRACTS-USASPENDING.md](phases/completed/127-EXPIRING-CONTRACTS-USASPENDING.md) |
 | 128 | Federal Identifier Extraction | COMPLETE | [128-IDENTIFIER-EXTRACTION.md](phases/completed/128-IDENTIFIER-EXTRACTION.md) |
