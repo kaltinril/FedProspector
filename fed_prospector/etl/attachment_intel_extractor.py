@@ -103,6 +103,9 @@ _HEADING_KEYWORDS = {
     "period_of_performance": {"period of performance", "duration", "term", "ordering period", "option"},
     "naics_code": {"naics", "size standard", "product service code", "psc", "classification"},
     "wage_determination": {"wage", "labor", "compensation", "service contract act", "davis-bacon"},
+    "contract_ceiling": {"ceiling", "maximum", "not to exceed", "total value", "contract value"},
+    "clin_structure": {"clin", "contract line item", "line item", "schedule of supplies"},
+    "tech_specs": {"specification", "standard", "military standard", "technical requirement"},
 }
 
 # Raw pattern definitions — compiled at module load
@@ -219,16 +222,29 @@ _RAW_PATTERNS = {
     ],
     "naics_code": [
         {"pattern": r"\bNAICS\s*(?:Code)?[:\s]*(\d{6})\b", "value": None, "confidence": "high", "name": "naics_code"},
-        {"pattern": r"\bsize\s+standard\s+(?:of\s+|is\s+)?\$[\d,.]+\s*(?:million|M)?\b", "value": None, "confidence": "medium", "name": "naics_size_standard"},
+        {"pattern": r"\bsize\s+standard\s+(?:is\s+|of\s+)?\$([\d,.]+)\s*(million|M|billion|B)?\b", "value": None, "confidence": "medium", "name": "naics_size_standard"},
         {"pattern": r"\b(?:PSC|Product\s+Service\s+Code)[:\s]*([A-Z]\d{3})\b", "value": None, "confidence": "high", "name": "psc_code"},
     ],
     "wage_determination": [
         {"pattern": r"\bService\s+Contract\s+(?:Act|Labor\s+Standards)\b", "value": "SCA", "confidence": "high", "name": "wage_sca"},
         {"pattern": r"\bDavis[- ]Bacon(?:\s+Act)?\b", "value": "Davis-Bacon", "confidence": "high", "name": "wage_dba"},
-        {"pattern": r"\bWage\s+Determination\s*(?:No\.?|Number|#)?[:\s]*(?:[A-Z]{2})?\d{7,}\b", "value": None, "confidence": "high", "name": "wage_wd_number"},
+        {"pattern": r"\bWage\s+Determination\s*(?:No\.?|Number|#)?\s*[:.]?\s*((?:\d{4}-\d{4}|[A-Z]{2}\d{8,}))\b", "value": None, "confidence": "high", "name": "wage_wd_number"},
         {"pattern": r"\bFAR\s+52\.222-41\b", "value": "SCA", "confidence": "high", "name": "wage_far_sca"},
         {"pattern": r"\bFAR\s+52\.222-6\b", "value": "Davis-Bacon", "confidence": "high", "name": "wage_far_dba"},
         {"pattern": r"\bprevailing\s+wage\b", "value": None, "confidence": "medium", "name": "wage_prevailing"},
+    ],
+    "contract_ceiling": [
+        {"pattern": r"(?:shall\s+not\s+exceed|not[ -]to[ -]exceed|\bNTE\b|ceiling\s+of|maximum\s+(?:order\s+)?value(?:\s+of)?|total\s+(?:dollar\s+|contract\s+)?value\s+(?:shall\s+not\s+exceed|of))\s*[:.]?\s*\$([\d,]+(?:\.\d+)?)\s*(?:million|M|billion|B|K)?", "value": None, "confidence": "medium", "name": "ceiling_amount", "_needs_context_check": "no_bid_bond"},
+    ],
+    "clin_structure": [
+        {"pattern": r"\bCLIN\s+(\d{4})\b", "value": None, "confidence": "high", "name": "clin_id"},
+    ],
+    "tech_specs": [
+        {"pattern": r"\bMIL-STD-(\d+[A-Z]?)\b", "value": None, "confidence": "high", "name": "techspec_mil_std"},
+        {"pattern": r"\bMIL-SPEC-(\d+[A-Z]?)\b", "value": None, "confidence": "high", "name": "techspec_mil_spec"},
+        {"pattern": r"\bMIL-HDBK-(\d+[A-Z]?)\b", "value": None, "confidence": "high", "name": "techspec_mil_hdbk"},
+        {"pattern": r"\bMIL-PRF-(\d+[A-Z]?)\b", "value": None, "confidence": "high", "name": "techspec_mil_prf"},
+        {"pattern": r"\bASTM\s+([A-Z]\d+(?:[/-]\d+)?M?)\b", "value": None, "confidence": "high", "name": "techspec_astm"},
     ],
 }
 
@@ -1117,6 +1133,16 @@ class AttachmentIntelExtractor:
                         window = text[max(0, m.start() - 200):min(len(text), m.end() + 200)].lower()
                         if not any(kw in window for kw in ("set-aside", "set aside", "competition type", "competition:")):
                             logger.debug("Context check failed (no set-aside context): %s in %s", pdef["name"], filename)
+                            continue
+                    elif context_check == "no_bid_bond":
+                        # Contract ceiling — skip if 120 chars before mentions bid/proposal pricing or bond
+                        pre_text = text[max(0, m.start() - 120):m.start()].lower()
+                        if any(kw in pre_text for kw in (
+                            "bid price", "proposal price", "bid guarantee",
+                            "proposal guarantee", "bid bond",
+                            "20 percent", "20%", "twenty percent",
+                        )):
+                            logger.debug("Context check failed (bid bond context): %s in %s", pdef["name"], filename)
                             continue
 
                     confidence = pdef["confidence"]
