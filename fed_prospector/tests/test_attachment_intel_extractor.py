@@ -675,3 +675,92 @@ class TestWageWdNumberEnhancement:
         matches = _matches_for(extractor, text, pattern_name="wage_wd_number")
         assert len(matches) == 1
         assert "2015-4217" in matches[0][1]["matched_text"]
+
+
+# ===================================================================
+# --future-only flag scopes attachment-path eligibility to active opps
+# (Phase 125B)
+# ===================================================================
+
+class TestFutureOnlyFilter:
+    """When self._future_only is True on the attachment path, eligibility queries
+    JOIN opportunity and restrict to response_deadline >= NOW() AND active='Y'.
+
+    The flag must apply to BOTH _fetch_eligible_notices and _count_eligible_notices,
+    on BOTH the force and non-force branches. Default (False) must not introduce
+    the JOIN — that's the byte-identical-behavior regression check.
+    """
+
+    def test_fetch_future_only_adds_opportunity_join_and_filter(self):
+        cursor = _build_cursor(rows=[("notice-future",)])
+        extractor = _make_extractor(description_only=False)
+        extractor._future_only = True
+        with patch("etl.attachment_intel_extractor.get_connection",
+                   return_value=_build_conn(cursor)):
+            result = extractor._fetch_eligible_notices(
+                notice_id=None, batch_size=100, method="keyword", force=False,
+            )
+        assert result == ["notice-future"]
+        sql, params = cursor.execute.call_args[0]
+        assert "JOIN opportunity o ON o.notice_id = m.notice_id" in sql
+        assert "o.response_deadline >= NOW()" in sql
+        assert "o.active = 'Y'" in sql
+        assert "ad.keyword_analyzed_at IS NULL" in sql
+        assert params == [100]
+
+    def test_fetch_future_only_with_force_still_filters(self):
+        cursor = _build_cursor(rows=[("notice-future-force",)])
+        extractor = _make_extractor(description_only=False)
+        extractor._future_only = True
+        with patch("etl.attachment_intel_extractor.get_connection",
+                   return_value=_build_conn(cursor)):
+            extractor._fetch_eligible_notices(
+                notice_id=None, batch_size=100, method="keyword", force=True,
+            )
+        sql, _ = cursor.execute.call_args[0]
+        assert "JOIN opportunity o ON o.notice_id = m.notice_id" in sql
+        assert "o.response_deadline >= NOW()" in sql
+        assert "o.active = 'Y'" in sql
+        # force still drops the keyword_analyzed_at predicate
+        assert "keyword_analyzed_at" not in sql
+
+    def test_count_future_only_mirrors_fetch_filter(self):
+        cursor = _build_cursor(scalar=6806)
+        extractor = _make_extractor(description_only=False)
+        extractor._future_only = True
+        with patch("etl.attachment_intel_extractor.get_connection",
+                   return_value=_build_conn(cursor)):
+            count = extractor._count_eligible_notices(
+                notice_id=None, method="keyword", force=False,
+            )
+        assert count == 6806
+        sql = cursor.execute.call_args[0][0]
+        assert "JOIN opportunity o ON o.notice_id = m.notice_id" in sql
+        assert "o.response_deadline >= NOW()" in sql
+        assert "o.active = 'Y'" in sql
+        assert "COUNT(DISTINCT m.notice_id)" in sql
+
+    def test_default_future_only_false_has_no_opportunity_join(self):
+        """Regression check: default behavior is byte-identical to pre-Phase-125B."""
+        fetch_cursor = _build_cursor(rows=[])
+        count_cursor = _build_cursor(scalar=0)
+        extractor = _make_extractor(description_only=False)
+        # Do NOT set _future_only — it defaults to False from __init__.
+        assert extractor._future_only is False
+
+        with patch("etl.attachment_intel_extractor.get_connection",
+                   return_value=_build_conn(fetch_cursor)):
+            extractor._fetch_eligible_notices(
+                notice_id=None, batch_size=100, method="keyword", force=False,
+            )
+        with patch("etl.attachment_intel_extractor.get_connection",
+                   return_value=_build_conn(count_cursor)):
+            extractor._count_eligible_notices(
+                notice_id=None, method="keyword", force=False,
+            )
+
+        for cur in (fetch_cursor, count_cursor):
+            sql = cur.execute.call_args[0][0]
+            assert "JOIN opportunity" not in sql
+            assert "response_deadline" not in sql
+            assert "o.active" not in sql

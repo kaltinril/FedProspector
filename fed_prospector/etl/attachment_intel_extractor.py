@@ -466,12 +466,13 @@ class AttachmentIntelExtractor:
         self.load_manager = load_manager or LoadManager()
         self.dump_on_error = dump_on_error
         self._description_only = False
+        self._future_only = False
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
 
-    def extract_intel(self, notice_id=None, batch_size=100, method="keyword", force=False, description_only=False, workers=4):
+    def extract_intel(self, notice_id=None, batch_size=100, method="keyword", force=False, description_only=False, future_only=False, workers=4):
         """Extract intelligence from attachment text and opportunity descriptions.
 
         Args:
@@ -480,6 +481,10 @@ class AttachmentIntelExtractor:
             method: Extraction method label (default 'keyword').
             force: If True, re-extract even if already processed.
             description_only: If True, only process description_text (no attachments).
+            future_only: If True (attachment-path only), restrict eligibility to
+                         opportunities where response_deadline >= NOW() AND active='Y'.
+                         Default False preserves prior behavior. The description-only
+                         path ignores this flag.
             workers: Number of parallel worker processes (default 4). workers=1
                      runs serially in the current process (back-compat + debugging).
 
@@ -488,6 +493,7 @@ class AttachmentIntelExtractor:
                             source_rows_inserted
         """
         self._description_only = description_only
+        self._future_only = future_only
 
         load_id = self.load_manager.start_load(
             source_system="ATTACHMENT_INTEL",
@@ -498,6 +504,7 @@ class AttachmentIntelExtractor:
                 "method": method,
                 "force": force,
                 "description_only": description_only,
+                "future_only": future_only,
                 "workers": workers,
             },
         )
@@ -783,13 +790,27 @@ class AttachmentIntelExtractor:
             # Per-notice dispatch is preserved (we still return notice_ids), but
             # the per-document skip in _process_notice ensures already-analyzed
             # docs aren't re-processed when the same notice has mixed state.
+            #
+            # When self._future_only is True, restrict to opportunities that are
+            # still active and not past their response_deadline. The opportunity
+            # JOIN is added to both the force and non-force branches.
+            future_join = (
+                "JOIN opportunity o ON o.notice_id = m.notice_id "
+                if self._future_only else ""
+            )
+            future_where = (
+                "  AND o.response_deadline >= NOW() AND o.active = 'Y' "
+                if self._future_only else ""
+            )
             if force:
                 sql = (
                     "SELECT DISTINCT m.notice_id "
                     "FROM opportunity_attachment m "
                     "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    f"{future_join}"
                     "WHERE ad.extraction_status = 'extracted' "
                     "  AND ad.extracted_text IS NOT NULL "
+                    f"{future_where}"
                     "ORDER BY m.notice_id "
                     "LIMIT %s"
                 )
@@ -799,9 +820,11 @@ class AttachmentIntelExtractor:
                     "SELECT DISTINCT m.notice_id "
                     "FROM opportunity_attachment m "
                     "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    f"{future_join}"
                     "WHERE ad.extraction_status = 'extracted' "
                     "  AND ad.extracted_text IS NOT NULL "
                     "  AND ad.keyword_analyzed_at IS NULL "
+                    f"{future_where}"
                     "ORDER BY m.notice_id "
                     "LIMIT %s"
                 )
@@ -842,13 +865,23 @@ class AttachmentIntelExtractor:
             # Mirror of _fetch_eligible_notices: count notices with at least one
             # extracted document still needing keyword analysis. Must match the
             # fetch query exactly so progress reporting stays consistent.
+            future_join = (
+                "JOIN opportunity o ON o.notice_id = m.notice_id "
+                if self._future_only else ""
+            )
+            future_where = (
+                "  AND o.response_deadline >= NOW() AND o.active = 'Y'"
+                if self._future_only else ""
+            )
             if force:
                 sql = (
                     "SELECT COUNT(DISTINCT m.notice_id) "
                     "FROM opportunity_attachment m "
                     "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    f"{future_join}"
                     "WHERE ad.extraction_status = 'extracted' "
                     "  AND ad.extracted_text IS NOT NULL"
+                    f"{future_where}"
                 )
                 cursor.execute(sql)
             else:
@@ -856,9 +889,11 @@ class AttachmentIntelExtractor:
                     "SELECT COUNT(DISTINCT m.notice_id) "
                     "FROM opportunity_attachment m "
                     "JOIN attachment_document ad ON ad.attachment_id = m.attachment_id "
+                    f"{future_join}"
                     "WHERE ad.extraction_status = 'extracted' "
                     "  AND ad.extracted_text IS NOT NULL "
                     "  AND ad.keyword_analyzed_at IS NULL"
+                    f"{future_where}"
                 )
                 cursor.execute(sql)
             return cursor.fetchone()[0]

@@ -172,11 +172,13 @@ def extract_attachment_text(notice_id, batch_size, force, workers, timeout,
               help="Intelligence extraction method")
 @click.option("--force", is_flag=True, default=False,
               help="Re-extract intel even if already extracted")
+@click.option("--future-only", is_flag=True, default=False,
+              help="Only process opportunities with response_deadline >= NOW() AND active='Y'")
 @click.option("--dump", is_flag=True, default=False,
               help="Dump intel dict to JSON file on DB insert error and stop")
 @click.option("--workers", type=int, default=4, show_default=True,
               help="Number of parallel worker processes (1 = serial, for debugging)")
-def extract_attachment_intel(notice_id, batch_size, method, force, dump, workers):
+def extract_attachment_intel(notice_id, batch_size, method, force, future_only, dump, workers):
     """Extract structured intelligence from attachment text.
 
     Parses extracted text to identify key requirements, evaluation
@@ -195,8 +197,8 @@ def extract_attachment_intel(notice_id, batch_size, method, force, dump, workers
 
     extractor = AttachmentIntelExtractor(dump_on_error=dump)
     logger.info(
-        "Starting attachment intel extraction (batch_size=%d, method=%s, force=%s, workers=%d)",
-        batch_size, method, force, workers,
+        "Starting attachment intel extraction (batch_size=%d, method=%s, force=%s, future_only=%s, workers=%d)",
+        batch_size, method, force, future_only, workers,
     )
     click.echo(
         f"Extracting intelligence from attachments "
@@ -208,6 +210,7 @@ def extract_attachment_intel(notice_id, batch_size, method, force, dump, workers
         batch_size=batch_size,
         method=method,
         force=force,
+        future_only=future_only,
         workers=workers,
     )
 
