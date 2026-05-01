@@ -74,7 +74,7 @@ def _get_daily_steps():
             "description": "Load awards - 8(a) set-aside",
             "command": ["python", "main.py", "load", "awards",
                         "--naics", NAICS, "--days-back", "10", "--max-calls", "100",
-                        "--key", "2", "--set-aside", "8a"],
+                        "--key", "2", "--set-aside", "8A"],
         },
         {
             "name": "awards_wosb",
