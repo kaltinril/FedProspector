@@ -84,48 +84,51 @@ From [60_prospecting.sql](../../fed_prospector/db/schema/tables/60_prospecting.s
 
 ## Implementation Steps
 
-### Task 1 — Run [setup-prod.ps1](../../setup-prod.ps1) on prod (one-time)
+### Prerequisites — DONE
 
-The script is idempotent and ships in the repo (deployed via the gitshare push). RDP into prod, open elevated PowerShell, run it.
+- Python 3.14, repo at `C:\git\fedProspect`, venv, `.env`, attachments dir already in place on prod.
+- Daily ETL already runs on prod manually (`python ./fed_prospector/main.py job daily`).
+- Final old-style seed deploy completed; daily ETL ran end-to-end on prod successfully.
+- `setup-prod.ps1` and `backup.ps1` committed in commit 4e7b645.
 
-> **Note**: `setup-prod.ps1` and `backup.ps1` were authored after the seed deploy and are currently **untracked** in git on dev. They must be committed and pushed to prod (via a final old-style deploy or by copying them to `C:\git\fedProspect\` on prod) before Task 1 / Task 5 can be run on the prod box.
+### Task 1 — Strip DB/attachments from [deploy.ps1](../../deploy.ps1) FIRST (agent: coder)
 
-- [ ] On prod, RDP in and run: `powershell -ExecutionPolicy Bypass -File C:\git\fedProspect\setup-prod.ps1`
-- [ ] Script handles: `my.ini` bind-address edit, firewall rule (TCP 3306 from dev box only — default `192.168.0.250`), pause for manual MySQL restart, GRANT for `fed_app@<dev-ip>` with same password as `fed_app@localhost`.
-- [ ] If dev's DHCP lease ever shifts to a different IP, re-run `setup-prod.ps1 -DevIp <new-ip>` to update both the firewall rule and the MySQL grant.
-- [ ] From dev, verify: `mysql -h 192.168.0.137 -u fed_app -p fed_contracts -e "SELECT COUNT(*) FROM opportunity;"`
-
-### Task 2 — Python + repo on prod — DONE
-
-Already in place: Python 3.14, repo at `C:\git\fedProspect`, venv, `.env`, attachments dir. The application currently runs on prod and the daily load is run from prod manually. No work for this task.
-
-### Task 3 — Switch dev to point at prod (manual by user, with agent help on config files)
-
-- [ ] Edit `fed_prospector/.env` on dev: change `DB_HOST=localhost` → `DB_HOST=192.168.0.137`.
-- [ ] Edit `api/src/FedProspector.Api/appsettings.Local.json` on dev: update connection string to point at `192.168.0.137`. Verify pool settings (`MaxPoolSize=50;MinPoolSize=5`) and consider adding `ConnectionLifetime=300;ConnectionReset=true` to handle LAN connection resets — see Gotcha 1.
-- [ ] Stop dev's local MySQL service (or leave it running for offline backup — see Future / Deferred below).
-- [ ] Smoke-test: run dev's UI against prod's DB. Verify reads + writes work.
-
-### Task 4 — Strip DB/attachments from [deploy.ps1](../../deploy.ps1) (agent: coder)
+**Why this is task 1**: until this script is neutered, every accidental `./deploy.ps1` run clobbers prod's MySQL data and attachments. Stripping it first is a pure dev-side edit with no prod side effects, and the new minimal `deploy.ps1` is the safe vehicle for pushing `setup-prod.ps1` / `backup.ps1` to prod's gitshare if the seed deploy didn't already place them there.
 
 Goal: deploy ships **only** the project source tree to `\\prod\gitshare\fedProspect`. No MySQL data, no attachments, no post-copy MySQL fixes.
 
 Specific edits (line numbers refer to the current [deploy.ps1](../../deploy.ps1) — verify before editing in case of drift):
 
-- [ ] **Top of script — `net use` setup**: in the `foreach ($share in @("gitshare", "mysql", "attachments"))` cleanup loop, drop `"mysql"` and `"attachments"`. Likewise remove the two `net use \\$target\mysql ...` and `net use \\$target\attachments ...` authentication lines.
-- [ ] **Parallel jobs — MySQL**: delete the entire `Start-Job -Name "MySQL"` block (currently the second of three jobs).
-- [ ] **Parallel jobs — Attachments**: delete the entire `Start-Job -Name "Attachments"` block (currently the third of three jobs). Result: only the `Project` (gitshare) job remains.
-- [ ] **Error-path cleanup**: in the `if ($hasErrors)` branch, drop the `net use \\$target\mysql /delete` and `net use \\$target\attachments /delete` lines.
-- [ ] **Post-copy fixes — Fix 1 (`my.ini` path rewrite)**: delete entirely. Prod manages its own `my.ini`.
-- [ ] **Post-copy fixes — Fix 2 (InnoDB redo log clear)**: delete entirely. Only relevant when copying a hot MySQL data dir, which we no longer do.
-- [ ] **Post-copy fixes — Fix 3 (`.env` path rewrite)**: delete entirely. The new approach is to NOT overwrite prod's `.env` in the first place (see next bullet) rather than overwrite-then-rewrite.
-- [ ] **Project robocopy — exclude `.env`**: in the `Start-Job -Name "Project"` block, add `/XF ".env"` to the robocopy args. Without this, dev's `fed_prospector/.env` (with `DB_HOST=192.168.0.137`) would overwrite prod's (which needs `DB_HOST=localhost`). Add any other host-specific files to the same `/XF` list as they come up.
-- [ ] **Post-copy fixes — Fix 4 (appsettings pool limits)**: keep — still applies to the C# API code that just got copied. Already idempotent.
-- [ ] **Bottom of script — disconnect**: drop the `net use \\$target\mysql /delete` and `net use \\$target\attachments /delete` lines.
-- [ ] **"Done!" message**: remove `"Start MySQL on target with: ..."`. Replace with something like `"Done! Restart the C# API on prod to pick up the new code."` (or whatever fits the actual prod restart workflow).
-- [ ] **Test**: run the new minimal `deploy.ps1` against prod. Verify it pushes only the gitshare and prod's MySQL data + user records are untouched.
+- [x] **Top of script — `net use` setup**: in the `foreach ($share in @("gitshare", "mysql", "attachments"))` cleanup loop, drop `"mysql"` and `"attachments"`. Likewise remove the two `net use \\$target\mysql ...` and `net use \\$target\attachments ...` authentication lines.
+- [x] **Parallel jobs — MySQL**: delete the entire `Start-Job -Name "MySQL"` block (currently the second of three jobs).
+- [x] **Parallel jobs — Attachments**: delete the entire `Start-Job -Name "Attachments"` block (currently the third of three jobs). Result: only the `Project` (gitshare) job remains.
+- [x] **Error-path cleanup**: in the `if ($hasErrors)` branch, drop the `net use \\$target\mysql /delete` and `net use \\$target\attachments /delete` lines.
+- [x] **Post-copy fixes — Fix 1 (`my.ini` path rewrite)**: delete entirely. Prod manages its own `my.ini`.
+- [x] **Post-copy fixes — Fix 2 (InnoDB redo log clear)**: delete entirely. Only relevant when copying a hot MySQL data dir, which we no longer do.
+- [x] **Post-copy fixes — Fix 3 (`.env` path rewrite)**: delete entirely. The new approach is to NOT overwrite prod's `.env` in the first place (see next bullet) rather than overwrite-then-rewrite.
+- [x] **Project robocopy — exclude `.env`**: in the `Start-Job -Name "Project"` block, add `/XF ".env"` to the robocopy args. Without this, dev's `fed_prospector/.env` (with `DB_HOST=192.168.0.137`) would overwrite prod's (which needs `DB_HOST=localhost`). Add any other host-specific files to the same `/XF` list as they come up.
+- [x] **Post-copy fixes — Fix 4 (appsettings pool limits)**: keep — still applies to the C# API code that just got copied. Already idempotent.
+- [x] **Bottom of script — disconnect**: drop the `net use \\$target\mysql /delete` and `net use \\$target\attachments /delete` lines.
+- [x] **"Done!" message**: remove `"Start MySQL on target with: ..."`. Replace with something like `"Done! Restart the C# API on prod to pick up the new code."` (or whatever fits the actual prod restart workflow).
+- [x] **Test**: run the new minimal `deploy.ps1` against prod. Verify it pushes only the gitshare. Confirm `C:\git\fedProspect\setup-prod.ps1` and `C:\git\fedProspect\backup.ps1` are present on prod afterward, and that prod's MySQL data + user records are untouched.
 
-### Task 5 — Backups via robocopy of MySQL data dir to NAS (manual)
+### Task 2 — Run [setup-prod.ps1](../../setup-prod.ps1) on prod (one-time)
+
+The script is idempotent. After Task 1's safe deploy, it lives at `C:\git\fedProspect\setup-prod.ps1` on prod. RDP into prod, open elevated PowerShell, run it.
+
+- [x] On prod, RDP in and run: `powershell -ExecutionPolicy Bypass -File C:\git\fedProspect\setup-prod.ps1`
+- [x] Script handles: `my.ini` bind-address edit, firewall rule (TCP 3306 from dev box only — default `192.168.0.250`), pause for manual MySQL restart, GRANT for `fed_app@<dev-ip>` with same password as `fed_app@localhost`.
+- [ ] If dev's DHCP lease ever shifts to a different IP, re-run `setup-prod.ps1 -DevIp <new-ip>` to update both the firewall rule and the MySQL grant.
+- [ ] From dev, verify: `mysql -h 192.168.0.137 -u fed_app -p fed_contracts -e "SELECT COUNT(*) FROM opportunity;"`
+
+### Task 3 — Switch dev to point at prod (manual by user, with agent help on config files)
+
+- [x] Edit `fed_prospector/.env` on dev: change `DB_HOST=localhost` → `DB_HOST=192.168.0.137`.
+- [x] Edit `api/src/FedProspector.Api/appsettings.Local.json` on dev: update connection string to point at `192.168.0.137`. Verify pool settings (`MaxPoolSize=50;MinPoolSize=5`) and consider adding `ConnectionLifetime=300;ConnectionReset=true` to handle LAN connection resets — see Gotcha 1.
+- [ ] Stop dev's local MySQL service (or leave it running for offline backup — see Future / Deferred below).
+- [x] Smoke-test: run dev's UI against prod's DB. Verify reads + writes work.
+
+### Task 4 — Backups via robocopy of MySQL data dir to NAS (manual)
 
 Simpler than mysqldump: stop MySQL, robocopy the on-disk InnoDB tablespace files to the NAS, restart MySQL. Workflow assumes MySQL is **stopped** during the copy — guarantees a consistent snapshot, no hot-copy hazard.
 
@@ -139,14 +142,14 @@ Simpler than mysqldump: stop MySQL, robocopy the on-disk InnoDB tablespace files
 
 ## Cutover Plan
 
-A final old-style deploy seeded prod with today's ETL data, and the first daily ETL run on prod completed successfully. The cutover order is:
+A final old-style deploy seeded prod with today's ETL data, and the first daily ETL run on prod completed successfully. The cutover order — reordered from the original plan to neutralize the dangerous `deploy.ps1` first — is:
 
 1. ✅ Final old-style deploy completed. Daily ETL load executed successfully on prod.
-2. Task 1 on prod: run `setup-prod.ps1`. (Task 2 already done.)
-3. Task 3 on dev (point dev at prod).
-4. Verify dev still works for development.
-5. Task 4: strip `deploy.ps1`. Test the new minimal deploy.
-6. Task 5: `backup.ps1` (robocopy to NAS) — run once, verify it lands on the NAS.
+2. ✅ Helper scripts (`setup-prod.ps1`, `backup.ps1`) committed (4e7b645).
+3. **Task 1**: strip `deploy.ps1` on dev. Test the new minimal deploy — it pushes code only and seeds the helper scripts onto prod's gitshare in one shot.
+4. **Task 2**: run `setup-prod.ps1` on prod.
+5. **Task 3**: point dev's `.env` and `appsettings.Local.json` at prod. Verify dev still works for development.
+6. **Task 4**: run `backup.ps1` once, verify it lands on the NAS, perform a one-time test restore.
 7. Wife grants the employee access. Real user data starts flowing.
 
 ---
@@ -155,7 +158,7 @@ A final old-style deploy seeded prod with today's ETL data, and the first daily 
 
 1. **C# EF Core connection pooling — only matters when debugging from dev**: On prod, the C# API and MySQL are on the same box (localhost), so pool/timeout behavior is unchanged. The concern is only when you run the API in Debug mode on **dev** pointing at prod's MySQL — that's the LAN connection where idle connections might be killed by network/timeout. If you hit "connection lifetime" errors during local debug, add `ConnectionLifetime=300;ConnectionReset=true` to the `appsettings.Local.json` connection string.
 
-2. **Dev's `.env` would overwrite prod's during deploy**: Both machines have a `fed_prospector/.env` at the same path, but they need different values (dev: `DB_HOST=192.168.0.137`, prod: `DB_HOST=localhost`). The gitshare robocopy compares timestamps and would clobber prod's. Fix: add `/XF ".env"` to the robocopy exclusion list in `deploy.ps1` (handled in Task 4). Same applies to any other host-specific config files.
+2. **Dev's `.env` would overwrite prod's during deploy**: Both machines have a `fed_prospector/.env` at the same path, but they need different values (dev: `DB_HOST=192.168.0.137`, prod: `DB_HOST=localhost`). The gitshare robocopy compares timestamps and would clobber prod's. Fix: add `/XF ".env"` to the robocopy exclusion list in `deploy.ps1` (handled in Task 1). Same applies to any other host-specific config files.
 
 3. **Schema migrations now run against a DB real users are using**: Take a backup (`backup.ps1`) before any migration. Avoid breaking changes during business hours once the employee is active.
 
@@ -175,7 +178,7 @@ A final old-style deploy seeded prod with today's ETL data, and the first daily 
 ## Known Issues
 
 - **Pebble missing from prod's venv on first run**: had to manually `pip install -r requirements.txt` on prod after the seed deploy. Cause unknown (incomplete prior install? requirements drift?). Daily load now succeeds. If the venv ever gets recreated, re-run `pip install -r requirements.txt`.
-- **`8a` vs `8A` set-aside case mismatch in daily batch**: [fed_prospector/cli/load_batch.py:77](../../fed_prospector/cli/load_batch.py) passed `"8a"` lowercase; [awards.py](../../fed_prospector/cli/awards.py) `VALID_SET_ASIDE_CODES` is uppercase `"8A"` and validation is case-sensitive — caused the awards loader to fail loudly during the first prod-side daily run. Fix applied in working tree (one-line: `"8a"` → `"8A"` at line 77); not yet committed as of this writing. Surfaced because daily ran end-to-end on the new machine for the first time.
+- **`8a` vs `8A` set-aside case mismatch in daily batch**: [fed_prospector/cli/load_batch.py:77](../../fed_prospector/cli/load_batch.py) passed `"8a"` lowercase; [awards.py](../../fed_prospector/cli/awards.py) `VALID_SET_ASIDE_CODES` is uppercase `"8A"` and validation is case-sensitive — caused the awards loader to fail loudly during the first prod-side daily run. Fixed in commit 4e7b645 (one-line: `"8a"` → `"8A"` at line 77). Surfaced because daily ran end-to-end on the new machine for the first time.
 
 ---
 
