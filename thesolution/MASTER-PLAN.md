@@ -171,7 +171,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 131 | Per-Attachment Re-Analysis | COMPLETE | [131-PER-ATTACHMENT-REANALYSIS.md](phases/completed/131-PER-ATTACHMENT-REANALYSIS.md) |
 | 132 | Identifier Dash-Normalization | PLANNED | [132-IDENTIFIER-DASH-NORMALIZATION.md](phases/132-IDENTIFIER-DASH-NORMALIZATION.md) |
 | 133 | Linked Entity Aggregation Fixes + Sister Subsidiary | PLANNED | [133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md](phases/133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md) |
-| 134 | DB Centralization and Deploy Safety | IN PROGRESS | [134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md](phases/134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md) |
+| 134 | DB Centralization and Deploy Safety | COMPLETE | [134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md](phases/completed/134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 170 | Full Document Viewer with Highlights | PLANNED | [170-FULL-DOCUMENT-VIEWER.md](phases/170-FULL-DOCUMENT-VIEWER.md) |
 | 200 | Database Schema Normalization | PLANNED | [200-DATABASE-NORMALIZATION.md](phases/200-DATABASE-NORMALIZATION.md) |
