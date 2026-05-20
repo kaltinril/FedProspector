@@ -1146,7 +1146,7 @@ def build_document():
         "  Pass 2 (general): Use remaining budget for all other opportunities missing descriptions.\n\n"
         "Each description is fetched individually (1 API call per opportunity). "
         "HTML response is parsed and stored as plain text. "
-        "Integrated into daily_load.bat as step 2 with --limit 100."
+        "Integrated into the daily load sequence (step 2) with --limit 100."
     )
 
     doc.add_heading("Rate Limits", level=2)
@@ -1188,7 +1188,7 @@ def build_document():
         "- Each description = 1 API call; use --limit to control daily budget consumption.\n"
         "- Priority pass ensures WOSB/8(a)/SBA opportunities are filled first.\n"
         "- Some opportunities have no description URL (description_url IS NULL); these are skipped.\n"
-        "- Integrated into daily_load.bat as step 2 (100/day batch)."
+        "- Integrated into the daily load sequence (step 2, 100/day batch)."
     )
 
     doc.add_page_break()
@@ -1282,7 +1282,7 @@ def build_document():
     # =========================================================================
     doc.add_heading("Appendix A: Daily Load Sequence", level=1)
     doc.add_paragraph(
-        "The daily_load.bat script runs the following 13 steps in order:"
+        "The daily load sequence (`python ./fed_prospector/main.py job daily`) runs the following 16 steps in order:"
     )
 
     steps = [
@@ -1292,24 +1292,32 @@ def build_document():
          "Backfill description text (priority NAICS+set-aside first)"),
         ("3", "load usaspending-bulk", "--days-back 5",
          "Bulk load recent USASpending data"),
-        ("4", "load awards", "--naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside 8a",
+        ("4", "load awards", "--naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside 8A",
          "Load 8(a) set-aside awards"),
         ("5", "load awards", "--naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside WOSB",
          "Load WOSB set-aside awards"),
         ("6", "load awards", "--naics <NAICS> --days-back 10 --max-calls 100 --key 2 --set-aside SBA",
          "Load SBA set-aside awards"),
-        ("7", "update link-metadata", "",
-         "Enrich resource link filenames and content types"),
+        ("7", "load labor-rates", "",
+         "Load CALC+ labor rates (skips if <30 days old)"),
         ("8", "download attachments", "--missing-only --active-only --batch-size 5000",
          "Download attachment files for active opportunities"),
         ("9", "extract attachment-text", "--batch-size 5000 --workers 10",
          "Extract text from downloaded attachments"),
         ("10", "extract attachment-intel", "--batch-size 5000",
-         "Extract structured intelligence from text"),
-        ("11", "backfill opportunity-intel", "",
-         "Propagate intel findings to opportunity table"),
-        ("12", "maintain attachment-files", "",
-         "Remove fully-analyzed attachment files from disk"),
+         "Extract keyword intelligence from attachment text"),
+        ("11", "extract description-intel", "--batch-size 5000",
+         "Extract keyword intelligence from description text"),
+        ("12", "extract identifiers", "--batch-size 5000",
+         "Extract federal identifiers from document text"),
+        ("13", "extract cross-ref-identifiers", "--batch-size 5000",
+         "Cross-reference extracted identifiers against database"),
+        ("14", "backfill opportunity-intel", "",
+         "Backfill opportunity intel from analysis results"),
+        ("15", "maintain attachment-files", "",
+         "Clean up fully-analyzed attachment files"),
+        ("16", "load sca", "",
+         "Check SCA wage determinations for new revisions"),
     ]
 
     add_table(doc,

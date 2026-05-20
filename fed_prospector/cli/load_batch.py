@@ -48,7 +48,6 @@ def _get_daily_steps():
     """Return the daily load step definitions.
 
     Each step has a name, description, and command list.
-    This matches the daily_load.bat sequence exactly.
     """
     return [
         {
@@ -484,7 +483,6 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
 def load_daily(key, skip, dry_run):
     """Run the daily load sequence (16 steps).
 
-    Replaces daily_load.bat with a Python-native command.
     Checks monthly entity load eligibility before daily steps.
     Always continues on failure — no step blocks the next.
 

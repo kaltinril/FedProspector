@@ -43,7 +43,7 @@ Only files that completed keyword intel successfully get cleaned up. Failed, ski
 
 ### 1B. Update daily load pipeline order
 
-**File:** `daily_load.bat`
+**File:** `fed_prospector/cli/load_batch.py`
 
 Move the cleanup step from after AI analysis to after keyword intel extraction:
 
@@ -167,7 +167,7 @@ The `maintain attachment-files --notice-id` command should still work for target
 | File | Change |
 |------|--------|
 | `fed_prospector/etl/attachment_cleanup.py` | Remove AI intel EXISTS clause from eligibility query |
-| `daily_load.bat` | Move cleanup step to after keyword intel, before AI analysis |
+| `fed_prospector/cli/load_batch.py` | Reorder `attachment_cleanup` step in `_get_daily_steps()` (move earlier, after keyword intel, before backfill) |
 | `fed_prospector/etl/demand_loader.py` | Add ATTACHMENT_REDOWNLOAD handler |
 | `api/src/FedProspector.Api/Controllers/OpportunitiesController.cs` | Add redownload endpoint |
 | `api/src/FedProspector.Infrastructure/Services/AttachmentIntelService.cs` | Add redownload request method |

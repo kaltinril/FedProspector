@@ -245,7 +245,7 @@ add_table(slide, Inches(0.3), Inches(1.3), Inches(12.7), Inches(5.5), table_data
 # SLIDE 3: Daily Load Pipeline
 # =====================================================================
 slide = prs.slides.add_slide(prs.slide_layouts[6])
-add_title_bar(slide, "Daily Load Pipeline (daily_load.bat)")
+add_title_bar(slide, "Daily Load Pipeline")
 
 steps = [
     ("1", "Load Opportunities", "31 days back, key 2, max 300 calls, --force"),

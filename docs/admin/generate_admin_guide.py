@@ -237,7 +237,7 @@ def ch3_daily_loading(doc):
 
     doc.add_heading("3.1 Overview", level=2)
     doc.add_paragraph(
-        "The daily load script (daily_load.bat) runs a 13-step pipeline that fetches "
+        "The daily load script (`python ./fed_prospector/main.py job daily`) runs a 16-step pipeline that fetches "
         "data from government APIs, backfills descriptions, downloads attachments, "
         "extracts text, and performs intelligence extraction. It is designed to run "
         "once per day."
@@ -262,7 +262,7 @@ def ch3_daily_loading(doc):
         "  --continue-on-failure      Don't stop on first failure"
     )
 
-    doc.add_heading("3.3 daily_load.bat Step-by-Step", level=2)
+    doc.add_heading("3.3 Daily Load Sequence (python main.py job daily)", level=2)
 
     steps = [
         (
@@ -348,7 +348,7 @@ def ch3_daily_loading(doc):
             "Step 11: AI Analysis (Disabled)",
             "python main.py extract attachment-ai --model haiku --batch-size 50",
             "Runs Claude AI deep analysis on attachment text. Currently disabled in "
-            "daily_load.bat to save on costs. Can be run on demand for specific "
+            "the daily load sequence (step 11) to save on costs. Can be run on demand for specific "
             "opportunities when needed.",
             "5-30 minutes (when enabled)."
         ),
@@ -380,7 +380,7 @@ def ch3_daily_loading(doc):
 
     doc.add_heading("3.4 NAICS Codes", level=2)
     doc.add_paragraph(
-        "The daily_load.bat script uses 24 NAICS codes covering the organization's "
+        "The daily load sequence (python ./fed_prospector/main.py job daily) uses 24 NAICS codes covering the organization's "
         "target industries. These are set in the NAICS variable at the top of the script:"
     )
     add_code_block(doc,
@@ -622,7 +622,7 @@ def ch4_cli_reference(doc):
         "requires one API call. Supports a two-pass prioritized fetch: first fetches "
         "descriptions for high-value opportunities matching target NAICS codes and "
         "set-aside types (WOSB/8(a)/SBA), then uses remaining budget for the general "
-        "backlog. Integrated into daily_load.bat (100 descriptions/day)."
+        "backlog. Integrated into the daily load sequence (100 descriptions/day)."
     )
     add_code_block(doc,
         "Options:\n"
