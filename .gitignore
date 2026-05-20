@@ -20,6 +20,9 @@
 # Ephemeral smoke test workspace (Playwright artifacts, screenshots)
 .smoke-tmp/
 
+# Daily ETL run logs (per-machine artifacts written by daily.ps1)
+/logs/
+
 # Environment
 fed_prospector/.venv/
 fed_prospector/venv/
