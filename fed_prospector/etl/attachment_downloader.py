@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import re
+import sys
 import threading
 import time
 from datetime import datetime
@@ -78,6 +79,11 @@ _ALLOWED_REDIRECT_PATTERN = re.compile(r"^https://[a-z0-9._-]+\.amazonaws\.com/"
 
 # Request timeout (seconds) for the download stream
 _REQUEST_TIMEOUT = 60
+
+# Hard wall-clock deadline per file. Protects against slow-trickle hangs
+# where each chunk arrives within _REQUEST_TIMEOUT but the file as a
+# whole never finishes (e.g. a server that streams 1 byte/sec).
+_DOWNLOAD_DEADLINE_SECONDS = 300
 
 # Stream chunk size
 _CHUNK_SIZE = 8192
@@ -253,12 +259,22 @@ class AttachmentDownloader:
                     )
                     return "error"
 
+            # Show the live tqdm bar only in an interactive terminal. In
+            # non-TTY contexts (Task Scheduler, redirected logs) the bar's
+            # carriage returns garble the log file, so we disable it and
+            # emit periodic logger.info() lines instead.
+            is_tty = sys.stderr.isatty()
             pbar = tqdm(
                 total=len(urls_to_download),
                 desc="Downloading",
                 unit="file",
                 bar_format="{desc}: {n_fmt}/{total_fmt} [{elapsed}<{remaining}] {postfix}",
+                disable=not is_tty,
             )
+            # Non-TTY milestone: every max(25, 5% of total) items processed.
+            log_interval = max(25, len(urls_to_download) // 20) if urls_to_download else 25
+            last_logged = 0
+            processed = 0
 
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = {
@@ -282,6 +298,15 @@ class AttachmentDownloader:
                         pbar.set_postfix_str(
                             f"ok={stats['downloaded']} skip={stats['skipped']} fail={stats['failed']}"
                         )
+                        if not is_tty:
+                            processed += 1 + extra_count
+                            if processed - last_logged >= log_interval:
+                                logger.info(
+                                    "Download progress: %d/%d (ok=%d skip=%d fail=%d)",
+                                    processed, len(urls_to_download),
+                                    stats["downloaded"], stats["skipped"], stats["failed"],
+                                )
+                                last_logged = processed
 
             pbar.close()
 
@@ -736,10 +761,15 @@ class AttachmentDownloader:
 
         hasher = hashlib.sha256()
         file_size = 0
+        chunk_deadline = time.time() + _DOWNLOAD_DEADLINE_SECONDS
         try:
             oversize = False
             with open(dest_path, "wb") as f:
                 for chunk in resp.iter_content(chunk_size=_CHUNK_SIZE):
+                    if time.time() > chunk_deadline:
+                        raise TimeoutError(
+                            f"Download exceeded {_DOWNLOAD_DEADLINE_SECONDS}s deadline for {url}"
+                        )
                     if chunk:
                         file_size += len(chunk)
                         if file_size > max_file_size_bytes:
