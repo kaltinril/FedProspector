@@ -159,7 +159,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 121 | Description Intel Extraction | COMPLETE | [121-DESCRIPTION-INTEL-EXTRACTION.md](phases/completed/121-DESCRIPTION-INTEL-EXTRACTION.md) |
 | 121B | Description Keyword Intel Extraction | COMPLETE | [121B-DESCRIPTION-KEYWORD-INTEL.md](phases/completed/121B-DESCRIPTION-KEYWORD-INTEL.md) |
 | 122 | Opportunity POC Extraction | COMPLETE | [122-OPPORTUNITY-POC-EXTRACTION.md](phases/completed/122-OPPORTUNITY-POC-EXTRACTION.md) |
-| 123 | Graceful Rate Limit Handling | PLANNED | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
+| 123 | Graceful Rate Limit Handling | COMPLETE | [123-GRACEFUL-RATE-LIMIT-HANDLING.md](phases/completed/123-GRACEFUL-RATE-LIMIT-HANDLING.md) |
 | 124 | Attachment Hash-Level Deduplication | COMPLETE | [124-ATTACHMENT-HASH-DEDUP.md](phases/completed/124-ATTACHMENT-HASH-DEDUP.md) |
 | 125 | Keyword Extractor — Document-Level Filter | COMPLETE | [125-KEYWORD-EXTRACTOR-DOC-LEVEL-FILTER.md](phases/completed/125-KEYWORD-EXTRACTOR-DOC-LEVEL-FILTER.md) |
 | 125B | Keyword Extractor — Pattern Additions | COMPLETE | [125B-KEYWORD-EXTRACTOR-PATTERN-ADDITIONS.md](phases/completed/125B-KEYWORD-EXTRACTOR-PATTERN-ADDITIONS.md) |
