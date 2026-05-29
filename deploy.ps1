@@ -26,7 +26,7 @@ $jobs = @()
 
 $jobs += Start-Job -Name "Project" -ScriptBlock {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $output = robocopy "C:\git\fedProspect" "\\$using:target\gitshare\fedProspect" /E /MT:16 /J /R:1 /W:1 /ETA /XD ".git" "node_modules" "__pycache__" ".venv" /XF ".env"
+    $output = robocopy "C:\git\fedProspect" "\\$using:target\gitshare\fedProspect" /E /MT:16 /J /R:1 /W:1 /ETA /XD ".git" "node_modules" "__pycache__" ".venv"
     $exitCode = $LASTEXITCODE
     $sw.Stop()
     [PSCustomObject]@{ Output = ($output -join "`r`n"); Elapsed = $sw.Elapsed; ExitCode = $exitCode }
@@ -58,6 +58,26 @@ if ($hasErrors) {
 Write-Host "`nApplying post-copy fixes..." -ForegroundColor Green
 
 # --- Post-copy fixes on target ---
+
+# Fix: Rewrite prod-specific values in .env (deploy includes .env, but a few
+# values diverge between dev and prod machines)
+#   - DB_HOST: dev points at prod IP; prod is localhost to itself
+#   - MYSQL_BIN_DIR: dev has MySQL on E:\, prod has it on C:\
+$envFile = "\\$target\gitshare\fedProspect\fed_prospector\.env"
+if (Test-Path $envFile) {
+    $envContent = Get-Content $envFile -Raw
+    $newEnvContent = $envContent `
+        -replace "(?m)^DB_HOST=.*$", "DB_HOST=localhost" `
+        -replace "(?m)^MYSQL_BIN_DIR=.*$", "MYSQL_BIN_DIR=C:\mysql\bin"
+    if ($newEnvContent -ne $envContent) {
+        Set-Content $envFile $newEnvContent -NoNewline
+        Write-Host "  Rewrote prod-specific values in .env (DB_HOST, MYSQL_BIN_DIR)" -ForegroundColor Yellow
+    } else {
+        Write-Host "  Prod-specific .env values already correct" -ForegroundColor DarkGray
+    }
+} else {
+    Write-Host "  No fed_prospector\.env found on prod (skipping .env rewrites)" -ForegroundColor DarkGray
+}
 
 # Fix 4: Ensure connection string has pool limits
 $appSettings = "\\$target\gitshare\fedProspect\api\src\FedProspector.Api\appsettings.Local.json"
