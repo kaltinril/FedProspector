@@ -372,3 +372,18 @@ Implemented as `_check_and_rebuild_indexes()` in `USASpendingBulkLoader`. Runs o
 | # | Issue |
 |---|-------|
 | CROSS-1 | Audit for hardcoded absolute paths — file paths should be relative or configurable via env vars |
+
+---
+
+### 500P: Daily ETL Failure — Remaining Diagnostic + Bug Items
+
+**Original phase**: Daily ETL failure investigation (May 2026)
+**Deferred because**: Primary fixes shipped (attachment_downloader slow-trickle deadline, daily.ps1 cmd-redirect, extractor retry gate). These two items are diagnostic/secondary.
+
+#### Items
+
+1. **Windows Event Viewer check on prod for python.exe fault events.** During the May 2026 daily-failure investigation, we shipped a hypothesis fix (per-file 5-minute deadline on `iter_content` in [attachment_downloader.py](../../fed_prospector/etl/attachment_downloader.py)) without confirming the root cause via OS-level fault data. If the daily ever exits `0x1` again with the same symptoms (last log line in the middle of attachment downloading, no traceback), pull the Application log around the run window — look for `python.exe` Application Error / `.NET Runtime` / `Faulting application` events. Confirms or refutes the slow-trickle deadlock theory.
+
+2. **USASPENDING_BULK temp-file "File not found" on `LOAD DATA INFILE`.** Observed once during the investigation: load failed pointing at `C:\Users\maure\AppData\Local\Temp\usa_bulk_tsv_...`. Likely a permissions or path-resolution issue between the python process user and the MySQL service user (MySQL can't read a temp file in another user's profile). Options: move the bulk TSV temp dir to a shared location both users can read (e.g. `E:\fedprospector\tmp\`), or grant the MySQL service account read access to the python user's temp dir, or use `LOAD DATA LOCAL INFILE` (client-side read). Pick whichever fits the deploy model.
+
+**Estimated effort**: ~1h for the Event Viewer pull if/when it recurs; ~0.5d for the temp-file fix (config + test).

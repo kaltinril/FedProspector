@@ -37,7 +37,12 @@ $env:PYTHONUNBUFFERED = "1"
 # before $LASTEXITCODE is set.
 $exitCode = 1
 try {
-    python .\fed_prospector\main.py job daily @args *>> $logFile
+    # Route stdout+stderr through cmd.exe (>> "...log" 2>&1) instead of PowerShell's
+    # *>> redirect. PowerShell buffers the child's stderr in its pipe and can lose the
+    # last buffer if python dies abnormally; cmd.exe writes directly to the file handle
+    # and preserves last-second diagnostics from a crashing python process.
+    $argString = if ($args.Count -gt 0) { ' ' + ($args -join ' ') } else { '' }
+    & cmd.exe /c "python .\fed_prospector\main.py job daily$argString >> `"$logFile`" 2>&1"
     $exitCode = $LASTEXITCODE
 } finally {
     $duration = (Get-Date) - $startTime

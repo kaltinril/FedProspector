@@ -1187,9 +1187,9 @@ class AttachmentTextExtractor:
             params = []
 
             if force:
-                conditions.append("ad.extraction_status IN ('pending', 'extracted', 'failed', 'unsupported')")
+                conditions.append("ad.extraction_status IN ('pending', 'extracted', 'failed', 'timeout', 'unsupported')")
             else:
-                conditions.append("ad.extraction_status = 'pending'")
+                conditions.append("ad.extraction_status IN ('pending', 'failed', 'timeout')")
                 conditions.append("ad.extraction_retry_count < 10")
 
             join_clause = ""
