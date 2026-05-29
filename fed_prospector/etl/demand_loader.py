@@ -10,11 +10,12 @@ Request types:
     ATTACHMENT_ANALYSIS        - Run Claude AI analysis on attachment documents
     ATTACHMENT_ANALYSIS_SINGLE - Run keyword or AI analysis on a single attachment
     REFRESH_FEDHIER_ORG        - Refresh a single federal organization from SAM.gov Federal Hierarchy
+    DESCRIPTION_FETCH          - Fetch opportunity description text from SAM.gov noticedesc (Phase 123)
 """
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from db.connection import get_connection
 from etl.load_manager import LoadManager
@@ -23,6 +24,10 @@ from etl.awards_loader import AwardsLoader
 from api_clients.usaspending_client import USASpendingClient
 from api_clients.sam_awards_client import SAMAwardsClient
 from api_clients.sam_fedhier_client import SAMFedHierClient
+from api_clients.sam_opportunities_client import (
+    SamOpportunitiesClient,
+    DescriptionFetchRateLimited,
+)
 
 logger = logging.getLogger("fed_prospector.etl.demand_loader")
 
@@ -42,6 +47,8 @@ class DemandLoader:
         self.usa_loader = USASpendingLoader()
         self.awards_loader = AwardsLoader()
         self.load_manager = LoadManager()
+        # Lazily constructed on first DESCRIPTION_FETCH request (Phase 123 Unit C)
+        self.sam_opportunities_client = None
 
     def clear_queue(self) -> int:
         """Cancel all PENDING requests. Returns count cleared."""
@@ -66,12 +73,21 @@ class DemandLoader:
             conn.close()
 
     def process_pending_requests(self) -> int:
-        """Process up to 10 pending requests. Returns count processed."""
+        """Process up to 10 pending requests. Returns count processed.
+
+        Eligible rows (Phase 123):
+          * status='PENDING' (newly-queued), OR
+          * status='PENDING_RETRY' AND retry_after <= UTC_TIMESTAMP() (vendor
+            429 backoff has elapsed). Uses MySQL's UTC clock to match how
+            retry_after is stored (UTC, set from the 429 reset signal).
+        """
         conn = get_connection()
         try:
             cursor = conn.cursor(dictionary=True)
             cursor.execute(
-                "SELECT * FROM data_load_request WHERE status = 'PENDING' "
+                "SELECT * FROM data_load_request "
+                "WHERE status = 'PENDING' "
+                "   OR (status = 'PENDING_RETRY' AND retry_after <= UTC_TIMESTAMP()) "
                 "ORDER BY requested_at LIMIT 10"
             )
             requests = cursor.fetchall()
@@ -82,6 +98,11 @@ class DemandLoader:
                 try:
                     self._process_request(req)
                     processed += 1
+                except DescriptionFetchRateLimited:
+                    # Already handled inside _process_description_fetch
+                    # (row moved to PENDING_RETRY). Re-raised so we don't
+                    # count it as processed.
+                    pass
                 except Exception as e:
                     self._fail_request(req["request_id"], str(e))
                     logger.error("Request %d failed: %s", req["request_id"], e)
@@ -103,6 +124,8 @@ class DemandLoader:
             self._process_attachment_analysis_single(req)
         elif request_type == "REFRESH_FEDHIER_ORG":
             self._process_refresh_fedhier_org(req)
+        elif request_type == "DESCRIPTION_FETCH":
+            self._process_description_fetch(req)
         else:
             raise ValueError(f"Unknown request_type: {request_type}")
 
@@ -133,6 +156,9 @@ class DemandLoader:
             if "result_summary" in kwargs:
                 sets.append("result_summary = %s")
                 params.append(json.dumps(kwargs["result_summary"]))
+            if "retry_after" in kwargs:
+                sets.append("retry_after = %s")
+                params.append(kwargs["retry_after"])
 
             params.append(request_id)
             sql = f"UPDATE data_load_request SET {', '.join(sets)} WHERE request_id = %s"
@@ -471,6 +497,93 @@ class DemandLoader:
         logger.info(
             "Request %d completed: fh_org_id='%s' action=%s org_name='%s'",
             request_id, fh_org_id, action, org_data.get("fhorgname"),
+        )
+
+    # ------------------------------------------------------------------
+    # DESCRIPTION_FETCH processing (Phase 123 Unit C)
+    # ------------------------------------------------------------------
+
+    def _process_description_fetch(self, req):
+        """Fetch a SAM.gov opportunity description and store as plain text.
+
+        Triggered when the C# API hits a 429 on its inline description fetch
+        and queues a row (Phase 123 Unit D). The poller calls Unit B's
+        ``SamOpportunitiesClient`` to retrieve the noticedesc and writes the
+        stripped text into ``opportunity.description_text``.
+
+        On a SAM 429 (``DescriptionFetchRateLimited``), the row is moved to
+        ``PENDING_RETRY`` with ``retry_after`` set from the exception's
+        ``reset_at`` so the poller defers retry until the daily quota resets,
+        rather than marking the request FAILED.
+        """
+        request_id = req["request_id"]
+        notice_id = req["lookup_key"]
+
+        # Lazily build the client on first use so __init__ stays cheap
+        # for callers that never queue a DESCRIPTION_FETCH.
+        if self.sam_opportunities_client is None:
+            self.sam_opportunities_client = SamOpportunitiesClient(api_key_number=2)
+
+        self._set_status(request_id, "PROCESSING", started_at=datetime.now())
+
+        logger.info(
+            "Request %d: fetching noticedesc for notice_id='%s'",
+            request_id, notice_id,
+        )
+
+        try:
+            description_text = self.sam_opportunities_client.fetch_description_text(notice_id)
+        except DescriptionFetchRateLimited as exc:
+            # SAM 429 — defer instead of failing.
+            retry_after = exc.reset_at
+            if retry_after is None:
+                # Defensive: Unit B already falls back to next UTC midnight,
+                # but if it ever returns None we shouldn't crash the poller.
+                retry_after = SamOpportunitiesClient._next_utc_midnight()
+            # MySQL DATETIME is naive; strip tzinfo after confirming UTC.
+            if retry_after.tzinfo is not None:
+                retry_after_db = retry_after.astimezone(timezone.utc).replace(tzinfo=None)
+            else:
+                retry_after_db = retry_after
+            self._set_status(
+                request_id, "PENDING_RETRY",
+                retry_after=retry_after_db,
+                error_message=str(exc),
+            )
+            logger.info(
+                "DESCRIPTION_FETCH for notice %s rate-limited; deferred until %s",
+                notice_id, retry_after.isoformat(),
+            )
+            raise
+
+        # Persist description_text on the opportunity row.
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE opportunity SET description_text = %s WHERE notice_id = %s",
+                (description_text, notice_id),
+            )
+            updated_rows = cursor.rowcount
+            conn.commit()
+            cursor.close()
+        finally:
+            conn.close()
+
+        summary = {
+            "notice_id": notice_id,
+            "description_chars": len(description_text),
+            "opportunity_rows_updated": updated_rows,
+        }
+        self._set_status(
+            request_id, "COMPLETED",
+            completed_at=datetime.now(),
+            result_summary=summary,
+        )
+
+        logger.info(
+            "Request %d completed: noticedesc for '%s' (%d chars, %d row(s) updated)",
+            request_id, notice_id, len(description_text), updated_rows,
         )
 
     # ------------------------------------------------------------------
