@@ -334,7 +334,16 @@ function OverviewTab({
 
   const fetchDescriptionMutation = useMutation({
     mutationFn: () => fetchDescription(opp.noticeId),
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data.queued === true) {
+        // Server returned 202: SAM.gov rate-limited, request queued for later.
+        // Nothing new to refetch yet.
+        enqueueSnackbar(
+          data.message ?? 'Request queued; description will be fetched when the SAM.gov quota resets.',
+          { variant: 'info' },
+        );
+        return;
+      }
       enqueueSnackbar('Description fetched from SAM.gov', { variant: 'success' });
       queryClient.invalidateQueries({
         queryKey: queryKeys.opportunities.detail(opp.noticeId),

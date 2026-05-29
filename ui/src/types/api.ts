@@ -1553,7 +1553,9 @@ export interface AnalysisEstimateDto {
 
 export interface FetchDescriptionResponse {
   noticeId: string;
-  descriptionText: string;
+  descriptionText?: string;   // present on 200 success
+  queued?: boolean;           // true on 202 (SAM.gov rate-limited; request queued)
+  message?: string;           // user-friendly text accompanying queued=true
 }
 
 // ============================================================
