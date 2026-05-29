@@ -529,4 +529,232 @@ public class OpportunityServiceTests : IDisposable
         csv.Should().Contain("CSV-EMPTY-1");
         csv.Should().Contain("CSV-EMPTY-2");
     }
+
+    // -----------------------------------------------------------------------
+    // FetchDescriptionAsync — Phase 123: graceful rate-limit handling
+    //
+    // When SAM.gov returns HTTP 429 the service must:
+    //   - NOT return a generic error
+    //   - Insert a DataLoadRequest(DESCRIPTION_FETCH, NOTICE_ID, PENDING)
+    //   - Dedup against existing PENDING / PENDING_RETRY rows for the same notice
+    //   - Return a FetchDescriptionResult with Queued = true
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Stub HttpMessageHandler that returns a fixed HttpResponseMessage for any request.
+    /// Used to simulate SAM.gov returning HTTP 429.
+    /// </summary>
+    private sealed class StubHttpMessageHandler : System.Net.Http.HttpMessageHandler
+    {
+        private readonly System.Net.HttpStatusCode _status;
+
+        public StubHttpMessageHandler(System.Net.HttpStatusCode status) => _status = status;
+
+        public int CallCount { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            return Task.FromResult(new HttpResponseMessage(_status)
+            {
+                Content = new StringContent("{}")
+            });
+        }
+    }
+
+    private static OpportunityService CreateServiceWithStubbedSamApi(
+        FedProspectorDbContext context,
+        System.Net.HttpStatusCode samStatus,
+        out StubHttpMessageHandler handler)
+    {
+        handler = new StubHttpMessageHandler(samStatus);
+        var httpClient = new HttpClient(handler);
+
+        var factoryMock = new Mock<IHttpClientFactory>();
+        factoryMock.Setup(f => f.CreateClient("SamApi")).Returns(httpClient);
+
+        var samApiOptions = Options.Create(new SamApiOptions { ApiKey = "test-key" });
+        return new OpportunityService(
+            context,
+            NullLogger<OpportunityService>.Instance,
+            factoryMock.Object,
+            samApiOptions);
+    }
+
+    [Fact]
+    public async Task FetchDescriptionAsync_SamReturns429_QueuesRequestAndReturnsQueuedResult()
+    {
+        const string noticeId = "NOTICE-429";
+
+        _context.Opportunities.Add(new Opportunity
+        {
+            NoticeId = noticeId,
+            Title = "Needs Description",
+            DescriptionUrl = "https://api.sam.gov/opportunities/v2/noticedesc?noticeid=NOTICE-429",
+            Active = "Y"
+        });
+        await _context.SaveChangesAsync();
+
+        var service = CreateServiceWithStubbedSamApi(
+            _context, System.Net.HttpStatusCode.TooManyRequests, out var handler);
+
+        var result = await service.FetchDescriptionAsync(noticeId, userId: 42);
+
+        handler.CallCount.Should().Be(1, "the service must attempt the SAM.gov call before queuing");
+
+        result.Queued.Should().BeTrue();
+        result.Success.Should().BeFalse();
+        result.DescriptionText.Should().BeNull();
+        result.ErrorMessage.Should().BeNull("queued is not an error");
+        result.QueuedMessage.Should().NotBeNullOrWhiteSpace();
+
+        var queued = await _context.DataLoadRequests
+            .Where(r => r.RequestType == "DESCRIPTION_FETCH" && r.LookupKey == noticeId)
+            .ToListAsync();
+
+        queued.Should().ContainSingle();
+        queued[0].LookupKeyType.Should().Be("NOTICE_ID");
+        queued[0].Status.Should().Be("PENDING");
+        queued[0].RequestedBy.Should().Be(42);
+    }
+
+    [Fact]
+    public async Task FetchDescriptionAsync_SamReturns429_DoesNotDuplicateExistingPendingRequest()
+    {
+        const string noticeId = "NOTICE-DEDUP";
+
+        _context.Opportunities.Add(new Opportunity
+        {
+            NoticeId = noticeId,
+            Title = "Needs Description",
+            DescriptionUrl = "https://api.sam.gov/opportunities/v2/noticedesc?noticeid=NOTICE-DEDUP",
+            Active = "Y"
+        });
+
+        // Pre-existing PENDING row — service must skip insert.
+        _context.DataLoadRequests.Add(new DataLoadRequest
+        {
+            RequestType = "DESCRIPTION_FETCH",
+            LookupKey = noticeId,
+            LookupKeyType = "NOTICE_ID",
+            Status = "PENDING",
+            RequestedAt = DateTime.UtcNow.AddMinutes(-5)
+        });
+        await _context.SaveChangesAsync();
+
+        var service = CreateServiceWithStubbedSamApi(
+            _context, System.Net.HttpStatusCode.TooManyRequests, out _);
+
+        var result = await service.FetchDescriptionAsync(noticeId, userId: 7);
+
+        result.Queued.Should().BeTrue("controller should still see queued so the UI shows the queued message");
+
+        var count = await _context.DataLoadRequests
+            .CountAsync(r => r.RequestType == "DESCRIPTION_FETCH" && r.LookupKey == noticeId);
+        count.Should().Be(1, "the existing PENDING row should be reused, not duplicated");
+    }
+
+    [Fact]
+    public async Task FetchDescriptionAsync_SamReturns429_DedupsAgainstPendingRetry()
+    {
+        const string noticeId = "NOTICE-RETRY";
+
+        _context.Opportunities.Add(new Opportunity
+        {
+            NoticeId = noticeId,
+            Title = "Needs Description",
+            DescriptionUrl = "https://api.sam.gov/opportunities/v2/noticedesc?noticeid=NOTICE-RETRY",
+            Active = "Y"
+        });
+        _context.DataLoadRequests.Add(new DataLoadRequest
+        {
+            RequestType = "DESCRIPTION_FETCH",
+            LookupKey = noticeId,
+            LookupKeyType = "NOTICE_ID",
+            Status = "PENDING_RETRY",
+            RequestedAt = DateTime.UtcNow.AddMinutes(-30)
+        });
+        await _context.SaveChangesAsync();
+
+        var service = CreateServiceWithStubbedSamApi(
+            _context, System.Net.HttpStatusCode.TooManyRequests, out _);
+
+        var result = await service.FetchDescriptionAsync(noticeId, userId: null);
+
+        result.Queued.Should().BeTrue();
+
+        var count = await _context.DataLoadRequests
+            .CountAsync(r => r.RequestType == "DESCRIPTION_FETCH" && r.LookupKey == noticeId);
+        count.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task FetchDescriptionAsync_NoOpportunity_ReturnsNotFound_DoesNotQueue()
+    {
+        var service = CreateServiceWithStubbedSamApi(
+            _context, System.Net.HttpStatusCode.TooManyRequests, out var handler);
+
+        var result = await service.FetchDescriptionAsync("DOES-NOT-EXIST", userId: 1);
+
+        result.NotFound.Should().BeTrue();
+        result.Queued.Should().BeFalse();
+        result.Success.Should().BeFalse();
+        handler.CallCount.Should().Be(0, "no opportunity means no SAM.gov call");
+
+        var queued = await _context.DataLoadRequests.CountAsync();
+        queued.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task FetchDescriptionAsync_CachedDescription_ReturnsSuccessWithoutCallingSam()
+    {
+        const string noticeId = "NOTICE-CACHED";
+
+        _context.Opportunities.Add(new Opportunity
+        {
+            NoticeId = noticeId,
+            Title = "Has Description",
+            DescriptionText = "Already fetched description text.",
+            Active = "Y"
+        });
+        await _context.SaveChangesAsync();
+
+        var service = CreateServiceWithStubbedSamApi(
+            _context, System.Net.HttpStatusCode.TooManyRequests, out var handler);
+
+        var result = await service.FetchDescriptionAsync(noticeId, userId: 1);
+
+        result.Success.Should().BeTrue();
+        result.Queued.Should().BeFalse();
+        result.DescriptionText.Should().Be("Already fetched description text.");
+        handler.CallCount.Should().Be(0, "cached text should bypass the SAM.gov call");
+    }
+
+    [Fact]
+    public async Task FetchDescriptionAsync_SamReturns500_ReturnsErrorNotQueued()
+    {
+        const string noticeId = "NOTICE-500";
+
+        _context.Opportunities.Add(new Opportunity
+        {
+            NoticeId = noticeId,
+            Title = "Needs Description",
+            DescriptionUrl = "https://api.sam.gov/opportunities/v2/noticedesc?noticeid=NOTICE-500",
+            Active = "Y"
+        });
+        await _context.SaveChangesAsync();
+
+        var service = CreateServiceWithStubbedSamApi(
+            _context, System.Net.HttpStatusCode.InternalServerError, out _);
+
+        var result = await service.FetchDescriptionAsync(noticeId, userId: 1);
+
+        result.Queued.Should().BeFalse("only 429 should queue — 500 is a generic error");
+        result.Success.Should().BeFalse();
+        result.ErrorMessage.Should().NotBeNull();
+
+        var queued = await _context.DataLoadRequests.CountAsync();
+        queued.Should().Be(0);
+    }
 }

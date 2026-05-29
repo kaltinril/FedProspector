@@ -1,9 +1,11 @@
+using System.Net;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using FedProspector.Core.Constants;
 using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
+using FedProspector.Core.Models;
 using FedProspector.Core.Options;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -639,32 +641,41 @@ public partial class OpportunityService : IOpportunityService
         return sb.ToString();
     }
 
-    public async Task<(string? descriptionText, string? error, bool notFound)> FetchDescriptionAsync(string noticeId)
+    // Phase 123: user-friendly message returned when SAM.gov rate-limits the
+    // on-demand fetch and we enqueue a DataLoadRequest for the Python poller.
+    internal const string DescriptionFetchQueuedMessage =
+        "Daily SAM.gov API quota reached. We've queued your request — the description will be fetched automatically when the quota resets.";
+
+    public async Task<FetchDescriptionResult> FetchDescriptionAsync(string noticeId, int? userId = null)
     {
         var opp = await _context.Opportunities
             .FirstOrDefaultAsync(o => o.NoticeId == noticeId);
 
         if (opp == null)
-            return (null, null, true);
+            return new FetchDescriptionResult(null, null, Success: false, NotFound: true);
 
         // Already have description text — return it without calling SAM.gov
         if (!string.IsNullOrWhiteSpace(opp.DescriptionText))
-            return (opp.DescriptionText, null, false);
+            return new FetchDescriptionResult(opp.DescriptionText, null, Success: true);
 
         if (string.IsNullOrWhiteSpace(opp.DescriptionUrl))
-            return (null, "No description URL available for this opportunity.", true);
+            return new FetchDescriptionResult(null,
+                "No description URL available for this opportunity.",
+                Success: false, NotFound: true);
 
         // SSRF protection: only allow SAM.gov API URLs
         if (!opp.DescriptionUrl.StartsWith("https://api.sam.gov/", StringComparison.OrdinalIgnoreCase))
         {
             _logger.LogWarning("Blocked non-SAM.gov description URL for {NoticeId}: {Url}", noticeId, opp.DescriptionUrl);
-            return (null, "Description URL is not a valid SAM.gov API URL.", false);
+            return new FetchDescriptionResult(null,
+                "Description URL is not a valid SAM.gov API URL.",
+                Success: false);
         }
 
         if (string.IsNullOrWhiteSpace(_samApiOptions.ApiKey))
         {
             _logger.LogError("SAM API key is not configured — cannot fetch description for {NoticeId}", noticeId);
-            return (null, "SAM API key is not configured.", false);
+            return new FetchDescriptionResult(null, "SAM API key is not configured.", Success: false);
         }
 
         try
@@ -676,11 +687,27 @@ public partial class OpportunityService : IOpportunityService
             var client = _httpClientFactory.CreateClient("SamApi");
             var response = await client.GetAsync(url);
 
+            // Phase 123: detect rate-limit explicitly so we can enqueue
+            // the request for the Python poller instead of failing hard.
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                _logger.LogWarning("SAM.gov rate-limited description fetch for {NoticeId}; enqueuing for poller", noticeId);
+                await EnqueueDescriptionFetchAsync(noticeId, userId);
+                return new FetchDescriptionResult(
+                    DescriptionText: null,
+                    ErrorMessage: null,
+                    Success: false,
+                    Queued: true,
+                    QueuedMessage: DescriptionFetchQueuedMessage);
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("SAM.gov noticedesc returned {StatusCode} for {NoticeId}",
                     (int)response.StatusCode, noticeId);
-                return (null, $"SAM.gov returned HTTP {(int)response.StatusCode}.", false);
+                return new FetchDescriptionResult(null,
+                    $"SAM.gov returned HTTP {(int)response.StatusCode}.",
+                    Success: false);
             }
 
             var json = await response.Content.ReadAsStringAsync();
@@ -691,7 +718,9 @@ public partial class OpportunityService : IOpportunityService
                 htmlDescription = descProp.GetString();
 
             if (string.IsNullOrWhiteSpace(htmlDescription))
-                return (null, "SAM.gov returned an empty description.", false);
+                return new FetchDescriptionResult(null,
+                    "SAM.gov returned an empty description.",
+                    Success: false);
 
             // Strip HTML tags
             var plainText = StripHtmlTags(htmlDescription);
@@ -703,23 +732,66 @@ public partial class OpportunityService : IOpportunityService
             _logger.LogInformation("Fetched and saved description for {NoticeId} ({Length} chars)",
                 noticeId, plainText.Length);
 
-            return (plainText, null, false);
+            return new FetchDescriptionResult(plainText, null, Success: true);
         }
         catch (HttpRequestException ex)
         {
             _logger.LogError(ex, "HTTP error fetching description for {NoticeId}", noticeId);
-            return (null, $"Error contacting SAM.gov: {ex.Message}", false);
+            return new FetchDescriptionResult(null,
+                $"Error contacting SAM.gov: {ex.Message}",
+                Success: false);
         }
         catch (JsonException ex)
         {
             _logger.LogError(ex, "JSON parse error for description response for {NoticeId}", noticeId);
-            return (null, "Invalid JSON response from SAM.gov.", false);
+            return new FetchDescriptionResult(null, "Invalid JSON response from SAM.gov.", Success: false);
         }
         catch (TaskCanceledException ex)
         {
             _logger.LogError(ex, "Timeout fetching description for {NoticeId}", noticeId);
-            return (null, "Request to SAM.gov timed out.", false);
+            return new FetchDescriptionResult(null, "Request to SAM.gov timed out.", Success: false);
         }
+    }
+
+    /// <summary>
+    /// Phase 123: insert a DataLoadRequest for the Python poller to retry the
+    /// description fetch after the SAM.gov daily quota resets. Dedups against
+    /// any existing PENDING or PENDING_RETRY row for the same notice — if one
+    /// already exists, this is a no-op and the controller still returns 202.
+    /// </summary>
+    private async Task EnqueueDescriptionFetchAsync(string noticeId, int? userId)
+    {
+        const string requestType = "DESCRIPTION_FETCH";
+
+        var existing = await _context.DataLoadRequests.FirstOrDefaultAsync(r =>
+            r.RequestType == requestType &&
+            r.LookupKey == noticeId &&
+            (r.Status == "PENDING" || r.Status == "PENDING_RETRY"));
+
+        if (existing != null)
+        {
+            _logger.LogInformation(
+                "Description fetch for {NoticeId} already queued (request_id={RequestId}, status={Status}); skipping insert",
+                noticeId, existing.RequestId, existing.Status);
+            return;
+        }
+
+        var request = new DataLoadRequest
+        {
+            RequestType = requestType,
+            LookupKey = noticeId,
+            LookupKeyType = "NOTICE_ID",
+            Status = "PENDING",
+            RequestedBy = userId,
+            RequestedAt = DateTime.UtcNow
+        };
+
+        _context.DataLoadRequests.Add(request);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Queued DESCRIPTION_FETCH request_id={RequestId} for notice {NoticeId} (user={UserId})",
+            request.RequestId, noticeId, userId);
     }
 
     [GeneratedRegex("<[^>]+>")]

@@ -5,6 +5,7 @@ using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Intelligence;
 using FedProspector.Core.DTOs.Opportunities;
 using FedProspector.Core.Interfaces;
+using FedProspector.Core.Models;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -341,5 +342,68 @@ public class OpportunitiesControllerTests
 
         var okResult = result.Result as OkObjectResult;
         okResult!.Value.Should().Be(expected);
+    }
+
+    // --- FetchDescription (Phase 123: 429 -> 202 Accepted) ---
+
+    [Fact]
+    public async Task FetchDescription_Success_ReturnsOkWithDescriptionText()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.FetchDescriptionAsync("NOTICE-OK", 1))
+            .ReturnsAsync(new FetchDescriptionResult("Hello world", null, Success: true));
+
+        var result = await _controller.FetchDescription("NOTICE-OK");
+
+        var ok = result.Should().BeOfType<OkObjectResult>().Subject;
+        ok.Value.Should().BeEquivalentTo(new { noticeId = "NOTICE-OK", descriptionText = "Hello world" });
+    }
+
+    [Fact]
+    public async Task FetchDescription_Queued_Returns202AcceptedWithQueuedPayload()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.FetchDescriptionAsync("NOTICE-429", 1))
+            .ReturnsAsync(new FetchDescriptionResult(
+                DescriptionText: null,
+                ErrorMessage: null,
+                Success: false,
+                Queued: true,
+                QueuedMessage: "Daily quota reached — queued."));
+
+        var result = await _controller.FetchDescription("NOTICE-429");
+
+        var accepted = result.Should().BeOfType<AcceptedResult>().Subject;
+        accepted.Value.Should().BeEquivalentTo(new
+        {
+            noticeId = "NOTICE-429",
+            queued = true,
+            message = "Daily quota reached — queued."
+        });
+    }
+
+    [Fact]
+    public async Task FetchDescription_NotFound_Returns404()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.FetchDescriptionAsync("MISSING", 1))
+            .ReturnsAsync(new FetchDescriptionResult(null, null, Success: false, NotFound: true));
+
+        var result = await _controller.FetchDescription("MISSING");
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task FetchDescription_GenericError_Returns502()
+    {
+        SetAuthenticatedUser(userId: 1, orgId: 10);
+        _serviceMock.Setup(s => s.FetchDescriptionAsync("NOTICE-500", 1))
+            .ReturnsAsync(new FetchDescriptionResult(null, "SAM.gov returned HTTP 500.", Success: false));
+
+        var result = await _controller.FetchDescription("NOTICE-500");
+
+        var status = result.Should().BeOfType<ObjectResult>().Subject;
+        status.StatusCode.Should().Be(502);
     }
 }

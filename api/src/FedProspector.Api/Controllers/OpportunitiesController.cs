@@ -89,23 +89,30 @@ public class OpportunitiesController : ApiControllerBase
     /// <summary>
     /// Fetch a missing opportunity description from SAM.gov on demand.
     /// If already populated, returns the cached text without making an API call.
+    /// Phase 123: when SAM.gov rate-limits the call (HTTP 429), the request is
+    /// queued as a DataLoadRequest for the Python poller and 202 Accepted is
+    /// returned so the UI can show a queued-not-failed message.
     /// </summary>
     [HttpPost("{noticeId}/fetch-description")]
     [EnableRateLimiting("write")]
     public async Task<IActionResult> FetchDescription(string noticeId)
     {
-        var (descriptionText, error, notFound) = await _service.FetchDescriptionAsync(noticeId);
+        var userId = GetCurrentUserId();
+        var result = await _service.FetchDescriptionAsync(noticeId, userId);
 
-        if (notFound && error == null)
+        if (result.Queued)
+            return Accepted(new { noticeId, queued = true, message = result.QueuedMessage });
+
+        if (result.NotFound && result.ErrorMessage == null)
             return NotFound(new { message = "Opportunity not found." });
 
-        if (notFound && error != null)
-            return NotFound(new { message = error });
+        if (result.NotFound && result.ErrorMessage != null)
+            return NotFound(new { message = result.ErrorMessage });
 
-        if (error != null)
-            return ApiError(502, error);
+        if (result.ErrorMessage != null)
+            return ApiError(502, result.ErrorMessage);
 
-        return Ok(new { noticeId, descriptionText });
+        return Ok(new { noticeId, descriptionText = result.DescriptionText });
     }
 
     /// <summary>
