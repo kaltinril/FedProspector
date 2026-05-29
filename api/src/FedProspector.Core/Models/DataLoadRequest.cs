@@ -36,4 +36,11 @@ public class DataLoadRequest
 
     [Column(TypeName = "json")]
     public string? ResultSummary { get; set; }
+
+    /// <summary>
+    /// UTC timestamp set when the vendor API returned 429 (rate-limited).
+    /// The request poller defers reprocessing until this time. NULL otherwise.
+    /// Paired with status='PENDING_RETRY'. See Phase 123.
+    /// </summary>
+    public DateTime? RetryAfter { get; set; }
 }
