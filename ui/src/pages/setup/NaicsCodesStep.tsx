@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import {
   Box,
   Grid,
@@ -19,10 +19,16 @@ import {
   MenuItem,
   Alert,
   CircularProgress,
+  Tooltip,
+  Collapse,
+  List,
+  ListItem,
+  ListItemText,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import { useDebounce } from '@/hooks/useDebounce';
-import { useNaicsSearch } from '@/queries/useOrganization';
+import { useNaicsSearch, useNaicsDetail } from '@/queries/useOrganization';
 import type { NaicsSearchDto } from '@/types/organization';
 
 export interface NaicsCodeEntry {
@@ -60,6 +66,106 @@ const MONTHS = [
   { value: 11, label: 'November' },
   { value: 12, label: 'December' },
 ];
+
+// --- Phase 129 NAICS footnotes (Unit F) ---
+// One table row per selected NAICS code. Fetches the code's detail (which now
+// carries SBA size-standard footnotes) and, when footnotes exist, shows an info
+// icon that expands to reveal the footnote text plus the size standard.
+interface NaicsRowProps {
+  entry: NaicsCodeEntry;
+  onSetPrimary: (code: string) => void;
+  onToggleSizeStandard: (code: string) => void;
+  onRemove: (code: string) => void;
+}
+
+function NaicsRow({ entry, onSetPrimary, onToggleSizeStandard, onRemove }: NaicsRowProps) {
+  const [expanded, setExpanded] = useState(false);
+  const { data: detail } = useNaicsDetail(entry.naicsCode);
+  const footnotes = detail?.footnotes ?? [];
+  const hasFootnotes = footnotes.length > 0;
+
+  return (
+    <Fragment>
+      <TableRow>
+        <TableCell>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            {entry.naicsCode}
+            {hasFootnotes && (
+              <Tooltip title="Size-standard footnotes apply — click to view">
+                <IconButton
+                  size="small"
+                  onClick={() => setExpanded((v) => !v)}
+                  aria-label={`Toggle size-standard footnotes for NAICS ${entry.naicsCode}`}
+                  aria-expanded={expanded}
+                  color="info"
+                >
+                  <InfoOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+          </Box>
+        </TableCell>
+        <TableCell>{entry.naicsTitle}</TableCell>
+        <TableCell align="center">
+          <Radio
+            checked={entry.isPrimary}
+            onChange={() => onSetPrimary(entry.naicsCode)}
+            size="small"
+          />
+        </TableCell>
+        <TableCell align="center">
+          <Checkbox
+            checked={entry.sizeStandardMet}
+            onChange={() => onToggleSizeStandard(entry.naicsCode)}
+            size="small"
+          />
+        </TableCell>
+        <TableCell align="center">
+          <IconButton
+            size="small"
+            onClick={() => onRemove(entry.naicsCode)}
+            color="error"
+            aria-label={`Remove NAICS code ${entry.naicsCode}`}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </TableCell>
+      </TableRow>
+      {hasFootnotes && (
+        <TableRow>
+          <TableCell colSpan={5} sx={{ py: 0, borderBottom: expanded ? undefined : 'none' }}>
+            <Collapse in={expanded} timeout="auto" unmountOnExit>
+              <Box sx={{ my: 1 }}>
+                {detail?.sizeStandard != null && (
+                  <Typography variant="caption" color="text.secondary">
+                    Size standard:{' '}
+                    {detail.sizeType === 'E'
+                      ? `${detail.sizeStandard.toLocaleString()} employees`
+                      : `$${detail.sizeStandard.toLocaleString()} million`}
+                  </Typography>
+                )}
+                <List dense disablePadding>
+                  {footnotes.map((f) => (
+                    <ListItem key={`${f.footnoteId}-${f.section}`} sx={{ py: 0 }}>
+                      <ListItemText
+                        primary={`Footnote ${f.footnoteId}${f.section ? ` (${f.section})` : ''}`}
+                        secondary={f.description}
+                        slotProps={{
+                          primary: { variant: 'caption', sx: { fontWeight: 600 } },
+                          secondary: { variant: 'caption' },
+                        }}
+                      />
+                    </ListItem>
+                  ))}
+                </List>
+              </Box>
+            </Collapse>
+          </TableCell>
+        </TableRow>
+      )}
+    </Fragment>
+  );
+}
 
 export function NaicsCodesStep({ data, onChange, onNext, onBack }: NaicsCodesStepProps) {
   const [searchInput, setSearchInput] = useState('');
@@ -176,34 +282,13 @@ export function NaicsCodesStep({ data, onChange, onNext, onBack }: NaicsCodesSte
             </TableHead>
             <TableBody>
               {data.naicsCodes.map((entry) => (
-                <TableRow key={entry.naicsCode}>
-                  <TableCell>{entry.naicsCode}</TableCell>
-                  <TableCell>{entry.naicsTitle}</TableCell>
-                  <TableCell align="center">
-                    <Radio
-                      checked={entry.isPrimary}
-                      onChange={() => handleSetPrimary(entry.naicsCode)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <Checkbox
-                      checked={entry.sizeStandardMet}
-                      onChange={() => handleToggleSizeStandard(entry.naicsCode)}
-                      size="small"
-                    />
-                  </TableCell>
-                  <TableCell align="center">
-                    <IconButton
-                      size="small"
-                      onClick={() => handleRemove(entry.naicsCode)}
-                      color="error"
-                      aria-label={`Remove NAICS code ${entry.naicsCode}`}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
+                <NaicsRow
+                  key={entry.naicsCode}
+                  entry={entry}
+                  onSetPrimary={handleSetPrimary}
+                  onToggleSizeStandard={handleToggleSizeStandard}
+                  onRemove={handleRemove}
+                />
               ))}
             </TableBody>
           </Table>

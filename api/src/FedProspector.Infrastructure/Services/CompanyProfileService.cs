@@ -293,13 +293,35 @@ public class CompanyProfileService : ICompanyProfileService
             .OrderByDescending(s => s.EffectiveDate)
             .FirstOrDefaultAsync();
 
+        // --- Phase 129 NAICS footnotes (Unit F) ---
+        // Surface SBA size-standard footnotes/exceptions linked via the code's
+        // footnote_id. A footnote_id can map to multiple sections (composite key
+        // in ref_naics_footnote), so return all matching sections. Null-safe:
+        // codes without a footnote_id yield an empty list.
+        var footnotes = new List<NaicsFootnoteDto>();
+        if (!string.IsNullOrEmpty(naics.FootnoteId))
+        {
+            footnotes = await _context.RefNaicsFootnotes
+                .AsNoTracking()
+                .Where(f => f.FootnoteId == naics.FootnoteId)
+                .OrderBy(f => f.Section)
+                .Select(f => new NaicsFootnoteDto
+                {
+                    FootnoteId = f.FootnoteId,
+                    Section = f.Section,
+                    Description = f.Description
+                })
+                .ToListAsync();
+        }
+
         return new NaicsDetailDto
         {
             Code = naics.NaicsCode,
             Title = naics.Description,
             SizeStandard = sizeStandard?.SizeStandard,
             SizeType = sizeStandard?.SizeType,
-            IndustryDescription = sizeStandard?.IndustryDescription
+            IndustryDescription = sizeStandard?.IndustryDescription,
+            Footnotes = footnotes
         };
     }
 
