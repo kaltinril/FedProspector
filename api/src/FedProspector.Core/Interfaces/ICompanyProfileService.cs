@@ -16,4 +16,30 @@ public interface ICompanyProfileService
     Task<List<NaicsSearchDto>> SearchNaicsAsync(string query);
     Task<NaicsDetailDto?> GetNaicsDetailAsync(string code);
     Task<List<string>> GetCertificationTypesAsync();
+
+    // --- NAICS hierarchy browsing (Phase 129 Unit B) ---
+
+    /// <summary>Top-level 2-digit NAICS sectors, ordered by code.</summary>
+    Task<List<NaicsHierarchyNodeDto>> GetNaicsSectorsAsync();
+
+    /// <summary>Immediate children (next level down) of the given NAICS code via parent_code.</summary>
+    Task<List<NaicsHierarchyNodeDto>> GetNaicsChildrenAsync(string code);
+
+    /// <summary>The chain of ancestors from the given code up to its sector, ordered sector-first (for breadcrumbs).</summary>
+    Task<List<NaicsHierarchyNodeDto>> GetNaicsAncestorsAsync(string code);
+
+    // --- Size-eligibility engine (Phase 129 Unit B) ---
+
+    /// <summary>
+    /// Evaluates whether the organization qualifies as "small" under the SBA size
+    /// standard for the given NAICS code. Side-effect free; never throws on missing inputs.
+    /// </summary>
+    Task<SizeEligibilityResultDto> CheckSizeEligibilityAsync(int orgId, string naicsCode);
+
+    /// <summary>
+    /// Batch size-eligibility check for many NAICS codes against one organization.
+    /// Loads the org once to avoid N+1 when annotating many opportunities.
+    /// Returns a dictionary keyed by NAICS code.
+    /// </summary>
+    Task<Dictionary<string, SizeEligibilityResultDto>> CheckSizeEligibilityAsync(int orgId, IEnumerable<string> naicsCodes);
 }

@@ -329,6 +329,247 @@ public class CompanyProfileService : ICompanyProfileService
         return Task.FromResult(types);
     }
 
+    // --- NAICS hierarchy browsing (Phase 129 Unit B) ---
+
+    public async Task<List<NaicsHierarchyNodeDto>> GetNaicsSectorsAsync()
+    {
+        return await _context.RefNaicsCodes
+            .AsNoTracking()
+            .Where(n => n.IsActive == "Y" && n.CodeLevel == 2)
+            .OrderBy(n => n.NaicsCode)
+            .Select(n => new NaicsHierarchyNodeDto
+            {
+                Code = n.NaicsCode,
+                Title = n.Description,
+                Level = n.CodeLevel,
+                LevelName = n.LevelName,
+                ParentCode = n.ParentCode,
+                IsLeaf = n.CodeLevel == 6
+            })
+            .ToListAsync();
+    }
+
+    public async Task<List<NaicsHierarchyNodeDto>> GetNaicsChildrenAsync(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+            return new List<NaicsHierarchyNodeDto>();
+
+        return await _context.RefNaicsCodes
+            .AsNoTracking()
+            .Where(n => n.IsActive == "Y" && n.ParentCode == code)
+            .OrderBy(n => n.NaicsCode)
+            .Select(n => new NaicsHierarchyNodeDto
+            {
+                Code = n.NaicsCode,
+                Title = n.Description,
+                Level = n.CodeLevel,
+                LevelName = n.LevelName,
+                ParentCode = n.ParentCode,
+                IsLeaf = n.CodeLevel == 6
+            })
+            .ToListAsync();
+    }
+
+    public async Task<List<NaicsHierarchyNodeDto>> GetNaicsAncestorsAsync(string code)
+    {
+        var chain = new List<NaicsHierarchyNodeDto>();
+        if (string.IsNullOrWhiteSpace(code))
+            return chain;
+
+        // Walk up the parent_code chain. Guard against cycles / orphaned parents.
+        var currentCode = code;
+        var visited = new HashSet<string>();
+        while (!string.IsNullOrWhiteSpace(currentCode) && visited.Add(currentCode))
+        {
+            var node = await _context.RefNaicsCodes
+                .AsNoTracking()
+                .Where(n => n.NaicsCode == currentCode)
+                .Select(n => new NaicsHierarchyNodeDto
+                {
+                    Code = n.NaicsCode,
+                    Title = n.Description,
+                    Level = n.CodeLevel,
+                    LevelName = n.LevelName,
+                    ParentCode = n.ParentCode,
+                    IsLeaf = n.CodeLevel == 6
+                })
+                .FirstOrDefaultAsync();
+
+            if (node == null) break;
+
+            chain.Add(node);
+            currentCode = node.ParentCode ?? string.Empty;
+        }
+
+        // Return sector-first for breadcrumb display (we collected leaf-first).
+        chain.Reverse();
+        return chain;
+    }
+
+    // --- Size-eligibility engine (Phase 129 Unit B) ---
+
+    public async Task<SizeEligibilityResultDto> CheckSizeEligibilityAsync(int orgId, string naicsCode)
+    {
+        var org = await _context.Organizations
+            .AsNoTracking()
+            .Where(o => o.OrganizationId == orgId)
+            .Select(o => new { o.AnnualRevenue, o.EmployeeCount })
+            .FirstOrDefaultAsync();
+
+        var standard = await _context.RefSbaSizeStandards
+            .AsNoTracking()
+            .Where(s => s.NaicsCode == naicsCode)
+            .OrderByDescending(s => s.EffectiveDate)
+            .Select(s => new { s.SizeStandard, s.SizeType })
+            .FirstOrDefaultAsync();
+
+        return EvaluateSizeEligibility(
+            naicsCode,
+            standard?.SizeType,
+            standard?.SizeStandard,
+            org?.AnnualRevenue,
+            org?.EmployeeCount,
+            orgExists: org != null);
+    }
+
+    public async Task<Dictionary<string, SizeEligibilityResultDto>> CheckSizeEligibilityAsync(int orgId, IEnumerable<string> naicsCodes)
+    {
+        var codes = naicsCodes?
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct()
+            .ToList() ?? new List<string>();
+
+        var result = new Dictionary<string, SizeEligibilityResultDto>();
+        if (codes.Count == 0) return result;
+
+        // Load the org once (avoids N+1 when annotating many opportunities).
+        var org = await _context.Organizations
+            .AsNoTracking()
+            .Where(o => o.OrganizationId == orgId)
+            .Select(o => new { o.AnnualRevenue, o.EmployeeCount })
+            .FirstOrDefaultAsync();
+
+        // Load all relevant standards in one query, then pick the latest per NAICS in memory.
+        var standards = await _context.RefSbaSizeStandards
+            .AsNoTracking()
+            .Where(s => codes.Contains(s.NaicsCode))
+            .Select(s => new { s.NaicsCode, s.SizeStandard, s.SizeType, s.EffectiveDate })
+            .ToListAsync();
+
+        var latestByCode = standards
+            .GroupBy(s => s.NaicsCode)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(s => s.EffectiveDate).First());
+
+        foreach (var code in codes)
+        {
+            latestByCode.TryGetValue(code, out var std);
+            result[code] = EvaluateSizeEligibility(
+                code,
+                std?.SizeType,
+                std?.SizeStandard,
+                org?.AnnualRevenue,
+                org?.EmployeeCount,
+                orgExists: org != null);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Pure evaluation of SBA size eligibility. No DB access, no side effects, never throws.
+    /// Threshold for "M" standards is stored in $millions; org revenue is raw USD, so the
+    /// threshold is converted to USD for comparison and both threshold + actual are reported
+    /// in the same unit (USD millions for "M", employee count for "E").
+    /// </summary>
+    private static SizeEligibilityResultDto EvaluateSizeEligibility(
+        string naicsCode,
+        string? sizeType,
+        decimal? sizeStandard,
+        decimal? annualRevenue,
+        int? employeeCount,
+        bool orgExists)
+    {
+        var dto = new SizeEligibilityResultDto
+        {
+            NaicsCode = naicsCode,
+            SizeType = sizeType,
+            Eligible = null,
+            Outsized = false
+        };
+
+        if (!orgExists)
+        {
+            dto.Reason = "Organization not found.";
+            return dto;
+        }
+
+        if (string.IsNullOrWhiteSpace(sizeType) || !sizeStandard.HasValue)
+        {
+            dto.Reason = $"No SBA size standard on file for NAICS {naicsCode}.";
+            return dto;
+        }
+
+        if (sizeType == "M")
+        {
+            // Receipts-based: threshold stored in $millions, org revenue in raw USD.
+            dto.Threshold = sizeStandard.Value;
+            dto.ThresholdUnit = "USD_MILLIONS";
+
+            if (!annualRevenue.HasValue)
+            {
+                dto.Reason = "Organization annual revenue not set; cannot determine receipts-based size.";
+                return dto;
+            }
+
+            var actualMillions = annualRevenue.Value / 1_000_000m;
+            dto.ActualValue = actualMillions;
+            ApplyComparison(dto, actualMillions, sizeStandard.Value, "annual receipts", "$M");
+            return dto;
+        }
+
+        if (sizeType == "E")
+        {
+            // Employee-based: threshold and measure are headcounts.
+            dto.Threshold = sizeStandard.Value;
+            dto.ThresholdUnit = "EMPLOYEES";
+
+            if (!employeeCount.HasValue)
+            {
+                dto.Reason = "Organization employee count not set; cannot determine headcount-based size.";
+                return dto;
+            }
+
+            decimal actual = employeeCount.Value;
+            dto.ActualValue = actual;
+            ApplyComparison(dto, actual, sizeStandard.Value, "employees", "employees");
+            return dto;
+        }
+
+        dto.Reason = $"Unrecognized SBA size type '{sizeType}' for NAICS {naicsCode}.";
+        return dto;
+    }
+
+    private static void ApplyComparison(
+        SizeEligibilityResultDto dto,
+        decimal actual,
+        decimal threshold,
+        string measureLabel,
+        string unitLabel)
+    {
+        var eligible = actual <= threshold;
+        dto.Eligible = eligible;
+        dto.Outsized = !eligible;
+
+        if (threshold != 0m)
+            dto.HeadroomPct = Math.Round((threshold - actual) / threshold * 100m, 1);
+
+        dto.Reason = eligible
+            ? $"Small: {measureLabel} {actual:0.##} {unitLabel} <= {threshold:0.##} {unitLabel} threshold."
+            : $"Not small: {measureLabel} {actual:0.##} {unitLabel} exceeds {threshold:0.##} {unitLabel} threshold.";
+    }
+
     private static OrgProfileDto MapToProfileDto(Organization org)
     {
         return new OrgProfileDto

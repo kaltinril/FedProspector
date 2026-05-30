@@ -48,4 +48,36 @@ public class ReferenceController : ApiControllerBase
         var result = await _profileService.GetCertificationTypesAsync();
         return Ok(result);
     }
+
+    /// <summary>
+    /// Get the top-level 2-digit NAICS sectors (root of the hierarchy).
+    /// </summary>
+    [HttpGet("naics/sectors")]
+    public async Task<IActionResult> GetNaicsSectors()
+    {
+        var result = await _profileService.GetNaicsSectorsAsync();
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get the immediate children (next level down) of a NAICS code.
+    /// </summary>
+    [HttpGet("naics/{code}/children")]
+    public async Task<IActionResult> GetNaicsChildren(string code)
+    {
+        var result = await _profileService.GetNaicsChildrenAsync(code);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Get the ancestor chain for a NAICS code, from its sector down to the code (for breadcrumbs).
+    /// </summary>
+    [HttpGet("naics/{code}/ancestors")]
+    public async Task<IActionResult> GetNaicsAncestors(string code)
+    {
+        var result = await _profileService.GetNaicsAncestorsAsync(code);
+        if (result.Count == 0) return NotFound();
+
+        return Ok(result);
+    }
 }
