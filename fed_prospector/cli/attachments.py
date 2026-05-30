@@ -406,6 +406,73 @@ def analyze_descriptions(notice_id, batch_size, model, force, dry_run):
     )
 
 
+@click.command("contradictions")
+@click.option("--notice-id", type=str, default=None,
+              help="Process a single opportunity by notice ID")
+@click.option("--batch-size", type=int, default=50, show_default=True,
+              help="Number of notices to process per batch")
+@click.option("--model", type=click.Choice(["haiku", "sonnet"]),
+              # opus excluded — add 'ai_opus' to extraction_method ENUM in 36_attachment.sql before enabling
+              default="haiku", show_default=True,
+              help="Claude model to use for contradiction detection")
+@click.option("--force", is_flag=True, default=False,
+              help="Re-check even if a contradiction row already exists")
+@click.option("--dry-run", is_flag=True, default=False,
+              help="Run full pipeline without calling the API (no ANTHROPIC_API_KEY needed)")
+def detect_contradictions(notice_id, batch_size, model, force, dry_run):
+    """Detect contradictions and stale boilerplate using Claude AI (Phase 126).
+
+    Runs a SEPARATE AI step that re-feeds the opportunity description plus all
+    attachment text to Claude and asks it to cross-reference them for
+    contradictions (cross-document, within-document) and stale references
+    (expired clauses, prior contract numbers, nonsensical dates). Results are
+    stored in opportunity_attachment_summary as a dedicated 'ai_contradiction'
+    row, with the findings in the contradictions JSON column.
+
+    Use --dry-run to test the full pipeline without an API key.
+
+    Examples:
+        python main.py extract contradictions
+        python main.py extract contradictions --model sonnet
+        python main.py extract contradictions --notice-id abc123
+        python main.py extract contradictions --dry-run
+    """
+    logger = setup_logging()
+
+    from etl.attachment_ai_analyzer import AttachmentAIAnalyzer
+
+    if dry_run:
+        click.echo("DRY RUN — no API calls will be made, empty contradiction rows will be saved with method 'ai_contradiction'")
+
+    analyzer = AttachmentAIAnalyzer(model=model, dry_run=dry_run)
+
+    logger.info(
+        "Starting contradiction detection (model=%s, batch_size=%d, force=%s, dry_run=%s)",
+        model, batch_size, force, dry_run,
+    )
+    click.echo(
+        f"Detecting contradictions with Claude {model} "
+        f"(batch_size={batch_size}{', dry_run' if dry_run else ''})..."
+    )
+
+    try:
+        stats = analyzer.detect_contradictions(
+            notice_id=notice_id,
+            batch_size=batch_size,
+            force=force,
+        )
+    except RuntimeError as e:
+        # Missing API key
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+
+    click.echo(
+        f"Done. Checked {stats['analyzed']} notices, "
+        f"skipped {stats['skipped']}, "
+        f"failed {stats['failed']}"
+    )
+
+
 @click.command("pipeline-status")
 def attachment_pipeline_status():
     """Show attachment intelligence pipeline status.

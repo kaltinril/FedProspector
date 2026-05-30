@@ -32,6 +32,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DownloadIcon from '@mui/icons-material/Download';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SummarizeIcon from '@mui/icons-material/Summarize';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
@@ -46,6 +47,7 @@ import type {
   AttachmentSummaryDto,
   AttachmentIntelBreakdownDto,
   AnalysisEstimateDto,
+  ContradictionDto,
 } from '@/types/api';
 
 // ---------------------------------------------------------------------------
@@ -145,6 +147,99 @@ function ScopeSummaryCard({ summary, methods }: { summary: string; methods: stri
           }}>
           {summary}
         </Typography>
+      </Collapse>
+    </Paper>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Contradictions Card — AI-detected inconsistencies across/within documents
+// ---------------------------------------------------------------------------
+
+const SEVERITY_COLOR: Record<string, 'error' | 'warning' | 'info' | 'default'> = {
+  high: 'error',
+  medium: 'warning',
+  low: 'info',
+};
+
+const SEVERITY_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 };
+
+const CONTRADICTION_TYPE_LABELS: Record<string, string> = {
+  cross_document: 'Cross-document',
+  within_document: 'Within document',
+  stale_reference: 'Stale reference',
+};
+
+function getSeverityColor(severity: string): 'error' | 'warning' | 'info' | 'default' {
+  return SEVERITY_COLOR[severity.toLowerCase()] ?? 'default';
+}
+
+function ContradictionsCard({ contradictions }: { contradictions: ContradictionDto[] }) {
+  const [expanded, setExpanded] = useState(true);
+
+  // Sort high severity first (stable for equal ranks)
+  const sorted = [...contradictions].sort(
+    (a, b) => (SEVERITY_RANK[b.severity.toLowerCase()] ?? 0) - (SEVERITY_RANK[a.severity.toLowerCase()] ?? 0),
+  );
+
+  return (
+    <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: expanded ? 1 : 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <WarningAmberIcon color="warning" fontSize="small" />
+          <Typography variant="subtitle2">Potential Issues</Typography>
+          <Chip label={sorted.length} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+        </Box>
+        <IconButton size="small" onClick={() => setExpanded(!expanded)}>
+          {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        </IconButton>
+      </Box>
+      <Collapse in={expanded}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {sorted.map((c, idx) => (
+            <Box
+              key={idx}
+              sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}
+            >
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75, flexWrap: 'wrap' }}>
+                <Chip
+                  label={c.severity}
+                  size="small"
+                  color={getSeverityColor(c.severity)}
+                  sx={{ fontSize: '0.65rem', height: 20, textTransform: 'capitalize' }}
+                />
+                <Chip
+                  label={CONTRADICTION_TYPE_LABELS[c.type] ?? c.type}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontSize: '0.6rem', height: 18 }}
+                />
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {c.summary}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1, alignItems: { sm: 'stretch' } }}>
+                <Box sx={{ flex: 1, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                    {c.claimALocation}
+                  </Typography>
+                  <Typography variant="body2">{c.claimA}</Typography>
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                    vs
+                  </Typography>
+                </Box>
+                <Box sx={{ flex: 1, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                    {c.claimBLocation}
+                  </Typography>
+                  <Typography variant="body2">{c.claimB}</Typography>
+                </Box>
+              </Box>
+            </Box>
+          ))}
+        </Box>
       </Collapse>
     </Paper>
   );
@@ -1188,7 +1283,8 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
     intel.isRecompete || intel.scopeSummary ||
     intel.periodOfPerformance ||
     (intel.laborCategories?.length ?? 0) > 0 ||
-    (intel.keyRequirements?.length ?? 0) > 0
+    (intel.keyRequirements?.length ?? 0) > 0 ||
+    (intel.contradictions?.length ?? 0) > 0
   );
 
   if (intel && !hasAnyIntelData) {
@@ -1330,6 +1426,10 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
       {/* Scope Summary — prominent AI-generated summary */}
       {intel.scopeSummary && (
         <ScopeSummaryCard summary={intel.scopeSummary} methods={availableMethods} />
+      )}
+      {/* Potential Issues — AI-detected contradictions/inconsistencies */}
+      {intel.contradictions && intel.contradictions.length > 0 && (
+        <ContradictionsCard contradictions={intel.contradictions} />
       )}
       {/* Intel Summary Cards */}
       {hasAnyIntel ? (

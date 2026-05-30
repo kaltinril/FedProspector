@@ -364,6 +364,16 @@ class DemandLoader:
         analyzer = AttachmentAIAnalyzer(model="haiku", requested_by=req.get("requested_by"))
         stats = analyzer.analyze_notice(notice_id)
 
+        # Phase 126: also run the separate contradiction-detection AI step so the
+        # on-demand "Enhance with AI" button populates the contradictions column.
+        try:
+            analyzer.detect_contradictions(notice_id=notice_id, force=True)
+        except Exception as e:
+            logger.warning(
+                "Request %d: contradiction detection failed for notice '%s': %s",
+                request_id, notice_id, e,
+            )
+
         summary = {
             "processed": stats["processed"],
             "analyzed": stats["analyzed"],
