@@ -1,4 +1,6 @@
 using FedProspector.Core.DTOs.Opportunities;
+using FedProspector.Core.DTOs.Organizations;
+using FedProspector.Core.Interfaces;
 using FedProspector.Core.Models;
 using FedProspector.Core.Options;
 using FedProspector.Infrastructure.Data;
@@ -25,7 +27,7 @@ public class OpportunityServiceTests : IDisposable
         _context = new FedProspectorDbContext(options);
         var httpClientFactory = Mock.Of<IHttpClientFactory>();
         var samApiOptions = Options.Create(new SamApiOptions());
-        _service = new OpportunityService(_context, NullLogger<OpportunityService>.Instance, httpClientFactory, samApiOptions);
+        _service = new OpportunityService(_context, NullLogger<OpportunityService>.Instance, httpClientFactory, samApiOptions, CreateCompanyProfileServiceMock());
     }
 
     public void Dispose()
@@ -579,7 +581,22 @@ public class OpportunityServiceTests : IDisposable
             context,
             NullLogger<OpportunityService>.Instance,
             factoryMock.Object,
-            samApiOptions);
+            samApiOptions,
+            CreateCompanyProfileServiceMock());
+    }
+
+    /// <summary>
+    /// Stub ICompanyProfileService for size-eligibility annotation (Phase 129 Unit C).
+    /// Returns no eligibility data so search/detail results are left unannotated.
+    /// </summary>
+    private static ICompanyProfileService CreateCompanyProfileServiceMock()
+    {
+        var mock = new Mock<ICompanyProfileService>();
+        mock.Setup(s => s.CheckSizeEligibilityAsync(It.IsAny<int>(), It.IsAny<IEnumerable<string>>()))
+            .ReturnsAsync(new Dictionary<string, SizeEligibilityResultDto>());
+        mock.Setup(s => s.CheckSizeEligibilityAsync(It.IsAny<int>(), It.IsAny<string>()))
+            .ReturnsAsync((int _, string naics) => new SizeEligibilityResultDto { NaicsCode = naics });
+        return mock.Object;
     }
 
     [Fact]
