@@ -1415,6 +1415,17 @@ export interface DocumentIntelligenceDto {
   attachments: AttachmentSummaryDto[];
   perAttachmentIntel?: AttachmentIntelBreakdownDto[];
   methodBreakdown?: Record<string, MethodIntelDto>;
+  contradictions?: ContradictionDto[];
+}
+
+export interface ContradictionDto {
+  type: string;            // "cross_document" | "within_document" | "stale_reference"
+  severity: string;        // "high" | "medium" | "low"
+  summary: string;         // one-line what-contradicts-what
+  claimA: string;
+  claimALocation: string;  // e.g. "Description" or "SOW (attachment 2)"
+  claimB: string;
+  claimBLocation: string;
 }
 
 export interface IntelSourceDto {
