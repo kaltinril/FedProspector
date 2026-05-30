@@ -189,6 +189,17 @@ export interface NaicsDetailDto {
   sizeStandard?: number | null;
   sizeType?: string | null;
   industryDescription?: string | null;
+  /** Phase 129 Unit F: SBA size-standard footnotes (empty when none). */
+  footnotes: NaicsFootnote[];
+}
+
+// --- Phase 129 NAICS footnotes (Unit F) ---
+
+/** NAICS size-standard footnote/exception matching C# NaicsFootnoteDto */
+export interface NaicsFootnote {
+  footnoteId: string;
+  section: string;
+  description: string;
 }
 
 // --- Phase 129 NAICS hierarchy (Unit E) ---
