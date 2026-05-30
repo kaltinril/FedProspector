@@ -1,8 +1,15 @@
 # Phase 130: Early Attachment Cleanup & Re-Analyze
 
-**Status:** PLANNED
+**Status:** COMPLETE (2026-05-30)
 **Depends on:** 110 (Attachment Intelligence) — all complete
 **Priority:** Medium — disk space optimization + UX improvement
+
+> **Note:** Task 2 (Re-Download / Re-Analyze UI + endpoint) and Task 3 (demand-loader
+> redownload handler) were **SUPERSEDED by Phase 131 (Per-Attachment Re-Analysis)**,
+> which delivered a superior **per-attachment** flow: the `redownload` tier in
+> `demand_loader.py` plus the re-analyze / re-download buttons in
+> `DocumentIntelligenceTab.tsx`. Only **Task 1** (cleanup reorder + gate change)
+> remained for this phase, and it is now done.
 
 ## Motivation
 
@@ -17,53 +24,65 @@ Additionally, there's no way for a user to request re-analysis of an opportunity
 
 ---
 
-## Task 1: Move Cleanup After Keyword Intel (Remove AI Gate)
+## Task 1: Delete Raw Files Once Everything Is Captured (DONE 2026-05-30)
 
-### 1A. Modify cleanup eligibility SQL
+### Key motivation discovered
+
+The old gate required an **AI analysis** record (`ai_haiku`/`ai_sonnet`) before a raw
+file could be deleted. But **the daily pipeline runs no AI step** — AI analysis is
+on-demand only. In normal operation the AI gate was never satisfied, so raw
+attachment files were **never cleaned up and leaked forever**.
+
+### 1A. Cleanup eligibility SQL — implemented gate
 
 **File:** `fed_prospector/etl/attachment_cleanup.py`
 
-Current cleanup requires BOTH keyword intel AND AI intel records:
+The intel gating (the `document_intel_summary` EXISTS subquery requiring both
+keyword/heuristic AND AI records) was **removed entirely** — not just the AI part.
+Keyword intel reads `extracted_text` from the DB, not the raw file, so it is not a
+reason to keep the bytes on disk either.
+
+A raw file is now deleted once **all of these are true** (all DB-persisted, so no
+data loss; re-download via Phase 131 is the recovery path if bytes are ever needed):
+
+1. **Downloaded:** `sa.download_status = 'downloaded'` AND `sa.file_path IS NOT NULL`
+2. **Hashed:** `sa.content_hash IS NOT NULL`
+3. **File details captured:** `sa.file_size_bytes IS NOT NULL`
+4. **Text extracted:** `ad.extraction_status = 'extracted'` AND `ad.text_hash IS NOT NULL`
+
+Implemented query body:
 ```sql
--- Current: requires AI intel EXISTS clause
-AND EXISTS (
-    SELECT 1 FROM opportunity_attachment_intel oai
-    WHERE oai.attachment_id = oa.attachment_id
-      AND oai.extraction_method IN ('ai_haiku', 'ai_sonnet')
-)
+SELECT sa.attachment_id, sa.file_path, sa.file_size_bytes
+FROM sam_attachment sa
+JOIN attachment_document ad ON ad.attachment_id = sa.attachment_id
+WHERE sa.download_status = 'downloaded'
+  AND sa.file_path IS NOT NULL
+  AND sa.content_hash IS NOT NULL
+  AND sa.file_size_bytes IS NOT NULL
+  AND ad.extraction_status = 'extracted'
+  AND ad.text_hash IS NOT NULL
 ```
-
-**Change:** Remove the AI intel EXISTS clause entirely. Cleanup eligibility becomes:
-1. `download_status = 'downloaded'`
-2. `extraction_status = 'extracted'`
-3. `file_path IS NOT NULL`
-4. Has keyword/heuristic intel record (unchanged)
-
-Only files that completed keyword intel successfully get cleaned up. Failed, skipped, pending, or unsupported files are untouched.
+The optional `--notice-id` filter (`opportunity_attachment` EXISTS subquery) and
+`ORDER BY sa.attachment_id LIMIT %s` are unchanged.
 
 ### 1B. Update daily load pipeline order
 
 **File:** `fed_prospector/cli/load_batch.py`
 
-Move the cleanup step from after AI analysis to after keyword intel extraction:
+The `attachment_cleanup` step (previously near the end, after `intel_backfill`) was
+moved to run **immediately after `attachment_intel`** so disk is freed as soon as
+text + hashes are captured. Both `DAILY_SEQUENCE` and `_get_daily_steps()` were
+reordered, and the `load_daily` docstring step listing was renumbered:
 
 ```
-Current order:
-  [7/12]  Download attachments
-  [8/12]  Extract text
-  [9/12]  Extract keyword intel
-  [10/12] AI analysis
-  [11/12] Backfill opportunity intel
-  [12/12] Cleanup files              <-- current position
-
-New order:
-  [7/13]  Download attachments
-  [8/13]  Extract text
-  [9/13]  Extract keyword intel
-  [10/13] Cleanup files              <-- moved here
-  [11/13] AI analysis
-  [12/13] Backfill opportunity intel
-  [13/13] (reserved for future steps)
+New daily order (relevant slice):
+   9. extract_text          Extract text from attachments
+  10. attachment_intel      Keyword intel from attachment text
+  11. attachment_cleanup    Clean up fully-extracted attachment files   <-- moved here
+  12. description_intel     Keyword intel from description text
+  ...
+  15. intel_backfill        Backfill opportunity intel
+  16. sca_revisions         Check SCA WD revisions
 ```
 
 ### 1C. Update CLI `maintain attachment-files` help text
@@ -191,3 +210,39 @@ The `maintain attachment-files --notice-id` command should still work for target
 - Modifying AI analysis behavior (it already works from DB text)
 - Phase 110H (Intel Backfill Ranking) — separate concern
 - Phase 110Y (Request Poller Service) — complementary but independent
+
+---
+
+## Future Enhancement (Deferred): Native-PDF Fallback for Scanned / Low-OCR Documents
+
+**Design decision recorded (2026-05-30):** AI analysis sends **extracted text** from the
+database (`attachment_document.extracted_text`), **not** the raw file. Confirmed in code:
+`attachment_ai_analyzer.py` reads `ad.extracted_text` and builds the user message as
+`"Analyze this federal solicitation document:\n\n{text}"` (see `_analyze_document`, plus the
+on-demand and batch query paths, which all require `extracted_text IS NOT NULL`). There is no
+file-upload, base64, or Files API path. This is what makes the early-cleanup change in this
+phase safe: deleting raw files after text extraction + hashing **cannot** break current or
+on-demand AI re-analysis, because AI never reads the raw file.
+
+**Why text-based is the right default (keep it):**
+- **Cost:** text tokens are much cheaper than feeding whole documents, and the prompt caches cleanly.
+- **Retention:** decouples AI from file storage — exactly what allows raw-file cleanup and stops the disk leak that motivated this phase.
+- **Format coverage:** one extraction step handles PDF, `.docx`, `.xlsx` uniformly; native-file analysis is effectively PDF-only (and capped around 32MB / 100 pages).
+- **Determinism:** same text in, cache-friendly, no re-extraction.
+
+**The one place native-file analysis would win:** layout-heavy content (complex pricing tables,
+org charts, maps, figures) and especially **scanned / poor-OCR** documents where flat text
+extraction loses fidelity. These are the minority of solicitation content — the extraction
+targets (clearance, eval method, vehicle type, labor categories, scope) are overwhelmingly
+textual prose.
+
+**Deferred recommendation (do NOT build now):** If AI is later found to miss information on
+scanned or table-heavy documents, the targeted fix is **not** to switch all analysis to native
+files. Instead: detect low-fidelity documents using the signals already stored on
+`attachment_document` (`ocr_quality IN ('fair','poor')` and/or `is_scanned = 1`), and route
+**only** those documents through a native-PDF analysis path — re-downloading the bytes on demand
+via the existing Phase 131 `redownload` tier (since the raw file may have been cleaned up). This
+captures the quality win on the documents that need it without paying the cost and
+file-retention penalty on the ~95% that extract cleanly.
+
+**Status:** deferred — implement only if a quality gap is observed in practice.

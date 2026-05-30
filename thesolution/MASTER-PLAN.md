@@ -167,7 +167,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 127 | Expiring Contracts — USASpending Integration | COMPLETE | [127-EXPIRING-CONTRACTS-USASPENDING.md](phases/completed/127-EXPIRING-CONTRACTS-USASPENDING.md) |
 | 128 | Federal Identifier Extraction | COMPLETE | [128-IDENTIFIER-EXTRACTION.md](phases/completed/128-IDENTIFIER-EXTRACTION.md) |
 | 129 | NAICS Code Intelligence & SBA Size Standards | COMPLETE | [129-NAICS-SIZE-STANDARDS.md](phases/completed/129-NAICS-SIZE-STANDARDS.md) |
-| 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |
+| 130 | Early Attachment Cleanup & Re-Analyze | COMPLETE | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/completed/130-EARLY-CLEANUP-AND-REANALYZE.md) |
 | 131 | Per-Attachment Re-Analysis | COMPLETE | [131-PER-ATTACHMENT-REANALYSIS.md](phases/completed/131-PER-ATTACHMENT-REANALYSIS.md) |
 | 132 | Identifier Dash-Normalization | PLANNED | [132-IDENTIFIER-DASH-NORMALIZATION.md](phases/132-IDENTIFIER-DASH-NORMALIZATION.md) |
 | 133 | Linked Entity Aggregation Fixes + Sister Subsidiary + SBA Affiliation Size Roll-Up | PLANNED | [133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md](phases/133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md) |

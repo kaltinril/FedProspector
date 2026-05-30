@@ -25,11 +25,11 @@ DAILY_SEQUENCE = [
     "download_attachments",
     "extract_text",
     "attachment_intel",
+    "attachment_cleanup",
     "description_intel",
     "extract_identifiers",
     "cross_ref_identifiers",
     "intel_backfill",
-    "attachment_cleanup",
     "sca_revisions",
 ]
 WEEKLY_SEQUENCE = [
@@ -112,6 +112,11 @@ def _get_daily_steps():
             "command": ["python", "main.py", "extract", "attachment-intel", "--batch-size", "5000"],
         },
         {
+            "name": "attachment_cleanup",
+            "description": "Clean up fully-extracted attachment files",
+            "command": ["python", "main.py", "maintain", "attachment-files"],
+        },
+        {
             "name": "description_intel",
             "description": "Extract keyword intelligence from description text",
             "command": ["python", "main.py", "extract", "description-intel", "--batch-size", "5000"],
@@ -130,11 +135,6 @@ def _get_daily_steps():
             "name": "intel_backfill",
             "description": "Backfill opportunity intel from analysis results",
             "command": ["python", "main.py", "backfill", "opportunity-intel"],
-        },
-        {
-            "name": "attachment_cleanup",
-            "description": "Clean up fully-analyzed attachment files",
-            "command": ["python", "main.py", "maintain", "attachment-files"],
         },
         {
             "name": "sca_revisions",
@@ -497,11 +497,11 @@ def load_daily(key, skip, dry_run):
       8. download_attachments Download attachments
       9. extract_text         Extract text from attachments
      10. attachment_intel     Keyword intel from attachment text
-     11. description_intel    Keyword intel from description text
-     12. extract_identifiers  Extract federal identifiers
-     13. cross_ref_identifiers Cross-reference identifiers
-     14. intel_backfill       Backfill opportunity intel
-     15. attachment_cleanup   Clean up attachment files
+     11. attachment_cleanup   Clean up fully-extracted attachment files
+     12. description_intel    Keyword intel from description text
+     13. extract_identifiers  Extract federal identifiers
+     14. cross_ref_identifiers Cross-reference identifiers
+     15. intel_backfill       Backfill opportunity intel
      16. sca_revisions        Check SCA WD revisions
 
     Examples:

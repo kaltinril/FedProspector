@@ -1,12 +1,16 @@
-"""Post-analysis cleanup of attachment files from disk (Phase 110B).
+"""Post-extraction cleanup of attachment files from disk (Phase 110B, Phase 130).
 
-Removes physical files for attachments that have completed the FULL
-analysis pipeline — all 4 stages of the state machine:
+Removes physical files for attachments once everything we need from the raw
+file has been safely captured in the database. A file is cleanup-eligible
+once it has been:
 
-    downloaded -> text extracted -> keyword intel -> AI analyzed -> [cleanup eligible]
+    downloaded -> content-hashed -> file details captured -> text extracted
+        -> [cleanup eligible]
 
-Only files that reached the final stage (AI analysis) can be deleted.
-Preserves all database records including extracted text and intel.
+Keyword and AI intel work from `extracted_text` in the DB, not the raw file,
+so they are NOT required for cleanup. If the raw bytes are ever needed again,
+re-download (Phase 131) is the recovery path. Preserves all database records
+including extracted text, hashes, and intel.
 
 Usage:
     from etl.attachment_cleanup import AttachmentFileCleanup
@@ -24,14 +28,14 @@ logger = logging.getLogger("fed_prospector.etl.attachment_cleanup")
 
 
 class AttachmentFileCleanup:
-    """Removes attachment files that have completed full analysis."""
+    """Removes attachment files whose text and hashes are safely captured."""
 
     def __init__(self, db_connection=None, attachment_dir=None):
         self.db_connection = db_connection
         self.attachment_dir = Path(attachment_dir) if attachment_dir else _DEFAULT_ATTACHMENT_DIR
 
     def cleanup_files(self, notice_id=None, batch_size=1000, dry_run=False):
-        """Delete files for fully-analyzed attachments.
+        """Delete files for fully-extracted attachments.
 
         Args:
             notice_id: If set, only clean up files for this notice.
@@ -54,11 +58,11 @@ class AttachmentFileCleanup:
         stats["eligible"] = len(rows)
 
         if not rows:
-            logger.info("No fully-analyzed attachment files to clean up")
+            logger.info("No fully-extracted attachment files to clean up")
             return stats
 
         logger.info(
-            "%s %d fully-analyzed attachment files",
+            "%s %d fully-extracted attachment files",
             "Would delete" if dry_run else "Cleaning up",
             len(rows),
         )
@@ -128,12 +132,14 @@ class AttachmentFileCleanup:
     def _fetch_eligible(self, notice_id, batch_size):
         """Fetch attachments eligible for cleanup.
 
-        Eligible = all 4 pipeline stages complete:
-          1. download_status = 'downloaded' (sam_attachment)
-          2. extraction_status = 'extracted' (attachment_document)
-          3. Has keyword/heuristic intel record (document_intel_summary)
-          4. Has AI analysis record (document_intel_summary)
-        AND file_path is not NULL (file still on disk).
+        Eligible = everything we need from the raw file is captured in the DB:
+          1. File downloaded: download_status = 'downloaded' AND file_path IS NOT NULL
+          2. File hashed: content_hash IS NOT NULL
+          3. File details captured: file_size_bytes IS NOT NULL
+          4. Text extracted: extraction_status = 'extracted' AND text_hash IS NOT NULL
+
+        Keyword/AI intel is NOT required — it reads extracted_text from the DB,
+        not the raw file. Re-download (Phase 131) is the recovery path.
         """
         conn = self.db_connection or get_connection()
         cursor = conn.cursor(dictionary=True)
@@ -143,16 +149,11 @@ class AttachmentFileCleanup:
                 FROM sam_attachment sa
                 JOIN attachment_document ad ON ad.attachment_id = sa.attachment_id
                 WHERE sa.download_status = 'downloaded'
-                  AND ad.extraction_status = 'extracted'
                   AND sa.file_path IS NOT NULL
-                  AND EXISTS (
-                      SELECT 1 FROM document_intel_summary dis
-                      WHERE dis.document_id = ad.document_id
-                        AND dis.extraction_method IN ('keyword', 'heuristic', 'ai_haiku', 'ai_sonnet')
-                      GROUP BY dis.document_id
-                      HAVING SUM(dis.extraction_method IN ('keyword', 'heuristic')) > 0
-                         AND SUM(dis.extraction_method IN ('ai_haiku', 'ai_sonnet')) > 0
-                  )
+                  AND sa.content_hash IS NOT NULL
+                  AND sa.file_size_bytes IS NOT NULL
+                  AND ad.extraction_status = 'extracted'
+                  AND ad.text_hash IS NOT NULL
             """
             params = []
 

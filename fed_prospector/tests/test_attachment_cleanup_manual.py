@@ -170,7 +170,8 @@ if import_ok:
            stats_live.get("dry_run") is False)
 
     record("Stats has all expected keys",
-           set(stats_dry.keys()) == {"eligible", "deleted", "failed", "bytes_reclaimed", "dry_run"},
+           set(stats_dry.keys()) == {"eligible", "deleted", "already_missing",
+                                     "failed", "bytes_reclaimed", "dry_run"},
            f"keys={set(stats_dry.keys())}")
 
 # ═══════════════════════════════════════════════════════════════════
@@ -189,39 +190,43 @@ if import_ok:
             print(f"    {line.strip()}")
     print()
 
-    # Count EXISTS subqueries
+    # Phase 130: cleanup no longer gates on intel — only the optional
+    # notice_id filter remains as an EXISTS subquery.
     exists_count = len(re.findall(r'\bEXISTS\s*\(', source))
-    record("Has exactly TWO EXISTS subqueries",
-           exists_count == 2,
+    record("Has exactly ONE EXISTS subquery (notice_id filter only)",
+           exists_count == 1,
            f"found {exists_count} EXISTS clauses")
 
-    # Check first EXISTS for keyword/heuristic
-    record("First EXISTS checks extraction_method IN ('keyword', 'heuristic')",
-           "extraction_method IN ('keyword', 'heuristic')" in source)
+    # Intel gating must be fully removed
+    record("No intel gating on document_intel_summary",
+           "document_intel_summary" not in source,
+           "document_intel_summary still referenced")
 
-    # Check second EXISTS for AI methods
-    record("Second EXISTS checks extraction_method IN ('ai_haiku', 'ai_sonnet')",
-           "extraction_method IN ('ai_haiku', 'ai_sonnet')" in source)
+    record("No AI extraction_method gate",
+           "ai_haiku" not in source and "ai_sonnet" not in source)
 
-    # Both reference oai.attachment_id = oa.attachment_id
-    join_refs = re.findall(r'oai\.attachment_id\s*=\s*oa\.attachment_id', source)
-    record("Both EXISTS use oai.attachment_id = oa.attachment_id",
-           len(join_refs) == 2,
-           f"found {len(join_refs)} join references")
-
-    # Main WHERE conditions
+    # Main WHERE conditions (the 3-criteria gate, all DB-persisted)
     record("WHERE has download_status = 'downloaded'",
            "download_status = 'downloaded'" in source)
+
+    record("WHERE has file_path IS NOT NULL",
+           "sa.file_path IS NOT NULL" in source)
+
+    record("WHERE has content_hash IS NOT NULL",
+           "content_hash IS NOT NULL" in source)
+
+    record("WHERE has file_size_bytes IS NOT NULL",
+           "file_size_bytes IS NOT NULL" in source)
 
     record("WHERE has extraction_status = 'extracted'",
            "extraction_status = 'extracted'" in source)
 
-    record("WHERE has file_path IS NOT NULL",
-           "file_path IS NOT NULL" in source)
+    record("WHERE has text_hash IS NOT NULL",
+           "text_hash IS NOT NULL" in source)
 
-    # notice_id conditional
-    record("notice_id adds AND oa.notice_id = %s",
-           "oa.notice_id = %s" in source)
+    # notice_id conditional (matches new opportunity_attachment subquery)
+    record("notice_id adds AND m.notice_id = %s",
+           "m.notice_id = %s" in source)
 
     # LIMIT uses batch_size param
     record("LIMIT uses %s parameter (batch_size)",
