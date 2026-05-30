@@ -110,3 +110,4 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | Pricing UI pages | `ui/src/pages/pricing/` (7 pages: heatmap, price-to-win, bid scenario, escalation, IGCE, sub benchmark, SCA geographic) |
 | Pricing API client | `ui/src/api/pricing.ts` |
 | Attachment files | `E:\fedprospector\attachments\` (env var: `ATTACHMENT_DIR`) |
+| Attachment AI analyzer | `fed_prospector/etl/attachment_ai_analyzer.py` (CLI: `extract contradictions` — AI-only, on-demand contradiction detection) |
