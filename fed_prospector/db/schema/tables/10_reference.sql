@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS ref_country_code (
 CREATE TABLE IF NOT EXISTS ref_state_code (
     state_code      VARCHAR(2) NOT NULL,
     state_name      VARCHAR(60) NOT NULL,
-    country_code    VARCHAR(3) DEFAULT 'USA',
+    country_code    VARCHAR(3) NOT NULL DEFAULT 'USA',
     PRIMARY KEY (state_code, country_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
