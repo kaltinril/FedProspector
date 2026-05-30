@@ -35,7 +35,7 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 6. **Prefer bulk extracts over API pagination**: SAM.gov rate limits are harsh.
 7. **Test with real data**: `workdir/converted/local database/` has reference CSVs.
 8. **Ignore OLD_ATTEMPTS and OLD_RESOURCES**: Relevant data already in `workdir/converted/`.
-9. **Keep DDL files and live DB in sync**: When changing SQL schema or view files, always apply changes to the live database in the same step.
+9. **Keep DDL files and live DB in sync**: When changing SQL schema or view files, always apply changes to the live database in the same step. **There is no automated migration runner** — migrations in `fed_prospector/db/schema/migrations/` are applied by hand and must be idempotent. **Two databases exist**: the local **dev** DB (`127.0.0.1`/localhost, just for dev/investigation/testing) and **prod** (`DB_HOST` in `.env` = `192.168.0.137`, the canonical DB on the prod box `DESKTOP-D58HJ5B`). A schema change is not "done" until applied to **BOTH**. `deploy.ps1` pushes code only and never touches the DB. Run migrations **from this dev box against prod** via the mysql client at `E:\mysql\bin` (e.g. `& "E:\mysql\bin\mysql.exe" -h 192.168.0.137 -P 3306 -u fed_app -p<pw> fed_contracts -e "source <migration>.sql"`); backup-first per the Phase 134 runbook. Applying a migration to localhost only (a common slip — agents may find local MySQL on `127.0.0.1` and stop there) leaves prod stale.
 10. **Completed phases**: Docs in `thesolution/phases/completed/`. Only read for historical context.
 11. **Deferred phases**: Phases 150 (Security Hardening) and 500 (Deferred Items) are intentionally deferred. Do not start without explicit instruction.
 
