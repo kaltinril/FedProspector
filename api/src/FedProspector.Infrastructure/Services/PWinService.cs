@@ -1,4 +1,5 @@
 using FedProspector.Core.DTOs.Intelligence;
+using FedProspector.Core.DTOs.Organizations;
 using FedProspector.Core.Interfaces;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -10,6 +11,7 @@ public class PWinService : IPWinService
 {
     private readonly FedProspectorDbContext _context;
     private readonly IOrganizationEntityService _orgEntityService;
+    private readonly ICompanyProfileService _companyProfileService;
     private readonly ILogger<PWinService> _logger;
 
     /// <summary>
@@ -31,10 +33,15 @@ public class PWinService : IPWinService
         ["SDVOSBS"] = ["SDVOSB", "VOSB"],
     };
 
-    public PWinService(FedProspectorDbContext context, IOrganizationEntityService orgEntityService, ILogger<PWinService> logger)
+    public PWinService(
+        FedProspectorDbContext context,
+        IOrganizationEntityService orgEntityService,
+        ICompanyProfileService companyProfileService,
+        ILogger<PWinService> logger)
     {
         _context = context;
         _orgEntityService = orgEntityService;
+        _companyProfileService = companyProfileService;
         _logger = logger;
     }
 
@@ -162,16 +169,41 @@ public class PWinService : IPWinService
         var factors = new List<PWinFactorDto>();
         var suggestions = new List<string>();
 
-        // 1. Set-aside match (weight 0.20)
+        // -------------------------------------------------------------------
+        // Weight model (must sum to 1.00). Phase 129 Unit D introduced the
+        // Size Eligibility factor (0.10) and rebalanced the four largest
+        // factors down to make room while keeping the model coherent:
+        //
+        //   Factor                Old     New    Rationale
+        //   --------------------  -----   -----  -------------------------------
+        //   Set-Aside Match       0.20    0.16   Cert match still matters, but
+        //                                        size eligibility now carries
+        //                                        part of the "can we win this
+        //                                        set-aside" signal.
+        //   NAICS Experience      0.20    0.18   Remains the largest factor.
+        //   Competition Level     0.15    0.13   Trimmed to fund new factor.
+        //   Incumbent Advantage   0.15    0.13   Trimmed to fund new factor.
+        //   Teaming Strength      0.10    0.10   Unchanged.
+        //   Time to Respond       0.10    0.10   Unchanged.
+        //   Contract Value Fit    0.10    0.10   Unchanged.
+        //   Size Eligibility      ----    0.10   NEW. Heavy outsized penalty
+        //                                        uses a negative score so its
+        //                                        weighted contribution dominates
+        //                                        on the downside.
+        //                         -----   -----
+        //   Total                 1.00    1.00
+        // -------------------------------------------------------------------
+
+        // 1. Set-aside match (weight 0.16)
         factors.Add(ScoreSetAsideMatch(opp.SetAsideCode, orgCerts, suggestions));
 
-        // 2. NAICS experience with past performance relevance (weight 0.20) — uses cached data
+        // 2. NAICS experience with past performance relevance (weight 0.18) — uses cached data
         factors.Add(await ScoreNaicsExperienceCachedAsync(opp, org.OrganizationId, linkedUeis, naicsExpCache, suggestions));
 
-        // 3. Competition level (weight 0.15) — uses cached data
+        // 3. Competition level (weight 0.13) — uses cached data
         factors.Add(await ScoreCompetitionLevelCachedAsync(opp.NaicsCode, competitionCache));
 
-        // 4. Incumbent advantage with vulnerability signals (weight 0.15) — per-opportunity
+        // 4. Incumbent advantage with vulnerability signals (weight 0.13) — per-opportunity
         factors.Add(await ScoreIncumbentAdvantageAsync(opp, linkedUeis, suggestions));
 
         // 5. Teaming strength (weight 0.10) — per-opportunity (depends on opp NAICS)
@@ -182,6 +214,9 @@ public class PWinService : IPWinService
 
         // 7. Contract value fit (weight 0.10) — per-opportunity
         factors.Add(await ScoreContractValueFitAsync(opp.EstimatedContractValue, org.OrganizationId, linkedUeis));
+
+        // 8. Size eligibility (weight 0.10) — Phase 129 Unit D — per-opportunity (NAICS + set-aside)
+        factors.Add(await ScoreSizeEligibilityAsync(opp, org.OrganizationId, suggestions));
 
         var totalScore = Math.Round(factors.Sum(f => f.WeightedScore), 1);
 
@@ -243,7 +278,7 @@ public class PWinService : IPWinService
         Core.Models.Opportunity opp, int orgId, List<string> linkedUeis,
         Dictionary<string, NaicsExperienceData> cache, List<string> suggestions)
     {
-        const decimal weight = 0.20m;
+        const decimal weight = 0.18m;
         var naicsCode = opp.NaicsCode;
 
         if (string.IsNullOrEmpty(naicsCode))
@@ -351,12 +386,12 @@ public class PWinService : IPWinService
     }
 
     // -----------------------------------------------------------------------
-    // Factor 1: Set-Aside Match (weight 0.20)
+    // Factor 1: Set-Aside Match (weight 0.16)
     // -----------------------------------------------------------------------
 
     private static PWinFactorDto ScoreSetAsideMatch(string? setAsideCode, List<string> orgCerts, List<string> suggestions)
     {
-        const decimal weight = 0.20m;
+        const decimal weight = 0.16m;
         var code = (setAsideCode ?? "").Trim();
 
         decimal score;
@@ -407,7 +442,7 @@ public class PWinService : IPWinService
     }
 
     // -----------------------------------------------------------------------
-    // Factor 2: NAICS Experience / Past Performance Relevance (weight 0.20)
+    // Factor 2: NAICS Experience / Past Performance Relevance (weight 0.18)
     // Uses continuous curve with recency weighting, agency match, and value similarity.
     // -----------------------------------------------------------------------
 
@@ -418,7 +453,7 @@ public class PWinService : IPWinService
     private async Task<PWinFactorDto> ScoreNaicsExperienceAsync(
         Core.Models.Opportunity opp, int orgId, List<string> linkedUeis, List<string> suggestions)
     {
-        const decimal weight = 0.20m;
+        const decimal weight = 0.18m;
         var naicsCode = opp.NaicsCode;
 
         if (string.IsNullOrEmpty(naicsCode))
@@ -539,7 +574,7 @@ public class PWinService : IPWinService
     }
 
     // -----------------------------------------------------------------------
-    // Factor 3: Competition Level (weight 0.15)
+    // Factor 3: Competition Level (weight 0.13)
     // Uses percentile-based relative scoring against all NAICS codes.
     // -----------------------------------------------------------------------
 
@@ -554,7 +589,7 @@ public class PWinService : IPWinService
     /// </summary>
     private async Task<PWinFactorDto> ScoreCompetitionLevelAsync(string? naicsCode)
     {
-        const decimal weight = 0.15m;
+        const decimal weight = 0.13m;
 
         if (string.IsNullOrEmpty(naicsCode))
         {
@@ -620,7 +655,7 @@ public class PWinService : IPWinService
     }
 
     // -----------------------------------------------------------------------
-    // Factor 4: Incumbent Advantage with vulnerability signals (weight 0.15)
+    // Factor 4: Incumbent Advantage with vulnerability signals (weight 0.13)
     // -----------------------------------------------------------------------
 
     /// <summary>
@@ -631,7 +666,7 @@ public class PWinService : IPWinService
     private async Task<PWinFactorDto> ScoreIncumbentAdvantageAsync(
         Core.Models.Opportunity opp, List<string> linkedUeis, List<string> suggestions)
     {
-        const decimal weight = 0.15m;
+        const decimal weight = 0.13m;
 
         // Check if opportunity has incumbent info directly
         var incumbentUei = opp.IncumbentUei;
@@ -962,6 +997,110 @@ public class PWinService : IPWinService
         var detail = $"Opportunity ${estimatedValue.Value:N0} vs. avg contract ${avgValue:N0} ({fitRatio:F1}x ratio, score {score:F0})";
 
         return MakeFactor("Contract Value Fit", score, weight, detail);
+    }
+
+    // -----------------------------------------------------------------------
+    // Factor 8: Size Eligibility (weight 0.10) — Phase 129 Unit D
+    //
+    // Evaluates whether the org qualifies as "small" under the SBA size standard
+    // for the opportunity's NAICS code, then weights the result by whether the
+    // opportunity is a small-business set-aside:
+    //
+    //   Set-aside + OUTSIZED   -> heavy negative score (-100 => -10 weighted).
+    //                             Product decision: an outsized org is the
+    //                             strongest single negative pull, but NOT driven
+    //                             to an absolute zero because JV/affiliate
+    //                             arrangements (which this engine does not model)
+    //                             can still make a bid viable. A residual is left.
+    //   Set-aside + ELIGIBLE   -> positive boost, stronger with comfortable
+    //                             headroom under the cap.
+    //   Set-aside + UNKNOWN    -> neutral (0) with an explanatory note; never throws.
+    //   Full & open (no S/A)   -> far less decisive; small effect only.
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Scores SBA size eligibility for the opportunity's NAICS, heavily penalizing an
+    /// outsized org on a small-business set-aside (without driving the score to absolute
+    /// zero) and rewarding an eligible/small org with comfortable headroom.
+    /// </summary>
+    private async Task<PWinFactorDto> ScoreSizeEligibilityAsync(
+        Core.Models.Opportunity opp, int orgId, List<string> suggestions)
+    {
+        const decimal weight = 0.10m;
+        const string name = "Size Eligibility";
+
+        var naicsCode = opp.NaicsCode;
+        if (string.IsNullOrWhiteSpace(naicsCode))
+        {
+            return MakeFactor(name, 50, weight, "No NAICS code on opportunity — size eligibility unknown", hadRealData: false);
+        }
+
+        // Is this a small-business set-aside? SetAsideCertMap enumerates the small-business
+        // set-aside codes (WOSB, 8(a), HUBZone, SDVOSB, etc.). Anything else is full & open
+        // (or an unrecognized code) where size eligibility is far less decisive.
+        var setAsideCode = (opp.SetAsideCode ?? "").Trim();
+        var isSetAside = !string.IsNullOrEmpty(setAsideCode) && SetAsideCertMap.ContainsKey(setAsideCode);
+
+        SizeEligibilityResultDto elig;
+        try
+        {
+            elig = await _companyProfileService.CheckSizeEligibilityAsync(orgId, naicsCode);
+        }
+        catch (Exception ex)
+        {
+            // Defensive: the engine is documented as never-throwing, but never let a size
+            // lookup failure break the whole pWin calculation.
+            _logger.LogWarning(ex, "Size eligibility lookup failed for org {OrgId}, NAICS {Naics}", orgId, naicsCode);
+            return MakeFactor(name, 50, weight, "Size eligibility could not be evaluated", hadRealData: false);
+        }
+
+        // Undeterminable (missing org revenue/headcount, or no size standard) -> neutral, never throw.
+        if (elig.Eligible is null)
+        {
+            return MakeFactor(name, 50, weight,
+                $"Size eligibility undeterminable for NAICS {naicsCode}: {elig.Reason}", hadRealData: false);
+        }
+
+        var headroom = elig.HeadroomPct; // positive = room under cap, negative = over
+
+        if (isSetAside)
+        {
+            if (elig.Outsized)
+            {
+                // Heavy penalty. -100 * 0.10 = -10 weighted — the strongest single
+                // negative contribution in the model — but a residual is intentionally
+                // left (we do NOT zero the overall score) to allow for JV/affiliate nuance.
+                suggestions.Add(
+                    $"Your organization appears OUTSIZED for this {setAsideCode} set-aside under NAICS {naicsCode} " +
+                    $"({elig.Reason}). A bid likely requires a compliant JV or affiliate arrangement.");
+
+                return MakeFactor(name, -100, weight,
+                    $"OUTSIZED for {setAsideCode} set-aside (NAICS {naicsCode}): {elig.Reason} — " +
+                    "heavy penalty; eligibility may still be achievable via JV/affiliate.");
+            }
+
+            // Eligible / small on a set-aside: positive boost, stronger with comfortable headroom.
+            // 50% headroom or more -> 100; at the cap (0% headroom) -> 70.
+            decimal score = 70;
+            if (headroom.HasValue)
+                score = Math.Clamp(70m + headroom.Value * 0.6m, 70m, 100m);
+
+            return MakeFactor(name, Math.Round(score, 1), weight,
+                $"Eligible (small) for {setAsideCode} set-aside (NAICS {naicsCode}): {elig.Reason}");
+        }
+
+        // Full & open (or unrecognized set-aside code): size eligibility is far less decisive.
+        // Small with headroom is a mild plus; outsized is only a mild minus (large primes
+        // routinely win full-and-open work).
+        if (elig.Outsized)
+        {
+            return MakeFactor(name, 45, weight,
+                $"Full & open — org exceeds the small-business size standard for NAICS {naicsCode} " +
+                "(not decisive on a non-set-aside): " + elig.Reason);
+        }
+
+        return MakeFactor(name, 60, weight,
+            $"Full & open — org is within the small-business size standard for NAICS {naicsCode}: {elig.Reason}");
     }
 
     // -----------------------------------------------------------------------
