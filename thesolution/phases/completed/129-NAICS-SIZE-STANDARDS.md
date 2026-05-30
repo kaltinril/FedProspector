@@ -1,8 +1,31 @@
 # Phase 129: NAICS Code Intelligence & SBA Size Standards
 
-**Status:** PLANNED
+**Status:** COMPLETE
 **Priority:** High — NAICS size standards are the single most important eligibility gate for small business set-aside contracts. Without this, pWin calculations can't determine if the user is even eligible to bid.
 **Dependencies:** None (reference tables already exist from Phase 10)
+
+---
+
+## Completion Summary
+
+Phase 129 shipped a NAICS hierarchy + SBA size-eligibility engine end to end. Delivered:
+
+- **Task 1 (DONE):** Reference doc `thesolution/reference/13-NAICS-SIZE-STANDARDS.md`.
+- **Task 2 (DONE):** NAICS hierarchy API — `GET api/v1/reference/naics/sectors`, `GET api/v1/reference/naics/{code}/children`, `GET api/v1/reference/naics/{code}/ancestors` on `ReferenceController`, backed by new DTO `NaicsHierarchyNodeDto`.
+- **Task 3 (DONE):** Size-eligibility engine — `ICompanyProfileService.CheckSizeEligibilityAsync(int orgId, string naicsCode)` plus a batch overload, implemented in `CompanyProfileService`, returning new `SizeEligibilityResultDto`. **Single-org only — affiliates are explicitly excluded** (see affiliation note below).
+- **Task 4 (DONE):** Opportunities annotated with `SizeEligible`, `SizeHeadroomPct`, `Outsized`, `NearSizeThreshold` on `OpportunitySearchDto` and `OpportunityDetailDto`, populated by `OpportunityService`.
+- **Task 5 (DONE):** pWin gained a "Size Eligibility" factor (weight 0.10) in `PWinService` / `PWinDtos`. Outsized-on-a-set-aside yields a heavy penalty score of **-100** (it is NOT zeroed out, so a strong opportunity is penalized but not silently dropped).
+- **Task 6 (DONE):** NAICS hierarchy browser UI at route `/reference/naics` (`ui/src/pages/reference/NaicsBrowserPage.tsx`), with a nav item under the Research sidebar.
+- **Task 7 (DESCOPED):** See below — intentionally dropped from this phase.
+- **Task 8 (DONE):** NAICS footnotes surfaced on the NAICS detail API (`NaicsDetailDto.Footnotes` via new `NaicsFootnoteDto`) and in the org-setup NAICS step UI (`ui/src/pages/setup/NaicsCodesStep.tsx`). **Exceptions were omitted** because the data model (`ref_naics_footnote`) has no exception sub-entries to surface — only footnote text exists, so the planned `exceptions: [...]` DTO field was not built.
+
+### Task 7 — DESCOPED (deferred, not done)
+
+Task 7 (NAICS concordance table `ref_naics_concordance` + the 2022→2027 cross-revision refresh CLI) was **intentionally dropped** from Phase 129. The 2022→2027 concordance file has not been published by SBA/Census yet, and none of Phase 129's delivered value depends on it. It can be added later as a small table + loader once the real concordance file exists. Tracked as a deferred/descoped item, not as completed work.
+
+### Affiliation roll-up — moved to Phase 133
+
+Phase 129's eligibility engine is **single-org only** and explicitly excludes affiliates. The SBA AFFILIATION size roll-up (aggregating affiliates' revenue/headcount into a combined size determination per 13 CFR 121.103) is now tracked as a **new Task 6 in Phase 133** (`thesolution/phases/133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md`). When that lands, the eligibility engine here should consume the rolled-up totals.
 
 ---
 
@@ -102,9 +125,9 @@ These are already modeled in `ref_naics_footnote` but not surfaced in the UI or 
 
 ## Implementation Plan
 
-### Task 1: NAICS & SBA Size Standards Research Reference Document
+### Task 1: NAICS & SBA Size Standards Research Reference Document — DONE
 
-Conduct comprehensive research on NAICS codes, SBA size standards, and the "outsized" concept. Produce a reference document at `thesolution/reference/NAICS-SIZE-STANDARDS-REFERENCE.md` covering:
+Conduct comprehensive research on NAICS codes, SBA size standards, and the "outsized" concept. Produce a reference document (shipped as `thesolution/reference/13-NAICS-SIZE-STANDARDS.md`) covering:
 
 **NAICS structure:**
 - Full hierarchy (2-6 digit levels), all 20 sectors with codes and names
@@ -139,11 +162,11 @@ Conduct comprehensive research on NAICS codes, SBA size standards, and the "outs
 - Impact on pWin for small vs large businesses
 - Socioeconomic subcategory layering (WOSB, 8(a), HUBZone, SDVOSB)
 
-**Output:** `thesolution/reference/NAICS-SIZE-STANDARDS-REFERENCE.md`
+**Output:** `thesolution/reference/13-NAICS-SIZE-STANDARDS.md`
 
 This document becomes the authoritative reference for all subsequent tasks in this phase.
 
-### Task 2: NAICS Hierarchy API
+### Task 2: NAICS Hierarchy API — DONE
 
 Add hierarchy-aware endpoints to browse NAICS codes as a tree.
 
@@ -168,7 +191,7 @@ GET /api/v1/reference/naics/{code}/ancestors
 - `api/src/FedProspector.Infrastructure/Services/CompanyProfileService.cs` — new queries
 - `api/src/FedProspector.Core/DTOs/` — new DTOs for hierarchy responses
 
-### Task 3: Size Standard Eligibility Engine
+### Task 3: Size Standard Eligibility Engine — DONE (single-org only; affiliates excluded — see Phase 133 Task 6)
 
 Compute whether the organization meets the SBA size standard for a given NAICS code automatically.
 
@@ -207,7 +230,7 @@ SizeEligibilityResult CheckSizeEligibility(int orgId, string naicsCode)
 - `api/src/FedProspector.Infrastructure/Services/CompanyProfileService.cs` — eligibility logic
 - `api/src/FedProspector.Core/DTOs/` — new result DTOs
 
-### Task 4: Outsized Warning System
+### Task 4: Outsized Warning System — DONE
 
 Flag opportunities where the user's org exceeds the size standard.
 
@@ -229,7 +252,7 @@ Flag opportunities where the user's org exceeds the size standard.
 - `api/src/FedProspector.Core/DTOs/Opportunity/` — add eligibility fields
 - `ui/src/pages/opportunities/` — warning badges and detail display
 
-### Task 5: pWin Integration
+### Task 5: pWin Integration — DONE
 
 Factor NAICS size standard eligibility into probability-of-win calculations.
 
@@ -247,7 +270,7 @@ Factor NAICS size standard eligibility into probability-of-win calculations.
 - Wherever pWin calculation lives (likely a future phase)
 - This task defines the scoring model; implementation integrates when pWin engine exists
 
-### Task 6: NAICS Hierarchy Browser UI
+### Task 6: NAICS Hierarchy Browser UI — DONE (route `/reference/naics`)
 
 New UI page or panel for exploring NAICS codes as a navigable tree.
 
@@ -266,7 +289,7 @@ New UI page or panel for exploring NAICS codes as a navigable tree.
 - `ui/src/queries/useReference.ts` — new query hooks
 - Router registration
 
-### Task 7: SBA Size Standards Data Refresh
+### Task 7: SBA Size Standards Data Refresh — DESCOPED (deferred; 2022→2027 concordance file not yet published — see Completion Summary)
 
 Mechanism to update size standards when SBA publishes new thresholds.
 
@@ -318,7 +341,7 @@ CREATE TABLE ref_naics_concordance (
 - `fed_prospector/db/schema/tables/10_reference.sql` — concordance table
 - Migration SQL
 
-### Task 8: Footnote Display & Exception Handling
+### Task 8: Footnote Display & Exception Handling — DONE (footnotes only; exceptions omitted — `ref_naics_footnote` has no exception sub-entries)
 
 Surface footnotes and size standard exceptions in the UI and API.
 

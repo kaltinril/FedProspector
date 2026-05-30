@@ -111,3 +111,4 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | Pricing API client | `ui/src/api/pricing.ts` |
 | Attachment files | `E:\fedprospector\attachments\` (env var: `ATTACHMENT_DIR`) |
 | Attachment AI analyzer | `fed_prospector/etl/attachment_ai_analyzer.py` (CLI: `extract contradictions` — AI-only, on-demand contradiction detection) |
+| NAICS hierarchy + size eligibility | API on `ReferenceController` (`api/v1/reference/naics/sectors`, `naics/{code}/children`, `naics/{code}/ancestors`); engine in `CompanyProfileService.CheckSizeEligibilityAsync` (single-org, affiliates excluded); browser UI at `/reference/naics` (`ui/src/pages/reference/NaicsBrowserPage.tsx`); ref doc `thesolution/reference/13-NAICS-SIZE-STANDARDS.md` |
