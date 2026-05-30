@@ -17,6 +17,7 @@ import type {
   OrganizationEntityDto,
   LinkEntityRequest,
   RefreshSelfEntityResponse,
+  NaicsHierarchyNode,
 } from '@/types/organization';
 
 // Organization management
@@ -123,4 +124,25 @@ export function refreshSelfEntity(): Promise<RefreshSelfEntityResponse> {
 
 export function getAggregateNaics(): Promise<string[]> {
   return apiClient.get('/org/entities/aggregate-naics').then((r) => r.data);
+}
+
+// --- Phase 129 NAICS hierarchy (Unit E) ---
+
+/** Top-level 2-digit NAICS sectors (root of the hierarchy tree). */
+export function getNaicsSectors(): Promise<NaicsHierarchyNode[]> {
+  return apiClient.get('/reference/naics/sectors').then((r) => r.data);
+}
+
+/** Immediate children (next level down) of a NAICS code. */
+export function getNaicsChildren(code: string): Promise<NaicsHierarchyNode[]> {
+  return apiClient
+    .get(`/reference/naics/${encodeURIComponent(code)}/children`)
+    .then((r) => r.data);
+}
+
+/** Ancestor chain (sector -> code) for breadcrumbs. */
+export function getNaicsAncestors(code: string): Promise<NaicsHierarchyNode[]> {
+  return apiClient
+    .get(`/reference/naics/${encodeURIComponent(code)}/ancestors`)
+    .then((r) => r.data);
 }

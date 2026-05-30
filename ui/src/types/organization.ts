@@ -190,3 +190,15 @@ export interface NaicsDetailDto {
   sizeType?: string | null;
   industryDescription?: string | null;
 }
+
+// --- Phase 129 NAICS hierarchy (Unit E) ---
+
+/** A node in the NAICS taxonomy tree, matching C# NaicsHierarchyNodeDto. */
+export interface NaicsHierarchyNode {
+  code: string;
+  title: string;
+  level?: number | null;
+  levelName?: string | null;
+  parentCode?: string | null;
+  isLeaf: boolean;
+}

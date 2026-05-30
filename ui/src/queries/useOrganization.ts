@@ -21,6 +21,9 @@ import {
   getNaicsDetail,
   getCertificationTypes,
   getLinkedEntities,
+  getNaicsSectors,
+  getNaicsChildren,
+  getNaicsAncestors,
 } from '@/api/organization';
 import type {
   UpdateOrganizationRequest,
@@ -229,5 +232,36 @@ export function useCertificationTypes() {
     queryKey: queryKeys.reference.certificationTypes,
     queryFn: getCertificationTypes,
     staleTime: 30 * 60 * 1000,
+  });
+}
+
+// --- Phase 129 NAICS hierarchy (Unit E) ---
+
+/** Top-level 2-digit NAICS sectors (root of the browser tree). */
+export function useNaicsSectors() {
+  return useQuery({
+    queryKey: queryKeys.reference.naicsSectors,
+    queryFn: getNaicsSectors,
+    staleTime: 30 * 60 * 1000, // 30 minutes — reference data rarely changes
+  });
+}
+
+/** Immediate children of a NAICS code, fetched lazily when a node expands. */
+export function useNaicsChildren(code: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.reference.naicsChildren(code),
+    queryFn: () => getNaicsChildren(code),
+    staleTime: 30 * 60 * 1000,
+    enabled: enabled && code.length > 0,
+  });
+}
+
+/** Ancestor chain (sector -> code) for breadcrumbs. */
+export function useNaicsAncestors(code: string, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.reference.naicsAncestors(code),
+    queryFn: () => getNaicsAncestors(code),
+    staleTime: 30 * 60 * 1000,
+    enabled: enabled && code.length > 0,
   });
 }

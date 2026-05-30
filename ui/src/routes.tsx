@@ -68,6 +68,7 @@ const SizeStandardMonitorPage = lazy(() => import('@/pages/onboarding/SizeStanda
 const PastPerformanceRelevancePage = lazy(() => import('@/pages/onboarding/PastPerformanceRelevancePage'));
 const PortfolioGapAnalysisPage = lazy(() => import('@/pages/onboarding/PortfolioGapAnalysisPage'));
 const DataQualityDashboardPage = lazy(() => import('@/pages/insights/DataQualityDashboardPage'));
+const NaicsBrowserPage = lazy(() => import('@/pages/reference/NaicsBrowserPage'));
 const NotFoundPage = lazy(() => import('@/pages/errors/NotFoundPage'));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -230,6 +231,16 @@ export function AppRoutes() {
         element={
           <AuthenticatedLayout>
             <OrganizationDetailPage />
+          </AuthenticatedLayout>
+        }
+      />
+
+      {/* NAICS Browser (Phase 129) */}
+      <Route
+        path="/reference/naics"
+        element={
+          <AuthenticatedLayout>
+            <NaicsBrowserPage />
           </AuthenticatedLayout>
         }
       />

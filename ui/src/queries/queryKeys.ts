@@ -94,6 +94,10 @@ export const queryKeys = {
     naics: (query: string) => ['reference', 'naics', query] as const,
     naicsDetail: (code: string) => ['reference', 'naics', 'detail', code] as const,
     certificationTypes: ['reference', 'certificationTypes'] as const,
+    // Phase 129 NAICS hierarchy (Unit E)
+    naicsSectors: ['reference', 'naics', 'sectors'] as const,
+    naicsChildren: (code: string) => ['reference', 'naics', 'children', code] as const,
+    naicsAncestors: (code: string) => ['reference', 'naics', 'ancestors', code] as const,
   },
   hierarchy: {
     all: ['hierarchy'] as const,
