@@ -79,16 +79,24 @@ if (Test-Path $envFile) {
     Write-Host "  No fed_prospector\.env found on prod (skipping .env rewrites)" -ForegroundColor DarkGray
 }
 
-# Fix 4: Ensure connection string has pool limits
+# Fix 4: Rewrite prod-specific connection string values and ensure pool limits.
+# appsettings.Local.json is gitignored and shipped verbatim by robocopy, so dev's
+# Server= (the prod LAN IP) clobbers prod's. fed_app is only granted @'localhost',
+# so the API must connect via loopback. Rewrite Server -> localhost, same as .env's
+# DB_HOST rewrite above.
 $appSettings = "\\$target\gitshare\fedProspect\api\src\FedProspector.Api\appsettings.Local.json"
 if (Test-Path $appSettings) {
     $content = Get-Content $appSettings -Raw
+    $orig = $content
+    $content = $content -replace "Server=[^;]+", "Server=localhost"
     if ($content -notmatch "MaxPoolSize") {
         $content = $content -replace "(SslMode=None;AllowPublicKeyRetrieval=True)", "`$1;MaxPoolSize=50;MinPoolSize=5"
+    }
+    if ($content -ne $orig) {
         Set-Content $appSettings $content -NoNewline
-        Write-Host "  Added connection pool limits to appsettings" -ForegroundColor Yellow
+        Write-Host "  Rewrote prod-specific appsettings (Server=localhost, pool limits)" -ForegroundColor Yellow
     } else {
-        Write-Host "  Connection pool limits already set" -ForegroundColor DarkGray
+        Write-Host "  Prod-specific appsettings values already correct" -ForegroundColor DarkGray
     }
 } else {
     Write-Host "  No appsettings.Local.json found (ok if not yet configured)" -ForegroundColor DarkGray
