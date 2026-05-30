@@ -595,6 +595,21 @@ def _compare_columns(table: str, expected: TableDef, live: TableDef) -> list[Dri
                 fix_sql=f"ALTER TABLE `{table}` MODIFY COLUMN `{cname}` {ecol.col_type};",
             ))
 
+        # Nullability mismatch (NULL vs NOT NULL). Reported separately from type
+        # so a column can be correct-typed but wrongly nullable. The fix carries
+        # type + default + extra so MODIFY doesn't silently drop them.
+        if ecol.nullable != lcol.nullable:
+            ddl_null = "NULL" if ecol.nullable else "NOT NULL"
+            db_null = "NULL" if lcol.nullable else "NOT NULL"
+            default_str = f" DEFAULT {ecol.default}" if ecol.default else ""
+            extra_str = f" {ecol.extra.upper()}" if ecol.extra else ""
+            drifts.append(DriftItem(
+                table=table, category="nullability_mismatch",
+                detail=f"Nullability mismatch: {cname} — DDL: {ddl_null}, DB: {db_null}",
+                fix_sql=f"ALTER TABLE `{table}` MODIFY COLUMN `{cname}` "
+                        f"{ecol.col_type} {ddl_null}{default_str}{extra_str};",
+            ))
+
     # Columns in DB but missing from DDL
     for cname in sorted(live_cols):
         if cname not in expected_cols:

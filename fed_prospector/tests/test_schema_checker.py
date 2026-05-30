@@ -554,6 +554,33 @@ class TestCompareColumns:
         drifts = _compare_columns("t", expected, live)
         assert len(drifts) == 0
 
+    def test_nullability_mismatch(self):
+        # Same type, but DDL says NOT NULL while DB allows NULL.
+        expected = TableDef(name="t", columns=[
+            ColumnDef(name="code", col_type="VARCHAR(10)", nullable=False),
+        ])
+        live = TableDef(name="t", columns=[
+            ColumnDef(name="code", col_type="VARCHAR(10)", nullable=True),
+        ])
+
+        drifts = _compare_columns("t", expected, live)
+        assert len(drifts) == 1
+        assert drifts[0].category == "nullability_mismatch"
+        assert "NOT NULL" in drifts[0].detail and "NULL" in drifts[0].detail
+        assert "NOT NULL" in drifts[0].fix_sql
+
+    def test_nullability_match_no_drift(self):
+        # Identical type and nullability must not produce drift.
+        expected = TableDef(name="t", columns=[
+            ColumnDef(name="code", col_type="VARCHAR(10)", nullable=False),
+        ])
+        live = TableDef(name="t", columns=[
+            ColumnDef(name="code", col_type="VARCHAR(10)", nullable=False),
+        ])
+
+        drifts = _compare_columns("t", expected, live)
+        assert len(drifts) == 0
+
 
 # ===================================================================
 # Index comparison
