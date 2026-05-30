@@ -14,6 +14,12 @@ public class AttachmentIntelService : IAttachmentIntelService
     private readonly FedProspectorDbContext _context;
     private readonly ILogger<AttachmentIntelService> _logger;
 
+    // Stored contradictions JSON uses snake_case keys; map to camelCase DTO props on read.
+    private static readonly JsonSerializerOptions SnakeCaseJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+    };
+
     // Extraction method priority: higher = better
     private static readonly Dictionary<string, int> ExtractionMethodPriority = new()
     {
@@ -103,9 +109,16 @@ public class AttachmentIntelService : IAttachmentIntelService
                 .ToListAsync();
         }
 
+        // The ai_contradiction row is a dedicated row carrying only the contradictions JSON;
+        // its intel/confidence columns are NULL and must never pollute aggregation, method chips,
+        // bestRecord, or OverallConfidence. Exclude it from all aggregation inputs.
+        var summaryRecordsForAgg = summaryRecords
+            .Where(s => s.ExtractionMethod != "ai_contradiction")
+            .ToList();
+
         // Use summary records for aggregated intel (replaces old NULL-attachment consolidated rows)
         // Fall back to per-document intel if no summaries exist yet
-        var aggregationRecords = summaryRecords.Count > 0 ? summaryRecords : null;
+        var aggregationRecords = summaryRecordsForAgg.Count > 0 ? summaryRecordsForAgg : null;
 
         // Available extraction methods
         var availableMethods = (aggregationRecords ?? (IEnumerable<IIntelFields>)intelRecords)
@@ -163,6 +176,25 @@ public class AttachmentIntelService : IAttachmentIntelService
             catch
             {
                 // Malformed JSON — leave null
+            }
+        }
+
+        // Contradiction findings live in a dedicated ai_contradiction summary row (excluded above
+        // from aggregation). Deserialize its contradictions JSON column into the DTO list.
+        // Stored JSON keys are snake_case; map to camelCase DTO props via the snake_case naming policy.
+        var contradictions = new List<ContradictionDto>();
+        var contradictionRecord = summaryRecords
+            .FirstOrDefault(s => s.ExtractionMethod == "ai_contradiction");
+        if (!string.IsNullOrEmpty(contradictionRecord?.Contradictions))
+        {
+            try
+            {
+                contradictions = JsonSerializer.Deserialize<List<ContradictionDto>>(
+                    contradictionRecord.Contradictions, SnakeCaseJsonOptions) ?? new List<ContradictionDto>();
+            }
+            catch
+            {
+                // Malformed JSON — leave empty
             }
         }
 
@@ -275,7 +307,8 @@ public class AttachmentIntelService : IAttachmentIntelService
                 };
             }).ToList(),
             MergedPassages = mergedPassages,
-            PerAttachmentIntel = perAttachmentIntel
+            PerAttachmentIntel = perAttachmentIntel,
+            Contradictions = contradictions
         };
 
         return dto;

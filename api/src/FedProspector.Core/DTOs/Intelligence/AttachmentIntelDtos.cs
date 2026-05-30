@@ -33,6 +33,18 @@ public class DocumentIntelligenceDto
     public List<AttachmentSummaryDto> Attachments { get; set; } = new();
     public List<MergedSourcePassageDto> MergedPassages { get; set; } = new();
     public List<AttachmentIntelBreakdownDto>? PerAttachmentIntel { get; set; }
+    public List<ContradictionDto> Contradictions { get; set; } = new();
+}
+
+public class ContradictionDto
+{
+    public string Type { get; set; } = "";
+    public string Severity { get; set; } = "";
+    public string Summary { get; set; } = "";
+    public string ClaimA { get; set; } = "";
+    public string ClaimALocation { get; set; } = "";
+    public string ClaimB { get; set; } = "";
+    public string ClaimBLocation { get; set; } = "";
 }
 
 public class IntelSourceDto

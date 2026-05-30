@@ -76,6 +76,9 @@ public class OpportunityAttachmentSummary : IIntelFields
     [Column(TypeName = "json")]
     public string? CitationOffsets { get; set; }
 
+    [Column(TypeName = "json")]
+    public string? Contradictions { get; set; }
+
     [MaxLength(64), Column(TypeName = "char(64)")]
     public string? SourceTextHash { get; set; }
 
