@@ -28,4 +28,12 @@ public class OpportunitySearchDto
     public string? ProspectStatus { get; set; }
     public string? AssignedUser { get; set; }
     public int? FhOrgId { get; set; }
+
+    // Size-eligibility annotations (Phase 129 Unit C). Evaluated against the
+    // current org's SBA size standard for this opportunity's NAICS code.
+    // Null/false when the opportunity has no NAICS or eligibility is undeterminable.
+    public bool? SizeEligible { get; set; }
+    public decimal? SizeHeadroomPct { get; set; }
+    public bool Outsized { get; set; }
+    public bool NearSizeThreshold { get; set; }
 }

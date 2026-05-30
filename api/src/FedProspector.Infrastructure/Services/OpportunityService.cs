@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using FedProspector.Core.Constants;
 using FedProspector.Core.DTOs;
 using FedProspector.Core.DTOs.Opportunities;
+using FedProspector.Core.DTOs.Organizations;
 using FedProspector.Core.Interfaces;
 using FedProspector.Core.Models;
 using FedProspector.Core.Options;
@@ -20,18 +21,28 @@ public partial class OpportunityService : IOpportunityService
     private readonly ILogger<OpportunityService> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly SamApiOptions _samApiOptions;
+    private readonly ICompanyProfileService _companyProfileService;
 
     public OpportunityService(
         FedProspectorDbContext context,
         ILogger<OpportunityService> logger,
         IHttpClientFactory httpClientFactory,
-        IOptions<SamApiOptions> samApiOptions)
+        IOptions<SamApiOptions> samApiOptions,
+        ICompanyProfileService companyProfileService)
     {
         _context = context;
         _logger = logger;
         _httpClientFactory = httpClientFactory;
         _samApiOptions = samApiOptions.Value;
+        _companyProfileService = companyProfileService;
     }
+
+    /// <summary>
+    /// True when the org is eligible but within 20% of the SBA size threshold
+    /// (HeadroomPct non-null and between 0 and 20 inclusive). Phase 129 Unit C.
+    /// </summary>
+    private static bool IsNearSizeThreshold(SizeEligibilityResultDto r) =>
+        r.HeadroomPct is >= 0 and <= 20;
 
     public async Task<PagedResponse<OpportunitySearchDto>> SearchAsync(OpportunitySearchRequest request, int organizationId, int? userId = null)
     {
@@ -173,6 +184,10 @@ public partial class OpportunityService : IOpportunityService
             .Take(request.PageSize)
             .ToListAsync();
 
+        // Phase 129 Unit C: annotate each row with size-eligibility / outsized info.
+        // Batch the distinct NAICS codes on this page into a single call (no N+1).
+        await AnnotateSizeEligibilityAsync(items, organizationId);
+
         return new PagedResponse<OpportunitySearchDto>
         {
             Items = items,
@@ -180,6 +195,47 @@ public partial class OpportunityService : IOpportunityService
             PageSize = request.PageSize,
             TotalCount = totalCount
         };
+    }
+
+    /// <summary>
+    /// Phase 129 Unit C: populates SizeEligible / SizeHeadroomPct / Outsized /
+    /// NearSizeThreshold on a page of search results using a single batched
+    /// eligibility lookup. Null-safe: rows without a NAICS code or with no
+    /// eligibility result are left at their defaults (null/false).
+    /// </summary>
+    private async Task AnnotateSizeEligibilityAsync(List<OpportunitySearchDto> items, int organizationId)
+    {
+        var naicsCodes = items
+            .Select(i => i.NaicsCode)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!)
+            .Distinct()
+            .ToList();
+
+        if (naicsCodes.Count == 0) return;
+
+        Dictionary<string, SizeEligibilityResultDto> results;
+        try
+        {
+            results = await _companyProfileService.CheckSizeEligibilityAsync(organizationId, naicsCodes);
+        }
+        catch (Exception ex)
+        {
+            // Eligibility is advisory; never fail the search over it.
+            _logger.LogWarning(ex, "Size-eligibility annotation failed for org {OrgId}; returning unannotated results", organizationId);
+            return;
+        }
+
+        foreach (var item in items)
+        {
+            if (string.IsNullOrWhiteSpace(item.NaicsCode)) continue;
+            if (!results.TryGetValue(item.NaicsCode, out var r) || r == null) continue;
+
+            item.SizeEligible = r.Eligible;
+            item.SizeHeadroomPct = r.HeadroomPct;
+            item.Outsized = r.Outsized;
+            item.NearSizeThreshold = IsNearSizeThreshold(r);
+        }
     }
 
     public async Task<OpportunityDetailDto?> GetDetailAsync(string noticeId, int organizationId)
@@ -334,6 +390,32 @@ public partial class OpportunityService : IOpportunityService
                 .ToListAsync();
         }
 
+        // Phase 129 Unit C: size-eligibility / outsized annotation for this org.
+        // Null-safe: only attempt when the opportunity carries a NAICS code, and
+        // never fail the detail request if eligibility is undeterminable.
+        bool? sizeEligible = null;
+        decimal? sizeHeadroomPct = null;
+        bool outsized = false;
+        bool nearSizeThreshold = false;
+        if (!string.IsNullOrWhiteSpace(opp.NaicsCode))
+        {
+            try
+            {
+                var eligibility = await _companyProfileService.CheckSizeEligibilityAsync(organizationId, opp.NaicsCode);
+                if (eligibility != null)
+                {
+                    sizeEligible = eligibility.Eligible;
+                    sizeHeadroomPct = eligibility.HeadroomPct;
+                    outsized = eligibility.Outsized;
+                    nearSizeThreshold = IsNearSizeThreshold(eligibility);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Size-eligibility annotation failed for notice {NoticeId}, org {OrgId}", noticeId, organizationId);
+            }
+        }
+
         // Resource links from normalized attachment tables
         var resourceLinkDetails = await _context.OpportunityAttachments.AsNoTracking()
             .Where(oa => oa.NoticeId == noticeId)
@@ -410,6 +492,10 @@ public partial class OpportunityService : IOpportunityService
             PeriodOfPerformanceEnd = opp.PeriodOfPerformanceEnd,
             FirstLoadedAt = opp.FirstLoadedAt,
             LastLoadedAt = opp.LastLoadedAt,
+            SizeEligible = sizeEligible,
+            SizeHeadroomPct = sizeHeadroomPct,
+            Outsized = outsized,
+            NearSizeThreshold = nearSizeThreshold,
             RelatedAwards = relatedAwards,
             PointsOfContact = pocs,
             Prospect = prospect,
