@@ -45,6 +45,7 @@ Modules:
     cli/attachments.py    download-attachments, extract-attachment-text,
                           extract-attachment-intel, extract-description-intel,
                           extract-attachment-ai, extract-description-ai,
+                          extract-contradictions,
                           extract-identifiers, cross-ref-identifiers,
                           search-identifiers
     cli/normalize.py      labor-categories
@@ -203,7 +204,7 @@ from cli.attachments import (
     download_attachments, extract_attachment_text,
     extract_attachment_intel, extract_description_intel,
     analyze_attachments,
-    analyze_descriptions, cleanup_attachment_files,
+    analyze_descriptions, detect_contradictions, cleanup_attachment_files,
     attachment_pipeline_status,
     migrate_dedup, migrate_files,
     backfill_attachment_dedup,
@@ -337,6 +338,7 @@ extract.add_command(extract_attachment_intel, name="attachment-intel")
 extract.add_command(extract_description_intel, name="description-intel")
 extract.add_command(analyze_attachments, name="attachment-ai")
 extract.add_command(analyze_descriptions, name="description-ai")
+extract.add_command(detect_contradictions, name="contradictions")
 extract.add_command(extract_identifiers, name="identifiers")
 extract.add_command(cross_ref_identifiers, name="cross-ref-identifiers")
 

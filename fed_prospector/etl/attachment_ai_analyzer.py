@@ -194,6 +194,66 @@ GENERAL:
 - Return ONLY valid JSON, no markdown formatting or explanation."""
 
 
+CONTRADICTION_SYSTEM_PROMPT = """You are an expert federal contracting analyst specializing in detecting CONTRADICTIONS and stale boilerplate in government solicitation packages.
+
+You will receive the opportunity description followed by the full text of each attachment (SOW, PWS, instructions, attachments, etc.). Government solicitations are frequently assembled by copy-pasting from prior procurements, which introduces contradictory, leftover, or nonsensical statements. Your job is to find them.
+
+Respond with ONLY a valid JSON object — no markdown, no explanation, no text before or after the JSON.
+
+Return a JSON object with exactly this shape:
+
+{
+    "contradictions": [
+        {
+            "type": "cross_document" | "within_document" | "stale_reference",
+            "severity": "high" | "medium" | "low",
+            "summary": "<one-line description of what contradicts what>",
+            "claim_a": "<first conflicting statement, quoted or closely paraphrased>",
+            "claim_a_location": "<where claim_a is found, e.g. 'Description' or 'SOW (attachment 2)'>",
+            "claim_b": "<second conflicting statement, quoted or closely paraphrased>",
+            "claim_b_location": "<where claim_b is found>"
+        }
+    ],
+    "contradiction_confidence": "high" | "medium" | "low"
+}
+
+DETECTION CATEGORIES:
+
+1. cross_document — A statement in one document conflicts with a statement in another.
+   Examples: the description says "remote work allowed" but the SOW says "on-site at Fort Bragg
+   required"; the description lists a Secret clearance but an attachment says "no clearance required";
+   different due dates, page limits, period of performance, set-aside type, or place of performance
+   between documents.
+
+2. within_document — A single document contradicts itself.
+   Examples: Section L says proposals are due March 1 but Section M references a March 15 deadline;
+   one paragraph says FFP, another says T&M for the same effort; a labor category table that
+   conflicts with the narrative.
+
+3. stale_reference — Leftover boilerplate from a prior procurement that no longer applies.
+   Examples: expired or superseded FAR/DFARS clause citations; references to a prior contract
+   number, incumbent, or agency that does not match this solicitation; dates that make no sense
+   (e.g. a period of performance in the past, an option year before the base year, a "due by"
+   date that has already passed relative to the issue date); references to attachments, exhibits,
+   or amendments that are not present; mismatched solicitation/notice numbers; placeholder text
+   such as "[INSERT AGENCY NAME]" or "TBD" left in a final document.
+
+GUIDANCE:
+- Only report GENUINE contradictions or clearly stale references that a bidder would want flagged.
+  Do NOT invent conflicts. Do NOT report normal restatements of the same fact across documents.
+- For claim_a_location / claim_b_location, identify the source as precisely as possible:
+  "Description", "SOW (attachment 1)", "Section L", "Attachment 3", etc. Attachments are
+  numbered in the order presented to you (=== ATTACHMENT 1 ===, === ATTACHMENT 2 ===, ...).
+- severity: "high" = could cause a non-responsive proposal or materially mislead a bidder
+  (conflicting deadlines, set-aside, clearance, place of performance, pricing type); "medium" =
+  meaningful but recoverable ambiguity; "low" = cosmetic stale boilerplate.
+- If you find NO contradictions, return an empty "contradictions" array and set
+  "contradiction_confidence" accordingly (high if the package is clearly consistent, low if the
+  documents were too sparse or truncated to judge).
+- contradiction_confidence reflects your overall confidence in this contradiction analysis.
+- Return ONLY valid JSON, no markdown formatting or explanation."""
+
+
 class AttachmentAIAnalyzer:
     """Analyzes attachment text using Claude AI for structured intelligence extraction."""
 
@@ -702,6 +762,261 @@ class AttachmentAIAnalyzer:
             logger.debug(
                 "Saved description AI intel for %s (method=%s)",
                 notice_id, self.extraction_method,
+            )
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            cursor.close()
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # Contradiction detection (Phase 126)
+    # ------------------------------------------------------------------
+
+    def detect_contradictions(self, notice_id=None, batch_size=50, force=False):
+        """Detect copy-paste / stale-boilerplate contradictions via a SEPARATE AI step.
+
+        For each eligible notice, gathers description_text + all attachment text
+        into a combined prompt and asks Claude to cross-reference them for
+        contradictions and stale references. Results are stored as a DEDICATED
+        contradiction row in opportunity_attachment_summary (extraction_method
+        'ai_contradiction'), distinct from the ai_haiku/ai_sonnet summary rows.
+
+        Args:
+            notice_id: Optional single notice to analyze.
+            batch_size: Max notices to process in one run.
+            force: Re-analyze even if a contradiction row already exists.
+
+        Returns:
+            dict with keys: processed, analyzed, skipped, failed, dry_run
+        """
+        stats = {"processed": 0, "analyzed": 0, "skipped": 0, "failed": 0, "dry_run": self.dry_run}
+
+        notices = self._fetch_eligible_contradictions(notice_id, batch_size, force)
+        if not notices:
+            logger.info("No eligible notices found for contradiction detection")
+            return stats
+
+        logger.info("Found %d notices eligible for contradiction detection", len(notices))
+
+        for notice in notices:
+            stats["processed"] += 1
+            try:
+                result = self._analyze_contradiction_notice(notice)
+                if result:
+                    if self.dry_run:
+                        stats["analyzed"] += 1
+                        logger.info(
+                            "DRY RUN: contradiction-checked %s (no intel written)",
+                            notice["notice_id"],
+                        )
+                    else:
+                        self._save_contradiction_intel(notice, result)
+                        stats["analyzed"] += 1
+                        logger.info(
+                            "Contradiction-checked %s (%d found, %s confidence)",
+                            notice["notice_id"],
+                            len(result.get("contradictions") or []),
+                            result.get("contradiction_confidence", "unknown"),
+                        )
+                else:
+                    stats["failed"] += 1
+            except Exception as e:
+                stats["failed"] += 1
+                logger.error(
+                    "Failed to detect contradictions for %s: %s",
+                    notice["notice_id"], e,
+                )
+
+        logger.info(
+            "Contradiction detection complete: %d processed, %d analyzed, %d skipped, %d failed",
+            stats["processed"], stats["analyzed"], stats["skipped"], stats["failed"],
+        )
+        return stats
+
+    def _fetch_eligible_contradictions(self, notice_id, batch_size, force):
+        """Fetch notices with description_text that need contradiction detection.
+
+        Returns list of dicts: {notice_id, description_text, attachment_texts}.
+        Mirrors _fetch_eligible_descriptions but skips notices that already have
+        an 'ai_contradiction' row (unless force).
+        """
+        conn = get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            conditions = [
+                "o.description_text IS NOT NULL",
+                "o.description_text != ''",
+            ]
+            params = []
+
+            if notice_id:
+                conditions.append("o.notice_id = %s")
+                params.append(notice_id)
+
+            if not force:
+                # Exclude notices that already have a contradiction row
+                conditions.append("""
+                    NOT EXISTS (
+                        SELECT 1 FROM opportunity_attachment_summary oas
+                        WHERE oas.notice_id = o.notice_id
+                          AND oas.extraction_method = 'ai_contradiction'
+                    )
+                """)
+
+            where = " AND ".join(conditions)
+            cursor.execute(f"""
+                SELECT o.notice_id, o.description_text
+                FROM opportunity o
+                WHERE {where}
+                ORDER BY o.notice_id
+                LIMIT %s
+            """, params + [batch_size])
+
+            notices = cursor.fetchall()
+
+            # For each notice, also gather any attachment text
+            for notice in notices:
+                cursor.execute("""
+                    SELECT ad.extracted_text
+                    FROM opportunity_attachment m
+                    JOIN attachment_document ad ON ad.attachment_id = m.attachment_id
+                    WHERE m.notice_id = %s
+                      AND ad.extraction_status = 'extracted'
+                      AND ad.extracted_text IS NOT NULL
+                    ORDER BY ad.document_id
+                """, (notice["notice_id"],))
+                att_rows = cursor.fetchall()
+                notice["attachment_texts"] = [r["extracted_text"] for r in att_rows]
+
+            return notices
+        finally:
+            cursor.close()
+            conn.close()
+
+    def _analyze_contradiction_notice(self, notice):
+        """Build combined text from description + attachments and send to Claude
+        for contradiction detection. Returns the parsed contradiction result dict.
+        """
+        desc_text = notice["description_text"].strip()
+        attachment_texts = notice.get("attachment_texts", [])
+
+        # Build combined text: description first, then attachments
+        parts = [f"=== OPPORTUNITY DESCRIPTION ===\n{desc_text}"]
+        for i, att_text in enumerate(attachment_texts):
+            parts.append(f"\n\n=== ATTACHMENT {i + 1} ===\n{att_text}")
+
+        combined = "\n".join(parts)
+
+        # Truncate to avoid excessive costs (same budget as description analysis)
+        max_chars = 100_000  # ~25k tokens
+        if len(combined) > max_chars:
+            combined = combined[:max_chars] + "\n\n[Document truncated at 100,000 characters]"
+            logger.debug(
+                "Truncated combined text for %s from %d to %d chars",
+                notice["notice_id"], len("\n".join(parts)), max_chars,
+            )
+
+        user_message = (
+            "Analyze this federal solicitation package for contradictions and "
+            f"stale references:\n\n{combined}"
+        )
+
+        if self.dry_run:
+            logger.info(
+                "DRY RUN: Would send %d chars to %s for contradiction check on notice %s "
+                "(%d attachments + description)",
+                len(user_message), self.model_id, notice["notice_id"],
+                len(attachment_texts),
+            )
+            return {"contradictions": [], "contradiction_confidence": "low"}
+
+        # Real API call
+        response = self.client.messages.create(
+            model=self.model_id,
+            max_tokens=4096,
+            system=CONTRADICTION_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": user_message}],
+        )
+
+        # Log token usage and cost (document_id=None for description-based analysis)
+        self._log_usage(notice["notice_id"], None, response.usage)
+
+        # Parse JSON from response
+        response_text = response.content[0].text.strip()
+
+        # Handle markdown-wrapped JSON
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            response_text = "\n".join(lines)
+
+        # Extract JSON object if model added extra text before/after
+        brace_start = response_text.find("{")
+        brace_end = response_text.rfind("}")
+        if brace_start != -1 and brace_end != -1:
+            response_text = response_text[brace_start:brace_end + 1]
+
+        try:
+            result = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(
+                "Failed to parse contradiction JSON for notice %s: %s\nResponse: %s",
+                notice["notice_id"], e, response_text[:500],
+            )
+            return None
+
+        # Validate shape
+        if not isinstance(result.get("contradictions"), list):
+            result["contradictions"] = []
+        if result.get("contradiction_confidence") not in ("high", "medium", "low"):
+            result["contradiction_confidence"] = "low"
+
+        return result
+
+    def _save_contradiction_intel(self, notice, result):
+        """Save contradiction analysis to a dedicated opportunity_attachment_summary row.
+
+        Writes a row with extraction_method='ai_contradiction'. All clearance/eval/
+        scope columns stay NULL; contradictions holds the JSON blob and
+        overall_confidence stores contradiction_confidence.
+        """
+        notice_id = notice["notice_id"]
+        text_hash = hashlib.sha256(
+            notice["description_text"].encode("utf-8")
+        ).hexdigest()
+
+        contradictions_json = json.dumps(result.get("contradictions") or [])
+        confidence = result.get("contradiction_confidence", "low")
+        if confidence not in ("high", "medium", "low"):
+            confidence = "low"
+
+        conn = get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "INSERT INTO opportunity_attachment_summary "
+                "(notice_id, extraction_method, source_text_hash, "
+                " contradictions, overall_confidence, extracted_at) "
+                "VALUES (%s, 'ai_contradiction', %s, %s, %s, %s) "
+                "ON DUPLICATE KEY UPDATE "
+                "source_text_hash = VALUES(source_text_hash), "
+                "contradictions = VALUES(contradictions), "
+                "overall_confidence = VALUES(overall_confidence), "
+                "extracted_at = VALUES(extracted_at)",
+                (
+                    notice_id,
+                    text_hash,
+                    contradictions_json,
+                    confidence,
+                    datetime.now(),
+                ),
+            )
+            conn.commit()
+            logger.debug(
+                "Saved contradiction intel for %s (%d contradictions)",
+                notice_id, len(result.get("contradictions") or []),
             )
         except Exception:
             conn.rollback()
