@@ -112,6 +112,16 @@ class TestNormalizeType:
     def test_enum_preserves_values(self):
         assert normalize_type("ENUM('Y','N')") == "ENUM('Y','N')"
 
+    def test_enum_separator_whitespace_canonicalized(self):
+        # DDL readability spacing must compare equal to MySQL's compact form,
+        # so a ", " vs "," difference is not reported as drift.
+        compact = normalize_type("ENUM('CONTENT_HASH','TEXT_HASH')")
+        spaced = normalize_type("ENUM('CONTENT_HASH', 'TEXT_HASH')")
+        assert compact == spaced == "ENUM('CONTENT_HASH','TEXT_HASH')"
+
+    def test_set_separator_whitespace_canonicalized(self):
+        assert normalize_type("SET('a', 'b', 'c')") == normalize_type("SET('a','b','c')")
+
     def test_whitespace_handling(self):
         assert normalize_type("  varchar(50)  ") == "VARCHAR(50)"
 

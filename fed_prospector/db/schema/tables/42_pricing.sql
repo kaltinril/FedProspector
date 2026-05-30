@@ -17,13 +17,14 @@ CREATE TABLE IF NOT EXISTS canonical_labor_category (
 CREATE TABLE IF NOT EXISTS labor_category_mapping (
     id                   INT AUTO_INCREMENT PRIMARY KEY,
     raw_labor_category   VARCHAR(200) NOT NULL,
+    source               VARCHAR(20) NOT NULL DEFAULT 'GSA_CALC' COMMENT 'Origin of the raw label, e.g. GSA_CALC — lets the same label map per source',
     canonical_id         INT,
     match_method         VARCHAR(20) NOT NULL COMMENT 'EXACT, FUZZY, PATTERN, MANUAL, UNMAPPED',
     confidence           DECIMAL(5,2) COMMENT 'Match confidence 0-100',
     reviewed             TINYINT(1) NOT NULL DEFAULT 0,
     created_at           DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
     updated_at           DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-    UNIQUE KEY uk_raw_labor (raw_labor_category),
+    UNIQUE KEY uk_raw_labor_source (raw_labor_category, source),
     INDEX idx_lcm_canonical (canonical_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

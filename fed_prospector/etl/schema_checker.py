@@ -129,6 +129,15 @@ def normalize_type(raw_type: str) -> str:
     if canonical in ("INT", "TINYINT", "SMALLINT", "MEDIUMINT", "BIGINT"):
         return canonical + unsigned
 
+    # ENUM/SET: canonicalize the separator between members. MySQL's
+    # INFORMATION_SCHEMA reports enum('a','b') with no spaces, but DDL files
+    # commonly write enum('a', 'b') for readability. Collapsing the boundary
+    # between two quoted members (only) makes the two compare equal without
+    # touching member content — a purely cosmetic difference, not real drift.
+    if canonical in ("ENUM", "SET") and params:
+        members = re.sub(r"'\s*,\s*'", "','", params.strip())
+        return f"{canonical}({members})" + unsigned
+
     # For types with params, preserve them
     if params:
         return f"{canonical}({params})" + unsigned
