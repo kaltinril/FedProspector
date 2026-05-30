@@ -170,7 +170,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 130 | Early Attachment Cleanup & Re-Analyze | PLANNED | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/130-EARLY-CLEANUP-AND-REANALYZE.md) |
 | 131 | Per-Attachment Re-Analysis | COMPLETE | [131-PER-ATTACHMENT-REANALYSIS.md](phases/completed/131-PER-ATTACHMENT-REANALYSIS.md) |
 | 132 | Identifier Dash-Normalization | PLANNED | [132-IDENTIFIER-DASH-NORMALIZATION.md](phases/132-IDENTIFIER-DASH-NORMALIZATION.md) |
-| 133 | Linked Entity Aggregation Fixes + Sister Subsidiary | PLANNED | [133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md](phases/133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md) |
+| 133 | Linked Entity Aggregation Fixes + Sister Subsidiary + SBA Affiliation Size Roll-Up | PLANNED | [133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md](phases/133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md) |
 | 134 | DB Centralization and Deploy Safety | COMPLETE | [134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md](phases/completed/134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md) |
 | 150 | Security Hardening | DEFERRED | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 170 | Full Document Viewer with Highlights | PLANNED | [170-FULL-DOCUMENT-VIEWER.md](phases/170-FULL-DOCUMENT-VIEWER.md) |
