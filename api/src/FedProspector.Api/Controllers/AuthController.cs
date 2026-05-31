@@ -17,12 +17,18 @@ namespace FedProspector.Api.Controllers;
 public class AuthController : ApiControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ILoginThrottleService _loginThrottle;
     private readonly ILogger<AuthController> _logger;
     private readonly bool _secureCookies;
 
-    public AuthController(IAuthService authService, ILogger<AuthController> logger, IWebHostEnvironment environment)
+    public AuthController(
+        IAuthService authService,
+        ILoginThrottleService loginThrottle,
+        ILogger<AuthController> logger,
+        IWebHostEnvironment environment)
     {
         _authService = authService;
+        _loginThrottle = loginThrottle;
         _logger = logger;
         _secureCookies = !environment.IsDevelopment();
     }
@@ -36,6 +42,15 @@ public class AuthController : ApiControllerBase
     [EnableRateLimiting("login_global")]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
+        // Per-IP failed-login throttle: block credential stuffing from one source IP
+        // before doing any work. Generic message — do not reveal counts.
+        var clientIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+        if (_loginThrottle.IsBlocked(clientIp))
+        {
+            return StatusCode(StatusCodes.Status429TooManyRequests,
+                new AuthResult { Success = false, Error = "Too many attempts. Try again later." });
+        }
+
         if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
         {
             return BadRequest(new AuthResult { Success = false, Error = "Email and password are required." });
@@ -48,8 +63,13 @@ public class AuthController : ApiControllerBase
 
         if (!result.Success)
         {
+            // Count only failed credential checks against the per-IP throttle.
+            _loginThrottle.RecordFailure(clientIp);
             return Unauthorized(result);
         }
+
+        // Successful login clears this IP's failure counter.
+        _loginThrottle.Clear(clientIp);
 
         // Set httpOnly cookies for browser clients
         SetAuthCookies(result);

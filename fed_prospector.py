@@ -197,7 +197,15 @@ def _api_env() -> dict[str, str]:
         env["Jwt__SecretKey"] = jwt_secret
 
     env["ASPNETCORE_ENVIRONMENT"] = ASPNETCORE_ENV
-    env["ASPNETCORE_URLS"] = f"http://localhost:{API_PORT}"
+    # In Production (public exposure) let the Kestrel:Endpoints config in appsettings
+    # drive binding — it serves HTTPS on all interfaces with the self-signed cert and
+    # an HTTP endpoint that redirects. ASPNETCORE_URLS would override that config, so
+    # we only set it for non-Production (dev) where we bind plain HTTP on loopback for
+    # the Vite proxy.
+    if ASPNETCORE_ENV != "Production":
+        env["ASPNETCORE_URLS"] = f"http://localhost:{API_PORT}"
+    else:
+        env.pop("ASPNETCORE_URLS", None)
     return env
 
 

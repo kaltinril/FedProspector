@@ -15,6 +15,7 @@ namespace FedProspector.Api.Tests.Controllers;
 public class AuthControllerTests
 {
     private readonly Mock<IAuthService> _authServiceMock = new();
+    private readonly Mock<ILoginThrottleService> _loginThrottleMock = new();
     private readonly Mock<ILogger<AuthController>> _loggerMock = new();
     private readonly Mock<IWebHostEnvironment> _environmentMock = new();
     private readonly AuthController _controller;
@@ -22,7 +23,8 @@ public class AuthControllerTests
     public AuthControllerTests()
     {
         _environmentMock.Setup(e => e.EnvironmentName).Returns("Development");
-        _controller = new AuthController(_authServiceMock.Object, _loggerMock.Object, _environmentMock.Object);
+        _controller = new AuthController(
+            _authServiceMock.Object, _loginThrottleMock.Object, _loggerMock.Object, _environmentMock.Object);
         _controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()
@@ -102,6 +104,43 @@ public class AuthControllerTests
         var result = await _controller.Login(request);
 
         result.Should().BeOfType<UnauthorizedObjectResult>();
+    }
+
+    [Fact]
+    public async Task Login_InvalidCredentials_RecordsThrottleFailure()
+    {
+        var request = new LoginRequest { Email = "test@test.com", Password = "wrong" };
+        _authServiceMock.Setup(s => s.LoginAsync("test@test.com", "wrong"))
+            .ReturnsAsync(new AuthResult { Success = false, Error = "Invalid credentials" });
+
+        await _controller.Login(request);
+
+        _loginThrottleMock.Verify(t => t.RecordFailure(It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Login_Success_ClearsThrottle()
+    {
+        var request = new LoginRequest { Email = "test@test.com", Password = "password" };
+        _authServiceMock.Setup(s => s.LoginAsync("test@test.com", "password"))
+            .ReturnsAsync(new AuthResult { Success = true, Token = "jwt-token" });
+
+        await _controller.Login(request);
+
+        _loginThrottleMock.Verify(t => t.Clear(It.IsAny<string>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Login_IpBlocked_ReturnsTooManyRequests()
+    {
+        _loginThrottleMock.Setup(t => t.IsBlocked(It.IsAny<string>())).Returns(true);
+        var request = new LoginRequest { Email = "test@test.com", Password = "whatever" };
+
+        var result = await _controller.Login(request);
+
+        var objectResult = result.Should().BeOfType<ObjectResult>().Subject;
+        objectResult.StatusCode.Should().Be(StatusCodes.Status429TooManyRequests);
+        _authServiceMock.Verify(s => s.LoginAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     // --- Logout ---

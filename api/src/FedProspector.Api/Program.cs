@@ -22,10 +22,16 @@ var builder = WebApplication.CreateBuilder(args);
 // --- Local config override (gitignored, holds DB password & other secrets) ---
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
-// --- Request body size limits (JSON-only API, no file uploads) ---
+// --- Kestrel: request body limits + endpoint/HTTPS config ---
+// Endpoints (and the self-signed HTTPS cert for public exposure) are read from the
+// "Kestrel" configuration section — see appsettings.Production.json (Http endpoint on
+// 0.0.0.0) and appsettings.Local.json (Https endpoint + cert path/password, gitignored).
+// NOTE: ASPNETCORE_URLS overrides Kestrel:Endpoints config; the production run path
+// (fed_prospector.py / launchSettings) must NOT set ASPNETCORE_URLS so this config wins.
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 10 * 1024 * 1024; // 10 MB
+    options.Configure(builder.Configuration.GetSection("Kestrel"));
 });
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
 {
@@ -53,6 +59,9 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 // --- Memory Cache (for session validation) ---
 builder.Services.AddMemoryCache();
+
+// --- Per-IP failed-login throttle (guards the unauthenticated login surface) ---
+builder.Services.AddSingleton<ILoginThrottleService, LoginThrottleService>();
 
 // --- Authentication (JWT Bearer with cookie support) ---
 var jwtOptions = builder.Configuration.GetSection(JwtOptions.SectionName).Get<JwtOptions>()!;
@@ -133,6 +142,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 // --- Authorization with OrgAdmin and SystemAdmin policies ---
 builder.Services.AddAuthorization(options =>
 {
+    // Default-deny: any endpoint without an explicit [AllowAnonymous] requires an
+    // authenticated user, even if a controller forgets [Authorize]. Intentional public
+    // surfaces (AuthController, HealthController actions, the SPA fallback) are marked
+    // [AllowAnonymous]; static files run before routing so they're unaffected.
+    options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+
     options.AddPolicy("OrgAdmin", policy =>
         policy.RequireAssertion(context =>
         {
@@ -355,12 +372,14 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // --- Startup guards ---
-if (!app.Environment.IsDevelopment())
+// Validate the JWT secret in ALL environments. In Development the committed dev key
+// (appsettings.Development.json) satisfies this; in Production the key MUST come from
+// appsettings.Local.json or the environment — never the committed dev file.
 {
     var jwtSecret = app.Configuration["Jwt:SecretKey"];
     if (string.IsNullOrEmpty(jwtSecret) || jwtSecret.Contains("CHANGE_ME") || jwtSecret.Length < 32)
         throw new InvalidOperationException(
-            "JWT secret key must be configured for non-development environments. " +
+            "JWT secret key must be configured. " +
             "Set Jwt:SecretKey to a secure value of at least 32 characters.");
 }
 
