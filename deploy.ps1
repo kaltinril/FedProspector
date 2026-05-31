@@ -10,6 +10,23 @@ $cred = Import-Clixml $credFile
 $user = $cred.UserName
 $pass = $cred.GetNetworkCredential().Password
 
+# Build the UI into the API's wwwroot (Option B single-port) BEFORE robocopy so the
+# transfer picks up the freshly built SPA. Vite's build.outDir + emptyOutDir handle
+# output location and stale-asset cleanup, so this is idempotent.
+Write-Host "Building UI (npm run build -> api wwwroot)..." -ForegroundColor Green
+Push-Location "$PSScriptRoot\ui"
+try {
+    & npm run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "UI build failed (exit code $LASTEXITCODE). Aborting deploy." -ForegroundColor Red
+        Pop-Location
+        exit 1
+    }
+} finally {
+    Pop-Location
+}
+Write-Host "UI build complete." -ForegroundColor Green
+
 # Disconnect stale connections before authenticating
 foreach ($share in @("gitshare")) {
     net use "\\$target\$share" /delete /y 2>$null | Out-Null

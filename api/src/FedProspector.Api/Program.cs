@@ -389,24 +389,35 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-// 5. CORS (before auth)
+// 5. Serve the built SPA (Option B: single-port deployment).
+// Static files run before routing/auth, so the SPA assets and shell are always
+// reachable without a token. The Vite build outputs into wwwroot (see vite.config.ts).
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+// 6. CORS (before auth)
 app.UseCors();
 
-// 6. Authentication & Authorization
+// 7. Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 
-// 7. CSRF protection (after auth, before controllers)
+// 8. CSRF protection (after auth, before controllers)
 app.UseMiddleware<CsrfMiddleware>();
 
-// 8. Force password change enforcement (after auth, before controllers)
+// 9. Force password change enforcement (after auth, before controllers)
 app.UseMiddleware<ForcePasswordChangeMiddleware>();
 
-// 9. Rate limiting (after auth, before controllers)
+// 10. Rate limiting (after auth, before controllers)
 app.UseRateLimiter();
 
-// 10. Map controllers
+// 11. Map controllers (/api/* and /health match here, before the SPA fallback)
 app.MapControllers();
+
+// 12. SPA fallback — any unmatched non-file route returns index.html so client-side
+// routing works. Must be anonymous so the login page loads without a token (the
+// default-deny FallbackPolicy would otherwise require auth).
+app.MapFallbackToFile("index.html").AllowAnonymous();
 
 app.Run();
 
