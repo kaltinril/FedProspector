@@ -22,6 +22,14 @@ public class AuthService : IAuthService
     private const int MaxFailedAttempts = 5;
     private static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(30);
 
+    // Fixed dummy bcrypt hash used to equalize timing on failure paths where there is
+    // no real password to verify (unknown / inactive / locked account). Verifying a
+    // candidate password against this costs the same as a genuine bcrypt check, so
+    // every failure mode takes roughly the same wall-clock time and does not leak
+    // account existence/state via response latency. The value is not secret.
+    private const string DummyPasswordHash =
+        "$2a$11$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
     // Progressive delay: track failed login attempts per email for brute-force mitigation
     private const int ProgressiveDelayThreshold = 3;
     private static readonly TimeSpan ProgressiveDelayWindow = TimeSpan.FromMinutes(10);
@@ -84,6 +92,9 @@ public class AuthService : IAuthService
 
         if (user is null)
         {
+            // Constant-time: still pay the bcrypt cost so timing doesn't reveal that
+            // the account does not exist.
+            VerifyPassword(password, DummyPasswordHash);
             RecordFailedAttempt(normalizedEmail);
             _logger.LogWarning("Login attempt for unknown email: {Email}", email);
             return new AuthResult { Success = false, Error = "Invalid email or password." };
@@ -92,6 +103,7 @@ public class AuthService : IAuthService
         // Check if account is active (generic message to prevent account enumeration)
         if (user.IsActive != "Y")
         {
+            VerifyPassword(password, DummyPasswordHash);
             RecordFailedAttempt(normalizedEmail);
             _logger.LogWarning("Login attempt for inactive user: {UserId}", user.UserId);
             return new AuthResult { Success = false, Error = "Invalid email or password." };
@@ -100,6 +112,7 @@ public class AuthService : IAuthService
         // Check lockout (generic message to prevent account enumeration)
         if (user.LockedUntil.HasValue && user.LockedUntil.Value > DateTime.UtcNow)
         {
+            VerifyPassword(password, DummyPasswordHash);
             RecordFailedAttempt(normalizedEmail);
             _logger.LogWarning("Login attempt for locked user: {UserId}, locked until {LockedUntil}",
                 user.UserId, user.LockedUntil.Value);

@@ -78,3 +78,12 @@ ui/dist/
 ui/.env.local
 ui/.env.*.local
 *.tsbuildinfo
+
+# Built SPA served by the API (Option B single-port). The Vite build outputs here;
+# artifacts are generated at build/deploy time and must not be committed. Keep the
+# folder present via .gitkeep so UseStaticFiles always has a directory to serve.
+api/src/FedProspector.Api/wwwroot/*
+!api/src/FedProspector.Api/wwwroot/.gitkeep
+
+# Self-signed HTTPS certificate (generated locally, never committed)
+*.pfx

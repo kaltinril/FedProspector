@@ -13,7 +13,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  base: '/',
   build: {
+    // Option B single-port: build straight into the API's wwwroot so a single
+    // published API serves both the SPA and the API. emptyOutDir clears stale assets.
+    outDir: path.resolve(__dirname, '../api/src/FedProspector.Api/wwwroot'),
+    emptyOutDir: true,
     chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
