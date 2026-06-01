@@ -61,7 +61,7 @@
 
 .EXAMPLE
     # Override after the public IP changes:
-    .\scripts\generate-selfsigned-cert.ps1 -DnsName 198.51.100.7,192.168.0.173,localhost,127.0.0.1 -Force
+    .\scripts\generate-selfsigned-cert.ps1 -DnsName 198.51.100.7,192.168.0.137,localhost,127.0.0.1 -Force
 #>
 [CmdletBinding()]
 param(
@@ -82,7 +82,7 @@ param(
         }
         $true
     })]
-    [string[]]$DnsName = @("206.162.3.86", "192.168.0.173", "localhost", "127.0.0.1"),
+    [string[]]$DnsName = @("206.162.3.86", "192.168.0.137", "localhost", "127.0.0.1"),
 
     [int]$Port = 5056,
 

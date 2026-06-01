@@ -55,7 +55,7 @@ users all have logins.
 
 Run on the **PROD server** (elevated when using `-OpenFirewall`). With NO args it uses
 baked-in defaults: SAN + `AllowedHosts` cover external IP `206.162.3.86`, internal
-`192.168.0.173`, `localhost`, and `127.0.0.1`. It:
+`192.168.0.137`, `localhost`, and `127.0.0.1`. It:
 
 1. Generates (or reuses) a self-signed RSA-2048, 5-year cert into
    `C:\fedprospector\certs\fedprospector.pfx`.
@@ -65,7 +65,7 @@ baked-in defaults: SAN + `AllowedHosts` cover external IP `206.162.3.86`, intern
 Idempotent. After a public-IP change, re-run with:
 
 ```powershell
-.\scripts\generate-selfsigned-cert.ps1 -DnsName <new-ip>,192.168.0.173,localhost,127.0.0.1 -Force
+.\scripts\generate-selfsigned-cert.ps1 -DnsName <new-ip>,192.168.0.137,localhost,127.0.0.1 -Force
 ```
 
 `-DnsName` entries are validated. PowerShell switches use a **SINGLE dash** — a mistyped
