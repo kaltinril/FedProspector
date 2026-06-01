@@ -323,13 +323,18 @@ class AttachmentIdentifierExtractor:
                 if id_type not in by_type:
                     continue
                 items = by_type[id_type]
-                # Build search set: both dashless identifier_value and original raw_text
-                search_values = set()
-                for _, dashless_val, raw_val in items:
-                    search_values.add(dashless_val)
-                    if raw_val and raw_val.upper() != dashless_val:
-                        search_values.add(raw_val.upper())
-                search_values = list(search_values)
+                # Phase 132: dashless-only exact match.
+                #   - contract_id PIIDs are already dashless everywhere (see Phase 132
+                #     Data Audit: 0 dashed), so the dashless identifier_value is the
+                #     only key needed and the prior raw-match branch is dropped.
+                #   - solicitation numbers now match against the dedicated
+                #     solicitation_number_normalized columns (canonical dashless/
+                #     uppercased form, populated by migration 133 + the loaders)
+                #     instead of the mixed-format original column. This replaces the
+                #     earlier dual-search (dashless + raw) workaround.
+                # identifier_value is already produced by _normalize_identifier
+                # (trim -> uppercase -> remove dashes), so it is the canonical key.
+                search_values = list({dashless_val for _, dashless_val, _ in items})
                 if not search_values:
                     continue
                 # Batch lookup
@@ -340,40 +345,29 @@ class AttachmentIdentifierExtractor:
                 """, search_values)
                 matched_contracts = set(r[0] for r in cursor.fetchall())
 
-                # Also check solicitation_number in fpds_contract
+                # Solicitation match against the normalized (dashless) column
                 cursor.execute(f"""
-                    SELECT DISTINCT solicitation_number FROM fpds_contract
-                    WHERE solicitation_number IN ({placeholders})
-                    AND solicitation_number IS NOT NULL
+                    SELECT DISTINCT solicitation_number_normalized FROM fpds_contract
+                    WHERE solicitation_number_normalized IN ({placeholders})
                 """, search_values)
                 matched_sol = set(r[0] for r in cursor.fetchall())
 
-                # Also check opportunity.solicitation_number
                 cursor.execute(f"""
-                    SELECT DISTINCT solicitation_number FROM opportunity
-                    WHERE solicitation_number IN ({placeholders})
-                    AND solicitation_number IS NOT NULL
+                    SELECT DISTINCT solicitation_number_normalized FROM opportunity
+                    WHERE solicitation_number_normalized IN ({placeholders})
                 """, search_values)
                 matched_opp_sol = set(r[0] for r in cursor.fetchall())
 
                 for ref_id, dashless_val, raw_val in items:
-                    # Check dashless first, then raw (original with dashes)
-                    raw_upper = raw_val.upper() if raw_val else None
                     matched = None
                     matched_tbl = None
                     matched_col = None
                     if dashless_val in matched_contracts:
                         matched, matched_tbl, matched_col = dashless_val, 'fpds_contract', 'contract_id'
-                    elif raw_upper and raw_upper in matched_contracts:
-                        matched, matched_tbl, matched_col = raw_upper, 'fpds_contract', 'contract_id'
                     elif dashless_val in matched_sol:
                         matched, matched_tbl, matched_col = dashless_val, 'fpds_contract', 'solicitation_number'
-                    elif raw_upper and raw_upper in matched_sol:
-                        matched, matched_tbl, matched_col = raw_upper, 'fpds_contract', 'solicitation_number'
                     elif dashless_val in matched_opp_sol:
                         matched, matched_tbl, matched_col = dashless_val, 'opportunity', 'solicitation_number'
-                    elif raw_upper and raw_upper in matched_opp_sol:
-                        matched, matched_tbl, matched_col = raw_upper, 'opportunity', 'solicitation_number'
 
                     if matched:
                         cursor.execute("""

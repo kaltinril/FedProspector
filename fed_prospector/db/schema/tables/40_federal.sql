@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     far1102_exception_name   VARCHAR(100),
     reason_for_modification  VARCHAR(100),
     solicitation_number      VARCHAR(200),
+    solicitation_number_normalized VARCHAR(200),  -- Phase 132: dashless/uppercased canonical form for matching; original preserved for display
     solicitation_date        DATE,
     ultimate_completion_date DATE,
     type_of_contract_pricing VARCHAR(10),
@@ -91,6 +92,7 @@ CREATE TABLE IF NOT EXISTS fpds_contract (
     INDEX idx_fpds_hash (record_hash),
     INDEX idx_fpds_far1102 (far1102_exception_code),
     INDEX idx_fpds_solicitation (solicitation_number),
+    INDEX idx_fpds_solicitation_norm (solicitation_number_normalized),
     KEY idx_fpds_vendor_name (vendor_name(50)),
     INDEX idx_fpds_fh_org (fh_org_id),
     INDEX idx_fpds_wosb (is_wosb_awardee),

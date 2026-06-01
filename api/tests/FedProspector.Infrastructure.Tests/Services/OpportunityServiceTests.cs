@@ -352,17 +352,21 @@ public class OpportunityServiceTests : IDisposable
             NoticeId = "PRIMARY-001",
             Title = "IT Services Contract",
             SolicitationNumber = "SOL-AMEND-TEST",
+            // Phase 132: amendment grouping keys off the normalized column (loader-populated).
+            SolicitationNumberNormalized = "SOLAMENDTEST",
             Type = "Combined Synopsis/Solicitation",
             PostedDate = new DateOnly(2026, 1, 1),
             Active = "Y"
         });
 
-        // Seed an Award Notice amendment with awardee info
+        // Seed an Award Notice amendment with awardee info. Use a differently-dashed
+        // form of the same solicitation number to prove normalized matching works.
         _context.Opportunities.Add(new Opportunity
         {
             NoticeId = "AWARD-AMEND-001",
             Title = "IT Services Contract - Award",
             SolicitationNumber = "SOL-AMEND-TEST",
+            SolicitationNumberNormalized = "SOLAMENDTEST",
             Type = "Award Notice",
             PostedDate = new DateOnly(2026, 3, 1),
             AwardeeName = "Tech Solutions Inc",
@@ -388,6 +392,7 @@ public class OpportunityServiceTests : IDisposable
             NoticeId = "PRIMARY-002",
             Title = "Services Contract",
             SolicitationNumber = "SOL-NULL-AWARD",
+            SolicitationNumberNormalized = "SOLNULLAWARD",
             Type = "Solicitation",
             PostedDate = new DateOnly(2026, 1, 1),
             Active = "Y"
@@ -399,6 +404,7 @@ public class OpportunityServiceTests : IDisposable
             NoticeId = "MOD-001",
             Title = "Services Contract - Modification",
             SolicitationNumber = "SOL-NULL-AWARD",
+            SolicitationNumberNormalized = "SOLNULLAWARD",
             Type = "Solicitation",
             PostedDate = new DateOnly(2026, 2, 1),
             AwardeeName = null,
@@ -432,6 +438,43 @@ public class OpportunityServiceTests : IDisposable
 
         result.Should().NotBeNull();
         result!.Amendments.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetDetailAsync_AmendmentsMatchAcrossDifferentDashFormats()
+    {
+        // Phase 132: the same identifier filed with different dash formatting must
+        // still group as amendments because matching keys off the normalized column.
+        _context.Opportunities.Add(new Opportunity
+        {
+            NoticeId = "DASH-PRIMARY",
+            Title = "Dashed primary",
+            SolicitationNumber = "FA4484-20-S-C002",
+            SolicitationNumberNormalized = "FA448420SC002",
+            Type = "Solicitation",
+            PostedDate = new DateOnly(2026, 1, 1),
+            Active = "Y"
+        });
+        _context.Opportunities.Add(new Opportunity
+        {
+            NoticeId = "DASHLESS-AMEND",
+            Title = "Dashless amendment",
+            SolicitationNumber = "FA448420SC002",
+            SolicitationNumberNormalized = "FA448420SC002",
+            Type = "Solicitation",
+            PostedDate = new DateOnly(2026, 2, 1),
+            Active = "Y"
+        });
+        await _context.SaveChangesAsync();
+
+        var result = await _service.GetDetailAsync("DASH-PRIMARY", organizationId: 1);
+
+        result.Should().NotBeNull();
+        // Detail returns the preserved original for display, normalized for cross-ref.
+        result!.SolicitationNumber.Should().Be("FA4484-20-S-C002");
+        result.SolicitationNumberNormalized.Should().Be("FA448420SC002");
+        result.Amendments.Should().ContainSingle(a => a.NoticeId == "DASHLESS-AMEND",
+            "the dashless amendment shares the same normalized solicitation number");
     }
 
     // -----------------------------------------------------------------------
@@ -476,6 +519,8 @@ public class OpportunityServiceTests : IDisposable
             NoticeId = "CSV-OLD",
             Title = "Old Version",
             SolicitationNumber = "CSV-SOL-001",
+            // Phase 132: dedup keys off the normalized column (loader-populated).
+            SolicitationNumberNormalized = "CSVSOL001",
             Type = "Solicitation",
             PostedDate = new DateOnly(2026, 1, 1),
             Active = "Y",
@@ -486,6 +531,7 @@ public class OpportunityServiceTests : IDisposable
             NoticeId = "CSV-NEW",
             Title = "New Version",
             SolicitationNumber = "CSV-SOL-001",
+            SolicitationNumberNormalized = "CSVSOL001",
             Type = "Solicitation",
             PostedDate = new DateOnly(2026, 3, 1),
             Active = "Y",

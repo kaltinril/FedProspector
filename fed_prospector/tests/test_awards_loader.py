@@ -126,6 +126,26 @@ class TestNormalizeAward:
         # piid had leading/trailing spaces
         assert result["contract_id"] == "GS-35F-0001"
 
+    def test_solicitation_number_normalized(self):
+        """Phase 132: dashless/uppercased canonical form; original preserved."""
+        loader = self._loader()
+        result = loader._normalize_award(_make_raw_award())
+
+        # Original solicitationId preserved verbatim (display value)
+        assert result["solicitation_number"] == "SOL-999"
+        # Normalized = trim -> uppercase -> remove dashes
+        assert result["solicitation_number_normalized"] == "SOL999"
+
+    def test_solicitation_number_normalized_missing(self):
+        """Missing solicitationId yields NULL normalized."""
+        loader = self._loader()
+        raw = _make_raw_award()
+        del raw["coreData"]["solicitationId"]
+        result = loader._normalize_award(raw)
+
+        assert result["solicitation_number"] is None
+        assert result["solicitation_number_normalized"] is None
+
     def test_normalize_agency_info(self):
         loader = self._loader()
         result = loader._normalize_award(_make_raw_award())

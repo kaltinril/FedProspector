@@ -116,6 +116,15 @@ public class FpdsContract
     [MaxLength(200)]
     public string? SolicitationNumber { get; set; }
 
+    /// <summary>
+    /// Phase 132: dashless/uppercased/trimmed canonical form of
+    /// <see cref="SolicitationNumber"/> for cross-reference and search matching.
+    /// Maps to column <c>solicitation_number_normalized</c> (snake_case convention).
+    /// Populated by the Python ETL loaders; the API never writes it.
+    /// </summary>
+    [MaxLength(200)]
+    public string? SolicitationNumberNormalized { get; set; }
+
     public DateOnly? SolicitationDate { get; set; }
 
     public DateOnly? UltimateCompletionDate { get; set; }

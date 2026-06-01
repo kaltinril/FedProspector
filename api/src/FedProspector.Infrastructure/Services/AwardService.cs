@@ -3,6 +3,7 @@ using FedProspector.Core.DTOs.Awards;
 using FedProspector.Core.Interfaces;
 using FedProspector.Core.Models;
 using FedProspector.Core.Models.Views;
+using FedProspector.Core.Services;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -39,7 +40,12 @@ public class AwardService : IAwardService
             query = query.Where(c => c.ContractId == request.Piid);
 
         if (!string.IsNullOrWhiteSpace(request.Solicitation))
-            query = query.Where(c => c.SolicitationNumber == request.Solicitation);
+        {
+            // Phase 132: exact match on the dashless normalized column so a user-pasted
+            // identifier matches regardless of dash formatting on either side.
+            var solNormalized = IdentifierNormalizer.Normalize(request.Solicitation);
+            query = query.Where(c => c.SolicitationNumberNormalized == solNormalized);
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Naics))
             query = query.Where(c => c.NaicsCode == request.Naics);
@@ -685,10 +691,15 @@ public class AwardService : IAwardService
             query = query.Where(ua => ua.Piid!.StartsWith(request.Piid));
 
         // Search both PIID and solicitation_identifier with prefix match.
-        // Perf note: could switch to exact match (==) if this ever needs to be faster.
+        // Phase 132: usaspending_award.piid is 100% dashless, so normalize the user
+        // input (dash-strip/upper) before the prefix match. usaspending_award has no
+        // normalized column of its own; we normalize the comparison value instead.
         if (!string.IsNullOrWhiteSpace(request.Solicitation))
-            query = query.Where(ua => ua.Piid!.StartsWith(request.Solicitation)
-                || (ua.SolicitationIdentifier != null && ua.SolicitationIdentifier.StartsWith(request.Solicitation)));
+        {
+            var solNormalized = IdentifierNormalizer.Normalize(request.Solicitation)!;
+            query = query.Where(ua => ua.Piid!.StartsWith(solNormalized)
+                || (ua.SolicitationIdentifier != null && ua.SolicitationIdentifier.StartsWith(solNormalized)));
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Naics))
             query = query.Where(ua => ua.NaicsCode == request.Naics);

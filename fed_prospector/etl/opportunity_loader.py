@@ -22,6 +22,19 @@ from etl.staging_mixin import StagingMixin
 # Fields used for opportunity record hash (all meaningful business fields,
 # excludes timestamps, description, link, resource_links, and load-tracking)
 # ---------------------------------------------------------------------------
+def _normalize_solicitation(value):
+    """Phase 132: canonical dashless/uppercased form of a solicitation number.
+
+    Rule (must stay identical to attachment_identifier_extractor._normalize_identifier
+    and the SQL UPPER(REPLACE(TRIM(...), '-', ''))): trim -> uppercase -> remove dashes.
+    Returns None for NULL/empty input. Derived data only — NOT a hash input.
+    """
+    if value is None:
+        return None
+    normalized = value.strip().upper().replace("-", "")
+    return normalized or None
+
+
 _OPPORTUNITY_HASH_FIELDS = [
     "notice_id", "title", "solicitation_number",
     "department_name", "department_cgac", "sub_tier", "sub_tier_code", "office",
@@ -35,7 +48,7 @@ _OPPORTUNITY_HASH_FIELDS = [
 
 # All opportunity columns used in upsert (order matters for values list)
 _UPSERT_COLS = [
-    "notice_id", "title", "solicitation_number",
+    "notice_id", "title", "solicitation_number", "solicitation_number_normalized",
     "department_name", "department_cgac", "sub_tier", "sub_tier_code", "office",
     "posted_date", "response_deadline", "archive_date",
     "type", "base_type",
@@ -513,6 +526,9 @@ class OpportunityLoader(StagingMixin):
             "notice_id":             raw.get("noticeId"),
             "title":                 raw.get("title"),
             "solicitation_number":   raw.get("solicitationNumber"),
+            # Phase 132: derived dashless canonical form (matching only); raw value above
+            # is preserved verbatim for display. NOT included in the change-detection hash.
+            "solicitation_number_normalized": _normalize_solicitation(raw.get("solicitationNumber")),
             "department_name":       department_name,
             "department_cgac":       department_cgac,
             "sub_tier":              sub_tier,

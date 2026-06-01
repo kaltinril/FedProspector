@@ -104,6 +104,8 @@ def mock_db_connection():
          patch("etl.subaward_loader.get_connection", mock_get_conn), \
          patch("etl.load_manager.get_connection", mock_get_conn), \
          patch("etl.db_maintenance.get_connection", mock_get_conn), \
+         patch("etl.opportunity_loader.get_connection", mock_get_conn), \
+         patch("etl.awards_loader.get_connection", mock_get_conn), \
          patch("etl.usaspending_bulk_loader.get_connection", mock_get_conn):
         yield mock_get_conn
 

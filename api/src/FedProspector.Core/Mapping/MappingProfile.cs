@@ -13,7 +13,10 @@ public class MappingProfile : Profile
     public MappingProfile()
     {
         // ----- View -> DTO mappings -----
-        CreateMap<TargetOpportunityView, TargetOpportunityDto>();
+        // Phase 132: the target view has no normalized solicitation column; the
+        // service derives SolicitationNumberNormalized from the original after mapping.
+        CreateMap<TargetOpportunityView, TargetOpportunityDto>()
+            .ForMember(d => d.SolicitationNumberNormalized, opt => opt.Ignore());
         CreateMap<CompetitorAnalysisView, CompetitorProfileDto>()
             .ForMember(d => d.WinRate, opt => opt.Ignore())
             .ForMember(d => d.AverageContractSize, opt => opt.Ignore())

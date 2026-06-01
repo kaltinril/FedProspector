@@ -8,6 +8,7 @@ using FedProspector.Core.DTOs.Organizations;
 using FedProspector.Core.Interfaces;
 using FedProspector.Core.Models;
 using FedProspector.Core.Options;
+using FedProspector.Core.Services;
 using FedProspector.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -57,8 +58,11 @@ public partial class OpportunityService : IOpportunityService
 
         if (!string.IsNullOrWhiteSpace(request.Solicitation))
         {
-            var sol = EscapeLikePattern(request.Solicitation);
-            query = query.Where(o => o.SolicitationNumber != null && EF.Functions.Like(o.SolicitationNumber, $"%{sol}%"));
+            // Phase 132: normalize the user-pasted identifier (trim/upper/dash-strip)
+            // and substring-match against the normalized column so dashed and dashless
+            // inputs both hit. Preserves the existing partial-search UX.
+            var sol = EscapeLikePattern(IdentifierNormalizer.Normalize(request.Solicitation)!);
+            query = query.Where(o => o.SolicitationNumberNormalized != null && EF.Functions.Like(o.SolicitationNumberNormalized, $"%{sol}%"));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
@@ -104,11 +108,13 @@ public partial class OpportunityService : IOpportunityService
         }
 
         // Show only the latest notice per solicitation number (amendments supersede originals).
-        // Opportunities without a solicitation number are always shown.
+        // Phase 132: group by the normalized column so amendments under differently-dashed
+        // forms of the same identifier collapse together. Notices without a solicitation
+        // number are always shown.
         query = query.Where(o =>
-            (o.SolicitationNumber == null || o.SolicitationNumber == "") ||
+            (o.SolicitationNumberNormalized == null || o.SolicitationNumberNormalized == "") ||
             o.PostedDate == _context.Opportunities
-                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber
+                .Where(o2 => o2.SolicitationNumberNormalized == o.SolicitationNumberNormalized
                            && !OpportunityFilters.NonBiddableTypes.Contains(o2.Type!))
                 .Max(o2 => o2.PostedDate));
 
@@ -135,6 +141,7 @@ public partial class OpportunityService : IOpportunityService
                 NoticeId = o.NoticeId,
                 Title = o.Title,
                 SolicitationNumber = o.SolicitationNumber,
+                SolicitationNumberNormalized = o.SolicitationNumberNormalized,
                 DepartmentName = o.DepartmentName,
                 Office = o.Office,
                 ContractingOfficeId = o.ContractingOfficeId,
@@ -286,14 +293,18 @@ public partial class OpportunityService : IOpportunityService
             if (countryRef != null) popCountryName = countryRef.CountryName;
         }
 
-        // Related awards (base awards only, match on solicitation number)
-        var relatedAwards = string.IsNullOrWhiteSpace(opp.SolicitationNumber)
+        // Related awards (base awards only). Phase 132: exact match on the dashless
+        // normalized solicitation number — fpds_contract stores solicitation numbers
+        // in mixed dash formats, so normalized-vs-normalized is the reliable cross-ref.
+        var oppSolNormalized = IdentifierNormalizer.Normalize(opp.SolicitationNumber);
+        var relatedAwards = string.IsNullOrWhiteSpace(oppSolNormalized)
             ? new List<RelatedAwardDto>()
             : await _context.FpdsContracts.AsNoTracking()
-                .Where(c => c.SolicitationNumber == opp.SolicitationNumber && c.ModificationNumber == "0")
+                .Where(c => c.SolicitationNumberNormalized == oppSolNormalized && c.ModificationNumber == "0")
                 .Select(c => new RelatedAwardDto
                 {
                     ContractId = c.ContractId,
+                    SolicitationNumberNormalized = c.SolicitationNumberNormalized,
                     VendorName = c.VendorName,
                     VendorUei = c.VendorUei,
                     DateSigned = c.DateSigned,
@@ -330,13 +341,15 @@ public partial class OpportunityService : IOpportunityService
 
         // USASpending award
         UsaspendingSummaryDto? usaAward = null;
-        if (!string.IsNullOrWhiteSpace(opp.SolicitationNumber))
+        if (!string.IsNullOrWhiteSpace(oppSolNormalized))
         {
-            // Search both PIID and solicitation_identifier with prefix match.
-            // Perf note: could switch to exact match (==) if this ever needs to be faster.
+            // Phase 132: usaspending_award.piid / solicitation_identifier are already
+            // dashless (100% per the data audit), so match the dashless normalized
+            // solicitation number. (usaspending_award has no normalized column of its
+            // own, so we normalize the comparison value and keep the prefix-match UX.)
             var ua = await _context.UsaspendingAwards.AsNoTracking()
-                .FirstOrDefaultAsync(a => a.Piid!.StartsWith(opp.SolicitationNumber)
-                    || (a.SolicitationIdentifier != null && a.SolicitationIdentifier.StartsWith(opp.SolicitationNumber)));
+                .FirstOrDefaultAsync(a => a.Piid!.StartsWith(oppSolNormalized)
+                    || (a.SolicitationIdentifier != null && a.SolicitationIdentifier.StartsWith(oppSolNormalized)));
             if (ua != null)
             {
                 usaAward = new UsaspendingSummaryDto
@@ -369,12 +382,14 @@ public partial class OpportunityService : IOpportunityService
                 })
             .ToListAsync();
 
-        // Amendment history: other notices with the same solicitation number
+        // Amendment history: other notices with the same solicitation number.
+        // Phase 132: match on the normalized column so amendments filed under a
+        // differently-dashed form of the same identifier are still grouped together.
         var amendments = new List<AmendmentSummaryDto>();
-        if (!string.IsNullOrWhiteSpace(opp.SolicitationNumber))
+        if (!string.IsNullOrWhiteSpace(oppSolNormalized))
         {
             amendments = await _context.Opportunities.AsNoTracking()
-                .Where(o => o.SolicitationNumber == opp.SolicitationNumber && o.NoticeId != noticeId)
+                .Where(o => o.SolicitationNumberNormalized == oppSolNormalized && o.NoticeId != noticeId)
                 .OrderByDescending(o => o.PostedDate)
                 .Select(o => new AmendmentSummaryDto
                 {
@@ -443,6 +458,7 @@ public partial class OpportunityService : IOpportunityService
             NoticeId = opp.NoticeId,
             Title = opp.Title,
             SolicitationNumber = opp.SolicitationNumber,
+            SolicitationNumberNormalized = opp.SolicitationNumberNormalized,
             DepartmentName = opp.DepartmentName,
             SubTier = opp.SubTier,
             Office = opp.Office,
@@ -592,9 +608,14 @@ public partial class OpportunityService : IOpportunityService
             })
             .ToListAsync();
 
-        // Transform workspace URLs to public SAM.gov URLs
+        // Transform workspace URLs to public SAM.gov URLs.
+        // Phase 132: the target view does not expose the normalized column, so derive
+        // it client-side from the preserved original for cross-ref consumers.
         foreach (var item in items)
+        {
             item.Link = NormalizeSamGovLink(item.Link);
+            item.SolicitationNumberNormalized = IdentifierNormalizer.Normalize(item.SolicitationNumber);
+        }
 
         return new PagedResponse<TargetOpportunityDto>
         {
@@ -619,8 +640,11 @@ public partial class OpportunityService : IOpportunityService
 
         if (!string.IsNullOrWhiteSpace(request.Solicitation))
         {
-            var sol = EscapeLikePattern(request.Solicitation);
-            query = query.Where(o => o.SolicitationNumber != null && EF.Functions.Like(o.SolicitationNumber, $"%{sol}%"));
+            // Phase 132: normalize the user-pasted identifier (trim/upper/dash-strip)
+            // and substring-match against the normalized column so dashed and dashless
+            // inputs both hit. Preserves the existing partial-search UX.
+            var sol = EscapeLikePattern(IdentifierNormalizer.Normalize(request.Solicitation)!);
+            query = query.Where(o => o.SolicitationNumberNormalized != null && EF.Functions.Like(o.SolicitationNumberNormalized, $"%{sol}%"));
         }
 
         if (!string.IsNullOrWhiteSpace(request.Keyword))
@@ -666,11 +690,13 @@ public partial class OpportunityService : IOpportunityService
         }
 
         // Show only the latest notice per solicitation number (amendments supersede originals).
-        // Opportunities without a solicitation number are always shown.
+        // Phase 132: group by the normalized column so amendments under differently-dashed
+        // forms of the same identifier collapse together. Notices without a solicitation
+        // number are always shown.
         query = query.Where(o =>
-            (o.SolicitationNumber == null || o.SolicitationNumber == "") ||
+            (o.SolicitationNumberNormalized == null || o.SolicitationNumberNormalized == "") ||
             o.PostedDate == _context.Opportunities
-                .Where(o2 => o2.SolicitationNumber == o.SolicitationNumber
+                .Where(o2 => o2.SolicitationNumberNormalized == o.SolicitationNumberNormalized
                            && !OpportunityFilters.NonBiddableTypes.Contains(o2.Type!))
                 .Max(o2 => o2.PostedDate));
 

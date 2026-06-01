@@ -5,6 +5,12 @@ public class OpportunitySearchDto
     public string NoticeId { get; set; } = string.Empty;
     public string? Title { get; set; }
     public string? SolicitationNumber { get; set; }
+
+    /// <summary>
+    /// Phase 132: dashless/uppercased canonical form of <see cref="SolicitationNumber"/>
+    /// for cross-reference matching. Display uses the original SolicitationNumber.
+    /// </summary>
+    public string? SolicitationNumberNormalized { get; set; }
     public string? DepartmentName { get; set; }
     public string? Office { get; set; }
     public string? ContractingOfficeId { get; set; }

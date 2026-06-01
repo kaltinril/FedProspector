@@ -71,6 +71,34 @@ class TestNormalizeOpportunity:
         assert result["classification_code"] == "D301"
         assert result["naics_code"] == "541511"
 
+    def test_solicitation_number_normalized(self):
+        """Phase 132: dashless/uppercased canonical form; original preserved."""
+        loader = self._loader()
+        raw = _make_raw_opportunity(solicitationNumber="fa4484-20-s-c002")
+        result = loader._normalize_opportunity(raw)
+
+        # Original preserved verbatim (display value)
+        assert result["solicitation_number"] == "fa4484-20-s-c002"
+        # Normalized = trim -> uppercase -> remove dashes
+        assert result["solicitation_number_normalized"] == "FA448420SC002"
+
+    def test_solicitation_number_normalized_none(self):
+        """NULL solicitation number yields NULL normalized."""
+        loader = self._loader()
+        raw = _make_raw_opportunity(solicitationNumber=None)
+        result = loader._normalize_opportunity(raw)
+
+        assert result["solicitation_number"] is None
+        assert result["solicitation_number_normalized"] is None
+
+    def test_solicitation_number_normalized_empty(self):
+        """Empty/whitespace solicitation number yields NULL normalized."""
+        loader = self._loader()
+        raw = _make_raw_opportunity(solicitationNumber="   ")
+        result = loader._normalize_opportunity(raw)
+
+        assert result["solicitation_number_normalized"] is None
+
     def test_normalize_department_hierarchy(self):
         loader = self._loader()
         raw = _make_raw_opportunity()

@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     notice_id            VARCHAR(100) NOT NULL,
     title                VARCHAR(500),
     solicitation_number  VARCHAR(100),
+    solicitation_number_normalized VARCHAR(100),  -- Phase 132: dashless/uppercased canonical form for matching; original preserved for display
     department_name      VARCHAR(200),
     department_cgac      VARCHAR(10),
     sub_tier             VARCHAR(200),
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS opportunity (
     INDEX idx_opp_type (type),
     INDEX idx_opp_active (active),
     INDEX idx_opp_sol (solicitation_number),
+    INDEX idx_opp_sol_norm (solicitation_number_normalized),
     KEY idx_opp_department (department_name),
     INDEX idx_opp_dept_cgac (department_cgac),
     INDEX idx_opp_fh_org (fh_org_id)

@@ -21,6 +21,20 @@ from etl.staging_mixin import StagingMixin
 
 logger = logging.getLogger("fed_prospector.etl.awards_loader")
 
+
+def _normalize_solicitation(value):
+    """Phase 132: canonical dashless/uppercased form of a solicitation number.
+
+    Rule (must stay identical to attachment_identifier_extractor._normalize_identifier
+    and the SQL UPPER(REPLACE(TRIM(...), '-', ''))): trim -> uppercase -> remove dashes.
+    Returns None for NULL/empty input. Derived data only — NOT a hash input.
+    """
+    if value is None:
+        return None
+    normalized = value.strip().upper().replace("-", "")
+    return normalized or None
+
+
 # Fields used for record hash (business-meaningful fields only;
 # excludes load-tracking timestamps and description)
 _AWARD_HASH_FIELDS = [
@@ -45,7 +59,7 @@ _UPSERT_COLS = [
     "description", "pop_state", "pop_country", "pop_zip",
     "extent_competed", "number_of_offers",
     "far1102_exception_code", "far1102_exception_name",
-    "reason_for_modification", "solicitation_number",
+    "reason_for_modification", "solicitation_number", "solicitation_number_normalized",
     "solicitation_date", "ultimate_completion_date",
     "type_of_contract_pricing", "co_bus_size_determination",
     "source_selection_code", "contract_bundling_code", "awardee_socioeconomic",
@@ -578,6 +592,9 @@ class AwardsLoader(StagingMixin):
             "far1102_exception_name":   _s(far_exception.get("name")),
             "reason_for_modification":  _s(reason_mod.get("code")),
             "solicitation_number":      _s(core_data.get("solicitationId")),
+            # Phase 132: derived dashless canonical form (matching only); raw value above
+            # is preserved verbatim for display. NOT included in the change-detection hash.
+            "solicitation_number_normalized": _normalize_solicitation(_s(core_data.get("solicitationId"))),
             "solicitation_date":        parse_date(
                                             core_data.get("solicitationDate")
                                         ),

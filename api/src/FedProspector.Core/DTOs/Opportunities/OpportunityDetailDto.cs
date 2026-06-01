@@ -6,6 +6,12 @@ public class OpportunityDetailDto
     public string NoticeId { get; set; } = string.Empty;
     public string? Title { get; set; }
     public string? SolicitationNumber { get; set; }
+
+    /// <summary>
+    /// Phase 132: dashless/uppercased canonical form of <see cref="SolicitationNumber"/>
+    /// for cross-reference matching. Display uses the original SolicitationNumber.
+    /// </summary>
+    public string? SolicitationNumberNormalized { get; set; }
     public string? DepartmentName { get; set; }
     public string? SubTier { get; set; }
     public string? Office { get; set; }
@@ -75,6 +81,12 @@ public class OpportunityDetailDto
 public class RelatedAwardDto
 {
     public string ContractId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Phase 132: dashless/uppercased canonical solicitation number used to
+    /// match this award to the opportunity. For cross-reference, not display.
+    /// </summary>
+    public string? SolicitationNumberNormalized { get; set; }
     public string? VendorName { get; set; }
     public string? VendorUei { get; set; }
     public DateOnly? DateSigned { get; set; }
