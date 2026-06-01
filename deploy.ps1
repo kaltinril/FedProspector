@@ -27,6 +27,18 @@ try {
 }
 Write-Host "UI build complete." -ForegroundColor Green
 
+# Build the C# API on dev so the compiled binaries ship with the copy — prod then
+# just needs 'start', no manual 'build api'. The service manager runs `dotnet run
+# --no-build`, which uses these Debug binaries. (/XF excludes appsettings.Local.json
+# from the copy, so prod keeps its own secrets even though bin/ ships.)
+Write-Host "Building API (dotnet build)..." -ForegroundColor Green
+& dotnet build "$PSScriptRoot\api\src\FedProspector.Api" --verbosity quiet
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "API build failed (exit code $LASTEXITCODE). Aborting deploy." -ForegroundColor Red
+    exit 1
+}
+Write-Host "API build complete." -ForegroundColor Green
+
 # Disconnect stale connections before authenticating
 foreach ($share in @("gitshare")) {
     net use "\\$target\$share" /delete /y 2>$null | Out-Null
