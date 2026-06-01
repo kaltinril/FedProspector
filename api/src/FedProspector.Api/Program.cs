@@ -19,13 +19,31 @@ using AppCorsOptions = FedProspector.Core.Options.CorsOptions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- Local config override (gitignored, holds DB password & other secrets) ---
+// --- Local config override (gitignored; DEV machine secrets: DB password, etc.) ---
 builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+
+// --- External prod config (lives OUTSIDE the repo so deploy.ps1 can never overwrite it) ---
+// Holds prod's DB connection, Kestrel HTTPS cert, AllowedHosts, Cors. Loaded last so it
+// overrides the committed appsettings.*.json AND the in-repo appsettings.Local.json. JWT is
+// NOT here — it comes from the Jwt__SecretKey environment variable. Provision it on the prod
+// server with scripts/generate-selfsigned-cert.ps1. Override the path via FEDPROSPECTOR_CONFIG.
+var externalConfigPath = Environment.GetEnvironmentVariable("FEDPROSPECTOR_CONFIG")
+    ?? @"C:\fedprospector\config\fedprospector.local.json";
+if (File.Exists(externalConfigPath))
+{
+    builder.Configuration.AddJsonFile(externalConfigPath, optional: true, reloadOnChange: true);
+    Console.WriteLine($"[config] Loaded external config from {externalConfigPath}");
+}
+else
+{
+    Console.WriteLine($"[config] No external config at {externalConfigPath} (dev/local mode)");
+}
 
 // --- Kestrel: request body limits + endpoint/HTTPS config ---
 // Endpoints (and the self-signed HTTPS cert for public exposure) are read from the
-// "Kestrel" configuration section — see appsettings.Production.json (Http endpoint on
-// 0.0.0.0) and appsettings.Local.json (Https endpoint + cert path/password, gitignored).
+// "Kestrel" configuration section. In Production that section comes from the external
+// config file above (C:\fedprospector\config\fedprospector.local.json); see also
+// appsettings.Production.json (Http redirect endpoint on 0.0.0.0).
 // NOTE: ASPNETCORE_URLS overrides Kestrel:Endpoints config; the production run path
 // (fed_prospector.py / launchSettings) must NOT set ASPNETCORE_URLS so this config wins.
 builder.WebHost.ConfigureKestrel(options =>

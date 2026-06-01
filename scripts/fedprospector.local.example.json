@@ -1,0 +1,21 @@
+{
+  "_comment": "EXAMPLE of the EXTERNAL prod config the API reads (default path C:\\fedprospector\\config\\fedprospector.local.json, override via FEDPROSPECTOR_CONFIG). This file lives OUTSIDE the repo so deploy.ps1 can never overwrite it. Normally generated/merged by scripts\\generate-selfsigned-cert.ps1. NOTE: there is intentionally NO Jwt section — the JWT secret is supplied via the Jwt__SecretKey environment variable.",
+  "ConnectionStrings": {
+    "DefaultConnection": "Server=localhost;Port=3306;Database=fed_contracts;User=fed_app;Password=YOUR_PASSWORD;SslMode=None;AllowPublicKeyRetrieval=True;MaxPoolSize=50;MinPoolSize=5"
+  },
+  "Cors": {
+    "AllowedOrigins": ["https://your-public-hostname"]
+  },
+  "AllowedHosts": "your-public-hostname",
+  "Kestrel": {
+    "Endpoints": {
+      "Https": {
+        "Url": "https://0.0.0.0:5056",
+        "Certificate": {
+          "Path": "C:\\fedprospector\\certs\\fedprospector.pfx",
+          "Password": "YOUR_PFX_PASSWORD"
+        }
+      }
+    }
+  }
+}
