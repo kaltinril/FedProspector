@@ -27,8 +27,10 @@
     writes a Jwt section.
 
 .PARAMETER DnsName
-    Public hostname (or IP) clients will use. Used as the cert subject/SAN AND as
-    AllowedHosts in the external config.
+    One or more hostnames/IPs clients will reach the box by. Each becomes a Subject
+    Alternative Name on the cert (IPs as IPAddress entries, names as DNS entries) AND
+    an entry in the API's AllowedHosts. Defaults to this deployment's external IP,
+    internal LAN IP, and loopback. Re-run with new values after a public-IP change.
 
 .PARAMETER Port
     HTTPS port to bind on 0.0.0.0. Default 5056.
@@ -54,15 +56,20 @@
     Also add a Windows Firewall inbound rule for the HTTPS port (requires admin).
 
 .EXAMPLE
-    .\scripts\generate-selfsigned-cert.ps1 -DnsName my.public.host
+    # Use the baked-in defaults (external IP + LAN IP + loopback):
+    .\scripts\generate-selfsigned-cert.ps1
 
 .EXAMPLE
-    .\scripts\generate-selfsigned-cert.ps1 -DnsName 203.0.113.5 -Port 5056 -Force
+    # Override after the public IP changes:
+    .\scripts\generate-selfsigned-cert.ps1 -DnsName 198.51.100.7,192.168.0.173,localhost,127.0.0.1 -Force
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$DnsName,
+    # Names/IPs the cert is valid for AND the API's AllowedHosts. IPs become proper
+    # IPAddress SAN entries; hostnames become DNS SAN entries. Defaults cover this
+    # deployment's external + internal + loopback addresses — re-run with new values
+    # (e.g. after a public-IP change) and it regenerates the cert + config.
+    [string[]]$DnsName = @("206.162.3.86", "192.168.0.173", "localhost", "127.0.0.1"),
 
     [int]$Port = 5056,
 
@@ -129,7 +136,7 @@ if ((Test-Path $pfxPath) -and -not $Force) {
     if ($Force -and (Test-Path $pfxPath)) {
         Write-Host "Regenerating certificate (-Force): $pfxPath" -ForegroundColor Yellow
     } else {
-        Write-Host "Creating self-signed certificate for '$DnsName'..." -ForegroundColor Green
+        Write-Host "Creating self-signed certificate for: $($DnsName -join ', ')" -ForegroundColor Green
     }
 
     if ($PfxPassword) {
@@ -143,15 +150,30 @@ if ((Test-Path $pfxPath) -and -not $Force) {
     }
     $securePwd = ConvertTo-SecureString -String $plainPwd -AsPlainText -Force
 
+    # Build a Subject Alternative Name extension covering every supplied address:
+    # IPs as IPAddress entries, hostnames as DNS entries. This makes the cert valid
+    # for the LAN IP, the public IP, and loopback at once.
+    $sanParts = foreach ($name in $DnsName) {
+        $parsedIp = $null
+        if ([System.Net.IPAddress]::TryParse($name, [ref]$parsedIp)) {
+            "IPAddress=$name"
+        } else {
+            "DNS=$name"
+        }
+    }
+    $sanExtension = "2.5.29.17={text}" + ($sanParts -join "&")
+    $ekuExtension = "2.5.29.37={text}1.3.6.1.5.5.7.3.1"  # Server Authentication EKU
+
     $cert = New-SelfSignedCertificate `
-        -DnsName $DnsName `
+        -Subject "CN=FedProspector API" `
+        -TextExtension @($sanExtension, $ekuExtension) `
         -CertStoreLocation "Cert:\CurrentUser\My" `
         -KeyExportPolicy Exportable `
         -KeyUsage DigitalSignature, KeyEncipherment `
         -KeyAlgorithm RSA `
         -KeyLength 2048 `
         -NotAfter (Get-Date).AddYears(5) `
-        -FriendlyName "FedProspector API ($DnsName)"
+        -FriendlyName "FedProspector API"
 
     Export-PfxCertificate -Cert $cert -FilePath $pfxPath -Password $securePwd | Out-Null
     Write-Host "Exported PFX to: $pfxPath" -ForegroundColor Green
@@ -193,8 +215,9 @@ if (Test-Path $ConfigPath) {
     }
 }
 
-# AllowedHosts = the public hostname/IP.
-Set-JsonProperty -Object $config -Name "AllowedHosts" -Value $DnsName
+# AllowedHosts = every name/IP you reach the box by, semicolon-separated (ASP.NET
+# host-filtering syntax). The port is ignored during matching.
+Set-JsonProperty -Object $config -Name "AllowedHosts" -Value ($DnsName -join ";")
 
 # Kestrel HTTPS endpoint + cert.
 $kestrel = [PSCustomObject]@{
@@ -233,7 +256,7 @@ Write-Host ""
 Write-Host "=== Done ===" -ForegroundColor Green
 Write-Host "  Cert (.pfx):    $pfxPath"
 Write-Host "  External config: $ConfigPath"
-Write-Host "  Public host:     $DnsName"
+Write-Host "  Names/IPs:       $($DnsName -join ', ')"
 Write-Host "  HTTPS endpoint:  https://0.0.0.0:$Port"
 Write-Host ""
 Write-Host "Next steps on this prod server:" -ForegroundColor Cyan
