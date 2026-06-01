@@ -54,6 +54,8 @@ Python + MySQL system to find WOSB and 8(a) federal contracts to bid on. Replace
 - **UI**: Vite 8 + React 19 + TypeScript, MUI v9, TanStack Query, Axios (Phase 70 complete)
 - **Testing**: Python pytest + C# xUnit (Core, Api, Infrastructure). Run `/run-tests all` or see test paths below.
 - **Schema Ownership**: Python DDL owns ETL/data tables. EF Core owns application tables (app_user, prospect, saved_search, organization, etc.). See Phase 10 plan for details.
+- **Single-Port Deployment (Option B)**: One C# process serves BOTH the API and the prebuilt React UI as static files (`UseStaticFiles` + `MapFallbackToFile`). No separate UI server in prod; Vite (5173) is dev-only. Ports: **5056** = API+UI (HTTPS in Production, HTTP in Development), **5055** = HTTP→HTTPS redirect (Production). UI build output goes to the API's `wwwroot`; `deploy.ps1` runs `npm run build` before copying, so prod needs no node_modules.
+- **Production HTTPS & Config**: Production is HTTPS via a self-signed cert (browser "not trusted" warning is expected; encryption is full-strength). Prod-only secrets (ConnectionStrings, Cors, AllowedHosts, Kestrel cert) live in an EXTERNAL config file `C:\fedprospector\config\fedprospector.local.json` (override via `FEDPROSPECTOR_CONFIG` env var) that sits OUTSIDE the repo so `deploy.ps1` cannot overwrite it. In-repo per-machine secrets go in gitignored `appsettings.Local.json` (deploy excludes it via `/XF`). The **JWT secret is NOT in any config file** — it comes from the `Jwt__SecretKey` env var (set by `fed_prospector.py` from `fed_prospector/.env`). Provision prod with `scripts/generate-selfsigned-cert.ps1`. Full runbook: `thesolution/reference/14-PRODUCTION-EXPOSURE.md`.
 
 ### Performance & Data Source Decisions
 
@@ -112,3 +114,8 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | Attachment files | `E:\fedprospector\attachments\` (env var: `ATTACHMENT_DIR`) |
 | Attachment AI analyzer | `fed_prospector/etl/attachment_ai_analyzer.py` (CLI: `extract contradictions` — AI-only, on-demand contradiction detection) |
 | NAICS hierarchy + size eligibility | API on `ReferenceController` (`api/v1/reference/naics/sectors`, `naics/{code}/children`, `naics/{code}/ancestors`); engine in `CompanyProfileService.CheckSizeEligibilityAsync` (single-org, affiliates excluded); browser UI at `/reference/naics` (`ui/src/pages/reference/NaicsBrowserPage.tsx`); ref doc `thesolution/reference/13-NAICS-SIZE-STANDARDS.md` |
+| Prod SSL provisioner | `scripts/generate-selfsigned-cert.ps1` (run on prod, elevated for `-OpenFirewall`; generates self-signed cert + writes external config; idempotent) |
+| Firewall opener | `scripts/open-firewall.ps1` (self-elevating UAC; opens inbound TCP 5056; idempotent) |
+| External prod config | `C:\fedprospector\config\fedprospector.local.json` (outside repo; ConnectionStrings/Cors/AllowedHosts/Kestrel cert; override path via `FEDPROSPECTOR_CONFIG`; example shape `scripts/fedprospector.local.example.json`) |
+| Deploy script | `deploy.ps1` (ships code + prebuilt UI; excludes `appsettings.Local.json` via `/XF`; never touches external config or DB) |
+| Production exposure runbook | `thesolution/reference/14-PRODUCTION-EXPOSURE.md` (single-port HTTPS architecture, config layering, go-live runbook, troubleshooting, security hardening) |
