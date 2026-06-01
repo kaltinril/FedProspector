@@ -30,10 +30,18 @@ from config import settings
               help="Max API calls for this invocation (default: 5, reserves 5 of 10/day for other work)")
 @click.option("--key", "api_key_number", default=1, type=click.IntRange(1, 2),
               help="Which SAM API key to use (1 or 2, default: 1)")
+@click.option("--solnum", "solnum", default=None,
+              help="Fetch a SINGLE opportunity by solicitation number. "
+                   "Still needs a date window (--posted-from/--posted-to); "
+                   "defaults to the last 364 days if omitted.")
+@click.option("--notice-id", "notice_id", default=None,
+              help="Fetch a SINGLE opportunity by SAM.gov notice ID. "
+                   "Most precise single-record lookup. Still needs a date window.")
 @click.option("--force", is_flag=True, default=False,
               help="Ignore previous progress and start a fresh load")
 def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
-                       historical, max_calls, api_key_number, force):
+                       historical, max_calls, api_key_number, solnum, notice_id,
+                       force):
     """Load contract opportunities from the SAM.gov Opportunities API.
 
     Fetches opportunities matching the given filters and loads them into
@@ -71,6 +79,18 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
         python main.py load opportunities --historical
         python main.py load opportunities --max-calls=8
         python main.py load opportunities --force
+
+    Single-opportunity fetch (by notice ID or solicitation number):
+        python main.py load opportunities --notice-id=<ID> --posted-from=03/01/2024 --posted-to=08/31/2024
+        python main.py load opportunities --solnum=W52P1J-24-R-0001 --posted-from=03/01/2024 --posted-to=08/31/2024
+
+      NOTE: SAM.gov requires a posted date window even for single-record
+      lookups (max ~364 days). For an OLDER opportunity, pass --posted-from
+      to bracket when it was originally posted. The public API only returns
+      the latest ACTIVE version of a notice -- once a notice is archived
+      (often shortly after its response deadline), this lookup may return
+      nothing even with the right window. In that case the notice must be
+      pulled from SAM.gov's Archived Data bulk feed instead.
     """
     logger = setup_logging()
     from datetime import date as date_cls, timedelta
@@ -92,10 +112,19 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     loader = OpportunityLoader()
     load_mgr = LoadManager()
 
+    single_record = bool(solnum or notice_id)
+
     # --- Determine date range ---
     today = date_cls.today()
 
-    if historical:
+    if single_record and not posted_from and not historical:
+        # Single-record lookups still need a posted window. Default to the
+        # widest single call (364 days). For older notices the user should
+        # pass --posted-from to bracket the original posting date.
+        dt_from = today - timedelta(days=364)
+        dt_to = today
+        load_type = "SINGLE"
+    elif historical:
         dt_from = today - timedelta(days=730)  # ~2 years
         # Avoid Feb 29 (leap day) as start date -- SAM.gov API rejects it
         if dt_from.month == 2 and dt_from.day == 29:
@@ -116,6 +145,99 @@ def load_opportunities(days_back, set_aside, naics, posted_from, posted_to,
     # Normalise date strings for consistent resume key matching (always YYYY-MM-DD)
     posted_from_str = dt_from.isoformat()
     posted_to_str = dt_to.isoformat()
+
+    # --- Single-record fetch path (by notice ID or solicitation number) ---
+    if single_record:
+        lookup_kind = "notice ID" if notice_id else "solicitation number"
+        lookup_val = notice_id or solnum
+        click.echo("SAM.gov Opportunities Load (single record)")
+        click.echo(f"  API key:     #{api_key_number} (limit: {client.max_daily_requests}/day)")
+        click.echo(f"  Lookup:      {lookup_kind} = {lookup_val}")
+        click.echo(f"  Date window: {posted_from_str} to {posted_to_str}")
+        click.echo(f"  API calls remaining today: {client._get_remaining_requests()}")
+
+        load_id = load_mgr.start_load(
+            source_system="SAM_OPPORTUNITY",
+            load_type="SINGLE",
+            parameters={
+                "posted_from": posted_from_str,
+                "posted_to": posted_to_str,
+                "notice_id": notice_id,
+                "solnum": solnum,
+                "complete": False,
+            },
+        )
+        click.echo(f"\nLoad started (load_id={load_id})")
+
+        try:
+            if notice_id:
+                opp = client.get_opportunity(
+                    notice_id, posted_from=dt_from, posted_to=dt_to,
+                )
+                opps = [opp] if opp else []
+            else:
+                opps = list(client.search_opportunities(
+                    posted_from=dt_from, posted_to=dt_to, solnum=solnum,
+                ))
+        except RateLimitExceeded:
+            load_mgr.fail_load(load_id, "rate limit reached")
+            click.echo("  Rate limit reached. No records loaded.")
+            if api_key_number == 1:
+                click.echo("  Tip: use --key=2 for the 1000/day tier.")
+            sys.exit(1)
+        except Exception as e:
+            if "429" in str(e):
+                load_mgr.fail_load(load_id, "server rate limit (429)")
+                click.echo("  Server rate limit (429). No records loaded.")
+                if api_key_number == 1:
+                    click.echo("  Tip: use --key=2 for the 1000/day tier.")
+                sys.exit(1)
+            load_mgr.fail_load(load_id, str(e))
+            logger.exception("Single-record opportunity load failed")
+            click.echo(f"\nERROR: {e}")
+            sys.exit(1)
+
+        if not opps:
+            stats = {
+                "records_read": 0, "records_inserted": 0, "records_updated": 0,
+                "records_unchanged": 0, "records_errored": 0,
+            }
+            load_mgr.save_load_progress(
+                load_id,
+                parameters={
+                    "posted_from": posted_from_str, "posted_to": posted_to_str,
+                    "notice_id": notice_id, "solnum": solnum, "complete": True,
+                },
+                **stats,
+            )
+            click.echo(f"\nNo opportunity found for {lookup_kind} = {lookup_val} "
+                       f"in {posted_from_str}..{posted_to_str}.")
+            click.echo("  Likely causes:")
+            click.echo("    - The date window does not bracket the original posted date "
+                       "(widen --posted-from/--posted-to, max ~364 days per call).")
+            click.echo("    - The notice is ARCHIVED -- the public API only returns the "
+                       "latest ACTIVE version. Archived notices must be pulled from "
+                       "SAM.gov's Archived Data bulk feed instead.")
+            return
+
+        stats = loader.load_opportunity_batch(opps, load_id)
+        load_mgr.save_load_progress(
+            load_id,
+            parameters={
+                "posted_from": posted_from_str, "posted_to": posted_to_str,
+                "notice_id": notice_id, "solnum": solnum, "complete": True,
+                "total_records": len(opps),
+            },
+            **stats,
+        )
+        click.echo(f"\nSingle-record load COMPLETE!")
+        click.echo(f"  Records read:      {stats.get('records_read', 0):>6,d}")
+        click.echo(f"  Records inserted:  {stats.get('records_inserted', 0):>6,d}")
+        click.echo(f"  Records updated:   {stats.get('records_updated', 0):>6,d}")
+        click.echo(f"  Records unchanged: {stats.get('records_unchanged', 0):>6,d}")
+        click.echo(f"  Records errored:   {stats.get('records_errored', 0):>6,d}")
+        click.echo(f"  API calls remaining: {client._get_remaining_requests()}")
+        return
 
     # --- Parse NAICS codes ---
     naics_codes = [c.strip() for c in naics.split(',') if c.strip()] if naics else []
