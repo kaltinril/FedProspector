@@ -38,8 +38,18 @@ MYSQL_ROOT_PASS = os.environ.get("MYSQL_ROOT_PASS", "")
 DB_PORT = int(os.environ.get("DB_PORT", "3306"))
 API_PORT = int(os.environ.get("API_PORT", "5056"))
 UI_PORT = int(os.environ.get("UI_PORT", "5173"))
+# Production detection: the env var OR the presence of the external prod config file
+# (only present on a box provisioned for public HTTPS via generate-selfsigned-cert.ps1).
+# The file check makes this robust to a stale terminal where `setx ASPNETCORE_ENVIRONMENT
+# Production` hasn't taken effect yet — on the prod box it still runs the API as Production.
+EXTERNAL_CONFIG_PATH = os.environ.get(
+    "FEDPROSPECTOR_CONFIG", r"C:\fedprospector\config\fedprospector.local.json"
+)
 ASPNETCORE_ENV = os.environ.get("ASPNETCORE_ENVIRONMENT", "Development")
-IS_PRODUCTION = ASPNETCORE_ENV == "Production"
+IS_PRODUCTION = ASPNETCORE_ENV == "Production" or os.path.isfile(EXTERNAL_CONFIG_PATH)
+# The environment we actually launch the API with, so the file-based detection above
+# also drives the API process binding (not just our health probe).
+EFFECTIVE_ENV = "Production" if IS_PRODUCTION else ASPNETCORE_ENV
 # In Production the API serves the built UI + API over HTTPS (self-signed cert) on
 # the API port — one port, no separate UI server. In Development it's plain HTTP on
 # loopback so the Vite dev server can proxy to it.
@@ -97,6 +107,16 @@ def url_reachable(url: str) -> bool:
         return True
     except Exception:
         return False
+
+
+def find_live_api() -> str | None:
+    """Return the base URL the API is responding on, trying HTTPS then HTTP so build/
+    start/status work whether the API runs in Production (HTTPS) or Development (HTTP),
+    independent of this process's environment variables."""
+    for base in (f"https://localhost:{API_PORT}", f"http://localhost:{API_PORT}"):
+        if url_reachable(f"{base}/health"):
+            return base
+    return None
 
 
 def port_in_use(port: int) -> bool:
@@ -209,13 +229,13 @@ def _api_env() -> dict[str, str]:
     if jwt_secret:
         env["Jwt__SecretKey"] = jwt_secret
 
-    env["ASPNETCORE_ENVIRONMENT"] = ASPNETCORE_ENV
+    env["ASPNETCORE_ENVIRONMENT"] = EFFECTIVE_ENV
     # In Production (public exposure) let the Kestrel:Endpoints config in appsettings
     # drive binding — it serves HTTPS on all interfaces with the self-signed cert and
     # an HTTP endpoint that redirects. ASPNETCORE_URLS would override that config, so
     # we only set it for non-Production (dev) where we bind plain HTTP on loopback for
     # the Vite proxy.
-    if ASPNETCORE_ENV != "Production":
+    if EFFECTIVE_ENV != "Production":
         env["ASPNETCORE_URLS"] = f"http://localhost:{API_PORT}"
     else:
         env.pop("ASPNETCORE_URLS", None)
@@ -234,7 +254,7 @@ def start_api():
     if not env.get("Jwt__SecretKey"):
         print("  [API] WARNING: JWT_SECRET_KEY not set in fed_prospector/.env")
         print("        Auth will fail. Add: JWT_SECRET_KEY=<at-least-32-chars>")
-    print(f"  [API] Starting .NET API ({ASPNETCORE_ENV}) ...")
+    print(f"  [API] Starting .NET API ({EFFECTIVE_ENV}) ...")
     subprocess.Popen(
         f'start "FedProspector API" /MIN dotnet run --no-build --project "{API_PROJECT}"',
         shell=True,
@@ -242,12 +262,11 @@ def start_api():
     )
     for i in range(60):
         time.sleep(1)
-        if url_reachable(f"{API_URL}/health"):
-            if IS_PRODUCTION:
-                print(f"  [API] Ready ({i+1}s).  Serving UI + API over HTTPS at {API_URL}/")
-            else:
-                print(f"  [API] Ready ({i+1}s).  Swagger: {API_URL}/swagger")
-            print(f"                    Health:  {API_URL}/health")
+        live = find_live_api()
+        if live:
+            scheme = "HTTPS" if live.startswith("https") else "HTTP"
+            print(f"  [API] Ready ({i+1}s).  Serving at {live}/  ({scheme})")
+            print(f"                    Health:  {live}/health")
             return
         if i == 14:
             print("  [API] Still waiting for API to respond...")
@@ -271,10 +290,11 @@ def stop_api():
 
 def check_api():
     if is_running(API_EXE):
-        if IS_PRODUCTION:
-            print(f"  [API] Running  ({API_URL}/  — serves UI + API over HTTPS)")
+        live = find_live_api()
+        if live:
+            print(f"  [API] Running  ({live}/)")
         else:
-            print(f"  [API] Running  ({API_URL}/swagger)")
+            print(f"  [API] Running (process up; not responding on {API_PORT} yet)")
     else:
         print("  [API] Stopped")
 
