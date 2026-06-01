@@ -69,6 +69,19 @@ param(
     # IPAddress SAN entries; hostnames become DNS SAN entries. Defaults cover this
     # deployment's external + internal + loopback addresses — re-run with new values
     # (e.g. after a public-IP change) and it regenerates the cert + config.
+    # Validated so a mistyped flag (e.g. the double-dash '--Force') can't be silently
+    # written into the cert SAN / AllowedHosts.
+    [ValidateScript({
+        foreach ($n in $_) {
+            $parsedIp = $null
+            $isIp = [System.Net.IPAddress]::TryParse($n, [ref]$parsedIp)
+            $isHost = $n -match '^[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9\-]*[A-Za-z0-9])?)*$'
+            if (-not ($isIp -or $isHost)) {
+                throw "Invalid -DnsName entry '$n' — expected a hostname or IP address, not a flag. PowerShell switches use a SINGLE dash (e.g. -Force, not --Force)."
+            }
+        }
+        $true
+    })]
     [string[]]$DnsName = @("206.162.3.86", "192.168.0.173", "localhost", "127.0.0.1"),
 
     [int]$Port = 5056,
