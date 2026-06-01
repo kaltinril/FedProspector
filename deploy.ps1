@@ -43,7 +43,11 @@ $jobs = @()
 
 $jobs += Start-Job -Name "Project" -ScriptBlock {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $output = robocopy "C:\git\fedProspect" "\\$using:target\gitshare\fedProspect" /E /MT:16 /J /R:1 /W:1 /ETA /XD ".git" "node_modules" "__pycache__" ".venv"
+    # /XF appsettings.Local.json: this file holds PER-MACHINE secrets — prod's DB
+    # creds, JWT key, AND the Kestrel HTTPS/self-signed-cert config. Never overwrite
+    # prod's copy with dev's, or every deploy would wipe the SSL setup. Prod owns its
+    # own appsettings.Local.json; deploy leaves it untouched.
+    $output = robocopy "C:\git\fedProspect" "\\$using:target\gitshare\fedProspect" /E /MT:16 /J /R:1 /W:1 /ETA /XD ".git" "node_modules" "__pycache__" ".venv" /XF "appsettings.Local.json"
     $exitCode = $LASTEXITCODE
     $sw.Stop()
     [PSCustomObject]@{ Output = ($output -join "`r`n"); Elapsed = $sw.Elapsed; ExitCode = $exitCode }
@@ -96,11 +100,12 @@ if (Test-Path $envFile) {
     Write-Host "  No fed_prospector\.env found on prod (skipping .env rewrites)" -ForegroundColor DarkGray
 }
 
-# Fix 4: Rewrite prod-specific connection string values and ensure pool limits.
-# appsettings.Local.json is gitignored and shipped verbatim by robocopy, so dev's
-# Server= (the prod LAN IP) clobbers prod's. fed_app is only granted @'localhost',
-# so the API must connect via loopback. Rewrite Server -> localhost, same as .env's
-# DB_HOST rewrite above.
+# Safety net for appsettings.Local.json. As of the /XF exclusion above this file is
+# NO LONGER copied from dev — prod owns its own (DB creds, JWT key, Kestrel HTTPS
+# cert config). This block now only normalizes prod's existing file: fed_app is
+# granted @'localhost' so the connection must use loopback. On a correctly
+# configured prod box this is an idempotent no-op; it stays to self-heal an older
+# file that still had a LAN Server= value.
 $appSettings = "\\$target\gitshare\fedProspect\api\src\FedProspector.Api\appsettings.Local.json"
 if (Test-Path $appSettings) {
     $content = Get-Content $appSettings -Raw

@@ -12,6 +12,7 @@ import argparse
 import os
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -38,7 +39,13 @@ DB_PORT = int(os.environ.get("DB_PORT", "3306"))
 API_PORT = int(os.environ.get("API_PORT", "5056"))
 UI_PORT = int(os.environ.get("UI_PORT", "5173"))
 ASPNETCORE_ENV = os.environ.get("ASPNETCORE_ENVIRONMENT", "Development")
-API_URL = f"http://localhost:{API_PORT}"
+IS_PRODUCTION = ASPNETCORE_ENV == "Production"
+# In Production the API serves the built UI + API over HTTPS (self-signed cert) on
+# the API port — one port, no separate UI server. In Development it's plain HTTP on
+# loopback so the Vite dev server can proxy to it.
+API_SCHEME = "https" if IS_PRODUCTION else "http"
+API_URL = f"{API_SCHEME}://localhost:{API_PORT}"
+WWWROOT_DIR = API_PROJECT / "wwwroot"
 POLLER_TITLE = "FedProspect Poller"
 POLLER_DIR = SCRIPT_DIR / "fed_prospector"
 
@@ -76,8 +83,14 @@ def mysql_admin(*args: str, timeout: int = 10) -> int:
 
 def url_reachable(url: str) -> bool:
     """Check if a URL responds (any HTTP response counts as reachable)."""
+    ctx = None
+    if url.lower().startswith("https"):
+        # Production serves a self-signed cert; don't verify it for a local probe.
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
     try:
-        urllib.request.urlopen(url, timeout=3)
+        urllib.request.urlopen(url, timeout=3, context=ctx)
         return True
     except urllib.error.HTTPError:
         # Server responded (e.g. 503 degraded) — it's running
@@ -230,7 +243,10 @@ def start_api():
     for i in range(60):
         time.sleep(1)
         if url_reachable(f"{API_URL}/health"):
-            print(f"  [API] Ready ({i+1}s).  Swagger: {API_URL}/swagger")
+            if IS_PRODUCTION:
+                print(f"  [API] Ready ({i+1}s).  Serving UI + API over HTTPS at {API_URL}/")
+            else:
+                print(f"  [API] Ready ({i+1}s).  Swagger: {API_URL}/swagger")
             print(f"                    Health:  {API_URL}/health")
             return
         if i == 14:
@@ -255,7 +271,10 @@ def stop_api():
 
 def check_api():
     if is_running(API_EXE):
-        print(f"  [API] Running  ({API_URL}/swagger)")
+        if IS_PRODUCTION:
+            print(f"  [API] Running  ({API_URL}/  — serves UI + API over HTTPS)")
+        else:
+            print(f"  [API] Running  ({API_URL}/swagger)")
     else:
         print("  [API] Stopped")
 
@@ -283,6 +302,17 @@ def build_ui():
 
 
 def start_ui():
+    if IS_PRODUCTION:
+        # No separate UI server in Production — the API serves the built SPA from
+        # wwwroot over HTTPS (Option B, single port). Just confirm it's built.
+        if (WWWROOT_DIR / "index.html").is_file():
+            print("  [UI]  Served by the API over HTTPS (Production) — no separate UI server.")
+            print(f"        Files: {WWWROOT_DIR}")
+        else:
+            print("  [UI]  WARNING: No built UI found — the API has nothing to serve at '/'.")
+            print(f"        Expected: {WWWROOT_DIR / 'index.html'}")
+            print("        deploy.ps1 builds + ships the UI; or build locally: python fed_prospector.py build ui")
+        return
     if port_in_use(UI_PORT):
         print(f"  [UI]  Already running (port {UI_PORT}).")
         return
@@ -306,6 +336,9 @@ def start_ui():
 
 
 def stop_ui():
+    if IS_PRODUCTION:
+        print("  [UI]  Served by the API (Production) — nothing separate to stop.")
+        return
     if not port_in_use(UI_PORT):
         print("  [UI]  Not running.")
         return
@@ -335,6 +368,12 @@ def stop_ui():
 
 
 def check_ui():
+    if IS_PRODUCTION:
+        if (WWWROOT_DIR / "index.html").is_file():
+            print("  [UI]  Served by the API (Production, HTTPS)")
+        else:
+            print("  [UI]  NOT BUILT — no index.html in the API's wwwroot")
+        return
     if port_in_use(UI_PORT):
         print(f"  [UI]  Running  (http://localhost:{UI_PORT})")
     else:
