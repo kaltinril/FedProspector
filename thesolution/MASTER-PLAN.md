@@ -170,7 +170,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 130 | Early Attachment Cleanup & Re-Analyze | COMPLETE | [130-EARLY-CLEANUP-AND-REANALYZE.md](phases/completed/130-EARLY-CLEANUP-AND-REANALYZE.md) |
 | 131 | Per-Attachment Re-Analysis | COMPLETE | [131-PER-ATTACHMENT-REANALYSIS.md](phases/completed/131-PER-ATTACHMENT-REANALYSIS.md) |
 | 132 | Identifier Dash-Normalization | COMPLETE | [132-IDENTIFIER-DASH-NORMALIZATION.md](phases/completed/132-IDENTIFIER-DASH-NORMALIZATION.md) |
-| 133 | Linked Entity Aggregation Fixes + Sister Subsidiary + SBA Affiliation Size Roll-Up | PLANNED | [133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md](phases/133-MENTOR-PROTEGE-AND-SUBSIDIARY-LINKING.md) |
+| 133 | Linked Entity Aggregation Fixes + Sister Subsidiary + SBA Affiliation Size Roll-Up | PLANNED | [133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md](phases/133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md) |
 | 134 | DB Centralization and Deploy Safety | COMPLETE | [134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md](phases/completed/134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md) |
 | 135 | Public Internet Exposure — Single-Port HTTPS + Unauthenticated Hardening | COMPLETE (2 TODOs: build should not auto-launch API; deploy should also `dotnet build` API) | [135-PUBLIC-INTERNET-EXPOSURE.md](phases/completed/135-PUBLIC-INTERNET-EXPOSURE.md) |
 | 150 | Security Hardening | DEFERRED (unauthenticated-surface items now largely done in Phase 135) | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |

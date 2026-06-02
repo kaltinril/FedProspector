@@ -142,7 +142,7 @@ WHERE esc.certification_exit_date IS NOT NULL
 -- Compare organization revenue/employees against SBA size
 -- standards for their registered NAICS codes.
 -- Only rows where usage >= 80% of threshold are returned.
--- size_type: 'R' = revenue (millions), 'E' = employees
+-- size_type: 'M' = revenue (millions), 'E' = employees
 -- ============================================================
 
 CREATE OR REPLACE VIEW v_sba_size_standard_monitor AS
@@ -153,11 +153,11 @@ SELECT
     ss.size_type                                      AS size_standard_type,
     ss.size_standard                                  AS threshold,
     CASE ss.size_type
-        WHEN 'R' THEN o.annual_revenue / 1000000.0   -- convert to millions for comparison
+        WHEN 'M' THEN o.annual_revenue / 1000000.0   -- convert to millions for comparison
         WHEN 'E' THEN o.employee_count
     END                                               AS current_value,
     CASE ss.size_type
-        WHEN 'R' THEN ROUND((o.annual_revenue / 1000000.0) / ss.size_standard * 100, 1)
+        WHEN 'M' THEN ROUND((o.annual_revenue / 1000000.0) / ss.size_standard * 100, 1)
         WHEN 'E' THEN ROUND(o.employee_count / ss.size_standard * 100, 1)
     END                                               AS pct_of_threshold
 FROM organization o
@@ -165,7 +165,7 @@ INNER JOIN organization_naics orn ON o.organization_id = orn.organization_id
 INNER JOIN ref_sba_size_standard ss ON orn.naics_code = ss.naics_code
 WHERE ss.size_standard > 0
   AND (
-      (ss.size_type = 'R' AND o.annual_revenue IS NOT NULL
+      (ss.size_type = 'M' AND o.annual_revenue IS NOT NULL
        AND (o.annual_revenue / 1000000.0) / ss.size_standard >= 0.80)
       OR
       (ss.size_type = 'E' AND o.employee_count IS NOT NULL
