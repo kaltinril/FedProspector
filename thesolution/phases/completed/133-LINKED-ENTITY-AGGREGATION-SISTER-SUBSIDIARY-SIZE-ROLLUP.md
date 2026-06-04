@@ -1,6 +1,6 @@
 # Phase 133: Linked Entity Aggregation Fixes + Sister Subsidiary + SBA Affiliation Size Roll-Up
 
-**Status:** PLANNED
+**Status:** COMPLETE (2026-06-03)
 **Priority:** Medium — bug fixes for three linked-entity views and one broken page, plus one new relationship type.
 **Dependencies:** Phase 115D (Teaming & Partnerships — `organization_entity`), Phase 115F (Onboarding & Past Performance — the three views below). **Task 6 (affiliation size roll-up) additionally depends on Phase 129 Task 3** — the size-eligibility engine (`CheckSizeEligibilityAsync`) it extends.
 
@@ -25,6 +25,23 @@ Open questions on Task 6 resolved with the product owner; folded into the tasks 
 2. **Affiliate financials are entered manually via the UI**, not sourced from SAM.gov `entity_*` tables (those carry no revenue/headcount, and affiliates are external UEIs with no `organization` row). Two new nullable columns on `organization_entity` (`affiliate_annual_revenue`, `affiliate_employee_count`) hold owner-entered figures. The org's own figures stay on `organization.annual_revenue` / `organization.employee_count`.
 3. **The org is always the hub (its `SELF` link); there is no upward "parent" link.** The included affiliation set is active rows with relationship in { `SELF`, `SISTER_SUBSIDIARY`, `JV_PARTNER` }; `TEAMING` is excluded. Upward parent-company linking is out of scope (see Deferred).
 4. **Aggregation is combined/sum, not largest-single-entity** — per 13 CFR 121.103(a)(6) and 121.104(d)(1), size = the org's receipts/employees PLUS each included affiliate's, compared as a combined total to the NAICS threshold. The only "size off one party" case is an SBA-approved mentor-protégé JV (mentor's size excluded, 13 CFR 125.9(d)(1)(iii) & (d)(4); 121.103(b)(6)), which is **now in scope** for Task 6 via a per-link `mpa_approved` flag on the `JV_PARTNER` link (not a new relationship type) — driven by the owner's real situation of one approved-MPA JV (mentor excluded) and one regular JV (counted). Only the broader mentor-protégé past-performance inheritance modeling (§ 125.9(d), distinct from this size exclusion) stays deferred.
+
+---
+
+## Completion — 2026-06-03
+
+All 6 tasks are implemented across DB / C# / UI and live on **prod**.
+
+- **Task 1 — `SISTER_SUBSIDIARY` relationship type.** Added to `ValidRelationships` in `OrganizationEntityService.cs` and to `RELATIONSHIP_OPTIONS` + the relationship-color switch in `OrgEntitiesTab.tsx`. (No DB migration — `relationship` is free-form `VARCHAR`.)
+- **Tasks 2/3/4 — onboarding views aggregate linked entities.** `v_portfolio_gap_analysis`, `v_certification_expiration_alert`, and `v_sba_size_standard_monitor` now aggregate across linked entities (migration `133b_linked_entity_view_aggregation.sql`); **applied & verified on PROD**. `v_portfolio_gap_analysis` now returns rows it previously missed; all three views reference `organization_entity`; the size view retains the `size_type` `'R'`→`'M'` fix from `133a`.
+- **Task 5 — Mentor-Protégé page fixed.** Root cause was a cartesian blow-up in the backing view: the cardinality fix (`133c_fix_mentor_protege_candidate_cardinality.sql`) dropped `v_mentor_protege_candidate` from ~5.49M to ~309K rows on **prod**. Backend hardened (no unbounded count; the 400-on-mount is fixed) and the UI now renders a clean empty state.
+- **Task 6 — SBA affiliation size roll-up (13 CFR 121.103).** Four new `organization_entity` columns — `affiliate_annual_revenue`, `affiliate_employee_count`, `mpa_approved`, `mpa_effective_date` — added via migration `133d_affiliation_size_rollup_columns.sql` (**applied & verified on prod**) and EF migration `AddAffiliationSizeRollupColumns`. Service surface: `CheckSizeEligibilityWithAffiliatesAsync` + `AffiliatedSizeEligibilityResultDto` + endpoint `GET /api/v1/org/size-eligibility/{naicsCode}`. UI adds the affiliate-financial inputs, the JV approved-MPA flag, and a standalone-vs-affiliated display with a `flippedToOtherThanSmall` callout.
+
+**Verification level:** C# builds (0 errors), **959 automated tests pass** (Core 345 / Infra 330 / Api 284), UI builds, and **all DB migrations applied & verified on PROD**. Manual UI click-through is recommended as a final check.
+
+**Known follow-ups (not blockers):**
+- The EF model snapshot is materially stale vs. the actual models (pre-existing; per CLAUDE.md the prod-apply mechanism is raw SQL, not EF migrate).
+- The mentor-protégé view at ~309K rows could be tightened further.
 
 ---
 

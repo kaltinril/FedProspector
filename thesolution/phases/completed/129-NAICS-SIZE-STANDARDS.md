@@ -25,7 +25,7 @@ Task 7 (NAICS concordance table `ref_naics_concordance` + the 2022→2027 cross-
 
 ### Affiliation roll-up — moved to Phase 133
 
-Phase 129's eligibility engine is **single-org only** and explicitly excludes affiliates. The SBA AFFILIATION size roll-up (aggregating affiliates' revenue/headcount into a combined size determination per 13 CFR 121.103) is now tracked as a **new Task 6 in Phase 133** (`thesolution/phases/133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md`). When that lands, the eligibility engine here should consume the rolled-up totals.
+Phase 129's eligibility engine is **single-org only** and explicitly excludes affiliates. The SBA AFFILIATION size roll-up (aggregating affiliates' revenue/headcount into a combined size determination per 13 CFR 121.103) is now tracked as a **new Task 6 in Phase 133** (`thesolution/phases/completed/133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md`). When that lands, the eligibility engine here should consume the rolled-up totals.
 
 ---
 

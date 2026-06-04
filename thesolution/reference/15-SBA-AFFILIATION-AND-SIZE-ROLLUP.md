@@ -186,7 +186,7 @@ as those manual inputs.
 ### Where it's implemented
 
 The combined roll-up and the per-link MPA flag are implemented in **Phase 133, Task 6** — see
-[133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md](../phases/133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md).
+[133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md](../phases/completed/133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md).
 It extends the single-org baseline `CompanyProfileService.CheckSizeEligibilityAsync` (Phase 129),
 which (by design) considers only the org's own figures and excludes affiliates.
 
@@ -211,6 +211,6 @@ CFR text below was cross-checked against the Cornell Law eCFR mirror:
 
 - [13-NAICS-SIZE-STANDARDS.md](13-NAICS-SIZE-STANDARDS.md) — the per-NAICS size **standards**,
   `size_type` (`'M'`/`'E'`), the unit gotcha, and the affiliate-exclusion caveat it defers here.
-- [Phase 133 — Linked-Entity Aggregation & Size Roll-Up](../phases/133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md) — the implementation (Task 6) and deferred mentor-protégé items.
+- [Phase 133 — Linked-Entity Aggregation & Size Roll-Up](../phases/completed/133-LINKED-ENTITY-AGGREGATION-SISTER-SUBSIDIARY-SIZE-ROLLUP.md) — the implementation (Task 6) and deferred mentor-protégé items.
 - [06-GLOSSARY.md](06-GLOSSARY.md) — domain terms (set-aside, WOSB, 8(a), JV, etc.).
 - [05-LEGAL-CONSIDERATIONS.md](05-LEGAL-CONSIDERATIONS.md) — broader legal/compliance posture.
