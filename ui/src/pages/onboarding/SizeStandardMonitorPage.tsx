@@ -16,6 +16,7 @@ import { EmptyState } from '@/components/shared/EmptyState';
 import { useSizeStandardAlerts } from '@/queries/useOnboarding';
 import { useAffiliatedSizeEligibility } from '@/queries/useOrganization';
 import { formatCurrency } from '@/utils/formatters';
+import { AffiliationFlipBanner } from './AffiliationFlipBanner';
 
 function thresholdColor(pct: number | null | undefined): 'error' | 'warning' | 'success' {
   if (pct == null) return 'success';
@@ -142,6 +143,12 @@ export default function SizeStandardMonitorPage() {
           title="Size Standard Monitor"
           subtitle="Track SBA size standard thresholds by NAICS code"
         />
+        {/*
+         * Surfaced even with no >=80% monitor cards: an org that is comfortably small alone can
+         * still flip to other-than-small once affiliates are combined. The size-standard view
+         * only returns near-threshold codes, so this banner is the only place that case appears.
+         */}
+        <AffiliationFlipBanner />
         <EmptyState
           title="No Size Standards"
           message="No size standard data available. Add NAICS codes and size standard information to your organization profile."
@@ -156,6 +163,8 @@ export default function SizeStandardMonitorPage() {
         title="Size Standard Monitor"
         subtitle={`Monitoring ${alerts.length} NAICS code${alerts.length !== 1 ? 's' : ''} against SBA thresholds`}
       />
+      {/* Affiliation roll-up flip warning across ALL registered NAICS, above the >=80% cards. */}
+      <AffiliationFlipBanner />
       <Grid container spacing={2}>
         {alerts.map((alert) => {
           const pct = alert.pctOfThreshold ?? 0;

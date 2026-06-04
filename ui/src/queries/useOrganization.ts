@@ -1,4 +1,10 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  useQuery,
+  useQueries,
+  useMutation,
+  useQueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import { queryKeys } from './queryKeys';
 import {
   getOrganization,
@@ -34,6 +40,7 @@ import type {
   OrgNaicsDto,
   OrgCertificationDto,
   CreatePastPerformanceRequest,
+  AffiliatedSizeEligibilityResultDto,
 } from '@/types/organization';
 
 // Organization details
@@ -216,6 +223,32 @@ export function useAffiliatedSizeEligibility(naicsCode: string | null | undefine
     queryFn: () => getAffiliatedSizeEligibility(naicsCode as string),
     staleTime: 5 * 60 * 1000, // 5 minutes
     enabled: enabled && !!naicsCode,
+  });
+}
+
+/**
+ * Phase 133 Task 6: affiliation-aware size determination across MANY NAICS codes at once.
+ *
+ * Fires one `GET /org/size-eligibility/{naicsCode}` per code via `useQueries`, reusing the same
+ * cache key and staleTime as the single-code hook, so a code shown by both a monitor card and
+ * the flip banner is fetched once. A typical org registers only a handful of NAICS, so the
+ * fan-out is small; if an org ever carried dozens this would warrant a batch endpoint, but that
+ * is a C# change out of scope here.
+ *
+ * Returns the raw `useQueries` array of `UseQueryResult` so callers aggregate loading/error and
+ * filter the verdicts. Codes are expected to be de-duplicated by the caller.
+ */
+export function useAffiliatedSizeEligibilityForCodes(
+  naicsCodes: string[],
+  enabled = true,
+): UseQueryResult<AffiliatedSizeEligibilityResultDto>[] {
+  return useQueries({
+    queries: naicsCodes.map((code) => ({
+      queryKey: queryKeys.organization.sizeEligibility(code),
+      queryFn: () => getAffiliatedSizeEligibility(code),
+      staleTime: 5 * 60 * 1000, // 5 minutes — matches useAffiliatedSizeEligibility
+      enabled: enabled && !!code,
+    })),
   });
 }
 
