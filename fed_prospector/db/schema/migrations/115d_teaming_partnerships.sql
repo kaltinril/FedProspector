@@ -202,6 +202,11 @@ WHERE e.registration_status = 'A';
 -- Mentor: larger vendors in overlapping NAICS codes.
 -- Sources: entity, entity_sba_certification, entity_naics,
 --          fpds_contract.
+-- Phase 133 (Task 5): the final join is bounded -- within each
+-- (protege, shared NAICS) only the top 10 mentors by mentor_total_value are
+-- kept (via ROW_NUMBER()). Previously the protege x mentor cross-product over
+-- popular NAICS blew the view up to ~5.49M rows and timed out the
+-- /api/v1/teaming/mentor-protege endpoint. Output columns are unchanged.
 -- ============================================================
 
 CREATE OR REPLACE VIEW v_mentor_protege_candidate AS
@@ -249,29 +254,53 @@ mentor AS (
       AND fc.date_signed >= DATE_SUB(CURDATE(), INTERVAL 5 YEAR)
     GROUP BY fc.vendor_uei, e.legal_business_name, fc.naics_code
     HAVING SUM(fc.dollars_obligated) >= 1000000
+),
+-- Bound the cross-product: rank mentors within each (protege, shared NAICS) by
+-- value and keep only the top 10. Without this cap a single popular NAICS pairs
+-- one protege with thousands of mentors, blowing the view up to ~5.49M rows.
+ranked AS (
+    SELECT
+        p.uei_sam                                                          AS protege_uei,
+        p.legal_business_name                                              AS protege_name,
+        p.certifications                                                   AS protege_certifications,
+        p.naics_codes                                                      AS protege_naics,
+        pv.protege_contract_count,
+        pv.protege_total_value,
+        m.uei_sam                                                          AS mentor_uei,
+        m.legal_business_name                                              AS mentor_name,
+        m.naics_code                                                       AS shared_naics,
+        m.mentor_contract_count,
+        m.mentor_total_value,
+        m.mentor_agencies,
+        ROW_NUMBER() OVER (
+            PARTITION BY p.uei_sam, m.naics_code
+            ORDER BY m.mentor_total_value DESC, m.uei_sam
+        )                                                                  AS mentor_rank
+    FROM protege p
+    INNER JOIN protege_volume pv
+        ON pv.uei_sam = p.uei_sam
+    INNER JOIN entity_naics pen
+        ON pen.uei_sam = p.uei_sam
+    INNER JOIN mentor m
+        ON m.naics_code = pen.naics_code
+        AND m.uei_sam != p.uei_sam
+    WHERE pv.protege_total_value < 10000000
 )
 SELECT
-    p.uei_sam                                                              AS protege_uei,
-    p.legal_business_name                                                  AS protege_name,
-    p.certifications                                                       AS protege_certifications,
-    p.naics_codes                                                          AS protege_naics,
-    pv.protege_contract_count,
-    pv.protege_total_value,
-    m.uei_sam                                                              AS mentor_uei,
-    m.legal_business_name                                                  AS mentor_name,
-    m.naics_code                                                           AS shared_naics,
-    m.mentor_contract_count,
-    m.mentor_total_value,
-    m.mentor_agencies
-FROM protege p
-INNER JOIN protege_volume pv
-    ON pv.uei_sam = p.uei_sam
-INNER JOIN entity_naics pen
-    ON pen.uei_sam = p.uei_sam
-INNER JOIN mentor m
-    ON m.naics_code = pen.naics_code
-    AND m.uei_sam != p.uei_sam
-WHERE pv.protege_total_value < 10000000;
+    protege_uei,
+    protege_name,
+    protege_certifications,
+    protege_naics,
+    protege_contract_count,
+    protege_total_value,
+    mentor_uei,
+    mentor_name,
+    shared_naics,
+    mentor_contract_count,
+    mentor_total_value,
+    mentor_agencies
+FROM ranked
+WHERE mentor_rank <= 10;
 
 
 -- ============================================================

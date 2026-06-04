@@ -96,6 +96,9 @@ LEFT JOIN (
 -- Upcoming certification expirations within 90 days.
 -- Sources from organization_certification (manual entries)
 -- and entity_sba_certification (SAM.gov data via UEI match).
+-- Phase 133 (Task 3): SAM.gov certs are matched against the org's own UEI
+-- AND every active linked UEI in organization_entity, so certs on a sister
+-- subsidiary / JV partner surface under the org.
 -- ============================================================
 
 CREATE OR REPLACE VIEW v_certification_expiration_alert AS
@@ -119,9 +122,10 @@ WHERE oc.expiration_date IS NOT NULL
 
 UNION ALL
 
--- SAM.gov SBA certifications matched via UEI
+-- SAM.gov SBA certifications matched via UEI.
+-- org_uei unions the org's own uei_sam with every active linked UEI.
 SELECT
-    o.organization_id,
+    org_uei.organization_id,
     esc.sba_type_code                                 AS certification_type,
     esc.certification_exit_date                       AS expiration_date,
     DATEDIFF(esc.certification_exit_date, NOW())      AS days_until_expiration,
@@ -131,8 +135,19 @@ SELECT
         ELSE 'NOTICE'
     END                                               AS alert_level,
     'SAM_GOV'                                         AS source
-FROM entity_sba_certification esc
-INNER JOIN organization o ON o.uei_sam = esc.uei_sam
+FROM (
+    -- org's own UEI
+    SELECT o.organization_id, o.uei_sam
+    FROM organization o
+    WHERE o.uei_sam IS NOT NULL
+    UNION
+    -- active linked UEIs
+    SELECT oe.organization_id, oe.uei_sam
+    FROM organization_entity oe
+    WHERE oe.is_active = 'Y'
+      AND oe.uei_sam IS NOT NULL
+) org_uei
+INNER JOIN entity_sba_certification esc ON esc.uei_sam = org_uei.uei_sam
 WHERE esc.certification_exit_date IS NOT NULL
   AND esc.certification_exit_date >= CURDATE()
   AND esc.certification_exit_date <= DATE_ADD(CURDATE(), INTERVAL 90 DAY);
@@ -143,13 +158,20 @@ WHERE esc.certification_exit_date IS NOT NULL
 -- standards for their registered NAICS codes.
 -- Only rows where usage >= 80% of threshold are returned.
 -- size_type: 'M' = revenue (millions), 'E' = employees
+--   ('M'/'E' is the 133a hotfix correction -- the old 'R' was a bug; do NOT
+--   reintroduce 'R'.)
+-- Phase 133 (Task 4): NAICS are sourced from the org's organization_naics
+-- UNION linked entities' entity_naics (via active organization_entity), so
+-- NAICS registered only on a sister subsidiary / JV partner are monitored too.
+-- NOTE: the revenue/employee figures are still the ORG's own; summing affiliate
+-- financials into the size verdict is Task 6 (separate work).
 -- ============================================================
 
 CREATE OR REPLACE VIEW v_sba_size_standard_monitor AS
 SELECT
     o.organization_id,
     o.name                                            AS organization_name,
-    orn.naics_code,
+    org_naics.naics_code,
     ss.size_type                                      AS size_standard_type,
     ss.size_standard                                  AS threshold,
     CASE ss.size_type
@@ -161,8 +183,19 @@ SELECT
         WHEN 'E' THEN ROUND(o.employee_count / ss.size_standard * 100, 1)
     END                                               AS pct_of_threshold
 FROM organization o
-INNER JOIN organization_naics orn ON o.organization_id = orn.organization_id
-INNER JOIN ref_sba_size_standard ss ON orn.naics_code = ss.naics_code
+-- Aggregated NAICS set: org's own organization_naics UNION linked entities'
+-- entity_naics (via active organization_entity). UNION de-dupes a NAICS that is
+-- registered on both the org and a linked entity into a single row.
+INNER JOIN (
+    SELECT orn.organization_id, orn.naics_code
+    FROM organization_naics orn
+    UNION
+    SELECT oe.organization_id, en.naics_code
+    FROM organization_entity oe
+    INNER JOIN entity_naics en ON en.uei_sam = oe.uei_sam
+    WHERE oe.is_active = 'Y'
+) org_naics ON org_naics.organization_id = o.organization_id
+INNER JOIN ref_sba_size_standard ss ON org_naics.naics_code = ss.naics_code
 WHERE ss.size_standard > 0
   AND (
       (ss.size_type = 'M' AND o.annual_revenue IS NOT NULL
@@ -258,12 +291,20 @@ INNER JOIN opportunity opp
 -- Per organization + NAICS code: compare opportunity volume
 -- (active opps matching the org's NAICS codes) against past
 -- performance count to identify gaps and strengths.
+-- Phase 133 (Task 2):
+--   NAICS source  = org's organization_naics UNION linked entities'
+--                   entity_naics (via active organization_entity).
+--   Past-perf cnt = org's organization_past_performance rows PLUS awards on the
+--                   org's active linked UEIs from usaspending_award
+--                   (organization_entity.uei_sam = usaspending_award.recipient_uei),
+--                   grouped by usaspending_award.naics_code, deleted_at IS NULL.
+--                   usaspending_award per CLAUDE.md -- NOT fpds_contract.
 -- ============================================================
 
 CREATE OR REPLACE VIEW v_portfolio_gap_analysis AS
 SELECT
-    orn.organization_id,
-    orn.naics_code,
+    org_naics.organization_id,
+    org_naics.naics_code,
     COALESCE(opp_counts.opportunity_count, 0)         AS opportunity_count,
     COALESCE(pp_counts.past_performance_count, 0)     AS past_performance_count,
     CASE
@@ -278,17 +319,47 @@ SELECT
         THEN 'STRONG_MATCH'
         ELSE 'NO_DATA'
     END                                               AS gap_type
-FROM organization_naics orn
+FROM (
+    -- Aggregated NAICS set: org's own organization_naics UNION linked entities'
+    -- entity_naics. UNION de-dupes a NAICS shared by org + linked entity.
+    SELECT orn.organization_id, orn.naics_code
+    FROM organization_naics orn
+    UNION
+    SELECT oe.organization_id, en.naics_code
+    FROM organization_entity oe
+    INNER JOIN entity_naics en ON en.uei_sam = oe.uei_sam
+    WHERE oe.is_active = 'Y'
+) org_naics
 LEFT JOIN (
     SELECT naics_code, COUNT(*) AS opportunity_count
     FROM opportunity
     WHERE active = 'Y'
     GROUP BY naics_code
-) opp_counts ON orn.naics_code = opp_counts.naics_code
+) opp_counts ON org_naics.naics_code = opp_counts.naics_code
 LEFT JOIN (
-    SELECT organization_id, naics_code, COUNT(*) AS past_performance_count
-    FROM organization_past_performance
-    WHERE naics_code IS NOT NULL
+    -- Org's own past performance UNION ALL linked-UEI awards from
+    -- usaspending_award, summed per (organization_id, naics_code).
+    SELECT organization_id, naics_code, SUM(cnt) AS past_performance_count
+    FROM (
+        -- Org's manually entered past performance
+        SELECT organization_id, naics_code, COUNT(*) AS cnt
+        FROM organization_past_performance
+        WHERE naics_code IS NOT NULL
+        GROUP BY organization_id, naics_code
+
+        UNION ALL
+
+        -- Awards on the org's active linked UEIs (incumbency on a sister
+        -- subsidiary / JV partner counts as experience for that NAICS).
+        SELECT oe.organization_id, ua.naics_code, COUNT(*) AS cnt
+        FROM organization_entity oe
+        INNER JOIN usaspending_award ua
+            ON ua.recipient_uei = oe.uei_sam
+        WHERE oe.is_active = 'Y'
+          AND ua.deleted_at IS NULL
+          AND ua.naics_code IS NOT NULL
+        GROUP BY oe.organization_id, ua.naics_code
+    ) pp_union
     GROUP BY organization_id, naics_code
-) pp_counts ON orn.organization_id = pp_counts.organization_id
-              AND orn.naics_code = pp_counts.naics_code;
+) pp_counts ON org_naics.organization_id = pp_counts.organization_id
+              AND org_naics.naics_code = pp_counts.naics_code;
