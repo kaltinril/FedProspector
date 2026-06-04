@@ -1,4 +1,4 @@
--- migrations/133b_affiliation_size_rollup_columns.sql
+-- migrations/133d_affiliation_size_rollup_columns.sql
 -- Phase 133 Task 6: SBA Affiliation Size Roll-Up (13 CFR 121.103).
 --
 -- Adds four nullable columns to organization_entity to support affiliation-aware
@@ -20,12 +20,13 @@
 -- (MySQL lacks ADD COLUMN IF NOT EXISTS). Safe to re-run -- already-present columns
 -- are skipped. Same pattern as 133_solicitation_number_normalized.sql.
 --
--- APPLY (per CLAUDE.md rule 9 -- must reach BOTH dev and prod; back up first per
--- the Phase 134 runbook). Run from this dev box via E:\mysql\bin:
+-- APPLY STATUS: PROD (192.168.0.137) APPLIED & verified 2026-06-03 (4 columns present
+-- on organization_entity). Dev not applied (local MySQL non-critical per owner).
+-- Run from this dev box via E:\mysql\bin (back up first per the Phase 134 runbook):
 --   Prod:
---     & "E:\mysql\bin\mysql.exe" -h 192.168.0.137 -P 3306 -u fed_app -p<pw> fed_contracts -e "source 133b_affiliation_size_rollup_columns.sql"
+--     & "E:\mysql\bin\mysql.exe" -h 192.168.0.137 -P 3306 -u fed_app -p<pw> fed_contracts -e "source 133d_affiliation_size_rollup_columns.sql"
 --   Dev (localhost):
---     & "E:\mysql\bin\mysql.exe" -h 127.0.0.1 -P 3306 -u fed_app -p<pw> fed_contracts -e "source 133b_affiliation_size_rollup_columns.sql"
+--     & "E:\mysql\bin\mysql.exe" -h 127.0.0.1 -P 3306 -u fed_app -p<pw> fed_contracts -e "source 133d_affiliation_size_rollup_columns.sql"
 -- ============================================================
 
 USE fed_contracts;
