@@ -105,45 +105,75 @@ public class TeamingService : ITeamingService
     public async Task<PagedResponse<MentorProtegePairDto>> GetMentorProtegeCandidatesAsync(
         string? protegeUei, string? naicsCode, int page, int pageSize)
     {
-        var query = _context.MentorProtegeCandidates.AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(protegeUei))
-            query = query.Where(m => m.ProtegeUei == protegeUei);
-
-        if (!string.IsNullOrWhiteSpace(naicsCode))
-            query = query.Where(m => m.SharedNaics == naicsCode);
-
-        var totalCount = await query.CountAsync();
-
-        var items = await query
-            .OrderByDescending(m => m.MentorTotalValue)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync();
-
-        var dtos = items.Select(m => new MentorProtegePairDto
+        // Defensive clamps: this is backed by v_mentor_protege_candidate, a large
+        // (potentially multi-million-row) candidate view. At least one filter must be
+        // supplied so we never scan/count the whole view, and pagination is always
+        // enforced via Skip/Take so the full result set is never materialized.
+        if (string.IsNullOrWhiteSpace(protegeUei) && string.IsNullOrWhiteSpace(naicsCode))
         {
-            ProtegeUei = m.ProtegeUei,
-            ProtegeName = m.ProtegeName,
-            ProtegeCertifications = m.ProtegeCertifications,
-            ProtegeNaics = m.ProtegeNaics,
-            ProtegeContractCount = m.ProtegeContractCount,
-            ProtegeTotalValue = m.ProtegeTotalValue,
-            MentorUei = m.MentorUei,
-            MentorName = m.MentorName,
-            SharedNaics = m.SharedNaics,
-            MentorContractCount = m.MentorContractCount,
-            MentorTotalValue = m.MentorTotalValue,
-            MentorAgencies = m.MentorAgencies
-        }).ToList();
+            _logger.LogWarning(
+                "GetMentorProtegeCandidatesAsync called with no filters; returning empty result to avoid full view scan.");
+            return new PagedResponse<MentorProtegePairDto>
+            {
+                Items = [],
+                Page = page < 1 ? 1 : page,
+                PageSize = pageSize,
+                TotalCount = 0
+            };
+        }
 
-        return new PagedResponse<MentorProtegePairDto>
+        if (page < 1) page = 1;
+        if (pageSize < 1 || pageSize > 100) pageSize = 25;
+
+        try
         {
-            Items = dtos,
-            Page = page,
-            PageSize = pageSize,
-            TotalCount = totalCount
-        };
+            var query = _context.MentorProtegeCandidates.AsNoTracking();
+
+            if (!string.IsNullOrWhiteSpace(protegeUei))
+                query = query.Where(m => m.ProtegeUei == protegeUei);
+
+            if (!string.IsNullOrWhiteSpace(naicsCode))
+                query = query.Where(m => m.SharedNaics == naicsCode);
+
+            var totalCount = await query.CountAsync();
+
+            var items = await query
+                .OrderByDescending(m => m.MentorTotalValue)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var dtos = items.Select(m => new MentorProtegePairDto
+            {
+                ProtegeUei = m.ProtegeUei,
+                ProtegeName = m.ProtegeName,
+                ProtegeCertifications = m.ProtegeCertifications,
+                ProtegeNaics = m.ProtegeNaics,
+                ProtegeContractCount = m.ProtegeContractCount,
+                ProtegeTotalValue = m.ProtegeTotalValue,
+                MentorUei = m.MentorUei,
+                MentorName = m.MentorName,
+                SharedNaics = m.SharedNaics,
+                MentorContractCount = m.MentorContractCount,
+                MentorTotalValue = m.MentorTotalValue,
+                MentorAgencies = m.MentorAgencies
+            }).ToList();
+
+            return new PagedResponse<MentorProtegePairDto>
+            {
+                Items = dtos,
+                Page = page,
+                PageSize = pageSize,
+                TotalCount = totalCount
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Failed to load mentor-protege candidates (protegeUei={ProtegeUei}, naicsCode={NaicsCode}, page={Page}, pageSize={PageSize}).",
+                protegeUei, naicsCode, page, pageSize);
+            throw;
+        }
     }
 
     public async Task<PagedResponse<PrimeSubRelationshipDto>> GetPrimeSubRelationshipsAsync(

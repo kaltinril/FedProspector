@@ -6,8 +6,10 @@ import Chip from '@mui/material/Chip';
 import Link from '@mui/material/Link';
 import Pagination from '@mui/material/Pagination';
 import TextField from '@mui/material/TextField';
+import GroupsIcon from '@mui/icons-material/Groups';
 
 import { DataTable } from '@/components/shared/DataTable';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -159,9 +161,13 @@ export default function MentorProtegePage() {
     [debouncedProtege, debouncedNaics, page],
   );
 
+  const hasFilter = Boolean(params.protegeUei || params.naicsCode);
+
   const { data, isLoading, isError, refetch } = useMentorProtege(params);
 
   const columns = useMemo(() => buildColumns(navigate), [navigate]);
+
+  const hasResults = Boolean(data && data.items.length > 0);
 
   if (isError) {
     return (
@@ -206,9 +212,27 @@ export default function MentorProtegePage() {
         )}
       </Box>
 
-      {isLoading && <LoadingState message="Searching mentor-protege pairs..." />}
+      {/* No filter entered yet: prompt the user instead of erroring or showing an empty grid. */}
+      {!hasFilter && (
+        <EmptyState
+          icon={<GroupsIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />}
+          title="Search for mentor-protege candidates"
+          message="Enter a protege UEI or a NAICS code above to find matching mentor-protege partnership candidates."
+        />
+      )}
 
-      {!isLoading && (
+      {hasFilter && isLoading && <LoadingState message="Searching mentor-protege pairs..." />}
+
+      {/* Filter applied, query finished, but no matches. */}
+      {hasFilter && !isLoading && !hasResults && (
+        <EmptyState
+          icon={<GroupsIcon sx={{ fontSize: 64, color: 'text.disabled', mb: 2 }} />}
+          title="No mentor-protege candidates found"
+          message="No mentor-protege pairs match the current filters. Try a different protege UEI or NAICS code."
+        />
+      )}
+
+      {hasFilter && !isLoading && hasResults && (
         <>
           <DataTable
             columns={columns}

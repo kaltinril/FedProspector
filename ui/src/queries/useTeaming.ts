@@ -47,11 +47,16 @@ export function usePartnerNetwork(uei: string, depth?: number) {
 }
 
 export function useMentorProtege(params: MentorProtegeSearchParams) {
+  // The endpoint requires at least one filter (protegeUei or naicsCode) and returns
+  // 400 otherwise, so only fetch once the user has supplied one. This prevents the
+  // page from erroring on initial mount when both filters are empty.
+  const hasFilter = Boolean(params.protegeUei || params.naicsCode);
   return useQuery({
     queryKey: queryKeys.teaming.mentorProtege(params as Record<string, unknown>),
     queryFn: () => searchMentorProtege(params),
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: hasFilter,
   });
 }
 
