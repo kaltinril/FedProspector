@@ -37,11 +37,14 @@ All 6 tasks are implemented across DB / C# / UI and live on **prod**.
 - **Task 5 — Mentor-Protégé page fixed.** Root cause was a cartesian blow-up in the backing view: the cardinality fix (`133c_fix_mentor_protege_candidate_cardinality.sql`) dropped `v_mentor_protege_candidate` from ~5.49M to ~309K rows on **prod**. Backend hardened (no unbounded count; the 400-on-mount is fixed) and the UI now renders a clean empty state.
 - **Task 6 — SBA affiliation size roll-up (13 CFR 121.103).** Four new `organization_entity` columns — `affiliate_annual_revenue`, `affiliate_employee_count`, `mpa_approved`, `mpa_effective_date` — added via migration `133d_affiliation_size_rollup_columns.sql` (**applied & verified on prod**) and EF migration `AddAffiliationSizeRollupColumns`. Service surface: `CheckSizeEligibilityWithAffiliatesAsync` + `AffiliatedSizeEligibilityResultDto` + endpoint `GET /api/v1/org/size-eligibility/{naicsCode}`. UI adds the affiliate-financial inputs, the JV approved-MPA flag, and a standalone-vs-affiliated display with a `flippedToOtherThanSmall` callout.
 
-**Verification level:** C# builds (0 errors), **959 automated tests pass** (Core 345 / Infra 330 / Api 284), UI builds, and **all DB migrations applied & verified on PROD**. Manual UI click-through is recommended as a final check.
+**Verification level:** C# builds (0 errors), **992 automated tests pass** (Core 345 / Infra 363 / Api 284), UI builds, and **all DB migrations applied & verified on PROD**. Manual UI click-through is recommended as a final check.
+
+**Post-completion QA validation (2026-06-03):** acceptance criteria re-validated against code + prod. Criteria 1–6 PASS (criterion 2 proven on live prod data). Two gaps found in Task 6 and **closed**: (1) the affiliation roll-up had **zero tests** → added 33 unit tests (combined-sum, M/E conversion, TEAMING + approved-MPA exclusions, missing-data-as-gap, `flippedToOtherThanSmall`, additive parity; mutation-verified); (2) the `flippedToOtherThanSmall` warning could not surface when standalone was <80% of threshold (the `v_sba_size_standard_monitor` gate) → added `AffiliationFlipBanner` which evaluates **all** registered NAICS and surfaces flips regardless of the 80% gate.
 
 **Known follow-ups (not blockers):**
 - The EF model snapshot is materially stale vs. the actual models (pre-existing; per CLAUDE.md the prod-apply mechanism is raw SQL, not EF migrate).
 - The mentor-protégé view at ~309K rows could be tightened further.
+- Affiliated roll-up surfaces only on the Size Standard Monitor page; consider also surfacing on the NAICS setup step. Unrecognized `relationship` values are silently skipped (by design; revisit if surfacing for review is wanted).
 
 ---
 
