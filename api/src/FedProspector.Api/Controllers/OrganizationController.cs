@@ -384,5 +384,22 @@ public class OrganizationController : ApiControllerBase
         var result = await _entityService.GetAggregateNaicsAsync(orgId.Value);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Affiliation-aware SBA size determination for a NAICS code (Phase 133 Task 6, 13 CFR 121.103).
+    /// Returns both the standalone (org-only) and rolled-up (org + included affiliates) verdicts,
+    /// flagging the dangerous case where the org is small alone but other-than-small once affiliates
+    /// are combined.
+    /// </summary>
+    [HttpGet("size-eligibility/{naicsCode}")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetAffiliatedSizeEligibility(string naicsCode)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.CheckSizeEligibilityWithAffiliatesAsync(orgId.Value, naicsCode);
+        return Ok(result);
+    }
 }
 

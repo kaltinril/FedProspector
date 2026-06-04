@@ -157,6 +157,14 @@ export interface OrganizationEntityDto {
   notes?: string | null;
   addedByName?: string | null;
   createdAt: string;
+  /** Phase 133 Task 6: owner-entered affiliate annual receipts (raw USD). */
+  affiliateAnnualRevenue?: number | null;
+  /** Phase 133 Task 6: owner-entered affiliate employee count. */
+  affiliateEmployeeCount?: number | null;
+  /** Phase 133 Task 6: true when this JV_PARTNER link is an SBA-approved mentor-protégé agreement. */
+  mpaApproved: boolean;
+  /** Phase 133 Task 6: effective date of the approved mentor-protégé agreement (ISO date). */
+  mpaEffectiveDate?: string | null;
   legalBusinessName?: string | null;
   dbaName?: string | null;
   cageCode?: string | null;
@@ -172,6 +180,46 @@ export interface LinkEntityRequest {
   partnerUei?: string | null;
   relationship: string;
   notes?: string | null;
+  /** Phase 133 Task 6: owner-entered affiliate annual receipts (raw USD). */
+  affiliateAnnualRevenue?: number | null;
+  /** Phase 133 Task 6: owner-entered affiliate employee count. */
+  affiliateEmployeeCount?: number | null;
+  /** Phase 133 Task 6: SBA-approved mentor-protégé agreement flag (JV_PARTNER only). */
+  mpaApproved?: boolean | null;
+  /** Phase 133 Task 6: effective date of the approved mentor-protégé agreement (ISO date). */
+  mpaEffectiveDate?: string | null;
+}
+
+/** Affiliation-aware size determination matching C# AffiliatedSizeEligibilityResultDto (Phase 133 Task 6). */
+export interface AffiliatedSizeEligibilityResultDto {
+  naicsCode: string;
+  sizeType?: string | null;
+  threshold?: number | null;
+  standaloneEligible?: boolean | null;
+  affiliatedEligible?: boolean | null;
+  combinedRevenue?: number | null;
+  combinedEmployees?: number | null;
+  affiliateCount: number;
+  includedAffiliates: IncludedAffiliateDto[];
+  excludedAffiliates: ExcludedAffiliateDto[];
+  missingAffiliateData: string[];
+  flippedToOtherThanSmall: boolean;
+  reason: string;
+}
+
+/** An affiliate counted in the size roll-up, matching C# IncludedAffiliateDto. */
+export interface IncludedAffiliateDto {
+  uei: string;
+  relationship: string;
+  contributedAmount?: number | null;
+}
+
+/** An affiliate excluded from the size roll-up, matching C# ExcludedAffiliateDto. */
+export interface ExcludedAffiliateDto {
+  uei: string;
+  relationship: string;
+  /** "APPROVED_MPA" or "TEAMING". */
+  reason: string;
 }
 
 /** Refresh self entity response matching C# RefreshSelfEntityResponse */

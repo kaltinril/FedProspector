@@ -21,6 +21,7 @@ import {
   getNaicsDetail,
   getCertificationTypes,
   getLinkedEntities,
+  getAffiliatedSizeEligibility,
   getNaicsSectors,
   getNaicsChildren,
   getNaicsAncestors,
@@ -205,6 +206,16 @@ export function useOrgEntities() {
     queryKey: queryKeys.organization.entities,
     queryFn: getLinkedEntities,
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// Phase 133 Task 6: affiliation-aware size determination for a single NAICS code.
+export function useAffiliatedSizeEligibility(naicsCode: string | null | undefined, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.organization.sizeEligibility(naicsCode ?? ''),
+    queryFn: () => getAffiliatedSizeEligibility(naicsCode as string),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    enabled: enabled && !!naicsCode,
   });
 }
 

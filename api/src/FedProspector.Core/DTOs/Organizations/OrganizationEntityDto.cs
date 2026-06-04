@@ -11,6 +11,12 @@ public class OrganizationEntityDto
     public string? AddedByName { get; set; }
     public DateTime CreatedAt { get; set; }
 
+    // Phase 133 Task 6: owner-entered affiliate financials + approved-MPA flag (per link).
+    public decimal? AffiliateAnnualRevenue { get; set; }
+    public int? AffiliateEmployeeCount { get; set; }
+    public bool MpaApproved { get; set; }
+    public DateOnly? MpaEffectiveDate { get; set; }
+
     // Entity details
     public string? LegalBusinessName { get; set; }
     public string? DbaName { get; set; }
@@ -27,6 +33,12 @@ public class LinkEntityRequest
     public string? PartnerUei { get; set; }
     public string Relationship { get; set; } = "SELF";
     public string? Notes { get; set; }
+
+    // Phase 133 Task 6: owner-entered affiliate financials + approved-MPA flag (per link).
+    public decimal? AffiliateAnnualRevenue { get; set; }
+    public int? AffiliateEmployeeCount { get; set; }
+    public bool? MpaApproved { get; set; }
+    public DateOnly? MpaEffectiveDate { get; set; }
 }
 
 public class RefreshSelfEntityResponse

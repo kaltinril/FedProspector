@@ -202,6 +202,13 @@ CREATE TABLE IF NOT EXISTS organization_entity (
     is_active       CHAR(1) NOT NULL DEFAULT 'Y',
     added_by        INT NULL,
     notes           TEXT NULL,
+    -- Phase 133 Task 6: SBA affiliation size roll-up (13 CFR 121.103).
+    -- Owner-entered affiliate financials (SAM.gov entity_* tables carry none); the org's
+    -- own figures stay on organization.annual_revenue / organization.employee_count.
+    affiliate_annual_revenue  DECIMAL(18,2) NULL,   -- affiliate annual receipts (raw USD); NULL = gap
+    affiliate_employee_count  INT NULL,             -- affiliate headcount; NULL = gap
+    mpa_approved              CHAR(1) NOT NULL DEFAULT 'N',  -- 'Y' = approved mentor-protégé JV (mentor's size excluded)
+    mpa_effective_date        DATE NULL,            -- effective date of the approved MPA (optional)
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE KEY uk_org_entity (organization_id, uei_sam, relationship),

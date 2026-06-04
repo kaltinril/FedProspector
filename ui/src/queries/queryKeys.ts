@@ -89,6 +89,8 @@ export const queryKeys = {
     pastPerformance: ['organization', 'pastPerformance'] as const,
     members: ['organization', 'members'] as const,
     invites: ['organization', 'invites'] as const,
+    sizeEligibility: (naicsCode: string) =>
+      ['organization', 'sizeEligibility', naicsCode] as const,
   },
   reference: {
     naics: (query: string) => ['reference', 'naics', query] as const,

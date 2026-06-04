@@ -499,6 +499,178 @@ public class CompanyProfileService : ICompanyProfileService
         return result;
     }
 
+    // --- Affiliation-aware size roll-up (Phase 133 Task 6, 13 CFR 121.103) ---
+
+    public async Task<AffiliatedSizeEligibilityResultDto> CheckSizeEligibilityWithAffiliatesAsync(int orgId, string naicsCode)
+    {
+        var org = await _context.Organizations
+            .AsNoTracking()
+            .Where(o => o.OrganizationId == orgId)
+            .Select(o => new { o.AnnualRevenue, o.EmployeeCount })
+            .FirstOrDefaultAsync();
+
+        var standard = await _context.RefSbaSizeStandards
+            .AsNoTracking()
+            .Where(s => s.NaicsCode == naicsCode)
+            .OrderByDescending(s => s.EffectiveDate)
+            .Select(s => new { s.SizeStandard, s.SizeType })
+            .FirstOrDefaultAsync();
+
+        // Active links for the org. SELF carries the org's OWN figures (sourced from the
+        // organization row, not the link), so it does not contribute an affiliate amount and
+        // is not reported as an included/excluded affiliate. Included affiliate relationships:
+        // SISTER_SUBSIDIARY and JV_PARTNER (the latter excluded when mpa_approved = 'Y').
+        var links = await _context.OrganizationEntities
+            .AsNoTracking()
+            .Where(oe => oe.OrganizationId == orgId && oe.IsActive == "Y")
+            .Select(oe => new
+            {
+                oe.UeiSam,
+                oe.Relationship,
+                oe.MpaApproved,
+                oe.AffiliateAnnualRevenue,
+                oe.AffiliateEmployeeCount
+            })
+            .ToListAsync();
+
+        var dto = new AffiliatedSizeEligibilityResultDto
+        {
+            NaicsCode = naicsCode,
+            SizeType = standard?.SizeType,
+            Threshold = standard?.SizeStandard
+        };
+
+        // Standalone (org-only) verdict reuses the existing pure evaluator.
+        var standalone = EvaluateSizeEligibility(
+            naicsCode,
+            standard?.SizeType,
+            standard?.SizeStandard,
+            org?.AnnualRevenue,
+            org?.EmployeeCount,
+            orgExists: org != null);
+        dto.StandaloneEligible = standalone.Eligible;
+
+        if (org == null)
+        {
+            dto.Reason = "Organization not found.";
+            return dto;
+        }
+
+        var sizeType = standard?.SizeType;
+        if (string.IsNullOrWhiteSpace(sizeType) || !standard!.SizeStandard.HasValue || standard.SizeStandard.Value <= 0m)
+        {
+            dto.Reason = $"No SBA size standard on file for NAICS {naicsCode}; cannot roll up affiliates.";
+            return dto;
+        }
+
+        var isRevenue = sizeType == "M";
+        var isEmployee = sizeType == "E";
+        if (!isRevenue && !isEmployee)
+        {
+            dto.Reason = $"Unrecognized SBA size type '{sizeType}' for NAICS {naicsCode}.";
+            return dto;
+        }
+
+        // The org's own contribution (in the comparison unit). Null => the org itself lacks the figure.
+        decimal? orgContribution = isRevenue
+            ? (org.AnnualRevenue.HasValue ? org.AnnualRevenue.Value / 1_000_000m : (decimal?)null)
+            : (org.EmployeeCount.HasValue ? org.EmployeeCount.Value : (decimal?)null);
+
+        var includedRelationships = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SISTER_SUBSIDIARY", "JV_PARTNER"
+        };
+
+        decimal affiliateSum = 0m;
+        foreach (var link in links)
+        {
+            var rel = link.Relationship ?? string.Empty;
+
+            // SELF is the hub/org's own row — already counted via the organization figures.
+            if (rel.Equals("SELF", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            // TEAMING does not create affiliation under 121.103 — excluded.
+            if (rel.Equals("TEAMING", StringComparison.OrdinalIgnoreCase))
+            {
+                dto.ExcludedAffiliates.Add(new ExcludedAffiliateDto
+                {
+                    Uei = link.UeiSam,
+                    Relationship = rel,
+                    Reason = "TEAMING"
+                });
+                continue;
+            }
+
+            // Any other unrecognized relationship is not an affiliation-bearing type — skip silently.
+            if (!includedRelationships.Contains(rel))
+                continue;
+
+            // Approved mentor-protégé JV: the mentor's size is excluded (13 CFR 125.9(d)(1)(iii) & (d)(4)).
+            if (rel.Equals("JV_PARTNER", StringComparison.OrdinalIgnoreCase)
+                && string.Equals(link.MpaApproved, "Y", StringComparison.OrdinalIgnoreCase))
+            {
+                dto.ExcludedAffiliates.Add(new ExcludedAffiliateDto
+                {
+                    Uei = link.UeiSam,
+                    Relationship = rel,
+                    Reason = "APPROVED_MPA"
+                });
+                continue;
+            }
+
+            dto.AffiliateCount++;
+
+            decimal? contribution = isRevenue
+                ? (link.AffiliateAnnualRevenue.HasValue ? link.AffiliateAnnualRevenue.Value / 1_000_000m : (decimal?)null)
+                : (link.AffiliateEmployeeCount.HasValue ? link.AffiliateEmployeeCount.Value : (decimal?)null);
+
+            if (contribution.HasValue)
+                affiliateSum += contribution.Value;
+            else
+                dto.MissingAffiliateData.Add(link.UeiSam);
+
+            dto.IncludedAffiliates.Add(new IncludedAffiliateDto
+            {
+                Uei = link.UeiSam,
+                Relationship = rel,
+                ContributedAmount = contribution
+            });
+        }
+
+        if (!orgContribution.HasValue)
+        {
+            // Without the org's own figure the combined total is undeterminable.
+            dto.AffiliatedEligible = null;
+            dto.Reason = isRevenue
+                ? "Organization annual revenue not set; cannot determine combined receipts-based size."
+                : "Organization employee count not set; cannot determine combined headcount-based size.";
+            if (isRevenue) dto.CombinedRevenue = null; else dto.CombinedEmployees = null;
+            return dto;
+        }
+
+        var combined = orgContribution.Value + affiliateSum;
+        var threshold = standard.SizeStandard!.Value;
+        var eligible = combined <= threshold;
+        dto.AffiliatedEligible = eligible;
+
+        if (isRevenue) dto.CombinedRevenue = combined; else dto.CombinedEmployees = combined;
+
+        // The dangerous case: small alone, but other-than-small once affiliates are rolled in.
+        dto.FlippedToOtherThanSmall = standalone.Eligible == true && !eligible;
+
+        var unit = isRevenue ? "$M" : "employees";
+        var measure = isRevenue ? "combined receipts" : "combined employees";
+        var verdict = eligible ? "Small" : "Not small";
+        var gapNote = dto.MissingAffiliateData.Count > 0
+            ? $" ({dto.MissingAffiliateData.Count} affiliate(s) missing data — total is a lower bound)"
+            : string.Empty;
+        dto.Reason = $"{verdict}: {measure} {combined:0.##} {unit} vs {threshold:0.##} {unit} threshold "
+            + $"(org + {dto.AffiliateCount} affiliate(s)){gapNote}.";
+
+        return dto;
+    }
+
     /// <summary>
     /// Pure evaluation of SBA size eligibility. No DB access, no side effects, never throws.
     /// Threshold for "M" standards is stored in $millions; org revenue is raw USD, so the

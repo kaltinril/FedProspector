@@ -42,4 +42,16 @@ public interface ICompanyProfileService
     /// Returns a dictionary keyed by NAICS code.
     /// </summary>
     Task<Dictionary<string, SizeEligibilityResultDto>> CheckSizeEligibilityAsync(int orgId, IEnumerable<string> naicsCodes);
+
+    // --- Affiliation-aware size roll-up (Phase 133 Task 6, 13 CFR 121.103) ---
+
+    /// <summary>
+    /// Affiliation-aware size determination. Returns BOTH the standalone (org-only) verdict and the
+    /// rolled-up verdict that combines the org's own receipts/headcount with each included affiliate's.
+    /// Included set = active organization_entity links with relationship in { SELF, SISTER_SUBSIDIARY,
+    /// JV_PARTNER }; TEAMING is excluded, and a JV_PARTNER flagged mpa_approved = 'Y' is excluded (the
+    /// mentor's size is not counted). Missing affiliate figures are reported as gaps, not treated as zero.
+    /// Additive to <see cref="CheckSizeEligibilityAsync(int, string)"/>; never throws on missing inputs.
+    /// </summary>
+    Task<AffiliatedSizeEligibilityResultDto> CheckSizeEligibilityWithAffiliatesAsync(int orgId, string naicsCode);
 }

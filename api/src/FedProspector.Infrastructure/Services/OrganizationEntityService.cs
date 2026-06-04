@@ -14,7 +14,7 @@ public class OrganizationEntityService : IOrganizationEntityService
 
     private static readonly HashSet<string> ValidRelationships = new(StringComparer.OrdinalIgnoreCase)
     {
-        "SELF", "JV_PARTNER", "TEAMING"
+        "SELF", "JV_PARTNER", "TEAMING", "SISTER_SUBSIDIARY"
     };
 
     public OrganizationEntityService(
@@ -92,6 +92,10 @@ public class OrganizationEntityService : IOrganizationEntityService
             existing.IsActive = "Y";
             existing.PartnerUei = request.PartnerUei;
             existing.Notes = request.Notes;
+            existing.AffiliateAnnualRevenue = request.AffiliateAnnualRevenue;
+            existing.AffiliateEmployeeCount = request.AffiliateEmployeeCount;
+            existing.MpaApproved = request.MpaApproved == true ? "Y" : "N";
+            existing.MpaEffectiveDate = request.MpaEffectiveDate;
             existing.AddedBy = userId;
             existing.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
@@ -126,6 +130,10 @@ public class OrganizationEntityService : IOrganizationEntityService
             IsActive = "Y",
             AddedBy = userId,
             Notes = request.Notes,
+            AffiliateAnnualRevenue = request.AffiliateAnnualRevenue,
+            AffiliateEmployeeCount = request.AffiliateEmployeeCount,
+            MpaApproved = request.MpaApproved == true ? "Y" : "N",
+            MpaEffectiveDate = request.MpaEffectiveDate,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -487,6 +495,10 @@ public class OrganizationEntityService : IOrganizationEntityService
             Notes = link.Notes,
             AddedByName = link.AddedByUser?.DisplayName,
             CreatedAt = link.CreatedAt,
+            AffiliateAnnualRevenue = link.AffiliateAnnualRevenue,
+            AffiliateEmployeeCount = link.AffiliateEmployeeCount,
+            MpaApproved = link.MpaApproved == "Y",
+            MpaEffectiveDate = link.MpaEffectiveDate,
             LegalBusinessName = link.Entity?.LegalBusinessName,
             DbaName = link.Entity?.DbaName,
             CageCode = link.Entity?.CageCode,

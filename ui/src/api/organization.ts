@@ -18,6 +18,7 @@ import type {
   LinkEntityRequest,
   RefreshSelfEntityResponse,
   NaicsHierarchyNode,
+  AffiliatedSizeEligibilityResultDto,
 } from '@/types/organization';
 
 // Organization management
@@ -124,6 +125,17 @@ export function refreshSelfEntity(): Promise<RefreshSelfEntityResponse> {
 
 export function getAggregateNaics(): Promise<string[]> {
   return apiClient.get('/org/entities/aggregate-naics').then((r) => r.data);
+}
+
+// --- Phase 133 Task 6: affiliation-aware size determination ---
+
+/** Affiliation-aware SBA size determination for a NAICS code (standalone + rolled-up). */
+export function getAffiliatedSizeEligibility(
+  naicsCode: string,
+): Promise<AffiliatedSizeEligibilityResultDto> {
+  return apiClient
+    .get(`/org/size-eligibility/${encodeURIComponent(naicsCode)}`)
+    .then((r) => r.data);
 }
 
 // --- Phase 129 NAICS hierarchy (Unit E) ---

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
@@ -9,6 +10,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import FormControl from '@mui/material/FormControl';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
@@ -44,6 +46,7 @@ const RELATIONSHIP_OPTIONS = [
   { value: 'SELF', label: 'Self (Your Organization)' },
   { value: 'JV_PARTNER', label: 'JV Partner' },
   { value: 'TEAMING', label: 'Teaming Partner' },
+  { value: 'SISTER_SUBSIDIARY', label: 'Sister subsidiary' },
 ];
 
 export function OrgEntitiesTab() {
@@ -56,6 +59,11 @@ export function OrgEntitiesTab() {
   const [relationship, setRelationship] = useState('SELF');
   const [partnerUei, setPartnerUei] = useState('');
   const [notes, setNotes] = useState('');
+  // Phase 133 Task 6: owner-entered affiliate figures + approved-MPA flag (per link).
+  const [affiliateAnnualRevenue, setAffiliateAnnualRevenue] = useState('');
+  const [affiliateEmployeeCount, setAffiliateEmployeeCount] = useState('');
+  const [mpaApproved, setMpaApproved] = useState(false);
+  const [mpaEffectiveDate, setMpaEffectiveDate] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [searchError, setSearchError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -76,6 +84,10 @@ export function OrgEntitiesTab() {
       setSelectedEntity(null);
       setPartnerUei('');
       setNotes('');
+      setAffiliateAnnualRevenue('');
+      setAffiliateEmployeeCount('');
+      setMpaApproved(false);
+      setMpaEffectiveDate('');
     },
   });
 
@@ -138,11 +150,21 @@ export function OrgEntitiesTab() {
 
   const handleConfirmLink = () => {
     if (!selectedEntity) return;
+    // SELF carries the org's own figures (from the org profile), so affiliate inputs only
+    // apply to non-SELF links. The approved-MPA flag is only meaningful for JV_PARTNER.
+    const isAffiliate = relationship !== 'SELF';
+    const isJv = relationship === 'JV_PARTNER';
+    const revenue = affiliateAnnualRevenue.trim();
+    const employees = affiliateEmployeeCount.trim();
     linkMutation.mutate({
       ueiSam: selectedEntity.ueiSam,
       partnerUei: partnerUei || undefined,
       relationship,
       notes: notes || undefined,
+      affiliateAnnualRevenue: isAffiliate && revenue !== '' ? Number(revenue) : undefined,
+      affiliateEmployeeCount: isAffiliate && employees !== '' ? Number(employees) : undefined,
+      mpaApproved: isJv ? mpaApproved : undefined,
+      mpaEffectiveDate: isJv && mpaApproved && mpaEffectiveDate ? mpaEffectiveDate : undefined,
     });
   };
 
@@ -158,6 +180,8 @@ export function OrgEntitiesTab() {
         return 'secondary';
       case 'TEAMING':
         return 'info';
+      case 'SISTER_SUBSIDIARY':
+        return 'success';
       default:
         return 'default';
     }
@@ -366,7 +390,7 @@ export function OrgEntitiesTab() {
                     <Chip
                       label={link.relationship}
                       size="small"
-                      color={relationshipColor(link.relationship) as 'primary' | 'secondary' | 'info' | 'default'}
+                      color={relationshipColor(link.relationship) as 'primary' | 'secondary' | 'info' | 'success' | 'default'}
                     />
                   </TableCell>
                   <TableCell align="center">{link.naicsCount}</TableCell>
@@ -441,6 +465,67 @@ export function OrgEntitiesTab() {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
           />
+          {relationship !== 'SELF' && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" gutterBottom>
+                Affiliate size figures (for SBA affiliation roll-up)
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+                Entered manually (SAM.gov carries no revenue/headcount). Used to combine this
+                affiliate's size with yours under 13 CFR 121.103. Leave blank if not yet known —
+                it will show as a data gap.
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="number"
+                  label="Annual revenue (USD)"
+                  placeholder="e.g. 5000000"
+                  value={affiliateAnnualRevenue}
+                  onChange={(e) => setAffiliateAnnualRevenue(e.target.value)}
+                  slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="number"
+                  label="Employee count"
+                  placeholder="e.g. 50"
+                  value={affiliateEmployeeCount}
+                  onChange={(e) => setAffiliateEmployeeCount(e.target.value)}
+                  slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                />
+              </Box>
+            </Box>
+          )}
+          {relationship === 'JV_PARTNER' && (
+            <Box sx={{ mt: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={mpaApproved}
+                    onChange={(e) => setMpaApproved(e.target.checked)}
+                  />
+                }
+                label="SBA-approved mentor-protégé agreement"
+              />
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+                When checked, this JV partner is treated as the mentor in an approved MPA — its size is
+                excluded from the affiliation roll-up (the JV is small if your org alone is small).
+              </Typography>
+              {mpaApproved && (
+                <TextField
+                  size="small"
+                  type="date"
+                  label="MPA effective date (optional)"
+                  value={mpaEffectiveDate}
+                  onChange={(e) => setMpaEffectiveDate(e.target.value)}
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              )}
+            </Box>
+          )}
           {relationship === 'SELF' && (
             <Alert severity="info" sx={{ mt: 2 }}>
               Linking as SELF will copy NAICS codes, certifications, and profile fields from this
