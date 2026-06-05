@@ -1,4 +1,5 @@
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link as RouterLink, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import List from '@mui/material/List';
@@ -6,52 +7,22 @@ import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import DashboardOutlined from '@mui/icons-material/DashboardOutlined';
-import SearchOutlined from '@mui/icons-material/SearchOutlined';
-import EmojiEventsOutlined from '@mui/icons-material/EmojiEventsOutlined';
-import BusinessOutlined from '@mui/icons-material/BusinessOutlined';
-import GroupsOutlined from '@mui/icons-material/GroupsOutlined';
-import TrackChangesOutlined from '@mui/icons-material/TrackChangesOutlined';
-import BookmarkBorderOutlined from '@mui/icons-material/BookmarkBorderOutlined';
-import CorporateFareOutlined from '@mui/icons-material/CorporateFareOutlined';
-import AdminPanelSettingsOutlined from '@mui/icons-material/AdminPanelSettingsOutlined';
-import AccountTreeOutlined from '@mui/icons-material/AccountTreeOutlined';
-import CategoryOutlined from '@mui/icons-material/CategoryOutlined';
-import EventBusyOutlined from '@mui/icons-material/EventBusyOutlined';
-import RecommendOutlined from '@mui/icons-material/RecommendOutlined';
-import ShowChartOutlined from '@mui/icons-material/ShowChartOutlined';
-import GavelOutlined from '@mui/icons-material/GavelOutlined';
-import CalculateOutlined from '@mui/icons-material/CalculateOutlined';
-import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
-import AssessmentOutlined from '@mui/icons-material/AssessmentOutlined';
-import HandshakeOutlined from '@mui/icons-material/HandshakeOutlined';
-import MapOutlined from '@mui/icons-material/MapOutlined';
-import AutorenewOutlined from '@mui/icons-material/AutorenewOutlined';
-import InsightsOutlined from '@mui/icons-material/InsightsOutlined';
-import ApartmentOutlined from '@mui/icons-material/ApartmentOutlined';
-import PersonSearchOutlined from '@mui/icons-material/PersonSearchOutlined';
-import SupervisorAccountOutlined from '@mui/icons-material/SupervisorAccountOutlined';
-import CompareOutlined from '@mui/icons-material/CompareOutlined';
-import VerifiedUserOutlined from '@mui/icons-material/VerifiedUserOutlined';
-import StraightenOutlined from '@mui/icons-material/StraightenOutlined';
-import WorkHistoryOutlined from '@mui/icons-material/WorkHistoryOutlined';
-import DonutSmallOutlined from '@mui/icons-material/DonutSmallOutlined';
-import HealthAndSafetyOutlined from '@mui/icons-material/HealthAndSafetyOutlined';
-import AnalyticsOutlined from '@mui/icons-material/AnalyticsOutlined';
-import CalendarMonthOutlined from '@mui/icons-material/CalendarMonthOutlined';
-import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined';
-import MonetizationOnOutlined from '@mui/icons-material/MonetizationOnOutlined';
-import AccountCircleOutlined from '@mui/icons-material/AccountCircleOutlined';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import ChevronRight from '@mui/icons-material/ChevronRight';
+import ExpandMore from '@mui/icons-material/ExpandMore';
 import { useAuth } from '@/auth/useAuth';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { getNavSections, type NavItem, type NavSection } from '@/components/layout/navConfig';
 
 export const SIDEBAR_WIDTH_EXPANDED = 240;
 export const SIDEBAR_WIDTH_COLLAPSED = 64;
+
+const SECTION_STATE_KEY = 'sidebar.sectionExpanded';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -60,120 +31,53 @@ interface SidebarProps {
   onMobileClose: () => void;
 }
 
-interface NavItem {
-  label: string;
-  icon: React.ReactElement;
-  route: string;
+function isRouteActive(pathname: string, route: string): boolean {
+  return pathname === route || pathname.startsWith(route + '/');
 }
-
-interface NavSection {
-  title: string;
-  items: NavItem[];
-}
-
-const NAV_SECTIONS: NavSection[] = [
-  {
-    title: 'Main',
-    items: [
-      { label: 'Dashboard', icon: <DashboardOutlined />, route: '/dashboard' },
-    ],
-  },
-  {
-    title: 'Pipeline',
-    items: [
-      { label: 'Recommended', icon: <RecommendOutlined />, route: '/opportunities/recommended' },
-      { label: 'Expiring Contracts', icon: <EventBusyOutlined />, route: '/awards/expiring' },
-      { label: 'Prospects', icon: <TrackChangesOutlined />, route: '/prospects' },
-      { label: 'Analytics', icon: <AnalyticsOutlined />, route: '/pipeline/analytics' },
-      { label: 'Calendar', icon: <CalendarMonthOutlined />, route: '/pipeline/calendar' },
-      { label: 'Stale Alerts', icon: <ReportProblemOutlined />, route: '/pipeline/stale' },
-      { label: 'Forecast', icon: <MonetizationOnOutlined />, route: '/pipeline/forecast' },
-    ],
-  },
-  {
-    title: 'Research',
-    items: [
-      { label: 'Opportunities', icon: <SearchOutlined />, route: '/opportunities' },
-      { label: 'Awards', icon: <EmojiEventsOutlined />, route: '/awards' },
-      { label: 'Entities', icon: <BusinessOutlined />, route: '/entities' },
-      { label: 'Teaming', icon: <GroupsOutlined />, route: '/subawards/teaming' },
-      { label: 'Federal Hierarchy', icon: <AccountTreeOutlined />, route: '/hierarchy' },
-      { label: 'NAICS Browser', icon: <CategoryOutlined />, route: '/reference/naics' },
-    ],
-  },
-  {
-    title: 'Pricing Intelligence',
-    items: [
-      { label: 'Market Rates', icon: <ShowChartOutlined />, route: '/pricing/rates' },
-      { label: 'Price-to-Win', icon: <GavelOutlined />, route: '/pricing/price-to-win' },
-      { label: 'Bid Scenarios', icon: <CalculateOutlined />, route: '/pricing/scenarios' },
-      { label: 'Escalation', icon: <TrendingUpOutlined />, route: '/pricing/escalation' },
-      { label: 'IGCE Estimator', icon: <AssessmentOutlined />, route: '/pricing/igce' },
-      { label: 'Sub Benchmarks', icon: <HandshakeOutlined />, route: '/pricing/sub-benchmarks' },
-      { label: 'SCA Area Rates', icon: <MapOutlined />, route: '/pricing/sca-rates' },
-    ],
-  },
-  {
-    title: 'Competitive Intel',
-    items: [
-      { label: 'Re-compete Candidates', icon: <AutorenewOutlined />, route: '/competitive-intel/recompetes' },
-      { label: 'Agency Patterns', icon: <InsightsOutlined />, route: '/competitive-intel/agency-patterns' },
-      { label: 'Contracting Offices', icon: <ApartmentOutlined />, route: '/competitive-intel/offices' },
-    ],
-  },
-  {
-    title: 'Teaming',
-    items: [
-      { label: 'Partner Search', icon: <PersonSearchOutlined />, route: '/teaming/partners' },
-      { label: 'Mentor-Protege', icon: <SupervisorAccountOutlined />, route: '/teaming/mentor-protege' },
-      { label: 'Gap Analysis', icon: <CompareOutlined />, route: '/teaming/gap-analysis' },
-    ],
-  },
-  {
-    title: 'Onboarding',
-    items: [
-      { label: 'Certification Alerts', icon: <VerifiedUserOutlined />, route: '/onboarding/certification-alerts' },
-      { label: 'Size Standard', icon: <StraightenOutlined />, route: '/onboarding/size-standard' },
-      { label: 'Past Performance', icon: <WorkHistoryOutlined />, route: '/onboarding/past-performance' },
-      { label: 'Portfolio Gaps', icon: <DonutSmallOutlined />, route: '/onboarding/portfolio-gaps' },
-    ],
-  },
-  {
-    title: 'Tools',
-    items: [
-      { label: 'Saved Searches', icon: <BookmarkBorderOutlined />, route: '/saved-searches' },
-      { label: 'Data Quality', icon: <HealthAndSafetyOutlined />, route: '/insights/data-quality' },
-    ],
-  },
-  {
-    title: 'Settings',
-    items: [
-      { label: 'Profile', icon: <AccountCircleOutlined />, route: '/profile' },
-      { label: 'Organization', icon: <CorporateFareOutlined />, route: '/organization' },
-    ],
-  },
-];
-
-const ADMIN_ITEM: NavItem = {
-  label: 'Admin',
-  icon: <AdminPanelSettingsOutlined />,
-  route: '/admin',
-};
 
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const { isSystemAdmin } = useAuth();
+
+  // Per-user persisted collapse state for each section header, keyed by section
+  // title. Sections absent from the map default to expanded.
+  const [sectionExpanded, setSectionExpanded] = useLocalStorage<Record<string, boolean>>(
+    SECTION_STATE_KEY,
+    {},
+  );
 
   const sidebarWidth = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
-  function isActive(route: string): boolean {
-    return location.pathname === route || location.pathname.startsWith(route + '/');
+  const sections = getNavSections(isSystemAdmin);
+
+  // Auto-expand the section that contains the current route so the active item
+  // is always visible after navigation / on load.
+  useEffect(() => {
+    const activeSection = sections.find((section) =>
+      section.items.some((item) => isRouteActive(location.pathname, item.route)),
+    );
+    if (activeSection) {
+      setSectionExpanded((prev) =>
+        prev[activeSection.title] === false
+          ? { ...prev, [activeSection.title]: true }
+          : prev,
+      );
+    }
+    // `sections` is derived synchronously from a stable module constant, so the
+    // pathname is the only meaningful dependency for recomputing the active section.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
+
+  function isSectionExpanded(title: string): boolean {
+    return sectionExpanded[title] !== false;
   }
 
-  function handleNav(route: string) {
-    navigate(route);
-    onMobileClose();
+  function toggleSection(title: string) {
+    setSectionExpanded((prev) => ({ ...prev, [title]: prev[title] === false }));
+  }
+
+  function isActive(route: string): boolean {
+    return isRouteActive(location.pathname, route);
   }
 
   function renderNavItem(item: NavItem) {
@@ -182,7 +86,9 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
     const button = (
       <ListItem key={item.route} disablePadding sx={{ display: 'block' }}>
         <ListItemButton
-          onClick={() => handleNav(item.route)}
+          component={RouterLink}
+          to={item.route}
+          onClick={onMobileClose}
           selected={active}
           aria-current={active ? 'page' : undefined}
           sx={{
@@ -229,12 +135,62 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
     return button;
   }
 
-  const sections = NAV_SECTIONS.map((section) => ({ ...section, items: [...section.items] }));
-  if (isSystemAdmin) {
-    const settingsSection = sections.find((s) => s.title === 'Settings');
-    if (settingsSection) {
-      settingsSection.items.push(ADMIN_ITEM);
+  function renderSection(section: NavSection, sIndex: number) {
+    // In icon-rail (collapsed) mode the section headers are hidden, so every
+    // group is shown — there is no header to toggle.
+    if (collapsed) {
+      return (
+        <Box key={section.title}>
+          {sIndex > 0 && <Divider sx={{ my: 1, mx: 2 }} />}
+          <List disablePadding>
+            {section.items.map(renderNavItem)}
+          </List>
+        </Box>
+      );
     }
+
+    const expanded = isSectionExpanded(section.title);
+
+    return (
+      <Box key={section.title}>
+        {sIndex > 0 && <Divider sx={{ my: 1, mx: 2 }} />}
+        <ListItemButton
+          onClick={() => toggleSection(section.title)}
+          aria-expanded={expanded}
+          sx={{
+            px: 3,
+            pt: 1,
+            pb: 0.5,
+            minHeight: 0,
+            '&:hover': { bgcolor: 'action.hover' },
+          }}
+        >
+          <Typography
+            variant="overline"
+            sx={{
+              flexGrow: 1,
+              display: 'block',
+              color: 'text.secondary',
+              fontSize: '0.68rem',
+              letterSpacing: '0.08em',
+              lineHeight: 1.8,
+            }}
+          >
+            {section.title}
+          </Typography>
+          {expanded ? (
+            <ExpandMore sx={{ fontSize: 18, color: 'text.secondary' }} />
+          ) : (
+            <ChevronRight sx={{ fontSize: 18, color: 'text.secondary' }} />
+          )}
+        </ListItemButton>
+        <Collapse in={expanded} timeout="auto" unmountOnExit>
+          <List disablePadding>
+            {section.items.map(renderNavItem)}
+          </List>
+        </Collapse>
+      </Box>
+    );
   }
 
   const drawerContent = (
@@ -273,30 +229,7 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
       {/* Navigation */}
       <Box sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', pt: 1 }}>
-        {sections.map((section, sIndex) => (
-          <Box key={section.title}>
-            {sIndex > 0 && <Divider sx={{ my: 1, mx: 2 }} />}
-            {!collapsed && (
-              <Typography
-                variant="overline"
-                sx={{
-                  px: 3,
-                  pt: 1,
-                  pb: 0.5,
-                  display: 'block',
-                  color: 'text.secondary',
-                  fontSize: '0.68rem',
-                  letterSpacing: '0.08em',
-                }}
-              >
-                {section.title}
-              </Typography>
-            )}
-            <List disablePadding>
-              {section.items.map(renderNavItem)}
-            </List>
-          </Box>
-        ))}
+        {sections.map(renderSection)}
       </Box>
 
       {/* Collapse Toggle */}
