@@ -745,6 +745,11 @@ export default function ProspectPipelinePage() {
       // Fetch all for kanban (reasonable page size to get everything)
       params.pageSize = 200;
       params.page = 1;
+      // The "Show completed/archived" toggle reveals terminal columns (WON/LOST/
+      // DECLINED/NO_BID) client-side, so the kanban must FETCH terminal-status prospects.
+      // ProspectSearchRequest.OpenOnly defaults to true server-side (which would exclude
+      // them), so include them explicitly unless a "due this week" filter is active.
+      if (!filters.dueThisWeek) params.openOnly = false;
     } else {
       params.page = paginationModel.page + 1; // MUI 0-indexed -> API 1-indexed
       params.pageSize = paginationModel.pageSize;

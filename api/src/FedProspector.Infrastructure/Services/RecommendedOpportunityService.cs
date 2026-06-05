@@ -880,8 +880,8 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         // Registered (non-primary) secondary outranks linked-entity and associated.
         var isRegisteredSecondary = !isPrimary && registeredNaics.Contains(oppNaics);
         // Phase 136 follow-up: a NAICS held by an active linked entity (not registered to
-        // the org itself) — the owner can bid through that entity. Distinct tier just
-        // above a self-declared associated code.
+        // the org itself). The owner can pursue these contracts just like her own codes,
+        // so it is weighted the SAME as a registered secondary NAICS (per user 2026-06-04).
         var isLinkedEntity = !isPrimary && !isRegisteredSecondary && linkedEntityNaics.Contains(oppNaics);
         // Phase 136 Unit G: a self-declared "associated" NAICS (disjoint from registered
         // and from linked-entity NAICS) scores as the lowest positive NAICS tier.
@@ -907,7 +907,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             return new FactorResult(30, "NAICS match but wrong cert", true);
 
         if (isLinkedEntity && (hasCert || noCertNeeded))
-            return new FactorResult(55, "Linked-entity NAICS match", true);
+            return new FactorResult(60, "Linked-entity NAICS match", true);
 
         if (isLinkedEntity && needsCert && !hasCert)
             return new FactorResult(30, "Linked-entity NAICS, wrong cert", true);
