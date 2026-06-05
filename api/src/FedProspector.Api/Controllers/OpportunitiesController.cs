@@ -208,15 +208,41 @@ public class OpportunitiesController : ApiControllerBase
     /// <summary>
     /// Get recommended opportunities scored and ranked for the current org's profile.
     /// </summary>
+    /// <param name="limit">Top-N cap for the ranked set (1-100).</param>
+    /// <param name="includeClearanceRequired">
+    /// Phase 136 Unit B. When false (default), high-confidence clearance-required
+    /// notices are hidden and the top-N is computed over the clearance-excluded set.
+    /// When true, those notices are appended as a separate additive group (flagged via
+    /// <c>clearanceRequired</c>) that does not displace or count toward the top-N.
+    /// </param>
     [HttpGet("recommended")]
     public async Task<ActionResult<List<RecommendedOpportunityDto>>> GetRecommended(
-        [FromQuery] int limit = 10)
+        [FromQuery] int limit = 10,
+        [FromQuery] bool includeClearanceRequired = false)
     {
         var orgId = await ResolveOrganizationIdAsync();
         if (orgId == null) return Unauthorized();
 
         var userId = GetCurrentUserId();
-        var result = await _recommendedService.GetRecommendedAsync(orgId.Value, limit, userId);
+        var result = await _recommendedService.GetRecommendedAsync(
+            orgId.Value, limit, userId, includeClearanceRequired);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Phase 136 Unit C. Get ungated "market research" notices — all active
+    /// Sources Sought and Special Notice items matching the org's NAICS + cert profile.
+    /// These are NOT score-ranked and NOT capped at top-N (win-probability is irrelevant).
+    /// </summary>
+    [HttpGet("market-research")]
+    public async Task<ActionResult<List<RecommendedOpportunityDto>>> GetMarketResearch(
+        [FromQuery] int limit = 500)
+    {
+        var orgId = await ResolveOrganizationIdAsync();
+        if (orgId == null) return Unauthorized();
+
+        var userId = GetCurrentUserId();
+        var result = await _recommendedService.GetMarketResearchAsync(orgId.Value, limit, userId);
         return Ok(result);
     }
 

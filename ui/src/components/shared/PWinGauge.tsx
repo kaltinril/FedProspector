@@ -1,11 +1,13 @@
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { useTheme } from '@mui/material/styles';
 
 interface PWinGaugeProps {
-  score: number;
+  /** Phase 136 Unit D: null means "insufficient data" — render a neutral N/A indicator. */
+  score: number | null | undefined;
   category: string;
   size?: 'small' | 'medium' | 'large';
   showCategory?: boolean;
@@ -51,6 +53,23 @@ export default function PWinGauge({
   const theme = useTheme();
   const gaugeColor = useGaugeColor(category);
   const { gauge: gaugeSize, text: textVariant } = SIZE_MAP[size];
+
+  // Phase 136 Unit D: no score available — show a neutral "insufficient data" indicator
+  // rather than a misleading 0%.
+  if (score == null) {
+    if (variant === 'chip') {
+      return (
+        <Tooltip title="Insufficient data to score" arrow>
+          <Chip label="N/A" size="small" color="default" variant="outlined" />
+        </Tooltip>
+      );
+    }
+    return (
+      <Box sx={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center' }}>
+        <Chip label="Insufficient data" size="small" color="default" variant="outlined" />
+      </Box>
+    );
+  }
 
   if (variant === 'chip') {
     return (

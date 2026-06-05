@@ -317,7 +317,8 @@ function OverviewTab({
   opp: OpportunityDetail;
   onViewQualification: () => void;
   oqScoreState?: { oqScore: number; oqScoreCategory: string; oqScoreFactors: OqScoreFactorDto[]; confidence?: string };
-  pWinScore?: number;
+  // Phase 136 Unit D: score may be null ("insufficient data"); the section is hidden in that case.
+  pWinScore?: number | null;
   pWinCategory?: string;
   pWinLoading?: boolean;
 }) {

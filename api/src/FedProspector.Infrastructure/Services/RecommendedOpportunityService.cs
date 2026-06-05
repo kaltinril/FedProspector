@@ -31,6 +31,16 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         ["SDVOSBS"] = "SDVOSB",
     };
 
+    /// <summary>
+    /// Phase 136 Unit C — notice types treated as ungated "market research" (pre-RFP
+    /// signals where no bid is yet possible, so win-probability is irrelevant).
+    /// </summary>
+    private static readonly HashSet<string> MarketResearchTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Sources Sought",
+        "Special Notice",
+    };
+
     /// <summary>OQS factor weights (must sum to 1.0).</summary>
     private const decimal WeightProfileMatch = 0.20m;
     private const decimal WeightValueAlignment = 0.15m;
@@ -48,7 +58,8 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         _logger = logger;
     }
 
-    public async Task<List<RecommendedOpportunityDto>> GetRecommendedAsync(int orgId, int limit = 10, int? userId = null)
+    public async Task<List<RecommendedOpportunityDto>> GetRecommendedAsync(
+        int orgId, int limit = 10, int? userId = null, bool includeClearanceRequired = false)
     {
         if (limit < 1) limit = 1;
         if (limit > 100) limit = 100;
@@ -134,7 +145,11 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             .Select(g => g.OrderByDescending(c => c.PostedDate).ThenByDescending(c => c.NoticeId).First())
             .ToList();
 
-        // 5. Batch-load intel summaries for re-compete data
+        // 5. Batch-load intel summaries for re-compete data AND the Phase 136 Unit B
+        // clearance signal. A notice is "high-confidence clearance required" if ANY of
+        // its opportunity_attachment_summary rows has clearance_required='Y' AND
+        // overall_confidence='high'. CAVEAT: only document-analyzed opps carry this
+        // signal at all — absence means "no high-confidence signal", not "no clearance".
         var noticeIds = deduped.Select(d => d.NoticeId).ToList();
         var intelByNotice = await _context.OpportunityAttachmentSummaries.AsNoTracking()
             .Where(s => noticeIds.Contains(s.NoticeId))
@@ -146,7 +161,10 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 IncumbentName = g.Where(s => s.IncumbentName != null)
                     .OrderByDescending(s => s.ExtractedAt)
                     .Select(s => s.IncumbentName)
-                    .FirstOrDefault()
+                    .FirstOrDefault(),
+                ClearanceRequiredHighConf = g.Any(s =>
+                    s.ClearanceRequired != null && s.ClearanceRequired.ToUpper() == "Y"
+                    && s.OverallConfidence != null && s.OverallConfidence.ToLower() == "high")
             })
             .ToDictionaryAsync(x => x.NoticeId);
 
@@ -167,7 +185,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             c => c.VendorCount);
 
         // 7. Score each candidate using the 7-factor OQS model
-        var scored = new List<(RecommendedOpportunityDto Dto, decimal Score)>();
+        var scored = new List<(RecommendedOpportunityDto Dto, decimal? Score, bool ClearanceRequired)>();
 
         foreach (var c in deduped)
         {
@@ -186,13 +204,15 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 ? Math.Max(0, (int)(c.ResponseDeadline.Value - now).TotalDays)
                 : null;
 
-            // Determine re-compete status from intel
+            // Determine re-compete status and clearance signal from intel
             var isRecompete = false;
             string? incumbentName = null;
+            var clearanceRequired = false;
             if (intelByNotice.TryGetValue(c.NoticeId, out var intel))
             {
                 isRecompete = string.Equals(intel.IsRecompete, "Y", StringComparison.OrdinalIgnoreCase);
                 incumbentName = intel.IncumbentName;
+                clearanceRequired = intel.ClearanceRequiredHighConf;
             }
 
             // Factor 1: Profile Match Strength
@@ -230,17 +250,12 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 BuildFactor("Re-compete Advantage", recompeteFactor.Score, WeightRecompete, recompeteFactor.Detail, recompeteFactor.HadRealData),
             };
 
-            var oqScore = Math.Round(factors.Sum(f => f.WeightedScore), 1);
+            // Phase 136 Unit D: renormalize over real-data factors only; null => insufficient data.
+            var oqScore = ComputeRenormalizedScore(factors);
             var realDataCount = factors.Count(f => f.HadRealData);
             var confidence = realDataCount >= 6 ? "High" : realDataCount >= 4 ? "Medium" : "Low";
 
-            var category = oqScore switch
-            {
-                >= 70 => "High",
-                >= 40 => "Medium",
-                >= 15 => "Low",
-                _ => "VeryLow"
-            };
+            var category = CategoryFor(oqScore);
 
             var dto = new RecommendedOpportunityDto
             {
@@ -271,17 +286,35 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
                 Confidence = confidence,
                 IsRecompete = isRecompete,
                 IncumbentName = incumbentName,
+                ClearanceRequired = clearanceRequired,
             };
 
-            scored.Add((dto, oqScore));
+            scored.Add((dto, oqScore, clearanceRequired));
         }
 
-        // 8. Order by score DESC, take top N
-        var topN = scored
-            .OrderByDescending(s => s.Score)
+        // 8. Phase 136 Unit B: ALWAYS compute the ranked top-N over the
+        // clearance-EXCLUDED set so high-confidence clearance-required notices never
+        // consume top-N slots. A null OQS (insufficient data) sorts last.
+        var ranked = scored
+            .Where(s => !s.ClearanceRequired)
+            .OrderByDescending(s => s.Score ?? decimal.MinValue)
             .Take(limit)
             .Select(s => s.Dto)
             .ToList();
+
+        // When requested, append the clearance-required matches as a separate additive
+        // group AFTER the ranked top-N (flagged via ClearanceRequired). They do not
+        // displace or count toward the top-N. When not requested, they are hidden.
+        var topN = ranked;
+        if (includeClearanceRequired)
+        {
+            var clearanceGroup = scored
+                .Where(s => s.ClearanceRequired)
+                .OrderByDescending(s => s.Score ?? decimal.MinValue)
+                .Select(s => s.Dto)
+                .ToList();
+            topN = ranked.Concat(clearanceGroup).ToList();
+        }
 
         // 9. Enrich with NAICS descriptions (batch lookup)
         var distinctNaics = topN
@@ -402,6 +435,13 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         var isRecompete = string.Equals(intel?.IsRecompete, "Y", StringComparison.OrdinalIgnoreCase);
         var incumbentName = intel?.IncumbentName;
 
+        // Phase 136 Unit B clearance signal: high-confidence clearance-required if ANY
+        // analyzed attachment row says so. CAVEAT: only document-analyzed opps carry this.
+        var clearanceRequired = await _context.OpportunityAttachmentSummaries.AsNoTracking()
+            .AnyAsync(s => s.NoticeId == noticeId
+                && s.ClearanceRequired != null && s.ClearanceRequired.ToUpper() == "Y"
+                && s.OverallConfidence != null && s.OverallConfidence.ToLower() == "high");
+
         // 5. Load competition data from pre-computed summary table
         var vendorCount = 0;
         if (!string.IsNullOrEmpty(opp.NaicsCode) && !string.IsNullOrEmpty(opp.DepartmentCgac))
@@ -438,16 +478,11 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             BuildFactor("Re-compete Advantage", recompeteFactor.Score, WeightRecompete, recompeteFactor.Detail, recompeteFactor.HadRealData),
         };
 
-        var oqScore = Math.Round(factors.Sum(f => f.WeightedScore), 1);
+        // Phase 136 Unit D: renormalize over real-data factors only; null => insufficient data.
+        var oqScore = ComputeRenormalizedScore(factors);
         var realDataCount = factors.Count(f => f.HadRealData);
         var confidence = realDataCount >= 6 ? "High" : realDataCount >= 4 ? "Medium" : "Low";
-        var category = oqScore switch
-        {
-            >= 70 => "High",
-            >= 40 => "Medium",
-            >= 15 => "Low",
-            _ => "VeryLow"
-        };
+        var category = CategoryFor(oqScore);
 
         // 7. NAICS description
         string? naicsDescription = null;
@@ -489,7 +524,176 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             Confidence = confidence,
             IsRecompete = isRecompete,
             IncumbentName = incumbentName,
+            ClearanceRequired = clearanceRequired,
         };
+    }
+
+    // ────────────────────────────────────────────────────────────────────
+    // Phase 136 Unit C — Market Research (ungated Sources Sought / Special Notice)
+    // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns ALL active "Sources Sought" and "Special Notice" notices matching the
+    /// org's NAICS + certification profile. NOT score-ranked and NOT capped at top-N
+    /// (a high cap / pagination guards against pathological result sizes). Applies the
+    /// SAME set-aside cert rules as <see cref="GetRecommendedAsync"/>: a notice whose
+    /// set-aside requires a cert the org lacks is skipped.
+    /// </summary>
+    public async Task<List<RecommendedOpportunityDto>> GetMarketResearchAsync(
+        int orgId, int limit = 500, int? userId = null)
+    {
+        if (limit < 1) limit = 1;
+        if (limit > 2000) limit = 2000;
+
+        // 1. Org NAICS + certs (same as recommended)
+        var naicsCodes = await _context.OrganizationNaics.AsNoTracking()
+            .Where(n => n.OrganizationId == orgId)
+            .Select(n => n.NaicsCode)
+            .ToListAsync();
+
+        if (naicsCodes.Count == 0)
+        {
+            _logger.LogInformation("Org {OrgId} has no NAICS codes — no market research notices", orgId);
+            return [];
+        }
+
+        var orgCerts = await _context.OrganizationCertifications.AsNoTracking()
+            .Where(c => c.OrganizationId == orgId && c.IsActive == "Y")
+            .Select(c => c.CertificationType)
+            .ToListAsync();
+        var orgCertSet = orgCerts.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // 2. Query active Sources Sought / Special Notice opportunities matching org NAICS.
+        var now = DateTime.UtcNow;
+        var candidates = await _context.Opportunities.AsNoTracking()
+            .Where(o => naicsCodes.Contains(o.NaicsCode!)
+                        && o.Active != "N"
+                        && MarketResearchTypes.Contains(o.Type!)
+                        && (o.ResponseDeadline == null || o.ResponseDeadline > now))
+            .Select(o => new
+            {
+                o.NoticeId,
+                o.Title,
+                o.SolicitationNumber,
+                o.DepartmentName,
+                o.DepartmentCgac,
+                o.SubTier,
+                o.ContractingOfficeId,
+                o.SetAsideCode,
+                o.SetAsideDescription,
+                o.NaicsCode,
+                o.ClassificationCode,
+                o.Type,
+                o.EstimatedContractValue,
+                o.AwardAmount,
+                PostedDate = o.PostedDate,
+                o.ResponseDeadline,
+                o.PopState,
+                o.PopCity,
+                o.PopCountry,
+                o.FhOrgId
+            })
+            .ToListAsync();
+
+        // 2b. Exclude ignored opportunities
+        if (userId.HasValue)
+        {
+            var ignoredIds = await _context.OpportunityIgnores
+                .Where(i => i.UserId == userId.Value)
+                .Select(i => i.NoticeId)
+                .ToListAsync();
+            if (ignoredIds.Count > 0)
+            {
+                var ignoredSet = ignoredIds.ToHashSet();
+                candidates = candidates.Where(c => !ignoredSet.Contains(c.NoticeId)).ToList();
+            }
+        }
+
+        // 3. Dedup: keep latest notice per solicitation (same rule as recommended)
+        var deduped = candidates
+            .GroupBy(c => string.IsNullOrEmpty(c.SolicitationNumber) ? c.NoticeId : c.SolicitationNumber)
+            .Select(g => g.OrderByDescending(c => c.PostedDate).ThenByDescending(c => c.NoticeId).First())
+            .ToList();
+
+        // 4. Apply set-aside cert filtering (same rule as recommended) and build DTOs.
+        // These notices are intentionally NOT scored — win-probability is irrelevant for
+        // market research — so OqScore stays null and category is "MarketResearch".
+        var result = new List<RecommendedOpportunityDto>();
+        foreach (var c in deduped)
+        {
+            var setAsideCode = (c.SetAsideCode ?? "").Trim();
+            if (!string.IsNullOrEmpty(setAsideCode)
+                && SetAsideToCertType.TryGetValue(setAsideCode, out var requiredCert)
+                && !orgCertSet.Contains(requiredCert))
+            {
+                continue;
+            }
+
+            int? daysRemaining = c.ResponseDeadline.HasValue
+                ? Math.Max(0, (int)(c.ResponseDeadline.Value - now).TotalDays)
+                : null;
+
+            result.Add(new RecommendedOpportunityDto
+            {
+                NoticeId = c.NoticeId,
+                Title = c.Title,
+                SolicitationNumber = c.SolicitationNumber,
+                DepartmentName = c.DepartmentName,
+                SubTier = c.SubTier,
+                ContractingOfficeId = c.ContractingOfficeId,
+                SetAsideCode = c.SetAsideCode,
+                SetAsideDescription = c.SetAsideDescription,
+                NaicsCode = c.NaicsCode,
+                ClassificationCode = c.ClassificationCode,
+                NoticeType = c.Type,
+                AwardAmount = c.AwardAmount,
+                PostedDate = c.PostedDate.HasValue
+                    ? c.PostedDate.Value.ToDateTime(TimeOnly.MinValue)
+                    : null,
+                ResponseDeadline = c.ResponseDeadline,
+                DaysRemaining = daysRemaining,
+                PopState = c.PopState,
+                PopCity = c.PopCity,
+                PopCountry = c.PopCountry,
+                FhOrgId = c.FhOrgId,
+                OqScore = null,
+                OqScoreCategory = "MarketResearch",
+                OqScoreFactors = [],
+                Confidence = "Medium",
+            });
+        }
+
+        // 5. Sort by most recently posted (most useful ordering for research) and cap.
+        var ordered = result
+            .OrderByDescending(r => r.PostedDate)
+            .Take(limit)
+            .ToList();
+
+        // 6. Enrich with NAICS descriptions (batch lookup)
+        var distinctNaics = ordered
+            .Where(d => d.NaicsCode != null)
+            .Select(d => d.NaicsCode!)
+            .Distinct()
+            .ToList();
+
+        if (distinctNaics.Count > 0)
+        {
+            var naicsDescriptions = await _context.RefNaicsCodes.AsNoTracking()
+                .Where(n => distinctNaics.Contains(n.NaicsCode))
+                .ToDictionaryAsync(n => n.NaicsCode, n => n.Description);
+
+            foreach (var dto in ordered)
+            {
+                if (dto.NaicsCode != null && naicsDescriptions.TryGetValue(dto.NaicsCode, out var desc))
+                    dto.NaicsDescription = desc;
+            }
+        }
+
+        _logger.LogInformation(
+            "Market research: {Count} Sources Sought/Special Notice for org {OrgId} (from {Total} candidates)",
+            ordered.Count, orgId, candidates.Count);
+
+        return ordered;
     }
 
     // ────────────────────────────────────────────────────────────────────
@@ -754,6 +958,34 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
     // ────────────────────────────────────────────────────────────────────
     // Helpers
     // ────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Phase 136 Unit D — renormalized OQS over real-data factors only.
+    /// Computes the weighted score using ONLY factors where HadRealData is true,
+    /// dividing by the SUM of those factors' weights so the present weights total 1.0.
+    /// Returns null when ZERO factors had real data (caller must surface
+    /// "insufficient data" rather than a misleading 0).
+    /// </summary>
+    private static decimal? ComputeRenormalizedScore(IReadOnlyList<OqScoreFactorDto> factors)
+    {
+        var presentWeight = factors.Where(f => f.HadRealData).Sum(f => f.Weight);
+        if (presentWeight <= 0m)
+            return null;
+
+        // f.Score is the raw 0-100 factor score; renormalize so present weights sum to 1.0.
+        var weighted = factors.Where(f => f.HadRealData).Sum(f => f.Score * f.Weight);
+        return Math.Round(weighted / presentWeight, 1);
+    }
+
+    /// <summary>Maps a (possibly null) OQS to its category label.</summary>
+    private static string CategoryFor(decimal? oqScore) => oqScore switch
+    {
+        null => "InsufficientData",
+        >= 70 => "High",
+        >= 40 => "Medium",
+        >= 15 => "Low",
+        _ => "VeryLow"
+    };
 
     /// <summary>
     /// Builds an OqScoreFactorDto with calculated weighted score.

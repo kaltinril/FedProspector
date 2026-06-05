@@ -996,8 +996,9 @@ export interface PWinFactorDto {
 export interface PWinResultDto {
   prospectId: number | null;
   noticeId: string;
-  score: number;
-  category: string;  // "High" | "Medium" | "Low" | "VeryLow"
+  // Phase 136 Unit D: score is null when zero factors had real data ("insufficient data").
+  score: number | null;
+  category: string;  // "High" | "Medium" | "Low" | "VeryLow" | "InsufficientData"
   confidence: string;  // "High" | "Medium" | "Low"
   dataCompletenessPercent: number;  // 0-100
   factors: PWinFactorDto[];
@@ -1109,12 +1110,16 @@ export interface RecommendedOpportunityDto {
   qScore: number;
   qScoreCategory: string;
   qScoreFactors: QScoreFactorDto[];
-  oqScore: number;
-  oqScoreCategory: string;
+  // Phase 136 Unit D: oqScore is null when zero factors had real data ("insufficient data").
+  oqScore: number | null;
+  oqScoreCategory: string; // may be "InsufficientData" or "MarketResearch"
   oqScoreFactors: OqScoreFactorDto[];
   confidence: string;
   isRecompete: boolean;
   incumbentName: string | null;
+  // Phase 136 Unit B: true when a high-confidence analyzed attachment reports clearance
+  // required. CAVEAT: only document-analyzed opps carry this signal.
+  clearanceRequired: boolean;
 }
 
 export interface QScoreFactorDto {
@@ -1215,7 +1220,8 @@ export interface BatchPWinRequest {
 }
 
 export interface BatchPWinEntry {
-  score: number;
+  // Phase 136 Unit D: null when no factor had real data ("insufficient data").
+  score: number | null;
   category: string;
 }
 

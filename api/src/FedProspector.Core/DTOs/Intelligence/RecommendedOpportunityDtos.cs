@@ -24,18 +24,31 @@ public class RecommendedOpportunityDto
     public int? FhOrgId { get; set; }
 
     // OQS scoring (new 7-factor weighted model)
-    /// <summary>Opportunity Quality Score (0-100), weighted sum of 7 factors.</summary>
-    public decimal OqScore { get; set; }
-    /// <summary>Category derived from OqScore: High (>=70), Medium (40-69), Low (15-39), VeryLow (&lt;15).</summary>
+    /// <summary>
+    /// Opportunity Quality Score (0-100), the weight-renormalized sum of only the
+    /// factors that had real data (Phase 136 Unit D). NULL when zero factors had
+    /// real data — callers/UI must treat null as "insufficient data" rather than 0.
+    /// </summary>
+    public decimal? OqScore { get; set; }
+    /// <summary>Category derived from OqScore: High (>=70), Medium (40-69), Low (15-39), VeryLow (&lt;15), or "InsufficientData" when OqScore is null.</summary>
     public string OqScoreCategory { get; set; } = "";
     /// <summary>Breakdown of all OQS factor scores and weights.</summary>
     public List<OqScoreFactorDto> OqScoreFactors { get; set; } = new();
     /// <summary>Data confidence: High (>=6 factors with real data), Medium (>=4), Low (&lt;4).</summary>
     public string Confidence { get; set; } = "Medium";
 
+    // Phase 136 Unit B — clearance signal.
+    /// <summary>
+    /// True when at least one analyzed attachment for this notice reports
+    /// clearance_required='Y' with overall_confidence='high'. CAVEAT: only
+    /// document-analyzed opportunities can ever carry this signal; a false value
+    /// means "no high-confidence clearance signal", NOT "no clearance required".
+    /// </summary>
+    public bool ClearanceRequired { get; set; }
+
     // Backward compatibility — delegates to OQS properties
     [Obsolete("Use OqScore instead")]
-    public decimal QScore { get => OqScore; set => OqScore = value; }
+    public decimal QScore { get => OqScore ?? 0m; set => OqScore = value; }
     [Obsolete("Use OqScoreCategory instead")]
     public string QScoreCategory { get => OqScoreCategory; set => OqScoreCategory = value; }
     [Obsolete("Use OqScoreFactors instead")]
