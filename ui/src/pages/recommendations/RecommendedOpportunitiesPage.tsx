@@ -4,17 +4,22 @@ import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import SecurityIcon from '@mui/icons-material/Security';
 import type { GridColDef, GridPaginationModel, GridRowParams } from '@mui/x-data-grid';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import FormControl from '@mui/material/FormControl';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import type { SelectChangeEvent } from '@mui/material/Select';
 import Skeleton from '@mui/material/Skeleton';
+import Switch from '@mui/material/Switch';
+import Tab from '@mui/material/Tab';
+import Tabs from '@mui/material/Tabs';
 import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
@@ -25,7 +30,7 @@ import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import PWinGauge from '@/components/shared/PWinGauge';
-import { getRecommendedOpportunities } from '@/api/opportunities';
+import { getRecommendedOpportunities, getMarketResearchOpportunities } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
 import { useIgnoreOpportunity, useUnignoreOpportunity, useIgnoredOpportunityIds } from '@/queries/useOpportunities';
 import { formatCurrency } from '@/utils/formatters';
@@ -266,6 +271,23 @@ function buildColumns(
       sortable: false,
     },
     {
+      // Phase 136 Unit B — clearance badge (only set for document-analyzed opps).
+      field: 'clearanceRequired',
+      headerName: 'Clearance',
+      width: 110,
+      align: 'center',
+      headerAlign: 'center',
+      sortable: false,
+      renderCell: (params) => {
+        if (!params.value) return null;
+        return (
+          <Tooltip title="High-confidence clearance requirement found in analyzed documents" arrow>
+            <Chip icon={<SecurityIcon />} label="Clearance" size="small" color="warning" variant="outlined" />
+          </Tooltip>
+        );
+      },
+    },
+    {
       field: 'actions',
       headerName: '',
       width: 60,
@@ -308,13 +330,16 @@ const RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
   setAsideDescription: 'md',
   awardAmount: 'md',
   pWin: 'lg',
+  clearanceRequired: 'lg',
   actions: 'sm',
 };
 
 export default function RecommendedOpportunitiesPage() {
   const navigate = useNavigate();
   const { enqueueSnackbar } = useSnackbar();
+  const [tab, setTab] = useState(0);
   const [limit, setLimit] = useLocalStorage('recommended.limit', 25);
+  const [showClearance, setShowClearance] = useLocalStorage('recommended.showClearance', false);
   const [savedPageSize, setSavedPageSize] = useLocalStorage('recommended.pageSize', 25);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: savedPageSize });
   const [keyword, setKeyword] = useState('');
@@ -329,8 +354,10 @@ export default function RecommendedOpportunitiesPage() {
   const ignoredSet = useMemo(() => new Set(ignoredIds ?? []), [ignoredIds]);
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: queryKeys.opportunities.recommended(limit),
-    queryFn: () => getRecommendedOpportunities(limit),
+    // Phase 136 Unit B: clearance-required matches are an additive group appended after
+    // the ranked top-N; they never consume top-N slots regardless of this toggle.
+    queryKey: queryKeys.opportunities.recommended(limit, showClearance),
+    queryFn: () => getRecommendedOpportunities(limit, showClearance),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -450,6 +477,15 @@ export default function RecommendedOpportunitiesPage() {
         subtitle="Personalized matches based on your organization profile"
       />
 
+      <Tabs value={tab} onChange={(_e, v: number) => setTab(v)} sx={{ mb: 3 }}>
+        <Tab label="Recommended" />
+        <Tab label="Market Research" />
+      </Tabs>
+
+      {tab === 1 ? (
+        <MarketResearchSection navigate={navigate} />
+      ) : (
+      <Box>
       {/* Filter bar */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
         <FormControl size="small" sx={{ minWidth: 140 }}>
@@ -516,6 +552,16 @@ export default function RecommendedOpportunitiesPage() {
           </Select>
         </FormControl>
 
+        {/* Phase 136 Unit B — clearance toggle. Off by default; clearance-required
+            matches are hidden. When on, they appear as an additive group flagged with a
+            badge and never displace the ranked top-N. */}
+        <Tooltip title="Show opportunities flagged as requiring a security clearance (from analyzed documents). These are added on top of the ranked list and never push out other matches." arrow>
+          <FormControlLabel
+            control={<Switch size="small" checked={showClearance} onChange={(e) => setShowClearance(e.target.checked)} />}
+            label="Clearance-required"
+          />
+        </Tooltip>
+
         {data && (
           <Chip
             label={
@@ -554,6 +600,195 @@ export default function RecommendedOpportunitiesPage() {
           loading={false}
           paginationModel={paginationModel}
           onPaginationModelChange={(m) => { setPaginationModel(m); if (m.pageSize !== paginationModel.pageSize) setSavedPageSize(m.pageSize); }}
+          onRowClick={handleRowClick}
+          getRowId={(row: RecommendedOpportunityDto) => row.noticeId}
+          columnVisibilityModel={columnVisibility}
+          sx={{ minHeight: 400 }}
+        />
+      )}
+      </Box>
+      )}
+    </Box>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Market Research section (Phase 136 Unit C)
+// ---------------------------------------------------------------------------
+
+const MARKET_RESEARCH_RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
+  noticeType: 'sm',
+  departmentName: 'md',
+  naicsCode: 'lg',
+  setAsideDescription: 'md',
+  awardAmount: 'lg',
+};
+
+function buildMarketResearchColumns(): GridColDef<RecommendedOpportunityDto>[] {
+  return [
+    {
+      field: 'title',
+      headerName: 'Title',
+      flex: 2,
+      minWidth: 220,
+      valueFormatter: (value: string | null | undefined) => value ?? '--',
+    },
+    {
+      field: 'noticeType',
+      headerName: 'Type',
+      width: 150,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params) => noticeTypeChip(params.value as string | null | undefined),
+    },
+    {
+      field: 'departmentName',
+      headerName: 'Agency',
+      flex: 1,
+      minWidth: 140,
+      renderCell: (params) =>
+        params.row.departmentName ? (
+          <AgencyLink
+            name={params.row.departmentName}
+            agencyCode={params.row.contractingOfficeId ?? undefined}
+            fhOrgId={params.row.fhOrgId}
+          />
+        ) : (
+          '--'
+        ),
+    },
+    {
+      field: 'naicsCode',
+      headerName: 'NAICS',
+      width: 90,
+      valueFormatter: (value: string | null | undefined) => value ?? '--',
+    },
+    {
+      field: 'setAsideDescription',
+      headerName: 'Set-Aside',
+      flex: 0.8,
+      minWidth: 120,
+      valueFormatter: (value: string | null | undefined) => truncate(value, 30),
+    },
+    {
+      field: 'awardAmount',
+      headerName: 'Est. Value',
+      width: 120,
+      align: 'right',
+      headerAlign: 'right',
+      valueFormatter: (value: number | null | undefined) => formatCurrency(value, true),
+    },
+    {
+      field: 'postedDate',
+      headerName: 'Posted',
+      width: 120,
+      valueFormatter: (value: string | null | undefined) => formatDate(value),
+    },
+    {
+      field: 'responseDeadline',
+      headerName: 'Deadline',
+      width: 120,
+      valueFormatter: (value: string | null | undefined) => formatDate(value),
+    },
+    {
+      field: 'daysRemaining',
+      headerName: 'Days Left',
+      width: 100,
+      align: 'center',
+      headerAlign: 'center',
+      renderCell: (params) => daysRemainingChip(params.value as number | null | undefined),
+    },
+  ];
+}
+
+function MarketResearchSection({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+  const [pageSize, setPageSize] = useLocalStorage('marketResearch.pageSize', 25);
+  const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
+  const [keyword, setKeyword] = useState('');
+  const columnVisibility = useResponsiveColumns(MARKET_RESEARCH_RESPONSIVE_COLUMNS);
+  const columns = useMemo(() => buildMarketResearchColumns(), []);
+
+  const { data, isLoading, isError, refetch } = useQuery({
+    queryKey: queryKeys.opportunities.marketResearch(500),
+    queryFn: () => getMarketResearchOpportunities(500),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const filtered = useMemo(() => {
+    if (!data) return [];
+    if (!keyword) return data;
+    const kw = keyword.toLowerCase();
+    return data.filter(
+      (r) => r.title?.toLowerCase().includes(kw) || r.solicitationNumber?.toLowerCase().includes(kw),
+    );
+  }, [data, keyword]);
+
+  const handleRowClick = useCallback(
+    (params: GridRowParams<RecommendedOpportunityDto>) => {
+      navigate(`/opportunities/${encodeURIComponent(params.row.noticeId)}`);
+    },
+    [navigate],
+  );
+
+  if (isError) {
+    return (
+      <ErrorState
+        title="Failed to load market research"
+        message="Could not retrieve Sources Sought / Special Notice items. Please try again."
+        onRetry={() => refetch()}
+      />
+    );
+  }
+
+  return (
+    <Box>
+      <Alert severity="info" sx={{ mb: 2 }}>
+        Pre-solicitation market research: all active <strong>Sources Sought</strong> and{' '}
+        <strong>Special Notice</strong> items matching your NAICS and certifications. These are not
+        win-scored or ranked — they are early signals to engage with agencies before an RFP exists.
+      </Alert>
+
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+        <TextField
+          size="small"
+          label="Search"
+          placeholder="Title or solicitation..."
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          sx={{ minWidth: 220 }}
+        />
+        {data && (
+          <Chip
+            label={
+              keyword
+                ? `${filtered.length} of ${data.length}`
+                : `${data.length} notice${data.length !== 1 ? 's' : ''}`
+            }
+            color="secondary"
+            size="small"
+            variant="outlined"
+          />
+        )}
+      </Box>
+
+      {isLoading && <LoadingState message="Loading market research..." />}
+
+      {!isLoading && data && data.length === 0 && (
+        <Alert severity="info">
+          No Sources Sought or Special Notice items currently match your profile.
+        </Alert>
+      )}
+
+      {!isLoading && data && (data.length > 0 || keyword !== '') && (
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          loading={false}
+          paginationModel={paginationModel}
+          onPaginationModelChange={(m) => {
+            setPaginationModel(m);
+            if (m.pageSize !== paginationModel.pageSize) setPageSize(m.pageSize);
+          }}
           onRowClick={handleRowClick}
           getRowId={(row: RecommendedOpportunityDto) => row.noticeId}
           columnVisibilityModel={columnVisibility}

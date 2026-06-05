@@ -8,7 +8,9 @@ export const queryKeys = {
     pwinBatch: (noticeIds: string[]) => ['opportunities', 'pwin', 'batch', ...noticeIds] as const,
     qualification: (noticeId: string) => ['opportunities', 'qualification', noticeId] as const,
     incumbent: (noticeId: string) => ['opportunities', 'incumbent', noticeId] as const,
-    recommended: (limit: number) => ['opportunities', 'recommended', limit] as const,
+    recommended: (limit: number, includeClearanceRequired = false) =>
+      ['opportunities', 'recommended', limit, includeClearanceRequired] as const,
+    marketResearch: (limit: number) => ['opportunities', 'marketResearch', limit] as const,
     ignoredIds: () => ['opportunities', 'ignoredIds'] as const,
     competitiveLandscape: (noticeId: string) => ['opportunities', 'competitiveLandscape', noticeId] as const,
     setAsideShift: (noticeId: string) => ['opportunities', 'setAsideShift', noticeId] as const,

@@ -218,10 +218,15 @@ public class PWinService : IPWinService
         // 8. Size eligibility (weight 0.10) — Phase 129 Unit D — per-opportunity (NAICS + set-aside)
         factors.Add(await ScoreSizeEligibilityAsync(opp, org.OrganizationId, suggestions));
 
-        var totalScore = Math.Round(factors.Sum(f => f.WeightedScore), 1);
+        // Phase 136 Unit D: renormalize the weighted score over ONLY the factors that
+        // had real data, dividing by the sum of those factors' weights (so present
+        // weights total 1.0). When ZERO factors had real data, the score is null and we
+        // surface "insufficient data" rather than a misleading number.
+        var totalScore = ComputeRenormalizedScore(factors);
 
         var category = totalScore switch
         {
+            null => "InsufficientData",
             >= 70 => "High",
             >= 40 => "Medium",
             >= 15 => "Low",
@@ -235,12 +240,15 @@ public class PWinService : IPWinService
         int? prospectId = prospect?.ProspectId;
         if (prospect != null)
         {
-            prospect.WinProbability = (decimal)totalScore;
+            // Only persist a real probability; leave prior value untouched when insufficient.
+            if (totalScore.HasValue)
+                prospect.WinProbability = totalScore.Value;
             prospect.UpdatedAt = DateTime.UtcNow;
         }
 
-        _logger.LogInformation("pWin calculated for opportunity {NoticeId}, org {OrgId}: {Score}% ({Category}, confidence={Confidence})",
-            opp.NoticeId, org.OrganizationId, totalScore, category, confidence);
+        _logger.LogInformation("pWin calculated for opportunity {NoticeId}, org {OrgId}: {Score} ({Category}, confidence={Confidence})",
+            opp.NoticeId, org.OrganizationId,
+            totalScore.HasValue ? $"{totalScore.Value}%" : "insufficient data", category, confidence);
 
         return new PWinResultDto
         {
@@ -1106,6 +1114,22 @@ public class PWinService : IPWinService
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Phase 136 Unit D — renormalized pWin over real-data factors only.
+    /// Sums Score*Weight for factors with HadRealData and divides by the sum of those
+    /// factors' weights so present weights total 1.0. Returns null when ZERO factors
+    /// had real data (caller surfaces "insufficient data" instead of a misleading 0).
+    /// </summary>
+    private static decimal? ComputeRenormalizedScore(IReadOnlyList<PWinFactorDto> factors)
+    {
+        var presentWeight = factors.Where(f => f.HadRealData).Sum(f => f.Weight);
+        if (presentWeight <= 0m)
+            return null;
+
+        var weighted = factors.Where(f => f.HadRealData).Sum(f => f.Score * f.Weight);
+        return Math.Round(weighted / presentWeight, 1);
+    }
 
     /// <summary>
     /// Creates a PWinFactorDto with computed weighted score and data completeness tracking.

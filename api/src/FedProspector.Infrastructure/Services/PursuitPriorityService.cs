@@ -31,10 +31,12 @@ public class PursuitPriorityService : IPursuitPriorityService
         var pwin = pwinTask.Result;
         var oq = oqTask.Result;
 
+        // Phase 136 Unit D: pWin/OQS can be null ("insufficient data"). A null component
+        // is treated as confidence=Low here so the low-confidence discount applies.
         var pwinScore = pwin.Score;
-        var pwinConfidence = pwin.Confidence;
-        var oqScore = oq?.OqScore ?? 0m;
-        var oqConfidence = oq?.Confidence ?? "Low";
+        var pwinConfidence = pwin.Score.HasValue ? pwin.Confidence : "Low";
+        var oqScore = oq?.OqScore;
+        var oqConfidence = oqScore.HasValue ? oq!.Confidence : "Low";
 
         return BuildDto(noticeId, pwinScore, pwinConfidence, oqScore, oqConfidence);
     }
@@ -72,11 +74,16 @@ public class PursuitPriorityService : IPursuitPriorityService
     }
 
     private static PursuitPriorityDto BuildDto(
-        string noticeId, decimal pwinScore, string pwinConfidence,
-        decimal oqScore, string oqConfidence)
+        string noticeId, decimal? pwinScore, string pwinConfidence,
+        decimal? oqScore, string oqConfidence)
     {
+        // Phase 136 Unit D: a null component means "insufficient data". Treat it as 0
+        // for the combined formula (it already incurs the low-confidence discount).
+        var pwinValue = pwinScore ?? 0m;
+        var oqValue = oqScore ?? 0m;
+
         // Formula: (pWin * 0.6) + (OQS * 0.4)
-        var pursuitScore = (pwinScore * 0.6m) + (oqScore * 0.4m);
+        var pursuitScore = (pwinValue * 0.6m) + (oqValue * 0.4m);
 
         // Low-confidence discount: 15%
         var discountApplied = string.Equals(pwinConfidence, "Low", StringComparison.OrdinalIgnoreCase)
@@ -87,8 +94,8 @@ public class PursuitPriorityService : IPursuitPriorityService
         pursuitScore = Math.Round(pursuitScore, 1);
 
         // Quadrant: pWin >= 50 = High, OQS >= 50 = High
-        var pwinHigh = pwinScore >= 50;
-        var oqHigh = oqScore >= 50;
+        var pwinHigh = pwinValue >= 50;
+        var oqHigh = oqValue >= 50;
         var quadrant = (pwinHigh, oqHigh) switch
         {
             (true, true) => "HighPWin_HighOQS",
@@ -111,9 +118,9 @@ public class PursuitPriorityService : IPursuitPriorityService
             NoticeId = noticeId,
             PursuitScore = pursuitScore,
             Category = category,
-            PWinScore = pwinScore,
+            PWinScore = pwinValue,
             PWinConfidence = pwinConfidence,
-            OqScore = oqScore,
+            OqScore = oqValue,
             OqConfidence = oqConfidence,
             ConfidenceDiscountApplied = discountApplied,
             Quadrant = quadrant

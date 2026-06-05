@@ -94,6 +94,26 @@ public class RecommendedOpportunityServiceTests : IDisposable
         _context.SaveChanges();
     }
 
+    private void SeedAttachmentSummary(
+        string noticeId,
+        string? clearanceRequired = null,
+        string overallConfidence = "low",
+        string? isRecompete = null,
+        string? incumbentName = null)
+    {
+        _context.OpportunityAttachmentSummaries.Add(new OpportunityAttachmentSummary
+        {
+            NoticeId = noticeId,
+            ExtractionMethod = "ai",
+            ClearanceRequired = clearanceRequired,
+            OverallConfidence = overallConfidence,
+            IsRecompete = isRecompete,
+            IncumbentName = incumbentName,
+            ExtractedAt = DateTime.UtcNow
+        });
+        _context.SaveChanges();
+    }
+
     // -----------------------------------------------------------------------
     // Type Filtering Tests (100-1)
     // -----------------------------------------------------------------------
@@ -370,5 +390,139 @@ public class RecommendedOpportunityServiceTests : IDisposable
         var results = await _service.GetRecommendedAsync(OrgId, limit: 0);
 
         results.Should().HaveCount(1, "limit 0 should be clamped to 1");
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 136 Unit B — High-confidence clearance filter
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetRecommendedAsync_HiddenByDefault_ExcludesHighConfidenceClearance()
+    {
+        SeedOpportunity("NO-CLEAR-001");
+        SeedOpportunity("CLEAR-HIGH-001");
+        SeedAttachmentSummary("CLEAR-HIGH-001", clearanceRequired: "Y", overallConfidence: "high");
+
+        var results = await _service.GetRecommendedAsync(OrgId, limit: 100);
+
+        results.Should().ContainSingle(r => r.NoticeId == "NO-CLEAR-001");
+        results.Should().NotContain(r => r.NoticeId == "CLEAR-HIGH-001");
+    }
+
+    [Fact]
+    public async Task GetRecommendedAsync_LowConfidenceClearance_IsNotExcluded()
+    {
+        // clearance_required=Y but only low confidence — must NOT be filtered out
+        SeedOpportunity("CLEAR-LOW-001");
+        SeedAttachmentSummary("CLEAR-LOW-001", clearanceRequired: "Y", overallConfidence: "low");
+
+        var results = await _service.GetRecommendedAsync(OrgId, limit: 100);
+
+        results.Should().ContainSingle(r => r.NoticeId == "CLEAR-LOW-001");
+        results[0].ClearanceRequired.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetRecommendedAsync_IncludeClearance_AppendsAsSeparateFlaggedGroup()
+    {
+        SeedOpportunity("NO-CLEAR-001");
+        SeedOpportunity("CLEAR-HIGH-001");
+        SeedAttachmentSummary("CLEAR-HIGH-001", clearanceRequired: "Y", overallConfidence: "high");
+
+        var results = await _service.GetRecommendedAsync(
+            OrgId, limit: 100, includeClearanceRequired: true);
+
+        results.Should().Contain(r => r.NoticeId == "NO-CLEAR-001");
+        var clearance = results.Should().ContainSingle(r => r.NoticeId == "CLEAR-HIGH-001").Subject;
+        clearance.ClearanceRequired.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GetRecommendedAsync_ClearanceDoesNotConsumeTopNSlots()
+    {
+        // Top-N is computed over the clearance-excluded set, so a small limit still
+        // returns `limit` non-clearance items even when clearance items exist.
+        for (int i = 1; i <= 3; i++)
+            SeedOpportunity($"OPEN-{i:D2}", solicitationNumber: $"SOL-OPEN-{i:D2}");
+
+        SeedOpportunity("CLEAR-HIGH-001", solicitationNumber: "SOL-CLEAR");
+        SeedAttachmentSummary("CLEAR-HIGH-001", clearanceRequired: "Y", overallConfidence: "high");
+
+        var results = await _service.GetRecommendedAsync(
+            OrgId, limit: 2, includeClearanceRequired: true);
+
+        // 2 ranked (clearance-excluded) + 1 appended clearance group = 3
+        results.Count(r => !r.ClearanceRequired).Should().Be(2);
+        results.Should().ContainSingle(r => r.ClearanceRequired);
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 136 Unit C — Market Research (ungated Sources Sought / Special Notice)
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetMarketResearchAsync_ReturnsOnlySourcesSoughtAndSpecialNotice()
+    {
+        SeedOpportunity("SS-001", type: "Sources Sought", solicitationNumber: "SOL-SS");
+        SeedOpportunity("SN-001", type: "Special Notice", solicitationNumber: "SOL-SN");
+        SeedOpportunity("SOL-001", type: "Solicitation", solicitationNumber: "SOL-SOL");
+        SeedOpportunity("PRESOL-001", type: "Presolicitation", solicitationNumber: "SOL-PRE");
+
+        var results = await _service.GetMarketResearchAsync(OrgId);
+
+        results.Select(r => r.NoticeId).Should().BeEquivalentTo(["SS-001", "SN-001"]);
+    }
+
+    [Fact]
+    public async Task GetMarketResearchAsync_NotScored_OqScoreNull()
+    {
+        SeedOpportunity("SS-001", type: "Sources Sought");
+
+        var results = await _service.GetMarketResearchAsync(OrgId);
+
+        results.Should().ContainSingle();
+        results[0].OqScore.Should().BeNull();
+        results[0].OqScoreCategory.Should().Be("MarketResearch");
+    }
+
+    [Fact]
+    public async Task GetMarketResearchAsync_AppliesSetAsideCertFilter()
+    {
+        // Org holds WOSB only. An 8(a) set-aside Sources Sought must be filtered out.
+        SeedOpportunity("SS-WOSB", type: "Sources Sought", setAsideCode: "WOSB",
+            solicitationNumber: "SOL-WOSB");
+        SeedOpportunity("SS-8A", type: "Sources Sought", setAsideCode: "8A",
+            solicitationNumber: "SOL-8A");
+
+        var results = await _service.GetMarketResearchAsync(OrgId);
+
+        results.Should().ContainSingle(r => r.NoticeId == "SS-WOSB");
+        results.Should().NotContain(r => r.NoticeId == "SS-8A");
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 136 Unit D — Score renormalization over real-data factors
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task CalculateOqScoreAsync_RenormalizesOverRealDataFactors()
+    {
+        // With no award/past-performance/competition data, several factors fall back to
+        // defaults (HadRealData=false). The returned OqScore must equal the weighted
+        // average of ONLY the real-data factors (their weights renormalized to 1.0),
+        // never the raw weighted sum that includes default factors.
+        SeedOpportunity("SCORE-001", setAsideCode: "WOSB");
+
+        var dto = await _service.CalculateOqScoreAsync("SCORE-001", OrgId);
+
+        dto.Should().NotBeNull();
+        dto!.OqScore.Should().NotBeNull();
+
+        var realFactors = dto.OqScoreFactors.Where(f => f.HadRealData).ToList();
+        realFactors.Should().NotBeEmpty();
+
+        var presentWeight = realFactors.Sum(f => f.Weight);
+        var expected = Math.Round(realFactors.Sum(f => f.Score * f.Weight) / presentWeight, 1);
+        dto.OqScore.Should().Be(expected);
     }
 }

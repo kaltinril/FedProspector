@@ -61,8 +61,20 @@ export function getIncumbentAnalysis(noticeId: string): Promise<IncumbentAnalysi
   return apiClient.get(`/opportunities/${encodeURIComponent(noticeId)}/incumbent`).then((r) => r.data);
 }
 
-export function getRecommendedOpportunities(limit: number = 10): Promise<RecommendedOpportunityDto[]> {
-  return apiClient.get('/opportunities/recommended', { params: { limit } }).then((r) => r.data);
+export function getRecommendedOpportunities(
+  limit: number = 10,
+  includeClearanceRequired: boolean = false,
+): Promise<RecommendedOpportunityDto[]> {
+  return apiClient
+    .get('/opportunities/recommended', { params: { limit, includeClearanceRequired } })
+    .then((r) => r.data);
+}
+
+// Phase 136 Unit C — ungated market research (Sources Sought / Special Notice).
+export function getMarketResearchOpportunities(limit: number = 500): Promise<RecommendedOpportunityDto[]> {
+  return apiClient
+    .get('/opportunities/market-research', { params: { limit } })
+    .then((r) => r.data);
 }
 
 const BATCH_PWIN_CHUNK_SIZE = 25;

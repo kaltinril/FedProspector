@@ -83,10 +83,14 @@ public class AutoProspectService : IAutoProspectService
                     {
                         var pwin = await _pwinService.CalculateAsync(noticeId, orgId);
 
-                        if ((decimal)pwin.Score >= minPwin)
+                        // Phase 136 Unit D: a null score means "insufficient data" — never
+                        // auto-create a prospect from a non-score; treat it as skipped.
+                        var pwinScore = pwin.Score;
+
+                        if (pwinScore.HasValue && pwinScore.Value >= minPwin)
                         {
-                            var priority = pwin.Score >= 70 ? "HIGH"
-                                : pwin.Score >= 40 ? "MEDIUM"
+                            var priority = pwinScore.Value >= 70 ? "HIGH"
+                                : pwinScore.Value >= 40 ? "MEDIUM"
                                 : "LOW";
 
                             var prospect = new Prospect
@@ -97,7 +101,7 @@ public class AutoProspectService : IAutoProspectService
                                 AssignedTo = search.AutoAssignTo,
                                 Status = "NEW",
                                 Priority = priority,
-                                WinProbability = (decimal)pwin.Score,
+                                WinProbability = pwinScore.Value,
                                 CreatedAt = DateTime.UtcNow,
                                 UpdatedAt = DateTime.UtcNow
                             };
@@ -111,7 +115,7 @@ public class AutoProspectService : IAutoProspectService
                                 ProspectId = prospect.ProspectId,
                                 UserId = search.AutoAssignTo ?? search.UserId,
                                 NoteType = "AUTO_MATCH",
-                                NoteText = $"Auto-matched via saved search '{search.SearchName}': pWin {pwin.Score:F1}%, NAICS {pwin.Factors.FirstOrDefault(f => f.Name == "NAICS Experience")?.Detail ?? "N/A"}",
+                                NoteText = $"Auto-matched via saved search '{search.SearchName}': pWin {pwinScore.Value:F1}%, NAICS {pwin.Factors.FirstOrDefault(f => f.Name == "NAICS Experience")?.Detail ?? "N/A"}",
                                 CreatedAt = DateTime.UtcNow
                             };
                             _context.ProspectNotes.Add(note);
@@ -119,8 +123,8 @@ public class AutoProspectService : IAutoProspectService
 
                             searchCreated++;
                             totalCreated++;
-                            if ((decimal)pwin.Score > highestPwin)
-                                highestPwin = (decimal)pwin.Score;
+                            if (pwinScore.Value > highestPwin)
+                                highestPwin = pwinScore.Value;
 
                             result.Created++;
                         }
@@ -300,8 +304,12 @@ public class AutoProspectService : IAutoProspectService
             try
             {
                 var pwin = await _pwinService.CalculateAsync(matchedNoticeId, orgId);
-                var priority = pwin.Score >= 70 ? "HIGH"
-                    : pwin.Score >= 40 ? "MEDIUM"
+                // Phase 136 Unit D: pWin may be null ("insufficient data"). Recompete
+                // prospects are created from the expiring contract regardless; use 0 when
+                // no score is available and note it as such.
+                var pwinScore = pwin.Score ?? 0m;
+                var priority = pwinScore >= 70 ? "HIGH"
+                    : pwinScore >= 40 ? "MEDIUM"
                     : "LOW";
 
                 var prospect = new Prospect
@@ -311,7 +319,7 @@ public class AutoProspectService : IAutoProspectService
                     NoticeId = matchedNoticeId,
                     Status = "NEW",
                     Priority = priority,
-                    WinProbability = (decimal)pwin.Score,
+                    WinProbability = pwinScore,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -323,7 +331,7 @@ public class AutoProspectService : IAutoProspectService
                 {
                     ProspectId = prospect.ProspectId,
                     NoteType = "AUTO_RECOMPETE",
-                    NoteText = $"Auto-generated from expiring contract recompete. Solicitation: {contract.SolicitationNumber ?? "N/A"}, pWin: {pwin.Score:F1}%",
+                    NoteText = $"Auto-generated from expiring contract recompete. Solicitation: {contract.SolicitationNumber ?? "N/A"}, pWin: {(pwin.Score.HasValue ? $"{pwin.Score.Value:F1}%" : "insufficient data")}",
                     CreatedAt = DateTime.UtcNow
                 };
                 _context.ProspectNotes.Add(note);
