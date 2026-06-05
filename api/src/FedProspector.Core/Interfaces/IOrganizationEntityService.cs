@@ -17,6 +17,17 @@ public interface IOrganizationEntityService
     Task DeactivateLinkAsync(int orgId, int linkId);
     Task<RefreshSelfEntityResponse> RefreshFromSelfEntityAsync(int orgId);
     Task<List<string>> GetAggregateNaicsAsync(int orgId);
+
+    /// <summary>
+    /// Phase 136 follow-up: the distinct NAICS codes of all ACTIVE linked entities
+    /// (JV partners, sister subsidiary, self — via entity_naics for every UEI in
+    /// <see cref="GetLinkedUeisAsync"/>). Used by matching/scoring/qualification so
+    /// opportunities the org can bid through a linked entity surface and qualify.
+    /// Returns an empty list when the org has no active links. Does NOT subtract the
+    /// org's own registered NAICS — callers decide tier precedence.
+    /// </summary>
+    Task<List<string>> GetLinkedEntityNaicsAsync(int orgId);
+
     Task<List<string>> GetLinkedUeisAsync(int orgId);
     Task<int> SyncEntityCertsAsync(int orgId);
     Task<int> ResyncAllOrgsAsync();

@@ -158,17 +158,55 @@ public class QualificationService : IQualificationService
             };
         }
 
+        // Strongest match: the org's own registered NAICS (organization_naics).
         var hasNaics = await _context.OrganizationNaics.AsNoTracking()
             .AnyAsync(n => n.OrganizationId == orgId && n.NaicsCode == naicsCode);
+
+        if (hasNaics)
+        {
+            return new QualificationItemDto
+            {
+                Name = "NAICS Code Match",
+                Category = "Certification",
+                Status = "Pass",
+                Detail = $"Organization registered for NAICS {naicsCode}"
+            };
+        }
+
+        // Phase 136 follow-up: also PASS (with a transparent source) when the opp NAICS is
+        // held by an active linked entity the owner can bid through, then when it is a
+        // self-declared associated code. Registered stays strongest (checked above).
+        var linkedEntityNaics = await _orgEntityService.GetLinkedEntityNaicsAsync(orgId);
+        if (linkedEntityNaics.Contains(naicsCode, StringComparer.OrdinalIgnoreCase))
+        {
+            return new QualificationItemDto
+            {
+                Name = "NAICS Code Match",
+                Category = "Certification",
+                Status = "Pass",
+                Detail = $"Matched via linked entity for NAICS {naicsCode}"
+            };
+        }
+
+        var hasAssociated = await _context.OrganizationAssociatedNaics.AsNoTracking()
+            .AnyAsync(n => n.OrganizationId == orgId && n.NaicsCode == naicsCode);
+        if (hasAssociated)
+        {
+            return new QualificationItemDto
+            {
+                Name = "NAICS Code Match",
+                Category = "Certification",
+                Status = "Pass",
+                Detail = $"Matched via associated NAICS (declared) for NAICS {naicsCode}"
+            };
+        }
 
         return new QualificationItemDto
         {
             Name = "NAICS Code Match",
             Category = "Certification",
-            Status = hasNaics ? "Pass" : "Fail",
-            Detail = hasNaics
-                ? $"Organization registered for NAICS {naicsCode}"
-                : $"Organization not registered for NAICS {naicsCode}"
+            Status = "Fail",
+            Detail = $"Organization not registered for NAICS {naicsCode}"
         };
     }
 
