@@ -265,6 +265,29 @@ public class OrganizationEntityService : IOrganizationEntityService
     }
 
     /// <summary>
+    /// Phase 136 follow-up: distinct NAICS codes from entity_naics for ALL active
+    /// linked-entity UEIs (self, JV partners, sister subsidiary, plus partner UEIs).
+    /// Unlike <see cref="GetAggregateNaicsAsync"/> this excludes the org's own
+    /// organization_naics rows — it returns ONLY the linked-entity codes so callers can
+    /// score/label them as a distinct tier. Returns an empty list when no active links exist.
+    /// </summary>
+    public async Task<List<string>> GetLinkedEntityNaicsAsync(int orgId)
+    {
+        var linkedUeis = await GetLinkedUeisAsync(orgId);
+        if (linkedUeis.Count == 0)
+            return [];
+
+        var entityNaics = await _context.EntityNaicsCodes
+            .AsNoTracking()
+            .Where(en => linkedUeis.Contains(en.UeiSam))
+            .Select(en => en.NaicsCode)
+            .Distinct()
+            .ToListAsync();
+
+        return entityNaics;
+    }
+
+    /// <summary>
     /// Get all active linked entity UEIs for this organization.
     /// </summary>
     public async Task<List<string>> GetLinkedUeisAsync(int orgId)

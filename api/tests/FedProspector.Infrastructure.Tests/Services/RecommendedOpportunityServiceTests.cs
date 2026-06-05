@@ -20,7 +20,14 @@ public class RecommendedOpportunityServiceTests : IDisposable
             .Options;
 
         _context = new FedProspectorDbContext(options);
-        _service = new RecommendedOpportunityService(_context, NullLogger<RecommendedOpportunityService>.Instance);
+        // Phase 136 follow-up: RecommendedOpportunityService now resolves linked-entity
+        // NAICS via IOrganizationEntityService. A real OrganizationEntityService over the
+        // same in-memory context returns an empty set for orgs with no links, so existing
+        // scenarios are unaffected.
+        var orgEntityService = new OrganizationEntityService(
+            _context, NullLogger<OrganizationEntityService>.Instance);
+        _service = new RecommendedOpportunityService(
+            _context, orgEntityService, NullLogger<RecommendedOpportunityService>.Instance);
 
         // Seed org with NAICS and certification so recommendations can be generated
         SeedOrganization();
@@ -110,6 +117,30 @@ public class RecommendedOpportunityServiceTests : IDisposable
             IsRecompete = isRecompete,
             IncumbentName = incumbentName,
             ExtractedAt = DateTime.UtcNow
+        });
+        _context.SaveChanges();
+    }
+
+    /// <summary>
+    /// Phase 136 follow-up: seed an ACTIVE linked entity for OrgId with a single
+    /// entity_naics row, so its NAICS participates in candidate selection / scoring.
+    /// </summary>
+    private void SeedLinkedEntityWithNaics(string uei, string naicsCode, string relationship = "JV_PARTNER")
+    {
+        _context.OrganizationEntities.Add(new OrganizationEntity
+        {
+            OrganizationId = OrgId,
+            UeiSam = uei,
+            Relationship = relationship,
+            IsActive = "Y",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        _context.EntityNaicsCodes.Add(new EntityNaics
+        {
+            UeiSam = uei,
+            NaicsCode = naicsCode,
+            IsPrimary = "N"
         });
         _context.SaveChanges();
     }
@@ -524,5 +555,66 @@ public class RecommendedOpportunityServiceTests : IDisposable
         var presentWeight = realFactors.Sum(f => f.Weight);
         var expected = Math.Round(realFactors.Sum(f => f.Score * f.Weight) / presentWeight, 1);
         dto.OqScore.Should().Be(expected);
+    }
+
+    // -----------------------------------------------------------------------
+    // Phase 136 follow-up — Linked-entity NAICS inclusion
+    // -----------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetRecommendedAsync_IncludesOppInLinkedEntityNaics()
+    {
+        // Org is registered only for 541512. A linked JV partner carries 238210.
+        // An opportunity in 238210 must surface purely on the linked-entity NAICS.
+        SeedLinkedEntityWithNaics("UEI_JV_00001", "238210");
+        SeedOpportunity("LINKED-238210", naicsCode: "238210");
+
+        var results = await _service.GetRecommendedAsync(OrgId, limit: 100);
+
+        results.Should().ContainSingle(r => r.NoticeId == "LINKED-238210");
+    }
+
+    [Fact]
+    public async Task GetRecommendedAsync_LinkedEntityNaics_ScoredAsLinkedEntityTier()
+    {
+        SeedLinkedEntityWithNaics("UEI_JV_00001", "238210");
+        SeedOpportunity("LINKED-238210", naicsCode: "238210");
+
+        var results = await _service.GetRecommendedAsync(OrgId, limit: 100);
+
+        var dto = results.Single(r => r.NoticeId == "LINKED-238210");
+        var profile = dto.OqScoreFactors.Single(f => f.Name == "Profile Match");
+        profile.Detail.Should().Be("Linked-entity NAICS match");
+        profile.Score.Should().Be(55);
+    }
+
+    [Fact]
+    public async Task GetRecommendedAsync_RegisteredNaics_KeepsRegisteredTierEvenIfAlsoLinkedEntity()
+    {
+        // 541512 is the org's PRIMARY registered NAICS AND (redundantly) a linked-entity
+        // NAICS. Registered membership must win — primary tier, not linked-entity tier.
+        SeedLinkedEntityWithNaics("UEI_JV_00001", "541512");
+        SeedOpportunity("REG-541512", naicsCode: "541512");
+
+        var results = await _service.GetRecommendedAsync(OrgId, limit: 100);
+
+        var dto = results.Single(r => r.NoticeId == "REG-541512");
+        var profile = dto.OqScoreFactors.Single(f => f.Name == "Profile Match");
+        profile.Score.Should().Be(100);
+        profile.Detail.Should().Be("Primary NAICS + cert match");
+    }
+
+    [Fact]
+    public async Task CalculateOqScoreAsync_LinkedEntityNaics_ScoredAsLinkedEntityTier()
+    {
+        SeedLinkedEntityWithNaics("UEI_JV_00001", "238210");
+        SeedOpportunity("LINKED-238210", naicsCode: "238210");
+
+        var dto = await _service.CalculateOqScoreAsync("LINKED-238210", OrgId);
+
+        dto.Should().NotBeNull();
+        var profile = dto!.OqScoreFactors.Single(f => f.Name == "Profile Match");
+        profile.Detail.Should().Be("Linked-entity NAICS match");
+        profile.Score.Should().Be(55);
     }
 }

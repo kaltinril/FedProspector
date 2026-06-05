@@ -10,6 +10,7 @@ namespace FedProspector.Infrastructure.Services;
 public class RecommendedOpportunityService : IRecommendedOpportunityService
 {
     private readonly FedProspectorDbContext _context;
+    private readonly IOrganizationEntityService _orgEntityService;
     private readonly ILogger<RecommendedOpportunityService> _logger;
 
     /// <summary>
@@ -52,9 +53,11 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
 
     public RecommendedOpportunityService(
         FedProspectorDbContext context,
+        IOrganizationEntityService orgEntityService,
         ILogger<RecommendedOpportunityService> logger)
     {
         _context = context;
+        _orgEntityService = orgEntityService;
         _logger = logger;
     }
 
@@ -77,6 +80,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         }
 
         var naicsCodes = orgNaicsList.Select(n => n.NaicsCode).ToList();
+        var registeredNaics = naicsCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var primaryNaics = orgNaicsList
             .Where(n => n.IsPrimary == "Y")
             .Select(n => n.NaicsCode)
@@ -96,12 +100,23 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             .Select(n => n.NaicsCode)
             .ToListAsync())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var candidateNaics = naicsCodes.Concat(associatedNaics).Distinct().ToList();
+
+        // Phase 136 follow-up: linked-entity NAICS (all ACTIVE organization_entity links
+        // — self, JV partners, sister subsidiary — via entity_naics). The owner can bid
+        // through these entities, so their NAICS expand which opportunities surface AND
+        // qualify, scored as a distinct tier just above associated (see ScoreProfileMatch).
+        var linkedEntityNaics = (await _orgEntityService.GetLinkedEntityNaicsAsync(orgId))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var candidateNaics = naicsCodes
+            .Concat(linkedEntityNaics)
+            .Concat(associatedNaics)
+            .Distinct()
+            .ToList();
 
         // 2. Pre-load org context data for OQS factors
         var orgContext = await LoadOrgContextAsync(orgId, naicsCodes);
 
-        // 3. Query active opportunities matching org NAICS codes (registered + associated)
+        // 3. Query active opportunities matching org NAICS codes (registered + linked-entity + associated)
         var now = DateTime.UtcNow;
         var candidates = await _context.Opportunities.AsNoTracking()
             .Where(o => candidateNaics.Contains(o.NaicsCode!)
@@ -225,7 +240,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             }
 
             // Factor 1: Profile Match Strength
-            var profileFactor = ScoreProfileMatch(c.NaicsCode, setAsideCode, primaryNaics, orgCertSet, associatedNaics);
+            var profileFactor = ScoreProfileMatch(c.NaicsCode, setAsideCode, primaryNaics, registeredNaics, orgCertSet, linkedEntityNaics, associatedNaics);
 
             // Factor 2: Estimated Value Alignment
             var valueFactor = ScoreValueAlignment(value, orgContext.AvgAwardValue, orgContext.HasAwardData);
@@ -389,6 +404,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             return null;
 
         var naicsCodes = orgNaicsList.Select(n => n.NaicsCode).ToList();
+        var registeredNaics = naicsCodes.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var primaryNaics = orgNaicsList
             .Where(n => n.IsPrimary == "Y")
             .Select(n => n.NaicsCode)
@@ -405,6 +421,11 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             .Where(n => n.OrganizationId == orgId)
             .Select(n => n.NaicsCode)
             .ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        // Phase 136 follow-up: linked-entity NAICS (active organization_entity links via
+        // entity_naics) scored as a distinct tier just above associated (see ScoreProfileMatch).
+        var linkedEntityNaics = (await _orgEntityService.GetLinkedEntityNaicsAsync(orgId))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         // 2. Load the opportunity
@@ -475,7 +496,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             ? Math.Max(0, (int)(opp.ResponseDeadline.Value - now).TotalDays)
             : null;
 
-        var profileFactor = ScoreProfileMatch(opp.NaicsCode, setAsideCode, primaryNaics, orgCertSet, associatedNaics);
+        var profileFactor = ScoreProfileMatch(opp.NaicsCode, setAsideCode, primaryNaics, registeredNaics, orgCertSet, linkedEntityNaics, associatedNaics);
         var valueFactor = ScoreValueAlignment(value, orgContext.AvgAwardValue, orgContext.HasAwardData);
         var competitionFactor = ScoreCompetition(vendorCount);
         var timelineFactor = ScoreTimeline(daysRemaining);
@@ -585,9 +606,17 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             .Where(n => n.OrganizationId == orgId)
             .Select(n => n.NaicsCode)
             .ToListAsync();
-        var candidateNaics = naicsCodes.Concat(associatedNaics).Distinct().ToList();
 
-        // 2. Query active Sources Sought / Special Notice opportunities matching org NAICS (registered + associated).
+        // Phase 136 follow-up: include linked-entity NAICS so market-research notices the
+        // owner could pursue through an active linked entity (self/JV/sister) also surface.
+        var linkedEntityNaics = await _orgEntityService.GetLinkedEntityNaicsAsync(orgId);
+        var candidateNaics = naicsCodes
+            .Concat(linkedEntityNaics)
+            .Concat(associatedNaics)
+            .Distinct()
+            .ToList();
+
+        // 2. Query active Sources Sought / Special Notice opportunities matching org NAICS (registered + linked-entity + associated).
         var now = DateTime.UtcNow;
         var candidates = await _context.Opportunities.AsNoTracking()
             .Where(o => candidateNaics.Contains(o.NaicsCode!)
@@ -824,19 +853,40 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
     /// Factor 1: Profile Match Strength (weight 0.20).
     /// Scores how well the opportunity matches org NAICS/certifications.
     /// </summary>
+    /// <remarks>
+    /// Tier ranking (cert-matched scores; the exact points are intentionally conservative
+    /// and tunable):
+    ///   primary registered      100 (cert match) / 80 (related cert)
+    ///   registered secondary     60
+    ///   linked-entity NAICS      55  (Phase 136 follow-up — owner can bid through the
+    ///                                  active linked entity, so it outranks a merely
+    ///                                  self-declared associated code but sits below the
+    ///                                  org's own registered secondary)
+    ///   associated (declared)    50  (Phase 136 Unit G)
+    ///   wrong-cert (any tier)    30
+    ///   no match                  0
+    /// A code that is REGISTERED keeps its registered tier even if it is also a
+    /// linked-entity / associated code: registered membership is checked first.
+    /// </remarks>
     private FactorResult ScoreProfileMatch(
         string? oppNaics, string setAsideCode,
-        HashSet<string> primaryNaics, HashSet<string> orgCertSet,
-        HashSet<string> associatedNaics)
+        HashSet<string> primaryNaics, HashSet<string> registeredNaics, HashSet<string> orgCertSet,
+        HashSet<string> linkedEntityNaics, HashSet<string> associatedNaics)
     {
         if (string.IsNullOrEmpty(oppNaics))
             return new FactorResult(0, "No NAICS on opportunity", true);
 
         var isPrimary = primaryNaics.Contains(oppNaics);
-        // Phase 136 Unit G: a self-declared "associated" NAICS (disjoint from the org's
-        // registered NAICS) scores as a distinct tier just below a registered secondary
-        // match. The exact weight is intentionally conservative and tunable (Open Question #4).
-        var isAssociated = associatedNaics.Contains(oppNaics);
+        // Registered (non-primary) secondary outranks linked-entity and associated.
+        var isRegisteredSecondary = !isPrimary && registeredNaics.Contains(oppNaics);
+        // Phase 136 follow-up: a NAICS held by an active linked entity (not registered to
+        // the org itself) — the owner can bid through that entity. Distinct tier just
+        // above a self-declared associated code.
+        var isLinkedEntity = !isPrimary && !isRegisteredSecondary && linkedEntityNaics.Contains(oppNaics);
+        // Phase 136 Unit G: a self-declared "associated" NAICS (disjoint from registered
+        // and from linked-entity NAICS) scores as the lowest positive NAICS tier.
+        var isAssociated = !isPrimary && !isRegisteredSecondary && !isLinkedEntity
+                           && associatedNaics.Contains(oppNaics);
         string? reqCert = null;
         var needsCert = !string.IsNullOrEmpty(setAsideCode)
                         && SetAsideToCertType.TryGetValue(setAsideCode, out reqCert);
@@ -850,12 +900,26 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
         if (isPrimary && !hasCert && orgCertSet.Count > 0)
             return new FactorResult(80, "Primary NAICS + related cert", true);
 
+        if (isRegisteredSecondary && (hasCert || noCertNeeded))
+            return new FactorResult(60, "Secondary NAICS match", true);
+
+        if (isRegisteredSecondary && needsCert && !hasCert)
+            return new FactorResult(30, "NAICS match but wrong cert", true);
+
+        if (isLinkedEntity && (hasCert || noCertNeeded))
+            return new FactorResult(55, "Linked-entity NAICS match", true);
+
+        if (isLinkedEntity && needsCert && !hasCert)
+            return new FactorResult(30, "Linked-entity NAICS, wrong cert", true);
+
         if (isAssociated && (hasCert || noCertNeeded))
             return new FactorResult(50, "Associated NAICS match (declared)", true);
 
         if (isAssociated && needsCert && !hasCert)
             return new FactorResult(30, "Associated NAICS, wrong cert", true);
 
+        // Fallback: the opp NAICS reached scoring (it was a candidate) but is none of the
+        // above — treat as a generic secondary match for backward compatibility.
         if (!isPrimary && (hasCert || noCertNeeded))
             return new FactorResult(60, "Secondary NAICS match", true);
 
