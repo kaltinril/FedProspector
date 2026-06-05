@@ -49,7 +49,7 @@ import { StatusChip } from '@/components/shared/StatusChip';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { DataTable } from '@/components/shared/DataTable';
 import { CurrencyDisplay } from '@/components/shared/CurrencyDisplay';
-import { DeadlineCountdown } from '@/components/shared/DeadlineCountdown';
+import { DeadlineCountdown, DEADLINE_URGENT_DAYS } from '@/components/shared/DeadlineCountdown';
 
 import { useProspectSearch, useUpdateProspectStatus } from '@/queries/useProspects';
 import { queryKeys } from '@/queries/queryKeys';
@@ -93,7 +93,8 @@ function isDeadlineUrgent(deadline: string | null | undefined): boolean {
   if (!deadline) return false;
   const parsed = parseISO(deadline);
   if (!isValid(parsed)) return false;
-  return differenceInDays(parsed, new Date()) < 7;
+  // Match the shared "urgent" (red) threshold used by DeadlineCountdown.
+  return differenceInDays(parsed, new Date()) <= DEADLINE_URGENT_DAYS;
 }
 
 type ViewMode = 'kanban' | 'list';

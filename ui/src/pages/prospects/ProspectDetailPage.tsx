@@ -21,6 +21,8 @@ import Typography from '@mui/material/Typography';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import DeleteIcon from '@mui/icons-material/Delete';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import LaunchIcon from '@mui/icons-material/Launch';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 
 import { AgencyLink } from '@/components/shared/AgencyLink';
 import { PageHeader } from '@/components/shared/PageHeader';
@@ -212,9 +214,27 @@ function OverviewTab({
       {/* Linked Opportunity Summary */}
       {opp && (
         <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle2" sx={{ mb: 2 }}>
-            Linked Opportunity
-          </Typography>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 1,
+              flexWrap: 'wrap',
+              mb: 2,
+            }}
+          >
+            <Typography variant="subtitle2">Linked Opportunity</Typography>
+            {prospect.noticeId && (
+              <Link
+                component={RouterLink}
+                to={`/opportunities/${encodeURIComponent(prospect.noticeId)}`}
+                sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
+              >
+                Open opportunity <ArrowForwardIcon fontSize="small" />
+              </Link>
+            )}
+          </Box>
           <KeyFactsGrid facts={oppFacts} columns={2} />
           {opp.link && (
             <Box sx={{ mt: 2 }}>
@@ -893,7 +913,17 @@ export default function ProspectDetailPage() {
         title={opp?.title ?? 'Untitled Prospect'}
         subtitle={opp?.solicitationNumber ?? undefined}
         actions={
-          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {prospect.noticeId && (
+              <Button
+                variant="outlined"
+                component={RouterLink}
+                to={`/opportunities/${encodeURIComponent(prospect.noticeId)}`}
+                startIcon={<LaunchIcon />}
+              >
+                Open Opportunity
+              </Button>
+            )}
             <StatusTransitionButton
               prospectId={prospectId}
               currentStatus={prospect.status}

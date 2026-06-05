@@ -30,6 +30,7 @@ import { DataTable } from '@/components/shared/DataTable';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { LoadingState } from '@/components/shared/LoadingState';
 import PWinGauge from '@/components/shared/PWinGauge';
+import { deadlineChipColor } from '@/components/shared/DeadlineCountdown';
 import { getRecommendedOpportunities, getMarketResearchOpportunities } from '@/api/opportunities';
 import { queryKeys } from '@/queries/queryKeys';
 import { useIgnoreOpportunity, useUnignoreOpportunity, useIgnoredOpportunityIds } from '@/queries/useOpportunities';
@@ -49,10 +50,9 @@ type ChipColor = 'default' | 'primary' | 'secondary' | 'error' | 'info' | 'succe
 
 function daysRemainingChip(days: number | null | undefined) {
   if (days == null) return <Chip label="--" size="small" color="default" />;
-  let color: ChipColor = 'success';
-  if (days < 7) color = 'error';
-  else if (days < 14) color = 'warning';
-  return <Chip label={`${days}d`} size="small" color={color} />;
+  // Reuse shared deadline thresholds: neutral when comfortable, amber when
+  // close, red when urgent/past. Never green.
+  return <Chip label={`${days}d`} size="small" color={deadlineChipColor(days)} />;
 }
 
 function scoreChip(score: number | null | undefined) {

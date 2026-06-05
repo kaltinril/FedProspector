@@ -32,6 +32,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import TableChartIcon from '@mui/icons-material/TableChart';
 import ImageIcon from '@mui/icons-material/Image';
 import ContactPhoneIcon from '@mui/icons-material/ContactPhone';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import Tooltip from '@mui/material/Tooltip';
 
 import { AgencyLink } from '@/components/shared/AgencyLink';
@@ -1192,6 +1193,7 @@ export default function OpportunityDetailPage() {
                 variant="outlined"
                 component={RouterLink}
                 to={`/prospects/${opp.prospect.prospectId}`}
+                endIcon={<ArrowForwardIcon />}
               >
                 View Prospect
               </Button>
