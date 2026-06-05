@@ -89,13 +89,22 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
 
         var orgCertSet = orgCerts.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // Phase 136 Unit G: associated NAICS expand which opportunities surface
+        // (candidate selection) but are scored as a distinct, lower tier (see ScoreProfileMatch).
+        var associatedNaics = (await _context.OrganizationAssociatedNaics.AsNoTracking()
+            .Where(n => n.OrganizationId == orgId)
+            .Select(n => n.NaicsCode)
+            .ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var candidateNaics = naicsCodes.Concat(associatedNaics).Distinct().ToList();
+
         // 2. Pre-load org context data for OQS factors
         var orgContext = await LoadOrgContextAsync(orgId, naicsCodes);
 
-        // 3. Query active opportunities matching org NAICS codes
+        // 3. Query active opportunities matching org NAICS codes (registered + associated)
         var now = DateTime.UtcNow;
         var candidates = await _context.Opportunities.AsNoTracking()
-            .Where(o => naicsCodes.Contains(o.NaicsCode!)
+            .Where(o => candidateNaics.Contains(o.NaicsCode!)
                         && o.Active != "N"
                         && !OpportunityFilters.NonBiddableTypes.Contains(o.Type!)
                         && (o.ResponseDeadline == null || o.ResponseDeadline > now))
@@ -216,7 +225,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             }
 
             // Factor 1: Profile Match Strength
-            var profileFactor = ScoreProfileMatch(c.NaicsCode, setAsideCode, primaryNaics, orgCertSet);
+            var profileFactor = ScoreProfileMatch(c.NaicsCode, setAsideCode, primaryNaics, orgCertSet, associatedNaics);
 
             // Factor 2: Estimated Value Alignment
             var valueFactor = ScoreValueAlignment(value, orgContext.AvgAwardValue, orgContext.HasAwardData);
@@ -391,6 +400,13 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             .ToListAsync();
         var orgCertSet = orgCerts.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
+        // Phase 136 Unit G: associated NAICS scored as a distinct, lower tier (see ScoreProfileMatch).
+        var associatedNaics = (await _context.OrganizationAssociatedNaics.AsNoTracking()
+            .Where(n => n.OrganizationId == orgId)
+            .Select(n => n.NaicsCode)
+            .ToListAsync())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
         // 2. Load the opportunity
         var now = DateTime.UtcNow;
         var opp = await _context.Opportunities.AsNoTracking()
@@ -459,7 +475,7 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             ? Math.Max(0, (int)(opp.ResponseDeadline.Value - now).TotalDays)
             : null;
 
-        var profileFactor = ScoreProfileMatch(opp.NaicsCode, setAsideCode, primaryNaics, orgCertSet);
+        var profileFactor = ScoreProfileMatch(opp.NaicsCode, setAsideCode, primaryNaics, orgCertSet, associatedNaics);
         var valueFactor = ScoreValueAlignment(value, orgContext.AvgAwardValue, orgContext.HasAwardData);
         var competitionFactor = ScoreCompetition(vendorCount);
         var timelineFactor = ScoreTimeline(daysRemaining);
@@ -563,10 +579,18 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
             .ToListAsync();
         var orgCertSet = orgCerts.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // 2. Query active Sources Sought / Special Notice opportunities matching org NAICS.
+        // Phase 136 Unit G: include associated NAICS so market-research notices in
+        // declared adjacent codes also surface.
+        var associatedNaics = await _context.OrganizationAssociatedNaics.AsNoTracking()
+            .Where(n => n.OrganizationId == orgId)
+            .Select(n => n.NaicsCode)
+            .ToListAsync();
+        var candidateNaics = naicsCodes.Concat(associatedNaics).Distinct().ToList();
+
+        // 2. Query active Sources Sought / Special Notice opportunities matching org NAICS (registered + associated).
         var now = DateTime.UtcNow;
         var candidates = await _context.Opportunities.AsNoTracking()
-            .Where(o => naicsCodes.Contains(o.NaicsCode!)
+            .Where(o => candidateNaics.Contains(o.NaicsCode!)
                         && o.Active != "N"
                         && MarketResearchTypes.Contains(o.Type!)
                         && (o.ResponseDeadline == null || o.ResponseDeadline > now))
@@ -802,12 +826,17 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
     /// </summary>
     private FactorResult ScoreProfileMatch(
         string? oppNaics, string setAsideCode,
-        HashSet<string> primaryNaics, HashSet<string> orgCertSet)
+        HashSet<string> primaryNaics, HashSet<string> orgCertSet,
+        HashSet<string> associatedNaics)
     {
         if (string.IsNullOrEmpty(oppNaics))
             return new FactorResult(0, "No NAICS on opportunity", true);
 
         var isPrimary = primaryNaics.Contains(oppNaics);
+        // Phase 136 Unit G: a self-declared "associated" NAICS (disjoint from the org's
+        // registered NAICS) scores as a distinct tier just below a registered secondary
+        // match. The exact weight is intentionally conservative and tunable (Open Question #4).
+        var isAssociated = associatedNaics.Contains(oppNaics);
         string? reqCert = null;
         var needsCert = !string.IsNullOrEmpty(setAsideCode)
                         && SetAsideToCertType.TryGetValue(setAsideCode, out reqCert);
@@ -820,6 +849,12 @@ public class RecommendedOpportunityService : IRecommendedOpportunityService
 
         if (isPrimary && !hasCert && orgCertSet.Count > 0)
             return new FactorResult(80, "Primary NAICS + related cert", true);
+
+        if (isAssociated && (hasCert || noCertNeeded))
+            return new FactorResult(50, "Associated NAICS match (declared)", true);
+
+        if (isAssociated && needsCert && !hasCert)
+            return new FactorResult(30, "Associated NAICS, wrong cert", true);
 
         if (!isPrimary && (hasCert || noCertNeeded))
             return new FactorResult(60, "Secondary NAICS match", true);

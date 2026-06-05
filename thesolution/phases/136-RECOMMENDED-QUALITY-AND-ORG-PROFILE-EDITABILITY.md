@@ -1,6 +1,6 @@
 # Phase 136 — Recommended Opportunity Quality & Org Profile Editability
 
-**Status:** Not Started
+**Status:** In Progress — Units A, B, C, D, F, G implemented, merged to `main`, and verified (API build 0 errors/0 warnings + 1016 tests pass; UI `tsc -b` + Vite build clean). The Associated-NAICS → Recommended candidate-selection wiring + labeled scoring tier (Open Question #4, conservative default) are complete. **PENDING:** apply migration `fed_prospector/db/schema/migrations/136_organization_associated_naics.sql` to **prod (192.168.0.137)** and **dev (127.0.0.1, when its local server is up)** — the prod schema write requires explicit authorization (backup-first per the Phase 134 runbook); until applied, the Associated-NAICS endpoints will error at runtime. **Unit E** (automatic NAICS-hierarchy relatedness) remains **deferred (P3)**.
 **Priority:** High — the Recommended Opportunities list is the product's primary daily surface, and it is currently showing junk while burying the opportunities the user cares about.
 **Dependencies:** Phase 100 (Recommended Dedup & Filtering), Phase 101 (Org Set-Aside Eligibility), Phase 110 (Attachment Intelligence — clearance extraction), Phase 115F (Onboarding & Past Performance), Phase 129 (NAICS/SBA Size Standards) — all COMPLETE.
 
