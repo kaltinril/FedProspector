@@ -1,0 +1,243 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1180" viewBox="0 0 1080 1180" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <!-- ============================================================= -->
+  <!-- FedProspect — Navigation Redesign Mockup (before / after)     -->
+  <!-- Design artifact only. Light MUI-style sidebars, side by side. -->
+  <!-- ============================================================= -->
+
+  <defs>
+    <!-- soft drop shadow for the sidebar cards -->
+    <filter id="cardShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <!-- subtle shadow for the avatar popover -->
+    <filter id="popShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="7" flood-color="#0f172a" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- page background -->
+  <rect x="0" y="0" width="1080" height="1180" fill="#eef1f6"/>
+
+  <!-- ======================= PAGE HEADER ======================== -->
+  <text x="40" y="46" font-size="24" font-weight="700" fill="#0f172a">FedProspect — Navigation Redesign</text>
+  <text x="40" y="72" font-size="14" fill="#64748b">A 3-tier reframe of the left rail. Design mockup only — no app code changes.</text>
+
+  <!-- ===================== COLUMN TITLES ======================== -->
+  <text x="40" y="118" font-size="16" font-weight="700" fill="#0f172a">Current</text>
+  <text x="40" y="138" font-size="12" fill="#64748b">8 groups, 34 items (~42 rows)</text>
+
+  <text x="560" y="118" font-size="16" font-weight="700" fill="#1d4ed8">Proposed</text>
+  <text x="560" y="138" font-size="12" fill="#64748b">6 destinations + 5 hubs (~11 rows)</text>
+
+  <!-- thin vertical divider between the two columns -->
+  <line x1="530" y1="100" x2="530" y2="1050" stroke="#cbd5e1" stroke-width="1"/>
+
+  <!-- ============================================================= -->
+  <!-- LEFT COLUMN — CURRENT (dense, real structure)                 -->
+  <!-- Card x=40 w=460. Rows ~24px. Group header ~22px.              -->
+  <!-- ============================================================= -->
+  <rect x="40" y="152" width="460" height="888" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#cardShadow)"/>
+
+  <!-- brand strip -->
+  <text x="64" y="186" font-size="15" font-weight="700" fill="#1d4ed8">FedProspect</text>
+  <line x1="56" y1="200" x2="484" y2="200" stroke="#eef1f6" stroke-width="1"/>
+
+  <!-- ==MAIN ==-->
+  <text x="64" y="222" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">MAIN</text>
+  <!-- active pill: Dashboard -->
+  <rect x="56" y="230" width="428" height="24" rx="6" fill="#e8efff"/>
+  <rect x="56" y="230" width="3" height="24" rx="1.5" fill="#1d4ed8"/>
+  <rect x="68" y="238" width="10" height="9" rx="2" fill="#1d4ed8"/>
+  <text x="88" y="246" font-size="12" font-weight="600" fill="#1d4ed8">Dashboard</text>
+
+  <!-- ==PIPELINE ==-->
+  <line x1="56" y1="262" x2="484" y2="262" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="64" y="280" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">PIPELINE</text>
+  <g fill="#1e293b" font-size="12">
+    <circle cx="73" cy="293" r="3.2" fill="#94a3b8"/><text x="88" y="297">Recommended</text>
+    <circle cx="73" cy="317" r="3.2" fill="#94a3b8"/><text x="88" y="321">Expiring Contracts</text>
+    <circle cx="73" cy="341" r="3.2" fill="#94a3b8"/><text x="88" y="345">Prospects</text>
+    <circle cx="73" cy="365" r="3.2" fill="#94a3b8"/><text x="88" y="369">Analytics</text>
+    <circle cx="73" cy="389" r="3.2" fill="#94a3b8"/><text x="88" y="393">Calendar</text>
+    <circle cx="73" cy="413" r="3.2" fill="#94a3b8"/><text x="88" y="417">Stale Alerts</text>
+    <circle cx="73" cy="437" r="3.2" fill="#94a3b8"/><text x="88" y="441">Forecast</text>
+  </g>
+
+  <!-- ==RESEARCH ==-->
+  <line x1="56" y1="452" x2="484" y2="452" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="64" y="470" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">RESEARCH</text>
+  <g fill="#1e293b" font-size="12">
+    <circle cx="73" cy="483" r="3.2" fill="#94a3b8"/><text x="88" y="487">Opportunities</text>
+    <circle cx="73" cy="507" r="3.2" fill="#94a3b8"/><text x="88" y="511">Awards</text>
+    <circle cx="73" cy="531" r="3.2" fill="#94a3b8"/><text x="88" y="535">Entities</text>
+    <circle cx="73" cy="555" r="3.2" fill="#94a3b8"/><text x="88" y="559">Teaming</text>
+    <circle cx="73" cy="579" r="3.2" fill="#94a3b8"/><text x="88" y="583">Federal Hierarchy</text>
+    <circle cx="73" cy="603" r="3.2" fill="#94a3b8"/><text x="88" y="607">NAICS Browser</text>
+  </g>
+
+  <!-- ==PRICING INTELLIGENCE ==-->
+  <line x1="56" y1="618" x2="484" y2="618" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="64" y="636" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">PRICING INTELLIGENCE</text>
+  <g fill="#1e293b" font-size="12">
+    <circle cx="73" cy="649" r="3.2" fill="#94a3b8"/><text x="88" y="653">Market Rates</text>
+    <circle cx="73" cy="673" r="3.2" fill="#94a3b8"/><text x="88" y="677">Price-to-Win</text>
+    <circle cx="73" cy="697" r="3.2" fill="#94a3b8"/><text x="88" y="701">Bid Scenarios</text>
+    <circle cx="73" cy="721" r="3.2" fill="#94a3b8"/><text x="88" y="725">Escalation</text>
+    <circle cx="73" cy="745" r="3.2" fill="#94a3b8"/><text x="88" y="749">IGCE Estimator</text>
+    <circle cx="73" cy="769" r="3.2" fill="#94a3b8"/><text x="88" y="773">Sub Benchmarks</text>
+    <circle cx="73" cy="793" r="3.2" fill="#94a3b8"/><text x="88" y="797">SCA Area Rates</text>
+  </g>
+
+  <!-- ==COMPETITIVE INTEL ==-->
+  <line x1="56" y1="808" x2="484" y2="808" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="64" y="826" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">COMPETITIVE INTEL</text>
+  <g fill="#1e293b" font-size="12">
+    <circle cx="73" cy="839" r="3.2" fill="#94a3b8"/><text x="88" y="843">Re-compete Candidates</text>
+    <circle cx="73" cy="863" r="3.2" fill="#94a3b8"/><text x="88" y="867">Agency Patterns</text>
+    <circle cx="73" cy="887" r="3.2" fill="#94a3b8"/><text x="88" y="891">Contracting Offices</text>
+  </g>
+
+  <!-- ==TEAMING ==-->
+  <line x1="56" y1="902" x2="484" y2="902" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="64" y="920" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">TEAMING</text>
+  <g fill="#1e293b" font-size="12">
+    <circle cx="73" cy="933" r="3.2" fill="#94a3b8"/><text x="88" y="937">Partner Search</text>
+    <circle cx="73" cy="957" r="3.2" fill="#94a3b8"/><text x="88" y="961">Mentor-Protege</text>
+    <circle cx="73" cy="981" r="3.2" fill="#94a3b8"/><text x="88" y="985">Gap Analysis</text>
+  </g>
+
+  <!-- ==ONBOARDING (second inner column to keep card height sane) ==-->
+  <text x="276" y="280" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">ONBOARDING</text>
+  <g fill="#1e293b" font-size="12">
+    <circle cx="285" cy="293" r="3.2" fill="#94a3b8"/><text x="300" y="297">Certification Alerts</text>
+    <circle cx="285" cy="317" r="3.2" fill="#94a3b8"/><text x="300" y="321">Size Standard</text>
+    <circle cx="285" cy="341" r="3.2" fill="#94a3b8"/><text x="300" y="345">Past Performance</text>
+    <circle cx="285" cy="365" r="3.2" fill="#94a3b8"/><text x="300" y="369">Portfolio Gaps</text>
+  </g>
+
+  <!-- ==TOOLS ==-->
+  <line x1="276" y1="384" x2="484" y2="384" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="276" y="402" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">TOOLS</text>
+  <g fill="#1e293b" font-size="12">
+    <circle cx="285" cy="415" r="3.2" fill="#94a3b8"/><text x="300" y="419">Saved Searches</text>
+    <circle cx="285" cy="439" r="3.2" fill="#94a3b8"/><text x="300" y="443">Data Quality</text>
+  </g>
+
+  <!-- ==SETTINGS ==-->
+  <line x1="276" y1="454" x2="484" y2="454" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="276" y="472" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">SETTINGS</text>
+  <g fill="#1e293b" font-size="12">
+    <circle cx="285" cy="485" r="3.2" fill="#94a3b8"/><text x="300" y="489">Profile</text>
+    <circle cx="285" cy="509" r="3.2" fill="#94a3b8"/><text x="300" y="513">Organization</text>
+  </g>
+
+  <!-- note that the left column wraps into two inner columns -->
+  <line x1="270" y1="270" x2="270" y2="525" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="276" y="556" font-size="9.5" font-style="italic" fill="#94a3b8">All groups always expanded — every screen is</text>
+  <text x="276" y="570" font-size="9.5" font-style="italic" fill="#94a3b8">one click, but the rail scrolls and scanning is hard.</text>
+
+  <!-- LEFT caption -->
+  <text x="40" y="1064" font-size="12" fill="#475569" font-weight="600">Everything lives in the rail.</text>
+  <text x="40" y="1082" font-size="11.5" fill="#64748b">8 section headers + 34 links scroll past two screens; tools, research and account are all peers.</text>
+
+  <!-- ============================================================= -->
+  <!-- RIGHT COLUMN — PROPOSED (3-tier)                              -->
+  <!-- Card x=560 w=460.                                             -->
+  <!-- ============================================================= -->
+  <rect x="560" y="152" width="460" height="660" rx="10" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#cardShadow)"/>
+
+  <!-- brand strip + avatar (avatar implies the header / top-right) -->
+  <text x="584" y="186" font-size="15" font-weight="700" fill="#1d4ed8">FedProspect</text>
+  <circle cx="980" cy="181" r="13" fill="#1d4ed8"/>
+  <text x="980" y="186" font-size="12" font-weight="700" fill="#ffffff" text-anchor="middle">JS</text>
+  <line x1="576" y1="200" x2="1004" y2="200" stroke="#eef1f6" stroke-width="1"/>
+
+  <!-- ==TIER 1 · DESTINATIONS (flat) ==-->
+  <text x="584" y="222" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">TIER 1 · DESTINATIONS</text>
+  <!-- active pill: Dashboard -->
+  <rect x="576" y="230" width="428" height="26" rx="7" fill="#e8efff"/>
+  <rect x="576" y="230" width="3" height="26" rx="1.5" fill="#1d4ed8"/>
+  <rect x="589" y="239" width="11" height="9" rx="2" fill="#1d4ed8"/>
+  <text x="610" y="248" font-size="13" font-weight="600" fill="#1d4ed8">Dashboard</text>
+
+  <g font-size="13" fill="#1e293b">
+    <g><rect x="589" y="266" width="11" height="9" rx="2" fill="#94a3b8"/><text x="610" y="275">Recommended</text></g>
+    <g><rect x="589" y="293" width="11" height="9" rx="2" fill="#94a3b8"/><text x="610" y="302">Prospects</text></g>
+    <g><rect x="589" y="320" width="11" height="9" rx="2" fill="#94a3b8"/><text x="610" y="329">Opportunities</text></g>
+    <g><rect x="589" y="347" width="11" height="9" rx="2" fill="#94a3b8"/><text x="610" y="356">Awards</text></g>
+    <g><rect x="589" y="374" width="11" height="9" rx="2" fill="#94a3b8"/><text x="610" y="383">Entities</text></g>
+  </g>
+
+  <!-- ==TIER 2 · HUBS ==-->
+  <line x1="576" y1="400" x2="1004" y2="400" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="584" y="418" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">TIER 2 · HUBS (open a tabbed page)</text>
+
+  <!-- Hub: Pipeline -->
+  <rect x="576" y="426" width="428" height="40" rx="7" fill="#f8fafc"/>
+  <rect x="589" y="436" width="11" height="9" rx="2" fill="#1d4ed8"/>
+  <text x="610" y="445" font-size="13" font-weight="600" fill="#0f172a">Pipeline</text>
+  <text x="996" y="445" font-size="15" font-weight="700" fill="#94a3b8" text-anchor="end">&#8250;</text>
+  <text x="610" y="459" font-size="9.5" fill="#94a3b8">Forecast · Analytics · Calendar · Stale Alerts · Expiring Contracts</text>
+
+  <!-- Hub: Pricing -->
+  <rect x="576" y="470" width="428" height="40" rx="7" fill="#f8fafc"/>
+  <rect x="589" y="480" width="11" height="9" rx="2" fill="#1d4ed8"/>
+  <text x="610" y="489" font-size="13" font-weight="600" fill="#0f172a">Pricing</text>
+  <text x="996" y="489" font-size="15" font-weight="700" fill="#94a3b8" text-anchor="end">&#8250;</text>
+  <text x="610" y="503" font-size="9.5" fill="#94a3b8">Market Rates · Price-to-Win · Bid Scenarios · Escalation · IGCE · Sub Benchmarks · SCA Rates</text>
+
+  <!-- Hub: Teaming -->
+  <rect x="576" y="514" width="428" height="40" rx="7" fill="#f8fafc"/>
+  <rect x="589" y="524" width="11" height="9" rx="2" fill="#1d4ed8"/>
+  <text x="610" y="533" font-size="13" font-weight="600" fill="#0f172a">Teaming</text>
+  <text x="996" y="533" font-size="15" font-weight="700" fill="#94a3b8" text-anchor="end">&#8250;</text>
+  <text x="610" y="547" font-size="9.5" fill="#94a3b8">Partner Search · Mentor-Prot&#233;g&#233; · Gap Analysis · Subaward Network</text>
+
+  <!-- Hub: Market Intel -->
+  <rect x="576" y="558" width="428" height="40" rx="7" fill="#f8fafc"/>
+  <rect x="589" y="568" width="11" height="9" rx="2" fill="#1d4ed8"/>
+  <text x="610" y="577" font-size="13" font-weight="600" fill="#0f172a">Market Intel</text>
+  <text x="996" y="577" font-size="15" font-weight="700" fill="#94a3b8" text-anchor="end">&#8250;</text>
+  <text x="610" y="591" font-size="9.5" fill="#94a3b8">Agency Patterns · Contracting Offices · Re-compete Candidates · Federal Hierarchy · NAICS Browser</text>
+
+  <!-- Hub: Company & Eligibility -->
+  <rect x="576" y="602" width="428" height="40" rx="7" fill="#f8fafc"/>
+  <rect x="589" y="612" width="11" height="9" rx="2" fill="#1d4ed8"/>
+  <text x="610" y="621" font-size="13" font-weight="600" fill="#0f172a">Company &amp; Eligibility</text>
+  <text x="996" y="621" font-size="15" font-weight="700" fill="#94a3b8" text-anchor="end">&#8250;</text>
+  <text x="610" y="635" font-size="9.5" fill="#94a3b8">Certification Alerts · Size Standard · Past Performance · Portfolio Gaps</text>
+
+  <!-- ==TIER 3 · ACCOUNT (avatar popover) ==-->
+  <line x1="576" y1="652" x2="1004" y2="652" stroke="#f1f5f9" stroke-width="1"/>
+  <text x="584" y="670" font-size="10" font-weight="700" letter-spacing="1.2" fill="#94a3b8">TIER 3 · ACCOUNT (top-right avatar menu)</text>
+
+  <!-- connector from the avatar circle down to the popover -->
+  <path d="M 980 196 L 980 686" stroke="#cbd5e1" stroke-width="1" stroke-dasharray="3 3" fill="none"/>
+
+  <!-- popover box, anchored toward the top-right under the avatar -->
+  <rect x="760" y="686" width="244" height="106" rx="9" fill="#ffffff" stroke="#e2e8f0" stroke-width="1" filter="url(#popShadow)"/>
+  <!-- little caret pointing up toward the avatar -->
+  <path d="M 974 686 L 982 678 L 990 686 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="1"/>
+  <path d="M 975 685.5 L 989 685.5" stroke="#ffffff" stroke-width="2"/>
+
+  <text x="776" y="706" font-size="9.5" font-weight="700" letter-spacing="1" fill="#94a3b8">ACCOUNT</text>
+  <g font-size="12.5" fill="#1e293b">
+    <text x="776" y="726">Profile</text>
+    <text x="776" y="748">Organization</text>
+    <text x="776" y="770">Saved Searches</text>
+    <text x="776" y="788">Data Quality</text>
+  </g>
+
+  <!-- small reassurance line under the proposed rail -->
+  <text x="560" y="836" font-size="12" fill="#475569" font-weight="600">Same destinations, calmer rail.</text>
+  <text x="560" y="854" font-size="11.5" fill="#64748b">Hubs open as in-page tabbed workspaces; account &amp; utility items move under the avatar.</text>
+
+  <!-- ============================================================= -->
+  <!-- LEGEND / CALLOUT (full width, bottom)                          -->
+  <!-- ============================================================= -->
+  <rect x="40" y="1098" width="980" height="62" rx="10" fill="#0f172a"/>
+  <rect x="40" y="1098" width="5" height="62" rx="2.5" fill="#1d4ed8"/>
+  <text x="64" y="1122" font-size="13.5" font-weight="700" fill="#ffffff">The idea: ~42 rows &#8594; ~11. Nothing removed.</text>
+  <text x="64" y="1141" font-size="11.5" fill="#cbd5e1">Destinations stay in the rail; tool-drawers become hubs with in-page tabs; account/utility items move to the avatar menu. Depth moves one level</text>
+  <text x="64" y="1156" font-size="11.5" fill="#cbd5e1">down, reachable via hubs + a new command palette. The old Research &#8220;Teaming&#8221; link moved into the Teaming hub, renamed &#8220;Subaward Network&#8221; to kill the duplicate-word confusion.</text>
+</svg>
