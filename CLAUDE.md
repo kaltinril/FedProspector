@@ -111,11 +111,11 @@ Individual loaders and `prospect_manager.py` are independent — safe to change 
 | SCA loader | `fed_prospector/etl/sca_loader.py` + `fed_prospector/api_clients/sca_wd_client.py` (CLI: `load sca`) |
 | Pricing UI pages | `ui/src/pages/pricing/` (7 pages: heatmap, price-to-win, bid scenario, escalation, IGCE, sub benchmark, SCA geographic) |
 | Pricing API client | `ui/src/api/pricing.ts` |
-| Attachment files | `E:\fedprospector\attachments\` (env var: `ATTACHMENT_DIR`) |
+| Attachment files | `{DATA_DIR}/attachments` (default `fed_prospector/data/attachments`). **`DATA_DIR`/`ATTACHMENT_DIR` resolve absolute against the code dir (`PROJECT_ROOT`), never the cwd** (`config/settings.py`), so download, extract, and the daily job (whose steps run with `cwd=fed_prospector`) all agree — set `DATA_DIR` to an **absolute** path in `.env`. **`.doc` extraction requires LibreOffice installed on the box (incl. prod)**; without it `.doc` silently degrades to `unsupported`. |
 | Attachment AI analyzer | `fed_prospector/etl/attachment_ai_analyzer.py` (CLI: `extract contradictions` — AI-only, on-demand contradiction detection) |
 | NAICS hierarchy + size eligibility | API on `ReferenceController` (`api/v1/reference/naics/sectors`, `naics/{code}/children`, `naics/{code}/ancestors`); engine in `CompanyProfileService.CheckSizeEligibilityAsync` (single-org, affiliates excluded); browser UI at `/reference/naics` (`ui/src/pages/reference/NaicsBrowserPage.tsx`); ref doc `thesolution/reference/13-NAICS-SIZE-STANDARDS.md` |
 | Prod SSL provisioner | `scripts/generate-selfsigned-cert.ps1` (run on prod, elevated for `-OpenFirewall`; generates self-signed cert + writes external config; idempotent) |
 | Firewall opener | `scripts/open-firewall.ps1` (self-elevating UAC; opens inbound TCP 5056; idempotent) |
 | External prod config | `C:\fedprospector\config\fedprospector.local.json` (outside repo; ConnectionStrings/Cors/AllowedHosts/Kestrel cert; override path via `FEDPROSPECTOR_CONFIG`; example shape `scripts/fedprospector.local.example.json`) |
-| Deploy script | `deploy.ps1` (ships code + prebuilt UI; excludes `appsettings.Local.json` via `/XF`; never touches external config or DB) |
+| Deploy script | `deploy.ps1` (ships code + prebuilt UI; excludes `appsettings.Local.json` via `/XF` and any `attachments` folder via `/XD` so attachment stores stay per-machine; never touches external config or DB) |
 | Production exposure runbook | `thesolution/reference/14-PRODUCTION-EXPOSURE.md` (single-port HTTPS architecture, config layering, go-live runbook, troubleshooting, security hardening) |
