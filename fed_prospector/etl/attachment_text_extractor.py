@@ -161,12 +161,12 @@ def _check_ole2_encryption(file_path):
         try:
             streams = {"/".join(s) for s in ole.listdir()}
             if "EncryptedPackage" in streams or "\x06DataSpaces" in streams:
-                raise RuntimeError(
+                raise _UnsupportedType(
                     "File is IRM/DRM-protected (Microsoft Information Rights Management)"
                 )
         finally:
             ole.close()
-    except RuntimeError:
+    except _UnsupportedType:
         raise
     except Exception:
         pass  # If olefile isn't installed or parsing fails, let LibreOffice try
@@ -486,6 +486,8 @@ def _extract_xlsx(file_path):
 
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
+        if not hasattr(ws, "iter_rows"):
+            continue  # Chartsheet / non-worksheet — no tabular data
         rows = list(ws.iter_rows(values_only=True))
 
         # Skip empty sheets
@@ -824,6 +826,8 @@ def _extract_file(file_path, content_type, ext, filename, attachment_dir):
         {"status": "failed", "error": str}
     """
     try:
+        if not file_path:
+            return {"status": "failed", "error": "No file_path (file unavailable — deduplicated or cleaned up)"}
         # Resolve full path
         full_path = Path(attachment_dir) / file_path
         if not full_path.is_file():
