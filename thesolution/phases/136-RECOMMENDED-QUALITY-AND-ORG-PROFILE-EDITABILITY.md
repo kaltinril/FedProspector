@@ -1,6 +1,13 @@
 # Phase 136 — Recommended Opportunity Quality & Org Profile Editability
 
 **Status:** In Progress — Units A, B, C, D, F, G implemented, merged to `main`, and verified (API build 0 errors/0 warnings + 1016 tests pass; UI `tsc -b` + Vite build clean). The Associated-NAICS → Recommended candidate-selection wiring + labeled scoring tier (Open Question #4, conservative default) are complete. Migration `fed_prospector/db/schema/migrations/136_organization_associated_naics.sql` **APPLIED to prod (192.168.0.137) on 2026-06-04** (table verified). Dev DB (127.0.0.1) is abandoned — prod-only, no dev apply needed. Code + UI **deployed to prod via `deploy.ps1` on 2026-06-04**; user verification in progress. **Unit E** (automatic NAICS-hierarchy relatedness) remains **deferred (P3)**.
+**Follow-up refinements (from live testing 2026-06-04, merged & verified):**
+- Org-page mutations now invalidate the full `['organization']` query subtree so saves (revenue/employees, NAICS, certs) reflect immediately — no manual refresh.
+- NAICS Codes list redesigned as chips with the primary marked inline (starred filled chip); the dedicated "Primary" column was removed.
+- Linked-entity rows are now clickable → entity detail page; the **SELF** row shows the org's revenue/employees; SELF's affiliate-size edit points to the Settings tab.
+- Associated-NAICS picker excludes already-registered / already-associated codes; backend rejects registered-code dupes and flags idempotent re-adds.
+- **Effective org NAICS now = registered ∪ linked-entity (all active links) ∪ associated** across recommendations, market research, scoring, and qualification. New "Linked-entity NAICS match" scoring tier (default 55, between registered-secondary and associated; tunable). Qualification reports the match source. `OpportunityService`/`SavedSearchService` unchanged (they only filter by user-supplied NAICS).
+
 **Priority:** High — the Recommended Opportunities list is the product's primary daily surface, and it is currently showing junk while burying the opportunities the user cares about.
 **Dependencies:** Phase 100 (Recommended Dedup & Filtering), Phase 101 (Org Set-Aside Eligibility), Phase 110 (Attachment Intelligence — clearance extraction), Phase 115F (Onboarding & Past Performance), Phase 129 (NAICS/SBA Size Standards) — all COMPLETE.
 
