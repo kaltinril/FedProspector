@@ -8,33 +8,43 @@ interface DeadlineCountdownProps {
   showDate?: boolean;
 }
 
-type ChipColor = 'success' | 'warning' | 'error' | 'default';
+export type DeadlineChipColor = 'warning' | 'error' | 'default';
+
+// Shared thresholds (days) so all "days left" call sites color consistently.
+// Rule: never use green/success. Neutral (default) when comfortable, amber
+// (warning) when getting close, red (error) when urgent or already past.
+export const DEADLINE_URGENT_DAYS = 3;
+export const DEADLINE_WARNING_DAYS = 14;
+
+/**
+ * Map a number of days remaining to a chip color.
+ * `null`/`undefined` (unknown) is treated as neutral.
+ * Negative days (past) are urgent.
+ */
+export function deadlineChipColor(daysLeft: number | null | undefined): DeadlineChipColor {
+  if (daysLeft == null) return 'default';
+  if (daysLeft <= DEADLINE_URGENT_DAYS) return 'error';
+  if (daysLeft <= DEADLINE_WARNING_DAYS) return 'warning';
+  return 'default';
+}
 
 function getCountdownInfo(deadlineDate: Date): {
   label: string;
-  color: ChipColor;
+  color: DeadlineChipColor;
 } {
   const now = new Date();
   const daysLeft = differenceInDays(deadlineDate, now);
   const hoursLeft = differenceInHours(deadlineDate, now);
 
   if (hoursLeft <= 0) {
-    return { label: 'Expired', color: 'default' };
+    return { label: 'Expired', color: 'error' };
   }
 
   if (daysLeft < 1) {
     return { label: `${hoursLeft}h left`, color: 'error' };
   }
 
-  if (daysLeft < 7) {
-    return { label: `${daysLeft}d left`, color: 'error' };
-  }
-
-  if (daysLeft <= 14) {
-    return { label: `${daysLeft}d left`, color: 'warning' };
-  }
-
-  return { label: `${daysLeft}d left`, color: 'success' };
+  return { label: `${daysLeft}d left`, color: deadlineChipColor(daysLeft) };
 }
 
 export function DeadlineCountdown({
