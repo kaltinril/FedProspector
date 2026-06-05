@@ -59,10 +59,12 @@ $jobs += Start-Job -Name "Project" -ScriptBlock {
     # creds, JWT key, AND the Kestrel HTTPS/self-signed-cert config. Never overwrite
     # prod's copy with dev's, or every deploy would wipe the SSL setup. Prod owns its
     # own appsettings.Local.json; deploy leaves it untouched.
-    # /XD ...\data\attachments: downloaded attachment files are RUNTIME data, per-machine.
-    # Prod downloads its own; never overwrite/mix prod's attachment store with dev's.
+    # /XD attachments: downloaded attachment files are RUNTIME data, per-machine.
+    # A bare folder name excludes ANY directory called "attachments" at any depth
+    # (both fed_prospector\data\attachments and a stray data\attachments), so dev's
+    # stores never ship to / mix with prod's. Prod downloads its own.
     # (Reference files in data\ — canonical_labor_categories.csv, sca_active_wds.* — still ship.)
-    $output = robocopy "C:\git\fedProspect" "\\$using:target\gitshare\fedProspect" /E /MT:16 /J /R:1 /W:1 /ETA /XD ".git" "node_modules" "__pycache__" ".venv" "C:\git\fedProspect\fed_prospector\data\attachments" /XF "appsettings.Local.json"
+    $output = robocopy "C:\git\fedProspect" "\\$using:target\gitshare\fedProspect" /E /MT:16 /J /R:1 /W:1 /ETA /XD ".git" "node_modules" "__pycache__" ".venv" "attachments" /XF "appsettings.Local.json"
     $exitCode = $LASTEXITCODE
     $sw.Stop()
     [PSCustomObject]@{ Output = ($output -join "`r`n"); Elapsed = $sw.Elapsed; ExitCode = $exitCode }
