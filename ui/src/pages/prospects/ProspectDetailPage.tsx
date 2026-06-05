@@ -911,7 +911,7 @@ export default function ProspectDetailPage() {
       {/* Header */}
       <PageHeader
         title={opp?.title ?? 'Untitled Prospect'}
-        subtitle={opp?.solicitationNumber ?? undefined}
+        subtitle={prospect.noticeId ? undefined : (opp?.solicitationNumber ?? undefined)}
         actions={
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             {prospect.noticeId && (
@@ -931,6 +931,18 @@ export default function ProspectDetailPage() {
           </Box>
         }
       />
+      {/* Notice identifier under the title — links to the linked opportunity */}
+      {prospect.noticeId && (
+        <Typography variant="body2" sx={{ mt: -2, mb: 3 }}>
+          <Link
+            component={RouterLink}
+            to={`/opportunities/${encodeURIComponent(prospect.noticeId)}`}
+            sx={{ color: 'text.secondary' }}
+          >
+            {opp?.solicitationNumber ?? prospect.noticeId}
+          </Link>
+        </Typography>
+      )}
       {/* Summary row */}
       <Box
         sx={{

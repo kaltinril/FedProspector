@@ -483,7 +483,12 @@ export default function RecommendedOpportunitiesPage() {
       </Tabs>
 
       {tab === 1 ? (
-        <MarketResearchSection navigate={navigate} />
+        <MarketResearchSection
+          navigate={navigate}
+          ignoredSet={ignoredSet}
+          onIgnoreToggle={handleIgnoreToggle}
+          ignoreDisabled={ignoreMutation.isPending || unignoreMutation.isPending}
+        />
       ) : (
       <Box>
       {/* Filter bar */}
@@ -622,9 +627,14 @@ const MARKET_RESEARCH_RESPONSIVE_COLUMNS: ResponsiveColumnConfig = {
   naicsCode: 'lg',
   setAsideDescription: 'md',
   awardAmount: 'lg',
+  actions: 'sm',
 };
 
-function buildMarketResearchColumns(): GridColDef<RecommendedOpportunityDto>[] {
+function buildMarketResearchColumns(
+  ignoredSet: Set<string>,
+  onIgnoreToggle: (noticeId: string, isIgnored: boolean) => void,
+  ignoreDisabled: boolean,
+): GridColDef<RecommendedOpportunityDto>[] {
   return [
     {
       field: 'title',
@@ -698,15 +708,51 @@ function buildMarketResearchColumns(): GridColDef<RecommendedOpportunityDto>[] {
       headerAlign: 'center',
       renderCell: (params) => daysRemainingChip(params.value as number | null | undefined),
     },
+    {
+      field: 'actions',
+      headerName: '',
+      width: 60,
+      sortable: false,
+      renderCell: (params) => {
+        const isIgnored = ignoredSet.has(params.row.noticeId);
+        return (
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              onIgnoreToggle(params.row.noticeId, isIgnored);
+            }}
+            disabled={ignoreDisabled}
+            title={isIgnored ? 'Un-ignore' : 'Ignore'}
+            color={isIgnored ? 'warning' : 'default'}
+          >
+            {isIgnored ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
+          </IconButton>
+        );
+      },
+    },
   ];
 }
 
-function MarketResearchSection({ navigate }: { navigate: ReturnType<typeof useNavigate> }) {
+function MarketResearchSection({
+  navigate,
+  ignoredSet,
+  onIgnoreToggle,
+  ignoreDisabled,
+}: {
+  navigate: ReturnType<typeof useNavigate>;
+  ignoredSet: Set<string>;
+  onIgnoreToggle: (noticeId: string, isIgnored: boolean) => void;
+  ignoreDisabled: boolean;
+}) {
   const [pageSize, setPageSize] = useLocalStorage('marketResearch.pageSize', 25);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize });
   const [keyword, setKeyword] = useState('');
   const columnVisibility = useResponsiveColumns(MARKET_RESEARCH_RESPONSIVE_COLUMNS);
-  const columns = useMemo(() => buildMarketResearchColumns(), []);
+  const columns = useMemo(
+    () => buildMarketResearchColumns(ignoredSet, onIgnoreToggle, ignoreDisabled),
+    [ignoredSet, onIgnoreToggle, ignoreDisabled],
+  );
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: queryKeys.opportunities.marketResearch(500),
