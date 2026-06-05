@@ -98,6 +98,7 @@ public class AttachmentIntelBreakdownDto
     public string Filename { get; set; } = "";
     public string ExtractionMethod { get; set; } = "";
     public string? Confidence { get; set; }
+    public string? ScopeSummary { get; set; }
     public string? ClearanceRequired { get; set; }
     public string? ClearanceLevel { get; set; }
     public string? EvalMethod { get; set; }
@@ -106,6 +107,9 @@ public class AttachmentIntelBreakdownDto
     public string? IncumbentName { get; set; }
     public string? PricingStructure { get; set; }
     public string? PlaceOfPerformance { get; set; }
+    public string? PeriodOfPerformance { get; set; }
+    public List<string> LaborCategories { get; set; } = new();
+    public List<string> KeyRequirements { get; set; } = new();
 }
 
 public class MergedSourcePassageDto

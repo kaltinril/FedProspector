@@ -116,12 +116,19 @@ public class AttachmentIntelService : IAttachmentIntelService
             .Where(s => s.ExtractionMethod != "ai_contradiction")
             .ToList();
 
-        // Use summary records for aggregated intel (replaces old NULL-attachment consolidated rows)
-        // Fall back to per-document intel if no summaries exist yet
-        var aggregationRecords = summaryRecordsForAgg.Count > 0 ? summaryRecordsForAgg : null;
+        // Aggregate across BOTH the per-opportunity rollup summaries AND the per-document
+        // intel records, so no extracted field is hidden. Previously this was an either/or:
+        // if any notice-level summary row existed, the per-document intel was dropped entirely
+        // — which hid AI scope summaries (and other per-attachment fields) whenever only a
+        // keyword-level notice rollup was present. The aggregation helpers below already pick
+        // the best value across all records, so feeding both sets surfaces everything.
+        var recordsForAgg = summaryRecordsForAgg
+            .Cast<IIntelFields>()
+            .Concat(intelRecords.Cast<IIntelFields>())
+            .ToList();
 
         // Available extraction methods
-        var availableMethods = (aggregationRecords ?? (IEnumerable<IIntelFields>)intelRecords)
+        var availableMethods = recordsForAgg
             .Where(i => !string.IsNullOrEmpty(i.ExtractionMethod))
             .Select(i => i.ExtractionMethod!)
             .Distinct()
@@ -129,13 +136,10 @@ public class AttachmentIntelService : IAttachmentIntelService
             .ToList();
 
         // Best record by method priority (for LatestExtractionMethod, LastExtractedAt)
-        var bestRecord = (aggregationRecords ?? (IEnumerable<IIntelFields>)intelRecords)
+        var bestRecord = recordsForAgg
             .OrderByDescending(i => ExtractionMethodPriority.GetValueOrDefault(i.ExtractionMethod ?? "", 0))
             .ThenByDescending(i => i.ExtractedAt)
             .FirstOrDefault();
-
-        // Cross-document aggregation with domain-specific rules
-        var recordsForAgg = aggregationRecords ?? (IReadOnlyList<IIntelFields>)intelRecords;
         var clearanceRequired = AggregateBooleanYWins(recordsForAgg, i => i.ClearanceRequired);
         var clearanceLevel = AggregateClearanceLevel(recordsForAgg, clearanceRequired);
         var clearanceScope = AggregatePreferLongest(recordsForAgg, i => i.ClearanceScope);
@@ -666,10 +670,19 @@ public class AttachmentIntelService : IAttachmentIntelService
 
         foreach (var group in grouped)
         {
-            var best = group
+            // Order records for this attachment by method priority (AI over keyword), newest first.
+            var ordered = group
                 .OrderByDescending(i => ExtractionMethodPriority.GetValueOrDefault(i.ExtractionMethod ?? "", 0))
                 .ThenByDescending(i => i.ExtractedAt)
-                .First();
+                .ToList();
+            var best = ordered[0];
+
+            // Retain ALL intel for this attachment: for each field, take the highest-priority
+            // record that actually has a value (so a keyword-only field survives even when AI ran,
+            // and vice versa) rather than dropping everything except the single "best" record.
+            string? Pick(Func<DocumentIntelSummary, string?> selector) =>
+                ordered.Select(i => NormalizeValue(selector(i)))
+                    .FirstOrDefault(v => !string.IsNullOrEmpty(v));
 
             var filename = samAttachmentLookup.TryGetValue(group.Key, out var att)
                 ? att.Filename ?? ""
@@ -681,14 +694,24 @@ public class AttachmentIntelService : IAttachmentIntelService
                 Filename = filename,
                 ExtractionMethod = best.ExtractionMethod ?? "",
                 Confidence = best.OverallConfidence,
-                ClearanceRequired = NormalizeValue(best.ClearanceRequired),
-                ClearanceLevel = NormalizeValue(best.ClearanceLevel),
-                EvalMethod = NormalizeValue(best.EvalMethod),
-                VehicleType = NormalizeValue(best.VehicleType),
-                IsRecompete = NormalizeValue(best.IsRecompete),
-                IncumbentName = NormalizeValue(best.IncumbentName),
-                PricingStructure = NormalizeValue(best.PricingStructure),
-                PlaceOfPerformance = NormalizeValue(best.PlaceOfPerformance)
+                ScopeSummary = Pick(i => i.ScopeSummary),
+                ClearanceRequired = Pick(i => i.ClearanceRequired),
+                ClearanceLevel = Pick(i => i.ClearanceLevel),
+                EvalMethod = Pick(i => i.EvalMethod),
+                VehicleType = Pick(i => i.VehicleType),
+                IsRecompete = Pick(i => i.IsRecompete),
+                IncumbentName = Pick(i => i.IncumbentName),
+                PricingStructure = Pick(i => i.PricingStructure),
+                PlaceOfPerformance = Pick(i => i.PlaceOfPerformance),
+                PeriodOfPerformance = Pick(i => i.PeriodOfPerformance),
+                LaborCategories = ordered
+                    .SelectMany(i => DeserializeJsonList(i.LaborCategories))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
+                KeyRequirements = ordered
+                    .SelectMany(i => DeserializeJsonList(i.KeyRequirements))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
             });
         }
 

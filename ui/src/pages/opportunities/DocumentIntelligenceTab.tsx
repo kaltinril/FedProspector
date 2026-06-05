@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import Box from '@mui/material/Box';
@@ -33,6 +33,10 @@ import DownloadIcon from '@mui/icons-material/Download';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
+import RuleIcon from '@mui/icons-material/Rule';
+import HistoryIcon from '@mui/icons-material/History';
+import { alpha } from '@mui/material/styles';
 
 import { LoadingState } from '@/components/shared/LoadingState';
 import { ErrorState } from '@/components/shared/ErrorState';
@@ -164,11 +168,30 @@ const SEVERITY_COLOR: Record<string, 'error' | 'warning' | 'info' | 'default'> =
 
 const SEVERITY_RANK: Record<string, number> = { high: 3, medium: 2, low: 1 };
 
-const CONTRADICTION_TYPE_LABELS: Record<string, string> = {
-  cross_document: 'Cross-document',
-  within_document: 'Within document',
-  stale_reference: 'Stale reference',
+type ContradictionTypeMeta = { label: string; Icon: typeof CompareArrowsIcon; hue: string; blurb: string };
+
+const CONTRADICTION_TYPE_META: Record<string, ContradictionTypeMeta> = {
+  cross_document: {
+    label: 'Cross-document',
+    Icon: CompareArrowsIcon,
+    hue: '#00897B', // teal
+    blurb: 'One document conflicts with another',
+  },
+  within_document: {
+    label: 'Within document',
+    Icon: RuleIcon,
+    hue: '#8E24AA', // purple
+    blurb: 'A document contradicts itself',
+  },
+  stale_reference: {
+    label: 'Stale reference',
+    Icon: HistoryIcon,
+    hue: '#607D8B', // blue-grey
+    blurb: 'Leftover boilerplate that no longer applies',
+  },
 };
+
+const CONTRADICTION_TYPE_ORDER = ['cross_document', 'within_document', 'stale_reference'];
 
 function getSeverityColor(severity: string): 'error' | 'warning' | 'info' | 'default' {
   return SEVERITY_COLOR[severity.toLowerCase()] ?? 'default';
@@ -176,69 +199,129 @@ function getSeverityColor(severity: string): 'error' | 'warning' | 'info' | 'def
 
 function ContradictionsCard({ contradictions }: { contradictions: ContradictionDto[] }) {
   const [expanded, setExpanded] = useState(true);
+  const paperRef = useRef<HTMLDivElement>(null);
 
-  // Sort high severity first (stable for equal ranks)
-  const sorted = [...contradictions].sort(
-    (a, b) => (SEVERITY_RANK[b.severity.toLowerCase()] ?? 0) - (SEVERITY_RANK[a.severity.toLowerCase()] ?? 0),
-  );
+  // Collapse and bring the panel header back into view, so a long panel can be
+  // closed from the bottom without manually scrolling up.
+  const collapse = () => {
+    setExpanded(false);
+    paperRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+
+  // Group by type (ordered), sorting high severity first within each group so the
+  // three categories are visually distinct rather than blending into one list.
+  const groups = CONTRADICTION_TYPE_ORDER.map((type) => ({
+    type,
+    meta: CONTRADICTION_TYPE_META[type],
+    items: contradictions
+      .filter((c) => c.type === type)
+      .sort((a, b) => (SEVERITY_RANK[b.severity.toLowerCase()] ?? 0) - (SEVERITY_RANK[a.severity.toLowerCase()] ?? 0)),
+  })).filter((g) => g.items.length > 0);
+
+  // Any unrecognized type falls into a catch-all group so nothing is hidden.
+  const unknown = contradictions.filter((c) => !(c.type in CONTRADICTION_TYPE_META));
+  if (unknown.length > 0) {
+    groups.push({
+      type: 'other',
+      meta: { label: 'Other', Icon: WarningAmberIcon, hue: '#757575', blurb: '' },
+      items: unknown,
+    });
+  }
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, mb: 2 }}>
+    <Paper ref={paperRef} variant="outlined" sx={{ p: 2, mb: 2, scrollMarginTop: 16 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: expanded ? 1 : 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <WarningAmberIcon color="warning" fontSize="small" />
           <Typography variant="subtitle2">Potential Issues</Typography>
-          <Chip label={sorted.length} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+          <Chip label={contradictions.length} size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
         </Box>
         <IconButton size="small" onClick={() => setExpanded(!expanded)}>
           {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
         </IconButton>
       </Box>
       <Collapse in={expanded}>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-          {sorted.map((c, idx) => (
-            <Box
-              key={idx}
-              sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75, flexWrap: 'wrap' }}>
-                <Chip
-                  label={c.severity}
-                  size="small"
-                  color={getSeverityColor(c.severity)}
-                  sx={{ fontSize: '0.65rem', height: 20, textTransform: 'capitalize' }}
-                />
-                <Chip
-                  label={CONTRADICTION_TYPE_LABELS[c.type] ?? c.type}
-                  size="small"
-                  variant="outlined"
-                  sx={{ fontSize: '0.6rem', height: 18 }}
-                />
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {c.summary}
-                </Typography>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {groups.map((g) => {
+            const Icon = g.meta.Icon;
+            return (
+              <Box key={g.type}>
+                {/* Per-type section header — colored so the category is unmissable */}
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 0.75,
+                    mb: 0.75,
+                    px: 1,
+                    py: 0.5,
+                    borderRadius: 1,
+                    borderLeft: 3,
+                    borderColor: g.meta.hue,
+                    bgcolor: (theme) => alpha(g.meta.hue, theme.palette.mode === 'dark' ? 0.28 : 0.12),
+                    flexWrap: 'wrap',
+                  }}
+                >
+                  <Icon sx={{ fontSize: 18, color: g.meta.hue }} />
+                  <Typography variant="subtitle2" sx={{ color: g.meta.hue, fontWeight: 700 }}>
+                    {g.meta.label}
+                  </Typography>
+                  <Chip
+                    label={g.items.length}
+                    size="small"
+                    sx={{ height: 18, fontSize: '0.65rem', fontWeight: 700, bgcolor: alpha(g.meta.hue, 0.22), color: g.meta.hue }}
+                  />
+                  {g.meta.blurb && (
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      — {g.meta.blurb}
+                    </Typography>
+                  )}
+                </Box>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                  {g.items.map((c, idx) => (
+                    <Box key={idx} sx={{ p: 1.5, bgcolor: 'action.hover', borderRadius: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75, flexWrap: 'wrap' }}>
+                        <Chip
+                          label={c.severity}
+                          size="small"
+                          color={getSeverityColor(c.severity)}
+                          sx={{ fontSize: '0.65rem', height: 20, textTransform: 'capitalize' }}
+                        />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {c.summary}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1, alignItems: { sm: 'stretch' } }}>
+                        <Box sx={{ flex: 1, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                            {c.claimALocation}
+                          </Typography>
+                          <Typography variant="body2">{c.claimA}</Typography>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
+                            vs
+                          </Typography>
+                        </Box>
+                        <Box sx={{ flex: 1, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
+                          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
+                            {c.claimBLocation}
+                          </Typography>
+                          <Typography variant="body2">{c.claimB}</Typography>
+                        </Box>
+                      </Box>
+                    </Box>
+                  ))}
+                </Box>
               </Box>
-              <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, gap: 1, alignItems: { sm: 'stretch' } }}>
-                <Box sx={{ flex: 1, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-                    {c.claimALocation}
-                  </Typography>
-                  <Typography variant="body2">{c.claimA}</Typography>
-                </Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 700 }}>
-                    vs
-                  </Typography>
-                </Box>
-                <Box sx={{ flex: 1, p: 1, bgcolor: 'background.paper', borderRadius: 1, border: 1, borderColor: 'divider' }}>
-                  <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>
-                    {c.claimBLocation}
-                  </Typography>
-                  <Typography variant="body2">{c.claimB}</Typography>
-                </Box>
-              </Box>
-            </Box>
-          ))}
+            );
+          })}
+        </Box>
+        {/* Bottom collapse control — close a long panel without scrolling back up */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1.5 }}>
+          <Button size="small" startIcon={<ExpandLessIcon />} onClick={collapse} sx={{ color: 'text.secondary' }}>
+            Collapse
+          </Button>
         </Box>
       </Collapse>
     </Paper>
@@ -643,6 +726,15 @@ function ListCard({ label, fieldName, items, sources, intel }: ListCardProps) {
 
 function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[] }) {
   const [expanded, setExpanded] = useState(false);
+  const paperRef = useRef<HTMLDivElement>(null);
+
+  // Collapse and scroll the header back into view so a long breakdown can be
+  // closed from the bottom without scrolling all the way up.
+  const collapse = () => {
+    setExpanded(false);
+    paperRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
+
   if (items.length === 0) return null;
 
   // Collect non-null field labels for a breakdown item
@@ -654,7 +746,12 @@ function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[
     if (item.isRecompete) chips.push({ label: 'Recompete', value: item.isRecompete });
     if (item.incumbentName) chips.push({ label: 'Incumbent', value: item.incumbentName });
     if (item.pricingStructure) chips.push({ label: 'Pricing', value: item.pricingStructure });
-    if (item.placeOfPerformance) chips.push({ label: 'PoP', value: item.placeOfPerformance });
+    if (item.placeOfPerformance) chips.push({ label: 'Place', value: item.placeOfPerformance });
+    if (item.periodOfPerformance) chips.push({ label: 'Period', value: item.periodOfPerformance });
+    if (item.laborCategories && item.laborCategories.length > 0)
+      chips.push({ label: 'Labor', value: `${item.laborCategories.length} role${item.laborCategories.length !== 1 ? 's' : ''}` });
+    if (item.keyRequirements && item.keyRequirements.length > 0)
+      chips.push({ label: 'Key reqs', value: `${item.keyRequirements.length}` });
     return chips;
   };
 
@@ -669,7 +766,7 @@ function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[
   const fileCount = Object.keys(groups).length;
 
   return (
-    <Paper variant="outlined" sx={{ p: 2, mb: 3 }}>
+    <Paper ref={paperRef} variant="outlined" sx={{ p: 2, mb: 3, scrollMarginTop: 16 }}>
       <Box
         sx={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}
         onClick={() => setExpanded((prev) => !prev)}
@@ -747,6 +844,12 @@ function PerAttachmentBreakdown({ items }: { items: AttachmentIntelBreakdownDto[
               })}
             </Box>
           ))}
+        </Box>
+        {/* Bottom collapse control — close a long breakdown without scrolling up */}
+        <Box sx={{ display: 'flex', justifyContent: 'center', mt: 1 }}>
+          <Button size="small" startIcon={<ExpandLessIcon />} onClick={collapse} sx={{ color: 'text.secondary' }}>
+            Collapse
+          </Button>
         </Box>
       </Collapse>
     </Paper>
@@ -1433,7 +1536,7 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
       )}
       {/* Intel Summary Cards */}
       {hasAnyIntel ? (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid container spacing={2} alignItems="flex-start" sx={{ mb: 3 }}>
           {intelFields.map(
             (field) =>
               field.value && (

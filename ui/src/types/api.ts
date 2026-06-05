@@ -1488,7 +1488,10 @@ export interface AttachmentIntelBreakdownDto {
   incumbentName?: string;
   pricingStructure?: string;
   placeOfPerformance?: string;
+  periodOfPerformance?: string;
   scopeSummary?: string;
+  laborCategories?: string[];
+  keyRequirements?: string[];
 }
 
 export interface MergedSourcePassageDto {

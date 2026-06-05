@@ -364,6 +364,19 @@ class DemandLoader:
         analyzer = AttachmentAIAnalyzer(model="haiku", requested_by=req.get("requested_by"))
         stats = analyzer.analyze_notice(notice_id)
 
+        # Also run the notice-level description analysis so the on-demand "Enhance
+        # with AI" button generates a notice-level scope summary (from the opportunity
+        # description + attachment text). Without this, only the nightly batch produces
+        # the ai_haiku row in opportunity_attachment_summary that the Scope Summary card
+        # reads, so a freshly-enhanced opportunity shows no summary.
+        try:
+            analyzer.analyze_descriptions(notice_id=notice_id, force=True)
+        except Exception as e:
+            logger.warning(
+                "Request %d: description analysis failed for notice '%s': %s",
+                request_id, notice_id, e,
+            )
+
         # Phase 126: also run the separate contradiction-detection AI step so the
         # on-demand "Enhance with AI" button populates the contradictions column.
         try:
