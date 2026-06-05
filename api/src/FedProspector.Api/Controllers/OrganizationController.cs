@@ -197,6 +197,62 @@ public class OrganizationController : ApiControllerBase
         return Ok(result);
     }
 
+    // -----------------------------------------------------------------------
+    // Associated NAICS Endpoints (Phase 136 Unit G)
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// Get the organization's manually-curated "associated" NAICS codes (beyond registered
+    /// and linked-entity codes).
+    /// </summary>
+    [HttpGet("associated-naics")]
+    [EnableRateLimiting("search")]
+    public async Task<IActionResult> GetAssociatedNaics()
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var result = await _profileService.GetAssociatedNaicsAsync(orgId.Value);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Add an associated NAICS code (with an optional note). Requires OrgAdmin role.
+    /// </summary>
+    [HttpPost("associated-naics")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> AddAssociatedNaics([FromBody] CreateAssociatedNaicsRequest request)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        try
+        {
+            var result = await _profileService.AddAssociatedNaicsAsync(orgId.Value, request);
+            return StatusCode(201, result);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return ApiError(400, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Remove an associated NAICS code by id. Requires OrgAdmin role.
+    /// </summary>
+    [HttpDelete("associated-naics/{id:int}")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> DeleteAssociatedNaics(int id)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        var deleted = await _profileService.DeleteAssociatedNaicsAsync(orgId.Value, id);
+        if (!deleted) return NotFound();
+
+        return NoContent();
+    }
+
     /// <summary>
     /// Get the organization's certifications.
     /// </summary>
@@ -312,6 +368,29 @@ public class OrganizationController : ApiControllerBase
         catch (InvalidOperationException ex)
         {
             return ApiError(400, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Phase 136 Unit F: update an existing linked entity's editable data (affiliate
+    /// revenue/employees, MPA flag/date, notes, partner UEI) at any time after the link
+    /// is created. Requires OrgAdmin role.
+    /// </summary>
+    [HttpPut("entities/{linkId:int}")]
+    [Authorize(Policy = "OrgAdmin")]
+    public async Task<IActionResult> UpdateEntityLink(int linkId, [FromBody] UpdateEntityLinkRequest request)
+    {
+        var orgId = GetCurrentOrganizationId();
+        if (orgId is null) return Unauthorized();
+
+        try
+        {
+            var result = await _entityService.UpdateLinkAsync(orgId.Value, linkId, request);
+            return Ok(result);
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return ApiError(404, ex.Message);
         }
     }
 

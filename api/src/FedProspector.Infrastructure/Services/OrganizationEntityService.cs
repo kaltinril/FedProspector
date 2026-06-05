@@ -48,6 +48,10 @@ public class OrganizationEntityService : IOrganizationEntityService
                     .AsNoTracking()
                     .CountAsync(n => n.UeiSam == link.UeiSam);
 
+                // Phase 136 Unit F: surface the entity's primary NAICS from entity_naics
+                // (is_primary = 'Y'), not the entity.primary_naics column which is often null.
+                dto.PrimaryNaics = await GetEntityPrimaryNaicsAsync(link.UeiSam);
+
                 var todayForCount = DateOnly.FromDateTime(DateTime.UtcNow);
                 var sbaCount = await _context.EntitySbaCertifications.AsNoTracking()
                     .CountAsync(c => c.UeiSam == link.UeiSam
@@ -154,6 +158,34 @@ public class OrganizationEntityService : IOrganizationEntityService
             // For non-SELF links, still sync certs from all linked entities
             await SyncEntityCertsAsync(orgId);
         }
+
+        return await GetSingleDtoAsync(link);
+    }
+
+    /// <summary>
+    /// Phase 136 Unit F: update an existing active link's editable data at any time,
+    /// decoupled from the link/upsert action. Null request fields are left unchanged.
+    /// Unlike <see cref="LinkEntityAsync"/> this does NOT re-run NAICS/cert sync — it only
+    /// patches the owner-entered fields on the link row.
+    /// </summary>
+    public async Task<OrganizationEntityDto> UpdateLinkAsync(int orgId, int linkId, UpdateEntityLinkRequest request)
+    {
+        var link = await _context.OrganizationEntities
+            .FirstOrDefaultAsync(oe => oe.Id == linkId && oe.OrganizationId == orgId && oe.IsActive == "Y")
+            ?? throw new KeyNotFoundException($"Entity link {linkId} not found.");
+
+        if (request.AffiliateAnnualRevenue.HasValue) link.AffiliateAnnualRevenue = request.AffiliateAnnualRevenue;
+        if (request.AffiliateEmployeeCount.HasValue) link.AffiliateEmployeeCount = request.AffiliateEmployeeCount;
+        if (request.MpaApproved.HasValue) link.MpaApproved = request.MpaApproved.Value ? "Y" : "N";
+        if (request.MpaEffectiveDate.HasValue) link.MpaEffectiveDate = request.MpaEffectiveDate;
+        if (request.Notes != null) link.Notes = request.Notes;
+        if (request.PartnerUei != null) link.PartnerUei = request.PartnerUei;
+
+        link.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Updated entity link {LinkId} ({UeiSam} / {Relationship}) for org {OrgId}",
+            linkId, link.UeiSam, link.Relationship, orgId);
 
         return await GetSingleDtoAsync(link);
     }
@@ -469,6 +501,9 @@ public class OrganizationEntityService : IOrganizationEntityService
         dto.NaicsCount = await _context.EntityNaicsCodes.AsNoTracking()
             .CountAsync(n => n.UeiSam == link.UeiSam);
 
+        // Phase 136 Unit F: primary NAICS from entity_naics (is_primary = 'Y').
+        dto.PrimaryNaics = await GetEntityPrimaryNaicsAsync(link.UeiSam);
+
         var todayForDto = DateOnly.FromDateTime(DateTime.UtcNow);
         var sbaCountDto = await _context.EntitySbaCertifications.AsNoTracking()
             .CountAsync(c => c.UeiSam == link.UeiSam
@@ -503,7 +538,23 @@ public class OrganizationEntityService : IOrganizationEntityService
             DbaName = link.Entity?.DbaName,
             CageCode = link.Entity?.CageCode,
             RegistrationStatus = link.Entity?.RegistrationStatus,
-            PrimaryNaics = link.Entity?.PrimaryNaics,
+            // PrimaryNaics is populated by the calling builder from entity_naics
+            // (is_primary = 'Y') — see GetEntityPrimaryNaicsAsync. Phase 136 Unit F.
         };
+    }
+
+    /// <summary>
+    /// Phase 136 Unit F: the entity's primary NAICS code, read from entity_naics where
+    /// is_primary = 'Y' (a CHAR(1) Y/N per <see cref="EntityNaics.IsPrimary"/>). Falls back to
+    /// null when no row is flagged primary. Used to show each linked entity's primary NAICS in
+    /// the entities list instead of only a count.
+    /// </summary>
+    private async Task<string?> GetEntityPrimaryNaicsAsync(string ueiSam)
+    {
+        return await _context.EntityNaicsCodes
+            .AsNoTracking()
+            .Where(n => n.UeiSam == ueiSam && n.IsPrimary == "Y")
+            .Select(n => n.NaicsCode)
+            .FirstOrDefaultAsync();
     }
 }

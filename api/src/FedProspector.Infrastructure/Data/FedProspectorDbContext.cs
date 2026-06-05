@@ -141,6 +141,7 @@ public class FedProspectorDbContext : DbContext
     public DbSet<OrganizationPastPerformance> OrganizationPastPerformances { get; set; }
     public DbSet<OrganizationEntity> OrganizationEntities { get; set; }
     public DbSet<OrganizationPsc> OrganizationPscs { get; set; }
+    public DbSet<OrganizationAssociatedNaics> OrganizationAssociatedNaics { get; set; }
     public DbSet<AppUser> AppUsers { get; set; }
     public DbSet<AppSession> AppSessions { get; set; }
     public DbSet<SavedSearch> SavedSearches { get; set; }
@@ -274,6 +275,12 @@ public class FedProspectorDbContext : DbContext
 
         modelBuilder.Entity<OrganizationInvite>()
             .HasIndex(e => e.InviteCode)
+            .IsUnique();
+
+        // Phase 136 Unit G: associated NAICS deduped per org. No FK to organization
+        // (project convention) — organization_id references the org logically.
+        modelBuilder.Entity<OrganizationAssociatedNaics>()
+            .HasIndex(e => new { e.OrganizationId, e.NaicsCode })
             .IsUnique();
 
         // ----- JSON Column Mappings -----

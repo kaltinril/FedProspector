@@ -16,9 +16,12 @@ import type {
   NaicsDetailDto,
   OrganizationEntityDto,
   LinkEntityRequest,
+  UpdateEntityLinkRequest,
   RefreshSelfEntityResponse,
   NaicsHierarchyNode,
   AffiliatedSizeEligibilityResultDto,
+  OrgAssociatedNaicsDto,
+  CreateAssociatedNaicsRequest,
 } from '@/types/organization';
 
 // Organization management
@@ -69,6 +72,21 @@ export function setNaics(data: OrgNaicsDto[]): Promise<OrgNaicsDto[]> {
   return apiClient.put('/org/naics', data).then((r) => r.data);
 }
 
+// Associated NAICS (Phase 136 Unit G)
+export function getAssociatedNaics(): Promise<OrgAssociatedNaicsDto[]> {
+  return apiClient.get('/org/associated-naics').then((r) => r.data);
+}
+
+export function addAssociatedNaics(
+  data: CreateAssociatedNaicsRequest,
+): Promise<OrgAssociatedNaicsDto> {
+  return apiClient.post('/org/associated-naics', data).then((r) => r.data);
+}
+
+export function deleteAssociatedNaics(id: number): Promise<void> {
+  return apiClient.delete(`/org/associated-naics/${id}`).then((r) => r.data);
+}
+
 // Certifications
 export function getCertifications(): Promise<OrgCertificationDto[]> {
   return apiClient.get('/org/certifications').then((r) => r.data);
@@ -117,6 +135,14 @@ export function linkEntity(data: LinkEntityRequest): Promise<OrganizationEntityD
 
 export function deactivateEntityLink(linkId: number): Promise<void> {
   return apiClient.delete(`/org/entities/${linkId}`).then((r) => r.data);
+}
+
+// Phase 136 Unit F: update an existing linked entity's editable data at any time.
+export function updateEntityLink(
+  linkId: number,
+  data: UpdateEntityLinkRequest,
+): Promise<OrganizationEntityDto> {
+  return apiClient.put(`/org/entities/${linkId}`, data).then((r) => r.data);
 }
 
 export function refreshSelfEntity(): Promise<RefreshSelfEntityResponse> {

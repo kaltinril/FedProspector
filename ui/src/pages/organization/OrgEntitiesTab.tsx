@@ -25,6 +25,7 @@ import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import LinkIcon from '@mui/icons-material/Link';
 import SearchIcon from '@mui/icons-material/Search';
@@ -36,6 +37,8 @@ import {
   deactivateEntityLink,
   refreshSelfEntity,
 } from '@/api/organization';
+import { useUpdateEntityLink } from '@/queries/useOrganization';
+import { useAuth } from '@/auth/useAuth';
 import { searchEntities } from '@/api/entities';
 import { queryKeys } from '@/queries/queryKeys';
 import type { OrganizationEntityDto } from '@/types/organization';
@@ -51,6 +54,15 @@ const RELATIONSHIP_OPTIONS = [
 
 export function OrgEntitiesTab() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  // Owner/admin gating for editing affiliate data (Phase 136 Unit F).
+  const canEdit = user?.role === 'owner' || user?.role === 'admin' || user?.isOrgAdmin === true;
+  const updateLinkMutation = useUpdateEntityLink();
+  // Phase 136 Unit F: edit-affiliate-data dialog state.
+  const [editLink, setEditLink] = useState<OrganizationEntityDto | null>(null);
+  const [editRevenue, setEditRevenue] = useState('');
+  const [editEmployees, setEditEmployees] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<EntitySearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -166,6 +178,40 @@ export function OrgEntitiesTab() {
       mpaApproved: isJv ? mpaApproved : undefined,
       mpaEffectiveDate: isJv && mpaApproved && mpaEffectiveDate ? mpaEffectiveDate : undefined,
     });
+  };
+
+  // Phase 136 Unit F: open the affiliate-data edit dialog prefilled from the link.
+  const handleOpenEdit = (link: OrganizationEntityDto) => {
+    setEditLink(link);
+    setEditRevenue(link.affiliateAnnualRevenue != null ? String(link.affiliateAnnualRevenue) : '');
+    setEditEmployees(link.affiliateEmployeeCount != null ? String(link.affiliateEmployeeCount) : '');
+    setEditError(null);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editLink) return;
+    setEditError(null);
+    const rev = editRevenue.trim();
+    const emp = editEmployees.trim();
+    updateLinkMutation.mutate(
+      {
+        linkId: editLink.id,
+        data: {
+          affiliateAnnualRevenue: rev === '' ? null : Number(rev),
+          affiliateEmployeeCount: emp === '' ? null : Number(emp),
+        },
+      },
+      {
+        onSuccess: () => {
+          setSuccessMessage('Affiliate data updated.');
+          setTimeout(() => setSuccessMessage(''), 5000);
+          setEditLink(null);
+        },
+        onError: (err: unknown) => {
+          setEditError(err instanceof Error ? err.message : 'Failed to update affiliate data');
+        },
+      },
+    );
   };
 
   const hasSelf = linkedEntities.some(
@@ -343,8 +389,11 @@ export function OrgEntitiesTab() {
                 <TableCell>UEI</TableCell>
                 <TableCell>Partner UEI</TableCell>
                 <TableCell>Relationship</TableCell>
+                <TableCell>Primary NAICS</TableCell>
                 <TableCell align="center">NAICS</TableCell>
                 <TableCell align="center">Certs</TableCell>
+                <TableCell align="right">Revenue</TableCell>
+                <TableCell align="right">Employees</TableCell>
                 <TableCell>Added By</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
@@ -393,10 +442,30 @@ export function OrgEntitiesTab() {
                       color={relationshipColor(link.relationship) as 'primary' | 'secondary' | 'info' | 'success' | 'default'}
                     />
                   </TableCell>
+                  <TableCell>{link.primaryNaics || '-'}</TableCell>
                   <TableCell align="center">{link.naicsCount}</TableCell>
                   <TableCell align="center">{link.certificationCount}</TableCell>
+                  <TableCell align="right">
+                    {link.affiliateAnnualRevenue != null
+                      ? `$${link.affiliateAnnualRevenue.toLocaleString()}`
+                      : '-'}
+                  </TableCell>
+                  <TableCell align="right">
+                    {link.affiliateEmployeeCount != null
+                      ? link.affiliateEmployeeCount.toLocaleString()
+                      : '-'}
+                  </TableCell>
                   <TableCell>{link.addedByName || '-'}</TableCell>
                   <TableCell align="right">
+                    {canEdit && (
+                      <IconButton
+                        size="small"
+                        onClick={() => handleOpenEdit(link)}
+                        aria-label="Edit affiliate data"
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    )}
                     <IconButton
                       size="small"
                       color="error"
@@ -541,6 +610,69 @@ export function OrgEntitiesTab() {
             disabled={linkMutation.isPending}
           >
             {linkMutation.isPending ? 'Linking...' : 'Confirm Link'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      {/* Phase 136 Unit F: edit affiliate revenue/employees at any time (post-link) */}
+      <Dialog
+        open={editLink !== null}
+        onClose={() => setEditLink(null)}
+        disableRestoreFocus
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Affiliate Data</DialogTitle>
+        <DialogContent>
+          {editLink && (
+            <Box sx={{ mb: 2 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 500 }}>
+                {editLink.legalBusinessName || editLink.ueiSam}
+              </Typography>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                UEI: {editLink.ueiSam} | {editLink.relationship}
+              </Typography>
+            </Box>
+          )}
+          {editError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setEditError(null)}>
+              {editError}
+            </Alert>
+          )}
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+            Owner-entered figures used by the SBA affiliation size roll-up (13 CFR 121.103). Leave
+            blank to clear — it will show as a data gap.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              type="number"
+              label="Annual revenue (USD)"
+              placeholder="e.g. 5000000"
+              value={editRevenue}
+              onChange={(e) => setEditRevenue(e.target.value)}
+              slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+            />
+            <TextField
+              fullWidth
+              size="small"
+              type="number"
+              label="Employee count"
+              placeholder="e.g. 50"
+              value={editEmployees}
+              onChange={(e) => setEditEmployees(e.target.value)}
+              slotProps={{ htmlInput: { min: 0, step: 1 } }}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditLink(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleSaveEdit}
+            disabled={updateLinkMutation.isPending}
+          >
+            {updateLinkMutation.isPending ? 'Saving...' : 'Save'}
           </Button>
         </DialogActions>
       </Dialog>

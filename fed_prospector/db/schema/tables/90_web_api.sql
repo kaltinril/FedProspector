@@ -176,6 +176,19 @@ CREATE TABLE IF NOT EXISTS organization_naics (
     INDEX idx_orgnaics_org (organization_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Phase 136 Unit G: manually-curated "associated" NAICS (beyond registered + linked-entity
+-- codes). EF-Core-owned. NO foreign key to organization (project convention — organization_id
+-- references the org logically). Deduped per org via the unique key.
+CREATE TABLE IF NOT EXISTS organization_associated_naics (
+    id                   INT AUTO_INCREMENT PRIMARY KEY,
+    organization_id      INT NOT NULL,
+    naics_code           VARCHAR(11) NOT NULL,
+    note                 TEXT NULL,
+    created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_org_assoc_naics (organization_id, naics_code),
+    INDEX idx_org_assoc_naics_org (organization_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS organization_past_performance (
     id                   INT AUTO_INCREMENT PRIMARY KEY,
     organization_id      INT NOT NULL,

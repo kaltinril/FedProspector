@@ -8,6 +8,22 @@ public interface ICompanyProfileService
     Task<OrgProfileDto> UpdateProfileAsync(int orgId, UpdateOrgProfileRequest request);
     Task<List<OrgNaicsDto>> GetNaicsAsync(int orgId);
     Task<List<OrgNaicsDto>> SetNaicsAsync(int orgId, List<OrgNaicsDto> naicsCodes);
+
+    // --- Associated NAICS (Phase 136 Unit G) ---
+
+    /// <summary>
+    /// Manually-curated "associated" NAICS codes for the org (beyond registered + linked-entity codes).
+    /// </summary>
+    Task<List<OrgAssociatedNaicsDto>> GetAssociatedNaicsAsync(int orgId);
+
+    /// <summary>
+    /// Add an associated NAICS code (with an optional note). Idempotent on (org, code):
+    /// re-adding an existing code returns the existing row rather than duplicating it.
+    /// </summary>
+    Task<OrgAssociatedNaicsDto> AddAssociatedNaicsAsync(int orgId, CreateAssociatedNaicsRequest request);
+
+    /// <summary>Remove an associated NAICS code by id. Returns false when not found for the org.</summary>
+    Task<bool> DeleteAssociatedNaicsAsync(int orgId, int id);
     Task<List<OrgCertificationDto>> GetCertificationsAsync(int orgId);
     Task<List<OrgCertificationDto>> SetCertificationsAsync(int orgId, List<OrgCertificationDto> certifications);
     Task<List<OrgPastPerformanceDto>> GetPastPerformancesAsync(int orgId);

@@ -84,6 +84,7 @@ export const queryKeys = {
     details: ['organization', 'details'] as const,
     profile: ['organization', 'profile'] as const,
     naics: ['organization', 'naics'] as const,
+    associatedNaics: ['organization', 'associatedNaics'] as const,
     certifications: ['organization', 'certifications'] as const,
     entities: ['organization', 'entities'] as const,
     pastPerformance: ['organization', 'pastPerformance'] as const,

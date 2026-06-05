@@ -832,4 +832,119 @@ public class OrganizationEntityServiceTests : IDisposable
         certs.Should().Contain(c => c.CertificationType == "HUBZone",
             "reactivating a non-SELF link should trigger cert sync");
     }
+
+    // =======================================================================
+    // Phase 136 Unit F — primary NAICS from entity_naics + anytime edit
+    // =======================================================================
+
+    private void SeedEntityNaics(string uei, string naicsCode, bool isPrimary)
+    {
+        _context.EntityNaicsCodes.Add(new EntityNaics
+        {
+            UeiSam = uei,
+            NaicsCode = naicsCode,
+            IsPrimary = isPrimary ? "Y" : "N",
+            SbaSmallBusiness = "Y"
+        });
+        _context.SaveChanges();
+    }
+
+    [Fact]
+    public async Task GetLinkedEntities_PrimaryNaics_SourcedFromEntityNaicsIsPrimaryY()
+    {
+        SeedOrganization();
+        SeedEntity("UEI000000001");
+        // Entity.PrimaryNaics is 541512 (from SeedEntity), but the is_primary='Y' row is 541330.
+        SeedEntityNaics("UEI000000001", "541330", isPrimary: true);
+        SeedEntityNaics("UEI000000001", "541512", isPrimary: false);
+        SeedLink(1, "UEI000000001", "SELF");
+
+        var result = await _service.GetLinkedEntitiesAsync(1);
+
+        result.Should().HaveCount(1);
+        result[0].PrimaryNaics.Should().Be("541330",
+            "primary NAICS must come from entity_naics where is_primary='Y', not entity.primary_naics");
+        result[0].NaicsCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GetLinkedEntities_PrimaryNaics_NullWhenNoPrimaryFlagged()
+    {
+        SeedOrganization();
+        SeedEntity("UEI000000001");
+        SeedEntityNaics("UEI000000001", "541512", isPrimary: false);
+        SeedLink(1, "UEI000000001", "SELF");
+
+        var result = await _service.GetLinkedEntitiesAsync(1);
+
+        result[0].PrimaryNaics.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateLink_SetsAffiliateRevenueAndEmployees()
+    {
+        SeedOrganization();
+        SeedEntity("UEI000000001");
+        var link = SeedLink(1, "UEI000000001", "JV_PARTNER");
+
+        var dto = await _service.UpdateLinkAsync(1, link.Id, new UpdateEntityLinkRequest
+        {
+            AffiliateAnnualRevenue = 5_000_000m,
+            AffiliateEmployeeCount = 50
+        });
+
+        dto.AffiliateAnnualRevenue.Should().Be(5_000_000m);
+        dto.AffiliateEmployeeCount.Should().Be(50);
+
+        var persisted = _context.OrganizationEntities.Single(e => e.Id == link.Id);
+        persisted.AffiliateAnnualRevenue.Should().Be(5_000_000m);
+        persisted.AffiliateEmployeeCount.Should().Be(50);
+    }
+
+    [Fact]
+    public async Task UpdateLink_NullFields_LeaveExistingValuesUnchanged()
+    {
+        SeedOrganization();
+        SeedEntity("UEI000000001");
+        var link = SeedLink(1, "UEI000000001", "JV_PARTNER");
+        link.AffiliateAnnualRevenue = 1_000_000m;
+        link.AffiliateEmployeeCount = 10;
+        link.Notes = "original";
+        _context.SaveChanges();
+
+        // Only update notes; revenue/employees omitted (null) must be preserved.
+        await _service.UpdateLinkAsync(1, link.Id, new UpdateEntityLinkRequest { Notes = "updated" });
+
+        var persisted = _context.OrganizationEntities.Single(e => e.Id == link.Id);
+        persisted.AffiliateAnnualRevenue.Should().Be(1_000_000m);
+        persisted.AffiliateEmployeeCount.Should().Be(10);
+        persisted.Notes.Should().Be("updated");
+    }
+
+    [Fact]
+    public async Task UpdateLink_UnknownLink_Throws()
+    {
+        SeedOrganization();
+
+        var act = async () => await _service.UpdateLinkAsync(1, 999, new UpdateEntityLinkRequest());
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    [Fact]
+    public async Task UpdateLink_WrongOrg_Throws()
+    {
+        SeedOrganization(1);
+        SeedOrganization(2, "Other Org");
+        SeedEntity("UEI000000001");
+        var link = SeedLink(1, "UEI000000001", "JV_PARTNER");
+
+        // Org 2 must not be able to edit org 1's link.
+        var act = async () => await _service.UpdateLinkAsync(2, link.Id, new UpdateEntityLinkRequest
+        {
+            AffiliateEmployeeCount = 5
+        });
+
+        await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
 }

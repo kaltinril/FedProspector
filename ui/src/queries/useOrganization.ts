@@ -27,10 +27,14 @@ import {
   getNaicsDetail,
   getCertificationTypes,
   getLinkedEntities,
+  updateEntityLink,
   getAffiliatedSizeEligibility,
   getNaicsSectors,
   getNaicsChildren,
   getNaicsAncestors,
+  getAssociatedNaics,
+  addAssociatedNaics,
+  deleteAssociatedNaics,
 } from '@/api/organization';
 import type {
   UpdateOrganizationRequest,
@@ -41,6 +45,8 @@ import type {
   OrgCertificationDto,
   CreatePastPerformanceRequest,
   AffiliatedSizeEligibilityResultDto,
+  UpdateEntityLinkRequest,
+  CreateAssociatedNaicsRequest,
 } from '@/types/organization';
 
 // Organization details
@@ -155,6 +161,37 @@ export function useSetOrgNaics() {
   });
 }
 
+// Associated NAICS (Phase 136 Unit G)
+export function useAssociatedNaics() {
+  return useQuery({
+    queryKey: queryKeys.organization.associatedNaics,
+    queryFn: getAssociatedNaics,
+    staleTime: 10 * 60 * 1000, // 10 minutes
+  });
+}
+
+export function useAddAssociatedNaics() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateAssociatedNaicsRequest) => addAssociatedNaics(data),
+    retry: 1,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.associatedNaics });
+    },
+  });
+}
+
+export function useDeleteAssociatedNaics() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteAssociatedNaics(id),
+    retry: 1,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.associatedNaics });
+    },
+  });
+}
+
 // Certifications
 export function useOrgCertifications() {
   return useQuery({
@@ -213,6 +250,21 @@ export function useOrgEntities() {
     queryKey: queryKeys.organization.entities,
     queryFn: getLinkedEntities,
     staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+// Phase 136 Unit F: edit an existing linked entity (affiliate revenue/employees, etc.) anytime.
+export function useUpdateEntityLink() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ linkId, data }: { linkId: number; data: UpdateEntityLinkRequest }) =>
+      updateEntityLink(linkId, data),
+    retry: 1,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.entities });
+      // Affiliate figures feed the affiliation size roll-up.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.all });
+    },
   });
 }
 

@@ -128,6 +128,82 @@ public class CompanyProfileService : ICompanyProfileService
         }).ToList();
     }
 
+    // --- Associated NAICS (Phase 136 Unit G) ---
+
+    public async Task<List<OrgAssociatedNaicsDto>> GetAssociatedNaicsAsync(int orgId)
+    {
+        return await _context.OrganizationAssociatedNaics
+            .AsNoTracking()
+            .Where(n => n.OrganizationId == orgId)
+            .OrderBy(n => n.NaicsCode)
+            .Select(n => new OrgAssociatedNaicsDto
+            {
+                Id = n.Id,
+                NaicsCode = n.NaicsCode,
+                Note = n.Note,
+                CreatedAt = n.CreatedAt
+            })
+            .ToListAsync();
+    }
+
+    public async Task<OrgAssociatedNaicsDto> AddAssociatedNaicsAsync(int orgId, CreateAssociatedNaicsRequest request)
+    {
+        var orgExists = await _context.Organizations.AnyAsync(o => o.OrganizationId == orgId);
+        if (!orgExists) throw new KeyNotFoundException($"Organization {orgId} not found.");
+
+        var code = (request.NaicsCode ?? string.Empty).Trim();
+        if (code.Length != 6 || !code.All(char.IsDigit))
+            throw new InvalidOperationException("Associated NAICS code must be exactly 6 digits.");
+
+        // Idempotent on (org, code) — return the existing row rather than violating the unique key.
+        var existing = await _context.OrganizationAssociatedNaics
+            .FirstOrDefaultAsync(n => n.OrganizationId == orgId && n.NaicsCode == code);
+        if (existing != null)
+        {
+            return new OrgAssociatedNaicsDto
+            {
+                Id = existing.Id,
+                NaicsCode = existing.NaicsCode,
+                Note = existing.Note,
+                CreatedAt = existing.CreatedAt
+            };
+        }
+
+        var entity = new OrganizationAssociatedNaics
+        {
+            OrganizationId = orgId,
+            NaicsCode = code,
+            Note = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim(),
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _context.OrganizationAssociatedNaics.Add(entity);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Organization {OrgId} associated NAICS {Code} added", orgId, code);
+
+        return new OrgAssociatedNaicsDto
+        {
+            Id = entity.Id,
+            NaicsCode = entity.NaicsCode,
+            Note = entity.Note,
+            CreatedAt = entity.CreatedAt
+        };
+    }
+
+    public async Task<bool> DeleteAssociatedNaicsAsync(int orgId, int id)
+    {
+        var entity = await _context.OrganizationAssociatedNaics
+            .FirstOrDefaultAsync(n => n.Id == id && n.OrganizationId == orgId);
+        if (entity == null) return false;
+
+        _context.OrganizationAssociatedNaics.Remove(entity);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Organization {OrgId} associated NAICS {Code} (id {Id}) removed", orgId, entity.NaicsCode, id);
+        return true;
+    }
+
     public async Task<List<OrgCertificationDto>> GetCertificationsAsync(int orgId)
     {
         return await _context.OrganizationCertifications

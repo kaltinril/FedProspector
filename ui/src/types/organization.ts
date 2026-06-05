@@ -174,6 +174,34 @@ export interface OrganizationEntityDto {
   certificationCount: number;
 }
 
+// --- Phase 136 Unit F: edit an existing linked entity at any time ---
+
+/** Update linked-entity request matching C# UpdateEntityLinkRequest. */
+export interface UpdateEntityLinkRequest {
+  affiliateAnnualRevenue?: number | null;
+  affiliateEmployeeCount?: number | null;
+  mpaApproved?: boolean | null;
+  mpaEffectiveDate?: string | null;
+  notes?: string | null;
+  partnerUei?: string | null;
+}
+
+// --- Phase 136 Unit G: associated NAICS (manual list) ---
+
+/** Associated NAICS matching C# OrgAssociatedNaicsDto. */
+export interface OrgAssociatedNaicsDto {
+  id: number;
+  naicsCode: string;
+  note?: string | null;
+  createdAt: string;
+}
+
+/** Add associated NAICS request matching C# CreateAssociatedNaicsRequest. */
+export interface CreateAssociatedNaicsRequest {
+  naicsCode: string;
+  note?: string | null;
+}
+
 /** Link entity request matching C# LinkEntityRequest */
 export interface LinkEntityRequest {
   ueiSam: string;
