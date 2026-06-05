@@ -129,7 +129,9 @@ def _get_daily_steps():
         {
             "name": "cross_ref_identifiers",
             "description": "Cross-reference extracted identifiers against database",
-            "command": ["python", "main.py", "extract", "cross-ref-identifiers", "--batch-size", "5000"],
+            # Phase 137: 20000 (up from 5000) so the round-robin fairness ordering
+            # drains the unmatched backlog within a few nightly runs.
+            "command": ["python", "main.py", "extract", "cross-ref-identifiers", "--batch-size", "20000"],
         },
         {
             "name": "intel_backfill",

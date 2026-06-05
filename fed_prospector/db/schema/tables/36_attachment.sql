@@ -131,11 +131,16 @@ CREATE TABLE IF NOT EXISTS document_identifier_ref (
     matched_table       VARCHAR(50),
     matched_column      VARCHAR(50),
     matched_id          VARCHAR(200),
+    -- Phase 137: round-robin fairness marker for cross-reference ordering; NOT a
+    -- give-up flag. NULL = never attempted (sorts first). Unmatched rows stay
+    -- eligible forever; selection only ORDERs by this, never filters on it.
+    last_xref_attempt_at DATETIME NULL,
     last_load_id        INT,
     created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_docid_ref (document_id, identifier_type),
     INDEX idx_identifier (identifier_type, identifier_value),
-    INDEX idx_matched (matched_table, matched_id)
+    INDEX idx_matched (matched_table, matched_id),
+    INDEX idx_dir_xref_attempt (last_xref_attempt_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS opportunity_attachment_summary (

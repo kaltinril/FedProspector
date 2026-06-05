@@ -300,11 +300,18 @@ class AttachmentIdentifierExtractor:
                 """
                 params.append(notice_id)
 
+            # Phase 137: round-robin fairness ordering. WHERE is UNCHANGED — an
+            # unmatched row is NEVER filtered out by last_xref_attempt_at (it is
+            # purely an ordering marker, not a give-up flag). Never-attempted rows
+            # (NULL) come first, then the oldest-attempted, so each nightly run
+            # rotates through the backlog instead of re-grinding the same lowest
+            # ref_id block. Every unmatched row stays eligible forever.
             cursor.execute(f"""
                 SELECT ref_id, identifier_type, identifier_value, raw_text
                 FROM document_identifier_ref dir
                 WHERE matched_table IS NULL
                 {where_clause}
+                ORDER BY last_xref_attempt_at IS NOT NULL, last_xref_attempt_at ASC, ref_id ASC
                 LIMIT %s
             """, params + [batch_size])
 
@@ -314,9 +321,18 @@ class AttachmentIdentifierExtractor:
             # Batch by type for efficient lookups
             # Each item is (ref_id, dashless_value, raw_text)
             by_type = {}
+            all_ref_ids = []
             for ref_id, id_type, id_value, raw_text in rows:
                 by_type.setdefault(id_type, []).append((ref_id, id_value, raw_text))
+                all_ref_ids.append(ref_id)
                 stats["identifiers_checked"] += 1
+
+            # Phase 137 CHANGE #2: items still unmatched after the existing
+            # (priority) checks below. Collected as (ref_id, dashless_value) so a
+            # fallback pass can fill them from usaspending_award WITHOUT touching
+            # any already-matched row. Existing targets always win.
+            unmatched_piid = []   # PIID/SOLICITATION dashless values
+            unmatched_uei = []    # UEI values
 
             # PIID/SOLICITATION -> fpds_contract.contract_id
             for id_type in ("PIID", "SOLICITATION"):
@@ -376,6 +392,9 @@ class AttachmentIdentifierExtractor:
                             WHERE ref_id = %s
                         """, (matched_tbl, matched_col, matched, ref_id))
                         stats["matches_found"] += 1
+                    else:
+                        # Phase 137: defer to usaspending_award fallback below.
+                        unmatched_piid.append((ref_id, dashless_val))
 
             # UEI -> entity.uei_sam and fpds_contract.vendor_uei
             if "UEI" in by_type:
@@ -410,6 +429,9 @@ class AttachmentIdentifierExtractor:
                                 WHERE ref_id = %s
                             """, (val, ref_id))
                             stats["matches_found"] += 1
+                        else:
+                            # Phase 137: defer to usaspending_award fallback below.
+                            unmatched_uei.append((ref_id, val))
 
             # CAGE -> entity.cage_code
             if "CAGE" in by_type:
@@ -462,6 +484,69 @@ class AttachmentIdentifierExtractor:
                                 WHERE ref_id = %s
                             """, (matched, ref_id))
                             stats["matches_found"] += 1
+
+            # ----------------------------------------------------------------
+            # Phase 137 CHANGE #2: usaspending_award FALLBACK (additive).
+            #
+            # Runs ONLY for rows still unmatched after every existing check
+            # above, so the existing fpds_contract / entity / opportunity targets
+            # always take priority. usaspending_award already has the needed
+            # indexes (idx_usa_piid on `piid`, idx_usa_recipient on
+            # `recipient_uei`); we only read them — no schema/loader changes.
+            # ----------------------------------------------------------------
+
+            # PIID/SOLICITATION -> usaspending_award.piid (already dashless/upper,
+            # so the dashless identifier_value matches directly).
+            if unmatched_piid:
+                piid_values = list({v for _, v in unmatched_piid})
+                placeholders = ",".join(["%s"] * len(piid_values))
+                cursor.execute(f"""
+                    SELECT DISTINCT piid FROM usaspending_award
+                    WHERE piid IN ({placeholders})
+                """, piid_values)
+                matched_usa_piid = set(r[0] for r in cursor.fetchall())
+
+                for ref_id, dashless_val in unmatched_piid:
+                    if dashless_val in matched_usa_piid:
+                        cursor.execute("""
+                            UPDATE document_identifier_ref
+                            SET matched_table = 'usaspending_award', matched_column = 'piid', matched_id = %s
+                            WHERE ref_id = %s
+                        """, (dashless_val, ref_id))
+                        stats["matches_found"] += 1
+
+            # UEI -> usaspending_award.recipient_uei
+            if unmatched_uei:
+                uei_values = list({v for _, v in unmatched_uei})
+                placeholders = ",".join(["%s"] * len(uei_values))
+                cursor.execute(f"""
+                    SELECT DISTINCT recipient_uei FROM usaspending_award
+                    WHERE recipient_uei IN ({placeholders})
+                """, uei_values)
+                matched_usa_uei = set(r[0] for r in cursor.fetchall())
+
+                for ref_id, val in unmatched_uei:
+                    if val in matched_usa_uei:
+                        cursor.execute("""
+                            UPDATE document_identifier_ref
+                            SET matched_table = 'usaspending_award', matched_column = 'recipient_uei', matched_id = %s
+                            WHERE ref_id = %s
+                        """, (val, ref_id))
+                        stats["matches_found"] += 1
+
+            # Phase 137 CHANGE #1: stamp the round-robin marker for EVERY ref_id
+            # processed this batch (matched and unmatched alike). Matched rows
+            # leave the pool via matched_table; unmatched rows rotate to the back
+            # so the next run pulls the next slice of the backlog — but they stay
+            # eligible forever (WHERE never filters on this column) and are
+            # re-checked on their next turn and whenever reference data changes.
+            if all_ref_ids:
+                placeholders = ",".join(["%s"] * len(all_ref_ids))
+                cursor.execute(f"""
+                    UPDATE document_identifier_ref
+                    SET last_xref_attempt_at = NOW()
+                    WHERE ref_id IN ({placeholders})
+                """, all_ref_ids)
 
             conn.commit()
             cursor.close()
