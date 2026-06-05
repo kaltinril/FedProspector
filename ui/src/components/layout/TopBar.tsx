@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import IconButton from '@mui/material/IconButton';
+import ButtonBase from '@mui/material/ButtonBase';
 import Badge from '@mui/material/Badge';
 import Avatar from '@mui/material/Avatar';
 import Menu from '@mui/material/Menu';
@@ -24,6 +25,7 @@ import PersonOutlined from '@mui/icons-material/PersonOutlined';
 import CorporateFareOutlined from '@mui/icons-material/CorporateFareOutlined';
 import LogoutOutlined from '@mui/icons-material/LogoutOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
+import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
 import { useThemeMode } from '@/theme/useThemeMode';
@@ -31,6 +33,7 @@ import { useUnreadCount, useNotifications, useMarkRead } from '@/queries/useNoti
 import type { NotificationDto } from '@/types/api';
 import { formatRelative } from '@/utils/dateFormatters';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
+import { CommandPalette } from '@/components/layout/CommandPalette';
 import { SIDEBAR_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED } from '@/components/layout/Sidebar';
 
 interface TopBarProps {
@@ -48,6 +51,30 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
 
   const [notifAnchorEl, setNotifAnchorEl] = useState<null | HTMLElement>(null);
   const notifOpen = Boolean(notifAnchorEl);
+
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Global "/" shortcut opens the command palette, unless the user is typing in
+  // an input, textarea, or contenteditable element (so "/" still types normally).
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== '/' || event.ctrlKey || event.metaKey || event.altKey) return;
+      const target = (event.target as HTMLElement | null) ?? document.activeElement;
+      const tag = target?.tagName;
+      if (
+        tag === 'INPUT' ||
+        tag === 'TEXTAREA' ||
+        tag === 'SELECT' ||
+        (target as HTMLElement | null)?.isContentEditable
+      ) {
+        return;
+      }
+      event.preventDefault();
+      setPaletteOpen(true);
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const { data: unreadData } = useUnreadCount();
   const unreadCount = unreadData?.unreadCount ?? 0;
@@ -110,6 +137,7 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
     : '?';
 
   return (
+    <>
     <AppBar
       position="fixed"
       elevation={0}
@@ -141,7 +169,61 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
         <Breadcrumb />
 
         {/* Right-side actions */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 'auto' }}>
+          {/* Command palette search affordance */}
+          <ButtonBase
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Search pages (press / to open)"
+            aria-haspopup="dialog"
+            sx={{
+              display: { xs: 'none', sm: 'flex' },
+              alignItems: 'center',
+              gap: 1,
+              px: 1.5,
+              py: 0.5,
+              mr: 0.5,
+              minWidth: 180,
+              border: 1,
+              borderColor: 'divider',
+              borderRadius: 1,
+              color: 'text.secondary',
+              fontSize: '0.875rem',
+              justifyContent: 'flex-start',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
+            <SearchOutlined fontSize="small" />
+            <Box component="span" sx={{ flexGrow: 1, textAlign: 'left' }}>
+              Search…
+            </Box>
+            <Box
+              component="kbd"
+              sx={{
+                px: 0.75,
+                py: 0,
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 0.5,
+                fontSize: '0.75rem',
+                fontFamily: 'inherit',
+                lineHeight: 1.6,
+              }}
+            >
+              /
+            </Box>
+          </ButtonBase>
+
+          {/* Command palette trigger (compact, mobile) */}
+          <IconButton
+            size="small"
+            onClick={() => setPaletteOpen(true)}
+            aria-label="Search pages"
+            aria-haspopup="dialog"
+            sx={{ display: { xs: 'inline-flex', sm: 'none' } }}
+          >
+            <SearchOutlined />
+          </IconButton>
+
           {/* Theme toggle */}
           <IconButton onClick={toggleMode} size="small" aria-label={mode === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}>
             {mode === 'dark' ? <Brightness7 /> : <Brightness4 />}
@@ -280,5 +362,7 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
         </Menu>
       </Toolbar>
     </AppBar>
+    <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+    </>
   );
 }
