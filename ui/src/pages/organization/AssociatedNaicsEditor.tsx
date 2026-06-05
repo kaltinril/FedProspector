@@ -53,6 +53,17 @@ export function AssociatedNaicsEditor({ canEdit }: AssociatedNaicsEditorProps) {
   const debouncedSearch = useDebounce(searchInput, 300);
   const { data: searchResults, isLoading: searching } = useNaicsSearch(debouncedSearch);
 
+  // Phase 136 follow-up: prevent duplicates at the source — hide codes that are already on the
+  // associated list OR already among the org's registered NAICS so they can't be picked again.
+  const excludedCodes = new Set<string>([
+    ...associated.map((a) => a.naicsCode),
+    ...ownNaics.map((n) => n.naicsCode),
+  ]);
+  const availableOptions = (searchResults ?? []).filter((o) => !excludedCodes.has(o.code));
+  // Distinguish "type more" from "everything matched is already added" in the empty state.
+  const allMatchesExcluded =
+    debouncedSearch.length >= 2 && (searchResults?.length ?? 0) > 0 && availableOptions.length === 0;
+
   const handleAdd = () => {
     if (!selected) {
       setError('Select a NAICS code to add.');
@@ -74,12 +85,18 @@ export function AssociatedNaicsEditor({ canEdit }: AssociatedNaicsEditorProps) {
     addMutation.mutate(
       { naicsCode: code, note: note.trim() || null },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           setSelected(null);
           setSearchInput('');
           setNote('');
           setError('');
-          enqueueSnackbar('Associated NAICS added', { variant: 'success' });
+          // The backend is idempotent: a code already on the list returns the existing row with
+          // alreadyExisted=true. Surface that as a neutral "already added" rather than a fresh add.
+          if (result.alreadyExisted) {
+            enqueueSnackbar(`NAICS ${code} is already on your associated list`, { variant: 'info' });
+          } else {
+            enqueueSnackbar('Associated NAICS added', { variant: 'success' });
+          }
         },
         onError: (err) => {
           setError(err instanceof Error ? err.message : 'Failed to add associated NAICS');
@@ -116,7 +133,7 @@ export function AssociatedNaicsEditor({ canEdit }: AssociatedNaicsEditorProps) {
       {canEdit && (
         <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <Autocomplete
-            options={searchResults ?? []}
+            options={availableOptions}
             getOptionLabel={(option) => `${option.code} - ${option.title}`}
             filterOptions={(x) => x}
             loading={searching}
@@ -146,7 +163,13 @@ export function AssociatedNaicsEditor({ canEdit }: AssociatedNaicsEditorProps) {
                 }}
               />
             )}
-            noOptionsText={debouncedSearch.length < 2 ? 'Type at least 2 characters' : 'No results'}
+            noOptionsText={
+              debouncedSearch.length < 2
+                ? 'Type at least 2 characters'
+                : allMatchesExcluded
+                  ? 'All matches are already in your registered or associated NAICS'
+                  : 'No results'
+            }
           />
           <TextField
             label="Note (optional)"

@@ -17,6 +17,13 @@ public class OrgAssociatedNaicsDto
     public string? Note { get; set; }
 
     public DateTime CreatedAt { get; set; }
+
+    /// <summary>
+    /// Phase 136 follow-up: true when an Add request matched a code already in the associated
+    /// list — the add was idempotent and returned the existing row rather than creating a new one.
+    /// Lets the UI distinguish "added" from "already on the list". Not persisted; always false on GET.
+    /// </summary>
+    public bool AlreadyExisted { get; set; }
 }
 
 /// <summary>

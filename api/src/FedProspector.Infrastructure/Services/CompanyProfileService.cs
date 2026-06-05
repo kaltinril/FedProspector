@@ -155,7 +155,15 @@ public class CompanyProfileService : ICompanyProfileService
         if (code.Length != 6 || !code.All(char.IsDigit))
             throw new InvalidOperationException("Associated NAICS code must be exactly 6 digits.");
 
+        // The associated list is meant to hold codes BEYOND the org's registered NAICS, so reject
+        // a code that is already registered — it would be a redundant duplicate across the two lists.
+        var isRegistered = await _context.OrganizationNaics
+            .AnyAsync(n => n.OrganizationId == orgId && n.NaicsCode == code);
+        if (isRegistered)
+            throw new InvalidOperationException($"NAICS {code} is already one of your registered NAICS codes.");
+
         // Idempotent on (org, code) — return the existing row rather than violating the unique key.
+        // Flag it so the caller can surface "already on your associated list" instead of a misleading add.
         var existing = await _context.OrganizationAssociatedNaics
             .FirstOrDefaultAsync(n => n.OrganizationId == orgId && n.NaicsCode == code);
         if (existing != null)
@@ -165,7 +173,8 @@ public class CompanyProfileService : ICompanyProfileService
                 Id = existing.Id,
                 NaicsCode = existing.NaicsCode,
                 Note = existing.Note,
-                CreatedAt = existing.CreatedAt
+                CreatedAt = existing.CreatedAt,
+                AlreadyExisted = true
             };
         }
 

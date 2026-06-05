@@ -135,7 +135,10 @@ export function useUpdateOrgProfile() {
     mutationFn: (data: UpdateOrgProfileRequest) => updateProfile(data),
     retry: 1,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.profile });
+      // Invalidate the whole org subtree: Business Size (revenue/headcount) feeds not just the
+      // profile view but the org `details` (Account card), the SELF entity row, and the
+      // affiliation size roll-up, so a profile-only invalidation left those stale until reload.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.all });
     },
   });
 }
@@ -155,8 +158,9 @@ export function useSetOrgNaics() {
     mutationFn: (data: OrgNaicsDto[]) => setNaics(data),
     retry: 1,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.naics });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.profile });
+      // NAICS changes ripple through the profile, size-eligibility, and recommendation views,
+      // so invalidate the whole org subtree rather than just the NAICS + profile keys.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.all });
     },
   });
 }
@@ -192,6 +196,9 @@ export function useDeleteAssociatedNaics() {
   });
 }
 
+// Certifications mutation broadened below; associated-NAICS keep their own key (no downstream
+// profile/size dependency yet — the recommendation wiring re-fetches associated NAICS directly).
+
 // Certifications
 export function useOrgCertifications() {
   return useQuery({
@@ -207,8 +214,9 @@ export function useSetOrgCertifications() {
     mutationFn: (data: OrgCertificationDto[]) => setCertifications(data),
     retry: 1,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.certifications });
-      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.profile });
+      // Certifications feed the profile view, set-aside eligibility, and the SELF entity cert
+      // count, so invalidate the whole org subtree rather than just certs + profile.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.organization.all });
     },
   });
 }

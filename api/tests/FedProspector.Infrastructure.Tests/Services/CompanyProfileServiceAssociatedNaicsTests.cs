@@ -47,6 +47,19 @@ public class CompanyProfileServiceAssociatedNaicsTests : IDisposable
         _context.SaveChanges();
     }
 
+    private void SeedRegisteredNaics(int orgId, string code)
+    {
+        _context.OrganizationNaics.Add(new OrganizationNaics
+        {
+            OrganizationId = orgId,
+            NaicsCode = code,
+            IsPrimary = "Y",
+            SizeStandardMet = "Y",
+            CreatedAt = DateTime.UtcNow
+        });
+        _context.SaveChanges();
+    }
+
     [Fact]
     public async Task Add_PersistsCodeAndNote()
     {
@@ -75,6 +88,56 @@ public class CompanyProfileServiceAssociatedNaicsTests : IDisposable
         second.Id.Should().Be(first.Id, "re-adding the same code returns the existing row, not a duplicate");
         var list = await _service.GetAssociatedNaicsAsync(1);
         list.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task Add_FreshCode_AlreadyExistedIsFalse()
+    {
+        SeedOrganization();
+
+        var dto = await _service.AddAssociatedNaicsAsync(1, new CreateAssociatedNaicsRequest { NaicsCode = "541512" });
+
+        dto.AlreadyExisted.Should().BeFalse("a brand-new code is a real add, not a re-add");
+    }
+
+    [Fact]
+    public async Task Add_DuplicateCode_FlagsAlreadyExisted()
+    {
+        SeedOrganization();
+        await _service.AddAssociatedNaicsAsync(1, new CreateAssociatedNaicsRequest { NaicsCode = "541512" });
+
+        var second = await _service.AddAssociatedNaicsAsync(1, new CreateAssociatedNaicsRequest { NaicsCode = "541512" });
+
+        second.AlreadyExisted.Should().BeTrue("the idempotent re-add must tell the caller the code was already on the list");
+    }
+
+    [Fact]
+    public async Task Add_CodeAlreadyRegistered_Throws()
+    {
+        SeedOrganization();
+        // A code the org has REGISTERED (organization_naics) must not also be added as "associated"
+        // — the associated list is for codes beyond the registered ones.
+        SeedRegisteredNaics(1, "541512");
+
+        var act = async () => await _service.AddAssociatedNaicsAsync(1, new CreateAssociatedNaicsRequest { NaicsCode = "541512" });
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*already one of your registered NAICS*");
+        (await _service.GetAssociatedNaicsAsync(1)).Should().BeEmpty("the rejected code must not be persisted");
+    }
+
+    [Fact]
+    public async Task Add_RegisteredCheck_IsScopedToOrg()
+    {
+        SeedOrganization(1);
+        SeedOrganization(2);
+        // Org 2 registered 541512; org 1 has not, so org 1 may still add it as associated.
+        SeedRegisteredNaics(2, "541512");
+
+        var dto = await _service.AddAssociatedNaicsAsync(1, new CreateAssociatedNaicsRequest { NaicsCode = "541512" });
+
+        dto.NaicsCode.Should().Be("541512");
+        (await _service.GetAssociatedNaicsAsync(1)).Should().ContainSingle(n => n.NaicsCode == "541512");
     }
 
     [Theory]

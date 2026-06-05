@@ -13,6 +13,7 @@ import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import InputLabel from '@mui/material/InputLabel';
+import Link from '@mui/material/Link';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Select from '@mui/material/Select';
@@ -30,6 +31,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import LinkIcon from '@mui/icons-material/Link';
 import SearchIcon from '@mui/icons-material/Search';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link as RouterLink } from 'react-router-dom';
 
 import {
   getLinkedEntities,
@@ -37,7 +39,7 @@ import {
   deactivateEntityLink,
   refreshSelfEntity,
 } from '@/api/organization';
-import { useUpdateEntityLink } from '@/queries/useOrganization';
+import { useUpdateEntityLink, useOrgProfile } from '@/queries/useOrganization';
 import { useAuth } from '@/auth/useAuth';
 import { searchEntities } from '@/api/entities';
 import { queryKeys } from '@/queries/queryKeys';
@@ -58,6 +60,9 @@ export function OrgEntitiesTab() {
   // Owner/admin gating for editing affiliate data (Phase 136 Unit F).
   const canEdit = user?.role === 'owner' || user?.role === 'admin' || user?.isOrgAdmin === true;
   const updateLinkMutation = useUpdateEntityLink();
+  // Phase 136 follow-up: the SELF link's size IS the org's size. SAM.gov carries no revenue/
+  // headcount, so the SELF row's affiliate columns are null — fall back to the org profile.
+  const { data: orgProfile } = useOrgProfile();
   // Phase 136 Unit F: edit-affiliate-data dialog state.
   const [editLink, setEditLink] = useState<OrganizationEntityDto | null>(null);
   const [editRevenue, setEditRevenue] = useState('');
@@ -190,6 +195,11 @@ export function OrgEntitiesTab() {
 
   const handleSaveEdit = () => {
     if (!editLink) return;
+    // SELF has no editable affiliate figures here (its size is the org's, set on the Settings tab).
+    if (editLink.relationship === 'SELF') {
+      setEditLink(null);
+      return;
+    }
     setEditError(null);
     const rev = editRevenue.trim();
     const emp = editEmployees.trim();
@@ -232,6 +242,13 @@ export function OrgEntitiesTab() {
         return 'default';
     }
   };
+
+  // Phase 136 follow-up: SELF's size is the org's own size (from the profile); every other
+  // relationship uses the owner-entered affiliate figures stored on the link.
+  const rowRevenue = (link: OrganizationEntityDto): number | null =>
+    link.relationship === 'SELF' ? orgProfile?.annualRevenue ?? null : link.affiliateAnnualRevenue ?? null;
+  const rowEmployees = (link: OrganizationEntityDto): number | null =>
+    link.relationship === 'SELF' ? orgProfile?.employeeCount ?? null : link.affiliateEmployeeCount ?? null;
 
   return (
     <Box>
@@ -400,16 +417,23 @@ export function OrgEntitiesTab() {
             </TableHead>
             <TableBody>
               {linkedEntities.map((link: OrganizationEntityDto) => (
-                <TableRow key={link.id}>
+                <TableRow key={link.id} hover>
                   <TableCell>
-                    <Typography variant="body2" sx={{
-                      fontWeight: 500
-                    }}>
+                    {/* Click the entity name to open its detail page (full NAICS list, etc.).
+                        Edit/Delete live in their own cell, so they never trigger navigation. */}
+                    <Link
+                      component={RouterLink}
+                      to={`/entities/${encodeURIComponent(link.ueiSam)}`}
+                      variant="body2"
+                      underline="hover"
+                      sx={{ fontWeight: 500 }}
+                    >
                       {link.legalBusinessName || link.ueiSam}
-                    </Typography>
+                    </Link>
                     {link.cageCode && (
                       <Typography variant="caption" sx={{
-                        color: "text.secondary"
+                        color: "text.secondary",
+                        display: "block"
                       }}>
                         CAGE: {link.cageCode}
                       </Typography>
@@ -446,13 +470,13 @@ export function OrgEntitiesTab() {
                   <TableCell align="center">{link.naicsCount}</TableCell>
                   <TableCell align="center">{link.certificationCount}</TableCell>
                   <TableCell align="right">
-                    {link.affiliateAnnualRevenue != null
-                      ? `$${link.affiliateAnnualRevenue.toLocaleString()}`
+                    {rowRevenue(link) != null
+                      ? `$${rowRevenue(link)!.toLocaleString()}`
                       : '-'}
                   </TableCell>
                   <TableCell align="right">
-                    {link.affiliateEmployeeCount != null
-                      ? link.affiliateEmployeeCount.toLocaleString()
+                    {rowEmployees(link) != null
+                      ? rowEmployees(link)!.toLocaleString()
                       : '-'}
                   </TableCell>
                   <TableCell>{link.addedByName || '-'}</TableCell>
@@ -638,42 +662,57 @@ export function OrgEntitiesTab() {
               {editError}
             </Alert>
           )}
-          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
-            Owner-entered figures used by the SBA affiliation size roll-up (13 CFR 121.103). Leave
-            blank to clear — it will show as a data gap.
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-            <TextField
-              fullWidth
-              size="small"
-              type="number"
-              label="Annual revenue (USD)"
-              placeholder="e.g. 5000000"
-              value={editRevenue}
-              onChange={(e) => setEditRevenue(e.target.value)}
-              slotProps={{ htmlInput: { min: 0, step: 1000 } }}
-            />
-            <TextField
-              fullWidth
-              size="small"
-              type="number"
-              label="Employee count"
-              placeholder="e.g. 50"
-              value={editEmployees}
-              onChange={(e) => setEditEmployees(e.target.value)}
-              slotProps={{ htmlInput: { min: 0, step: 1 } }}
-            />
-          </Box>
+          {editLink?.relationship === 'SELF' ? (
+            // SELF's size IS the org's size — there is no separate affiliate figure to edit here.
+            <Alert severity="info">
+              Your organization&apos;s own revenue and employee count are part of the company
+              profile. Edit them on the Settings tab (Business Size) — they apply to the SELF
+              entity automatically.
+            </Alert>
+          ) : (
+            <>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+                Owner-entered figures used by the SBA affiliation size roll-up (13 CFR 121.103). Leave
+                blank to clear — it will show as a data gap.
+              </Typography>
+              <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="number"
+                  label="Annual revenue (USD)"
+                  placeholder="e.g. 5000000"
+                  value={editRevenue}
+                  onChange={(e) => setEditRevenue(e.target.value)}
+                  slotProps={{ htmlInput: { min: 0, step: 1000 } }}
+                />
+                <TextField
+                  fullWidth
+                  size="small"
+                  type="number"
+                  label="Employee count"
+                  placeholder="e.g. 50"
+                  value={editEmployees}
+                  onChange={(e) => setEditEmployees(e.target.value)}
+                  slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                />
+              </Box>
+            </>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditLink(null)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSaveEdit}
-            disabled={updateLinkMutation.isPending}
-          >
-            {updateLinkMutation.isPending ? 'Saving...' : 'Save'}
+          <Button onClick={() => setEditLink(null)}>
+            {editLink?.relationship === 'SELF' ? 'Close' : 'Cancel'}
           </Button>
+          {editLink?.relationship !== 'SELF' && (
+            <Button
+              variant="contained"
+              onClick={handleSaveEdit}
+              disabled={updateLinkMutation.isPending}
+            >
+              {updateLinkMutation.isPending ? 'Saving...' : 'Save'}
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Box>

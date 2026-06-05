@@ -194,6 +194,11 @@ export interface OrgAssociatedNaicsDto {
   naicsCode: string;
   note?: string | null;
   createdAt: string;
+  /**
+   * Phase 136 follow-up: true when an add matched a code already on the associated list (the
+   * add was idempotent). Lets the UI show "already added" instead of a fresh-add success.
+   */
+  alreadyExisted?: boolean;
 }
 
 /** Add associated NAICS request matching C# CreateAssociatedNaicsRequest. */
