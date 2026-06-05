@@ -174,6 +174,7 @@ Replaces a prior Salesforce CRM approach that hit CPU/transaction limits at 1M+ 
 | 134 | DB Centralization and Deploy Safety | COMPLETE | [134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md](phases/completed/134-DB-CENTRALIZATION-AND-DEPLOY-SAFETY.md) |
 | 135 | Public Internet Exposure — Single-Port HTTPS + Unauthenticated Hardening | COMPLETE (2 TODOs: build should not auto-launch API; deploy should also `dotnet build` API) | [135-PUBLIC-INTERNET-EXPOSURE.md](phases/completed/135-PUBLIC-INTERNET-EXPOSURE.md) |
 | 136 | Recommended Opportunity Quality & Org Profile Editability | In Progress — A/B/C/D/F/G implemented, merged & verified; prod migration applied; awaiting deploy (dev DB + E deferred) | [136-RECOMMENDED-QUALITY-AND-ORG-PROFILE-EDITABILITY.md](phases/136-RECOMMENDED-QUALITY-AND-ORG-PROFILE-EDITABILITY.md) |
+| 137 | Navigation IA Redesign — 3-Tier (Destinations + Hubs) | Not Started (idea captured for review) | [137-NAVIGATION-IA-REDESIGN.md](phases/137-NAVIGATION-IA-REDESIGN.md) |
 | 150 | Security Hardening | ACTIVE — re-audited 2026-06-01; prod is internet-exposed (premise flipped). H1/H2/H5/L1 done; open items categorized A (critical) / B (quick wins) / C (verify) / D (later) | [150-SECURITY-HARDENING.md](phases/150-SECURITY-HARDENING.md) |
 | 160 | Docker Containerization (Optional) | DEFERRED — optional server-compromise hardening | [160-DOCKER-CONTAINERIZATION.md](phases/160-DOCKER-CONTAINERIZATION.md) |
 | 170 | Full Document Viewer with Highlights | PLANNED | [170-FULL-DOCUMENT-VIEWER.md](phases/170-FULL-DOCUMENT-VIEWER.md) |
