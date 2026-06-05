@@ -64,10 +64,28 @@ BLS_DAILY_LIMIT = int(os.getenv("BLS_DAILY_LIMIT", "500"))
 
 # Paths
 PROJECT_ROOT = Path(__file__).parent.parent
-DATA_DIR = Path(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))
+
+
+def _anchor(raw):
+    """Resolve a configured path to an absolute one anchored to the CODE, not cwd.
+
+    A RELATIVE path (e.g. ``./data``) is resolved against PROJECT_ROOT — the
+    package location — NOT the current working directory. This is critical:
+    download and extract must always agree on the attachment folder regardless
+    of where the process was launched. The daily job runs its steps as
+    subprocesses with cwd=<repo>/fed_prospector while manual runs inherit the
+    shell's cwd; resolving relative paths against cwd made those land in two
+    different ``data/attachments`` folders. Anchoring to PROJECT_ROOT makes the
+    resolved path identical for every invocation. Absolute paths are used as-is.
+    """
+    p = Path(raw)
+    return (p if p.is_absolute() else (PROJECT_ROOT / p)).resolve()
+
+
+DATA_DIR = _anchor(os.getenv("DATA_DIR", str(PROJECT_ROOT / "data")))
 DOWNLOAD_DIR = DATA_DIR / "downloads"
 LOG_DIR = DATA_DIR / "logs"
-ATTACHMENT_DIR = Path(os.getenv("ATTACHMENT_DIR", str(DATA_DIR / "attachments"))).resolve()
+ATTACHMENT_DIR = _anchor(os.getenv("ATTACHMENT_DIR", str(DATA_DIR / "attachments")))
 
 # Reference data paths (relative to project root's parent = fedProspect/)
 REPO_ROOT = PROJECT_ROOT.parent
