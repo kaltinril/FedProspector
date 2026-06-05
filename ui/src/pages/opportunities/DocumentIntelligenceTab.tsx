@@ -1536,7 +1536,7 @@ export default function DocumentIntelligenceTab({ noticeId }: { noticeId: string
       )}
       {/* Intel Summary Cards */}
       {hasAnyIntel ? (
-        <Grid container spacing={2} alignItems="flex-start" sx={{ mb: 3 }}>
+        <Grid container spacing={2} sx={{ mb: 3, alignItems: 'flex-start' }}>
           {intelFields.map(
             (field) =>
               field.value && (
