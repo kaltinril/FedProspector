@@ -18,6 +18,12 @@ const ROUTE_LABELS: Record<string, string> = {
   setup: 'Company Setup',
   users: 'Users',
   profile: 'Profile',
+  // Tier-2 hub landing routes
+  pipeline: 'Pipeline',
+  pricing: 'Pricing',
+  teaming: 'Teaming',
+  'market-intel': 'Market Intel',
+  company: 'Company & Eligibility',
 };
 
 function labelForSegment(segment: string): string {

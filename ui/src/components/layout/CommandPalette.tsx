@@ -12,7 +12,7 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
 import { useAuth } from '@/auth/useAuth';
-import { getNavSections } from '@/components/layout/navConfig';
+import { getAccountItems, getNavSections } from '@/components/layout/navConfig';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -34,7 +34,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const listRef = useRef<HTMLUListElement>(null);
 
   const entries = useMemo<PaletteEntry[]>(() => {
-    return getNavSections(isSystemAdmin).flatMap((section) =>
+    const navEntries = getNavSections(isSystemAdmin).flatMap((section) =>
       section.items.map((item) => ({
         label: item.label,
         group: section.title,
@@ -42,6 +42,15 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
         icon: item.icon,
       })),
     );
+    // Tier-3 account links moved off the sidebar; keep them searchable here so
+    // nothing becomes unreachable via the palette.
+    const accountEntries = getAccountItems(isSystemAdmin).map((item) => ({
+      label: item.label,
+      group: 'Account',
+      route: item.route,
+      icon: item.icon,
+    }));
+    return [...navEntries, ...accountEntries];
   }, [isSystemAdmin]);
 
   const filtered = useMemo<PaletteEntry[]>(() => {
