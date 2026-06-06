@@ -2,7 +2,6 @@ import { Suspense, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import LinearProgress from '@mui/material/LinearProgress';
 
-import { PageHeader } from '@/components/shared/PageHeader';
 import { TabbedDetailPage } from '@/components/shared/TabbedDetailPage';
 import { useSearchFilters } from '@/hooks/useSearchParams';
 import type { Hub, HubTab } from '@/components/layout/hubConfig';
@@ -56,13 +55,16 @@ export function HubPage({ hub }: HubPageProps) {
     [hub.tabs],
   );
 
+  // No hub-level header: the hub name shows in the breadcrumb + active sidebar
+  // item, and each tab's own page header carries its (valuable) title +
+  // description. Rendering a hub header here would duplicate that.
   return (
     <Box>
-      <PageHeader title={hub.label} subtitle={hub.subtitle} />
       <TabbedDetailPage
         tabs={tabs}
         activeTab={activeSlug}
         onTabChange={(slug) => setFilters({ tab: slug })}
+        contentTopPadding={0}
       />
     </Box>
   );

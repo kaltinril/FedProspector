@@ -18,6 +18,12 @@ interface TabbedDetailPageProps {
   activeTab?: string;
   /** Controlled mode: called when the user clicks a tab. */
   onTabChange?: (tab: string) => void;
+  /**
+   * Top padding (MUI spacing units) between the tab strip and the active
+   * content. Defaults to 3. Hubs set this to 0 because the reused page they
+   * render already supplies its own top padding, so the default would stack.
+   */
+  contentTopPadding?: number;
 }
 
 export function TabbedDetailPage({
@@ -26,6 +32,7 @@ export function TabbedDetailPage({
   defaultTab,
   activeTab: controlledTab,
   onTabChange,
+  contentTopPadding = 3,
 }: TabbedDetailPageProps) {
   const [internalTab, setInternalTab] = useState(
     defaultTab ?? tabs[0]?.value ?? '',
@@ -55,7 +62,7 @@ export function TabbedDetailPage({
       </Box>
       {tabs.map((tab) =>
         tab.value === activeTab ? (
-          <Box key={tab.value} sx={{ pt: 3 }}>
+          <Box key={tab.value} sx={{ pt: contentTopPadding }}>
             {tab.content}
           </Box>
         ) : null,
