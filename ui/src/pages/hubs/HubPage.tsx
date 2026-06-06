@@ -45,10 +45,16 @@ export function HubPage({ hub }: HubPageProps) {
         return {
           label: tab.label,
           value: tab.slug,
+          // The reused pages ship inconsistent top padding (0–32px). Normalize
+          // it here so every hub tab has the same gap below the tab strip: this
+          // wrapper supplies one consistent top padding and zeroes the page's
+          // own top padding (its left/right/bottom padding is preserved).
           content: (
-            <Suspense fallback={<LinearProgress />}>
-              <Panel />
-            </Suspense>
+            <Box sx={{ pt: { xs: 2, sm: 3, md: 4 }, '& > :first-child': { pt: 0 } }}>
+              <Suspense fallback={<LinearProgress />}>
+                <Panel />
+              </Suspense>
+            </Box>
           ),
         };
       }),
