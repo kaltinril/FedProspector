@@ -183,3 +183,41 @@ These drive the final Tier 1 / hub split and should be answered before implement
 - [ ] Rename "Onboarding" group → **"Company & Eligibility."**
 - [ ] Add contextual launchers ("Price this" / "Build IGCE" / "Find teaming partners") from Opportunity / Prospect detail views, pre-filled with context.
 - [ ] Update any docs/skills that reference the old nav structure or routes.
+
+---
+
+## Performance Considerations (measured 2026-06-05 against prod)
+
+**Why this matters:** the 3-tier redesign consolidates standalone pages into Tier-2 **hubs with in-page tabs**. The risk is that a hub eagerly loads all its tabs' queries at once — several of which are slow — turning today's one-page-one-query into an N-query fan-out. We measured the real query latency behind every hub tab to ground the design.
+
+### Measured tab latencies (prod, MySQL 8.4.8)
+| Hub · Tab | Backing view / query | Measured | Verdict |
+|---|---|---|---|
+| Teaming · Partner Search + Gap Analysis | `v_partner_capability_match` | **>90 s (timed out at cap)** | 🔴 broken in prod today |
+| Teaming · Mentor-Protégé (filtered by org) | `v_mentor_protege_candidate` | 1.0 s | ✅ fine in real use |
+| Teaming · Mentor-Protégé (unfiltered "list all") | (worst case) | 53.4 s | ⚠️ avoid unfiltered |
+| Market Intel · Agency Patterns | `v_agency_recompete_pattern` | 3.4 s | 🟡 moderate |
+| Market Intel · Re-compete Candidates | `v_recompete_candidate` | 2.1 s | 🟡 moderate |
+| Market Intel · Contracting Offices | `v_contracting_office_profile` | 0.9 s | ✅ |
+| Pricing · IGCE Estimator | `usaspending_award` scan (32,973 rows, NAICS 541512/5yr) | 0.45 s DB | ✅ DB fine; app-memory ⚠️ |
+| Teaming · Subaward Network | `sam_subaward` GROUP BY | 0.11 s | ✅ (only 9,550 rows) |
+| Company · Portfolio Gaps / Past Performance | views | 0.8 s / 0.1 s | ✅ |
+
+### Findings & root causes
+1. **CRITICAL — Partner Search + Gap Analysis are broken in prod today (>90 s).** Both tabs read `v_partner_capability_match`. `EXPLAIN` shows the NAICS filter (`LIKE '%code%'` over a `GROUP_CONCAT`) **cannot push down** — MySQL fully materializes a ~210-billion-row nested-loop estimate and `GROUP_CONCAT`s before applying the filter and `LIMIT`. So even the real filtered/paged query pays the full cost. This is independent of Phase 137.
+2. **Mentor-Protégé is fine in real use (1.0 s).** Filtering by the org's protégé UEI pushes into the `protege` CTE; the 53 s only occurs for an unfiltered "list everyone" query. Keep it filtered; never expose an unfiltered list.
+3. **Agency Patterns (3.4 s) / Re-compete (2.1 s)** — heavy multi-CTE/window views; acceptable but worth materializing later.
+4. **Subaward Network is fast (0.11 s)** — `sam_subaward` is only 9,550 rows; an earlier static estimate of multi-seconds was wrong (corrected by measurement).
+5. **IGCE** — DB scan is fine (0.45 s), but the service pulls **32,973 rows unbounded** into app memory for a common NAICS (far more for popular ones). App-memory hygiene issue, not latency.
+6. **Structural cause:** most "summary" reads are SQL **VIEWs** (`ToView`) re-executed on every request, not materialized tables. The only real summary table is `usaspending_award_summary`, and no Phase 137 tab uses it.
+
+### Fix suggestions
+**Backend (independent of the nav redesign):**
+- **Materialize `v_partner_capability_match`** into a daily-refreshed summary table with indexed NAICS filtering (not a `GROUP_CONCAT` substring match), per the CLAUDE.md precompute mandate. Fixes the one broken surface. Optionally do the same for Agency Patterns / Re-compete.
+- **Quick wins:** add `.Take(500)` to the IGCE historical-analog pull (`PricingService`), and bound the FPDS branch of Expiring Contracts (`ExpiringContractService`) with `.Take(...)`.
+
+**Frontend (Phase 137 itself):**
+- **Lazy-mount the active tab only** — the existing `TabbedDetailPage` and `OrganizationPage` already do this (`{active === tab && <Panel/>}`); reuse the pattern and keep each tab's `useQuery` inside its panel so a hub fires exactly one query, never the slow siblings. Do not regress to `keepMounted`/always-mounted panels.
+- **`?tab=` URL state + old-route → `?tab=` redirects** so a hub deep-link loads exactly one tab's data and old bookmarks keep working.
+- For the expensive hubs (Teaming, Market Intel): raise `gcTime` and set `refetchOnWindowFocus: false` per-hook; **never eager-prefetch** those tabs.
+- Global `QueryClient` defaults are already a good baseline (`staleTime` 5 min / `gcTime` 10 min, `App.tsx`).
