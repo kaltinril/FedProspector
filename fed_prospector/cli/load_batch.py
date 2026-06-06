@@ -31,7 +31,9 @@ DAILY_SEQUENCE = [
     "cross_ref_identifiers",
     "intel_backfill",
     "sca_revisions",
-    "refresh_partner_capability",
+    # refresh_partner_capability pulled from the daily job pending a fix: the
+    # v_partner_capability_match GROUP_CONCAT lists overflow group_concat_max_len
+    # and the TEXT columns for high-volume primes. Re-add once that's resolved.
 ]
 WEEKLY_SEQUENCE = [
     "entity_daily", "opportunities", "awards", "exclusions",
@@ -144,11 +146,8 @@ def _get_daily_steps():
             "description": "Check SCA wage determinations for new revisions",
             "command": ["python", "main.py", "load", "sca"],
         },
-        {
-            "name": "refresh_partner_capability",
-            "description": "Refresh teaming partner capability summary (materializes v_partner_capability_match)",
-            "command": ["python", "main.py", "refresh", "partner-capability"],
-        },
+        # refresh_partner_capability removed pending a fix (see DAILY_SEQUENCE note).
+        # The standalone `python main.py refresh partner-capability` CLI still exists.
     ]
 
 
@@ -511,7 +510,6 @@ def load_daily(key, skip, dry_run):
      14. cross_ref_identifiers Cross-reference identifiers
      15. intel_backfill       Backfill opportunity intel
      16. sca_revisions        Check SCA WD revisions
-     17. refresh_partner_capability  Refresh teaming partner capability summary
 
     Examples:
         python main.py job daily
