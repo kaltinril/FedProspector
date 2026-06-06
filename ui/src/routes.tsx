@@ -5,6 +5,8 @@ import { AuthGuard } from '@/auth/AuthGuard';
 import { useAuth } from '@/auth/useAuth';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
+import { HubPage } from '@/pages/hubs/HubPage';
+import { HUBS, HUB_REDIRECTS } from '@/components/layout/hubConfig';
 
 const LoginPage = lazy(() => import('@/pages/login/LoginPage'));
 const RegisterPage = lazy(() => import('@/pages/login/RegisterPage'));
@@ -21,15 +23,12 @@ const RecommendedOpportunitiesPage = lazy(
   () => import('@/pages/recommendations/RecommendedOpportunitiesPage'),
 );
 const AwardSearchPage = lazy(() => import('@/pages/awards/AwardSearchPage'));
-const ExpiringContractsPage = lazy(() => import('@/pages/awards/ExpiringContractsPage'));
 const EntitySearchPage = lazy(() => import('@/pages/entities/EntitySearchPage'));
 const OpportunityDetailPage = lazy(
   () => import('@/pages/opportunities/OpportunityDetailPage'),
 );
 const AwardDetailPage = lazy(() => import('@/pages/awards/AwardDetailPage'));
 const EntityDetailPage = lazy(() => import('@/pages/entities/EntityDetailPage'));
-const TeamingPartnerPage = lazy(() => import('@/pages/subawards/TeamingPartnerPage'));
-const HierarchyBrowsePage = lazy(() => import('@/pages/hierarchy/HierarchyBrowsePage'));
 const OrganizationDetailPage = lazy(
   () => import('@/pages/hierarchy/OrganizationDetailPage'),
 );
@@ -43,32 +42,10 @@ const NotificationCenterPage = lazy(
 const AdminPage = lazy(() => import('@/pages/admin/AdminPage'));
 const ProfilePage = lazy(() => import('@/pages/profile/ProfilePage'));
 const OrganizationPage = lazy(() => import('@/pages/organization/OrganizationPage'));
-const RateHeatmapPage = lazy(() => import('@/pages/pricing/RateHeatmapPage'));
-const PriceToWinPage = lazy(() => import('@/pages/pricing/PriceToWinPage'));
-const BidScenarioPage = lazy(() => import('@/pages/pricing/BidScenarioPage'));
-const EscalationPage = lazy(() => import('@/pages/pricing/EscalationPage'));
-const IgcePage = lazy(() => import('@/pages/pricing/IgcePage'));
-const SubBenchmarkPage = lazy(() => import('@/pages/pricing/SubBenchmarkPage'));
-const ScaGeographicPage = lazy(() => import('@/pages/pricing/ScaGeographicPage'));
-const RecompeteCandidatesPage = lazy(() => import('@/pages/competitive-intel/RecompeteCandidatesPage'));
-const AgencyPatternsPage = lazy(() => import('@/pages/competitive-intel/AgencyPatternsPage'));
 const CompetitorDossierPage = lazy(() => import('@/pages/competitive-intel/CompetitorDossierPage'));
-const ContractingOfficesPage = lazy(() => import('@/pages/competitive-intel/ContractingOfficesPage'));
 const OfficeDetailPage = lazy(() => import('@/pages/competitive-intel/OfficeDetailPage'));
-const PartnerSearchPage = lazy(() => import('@/pages/teaming/PartnerSearchPage'));
 const PartnerDetailPage = lazy(() => import('@/pages/teaming/PartnerDetailPage'));
-const MentorProtegePage = lazy(() => import('@/pages/teaming/MentorProtegePage'));
-const GapAnalysisPage = lazy(() => import('@/pages/teaming/GapAnalysisPage'));
-const PipelineAnalyticsPage = lazy(() => import('@/pages/pipeline/PipelineAnalyticsPage'));
-const PipelineCalendarPage = lazy(() => import('@/pages/pipeline/PipelineCalendarPage'));
-const StaleProspectsPage = lazy(() => import('@/pages/pipeline/StaleProspectsPage'));
-const RevenueForecastPage = lazy(() => import('@/pages/pipeline/RevenueForecastPage'));
-const CertificationAlertsPage = lazy(() => import('@/pages/onboarding/CertificationAlertsPage'));
-const SizeStandardMonitorPage = lazy(() => import('@/pages/onboarding/SizeStandardMonitorPage'));
-const PastPerformanceRelevancePage = lazy(() => import('@/pages/onboarding/PastPerformanceRelevancePage'));
-const PortfolioGapAnalysisPage = lazy(() => import('@/pages/onboarding/PortfolioGapAnalysisPage'));
 const DataQualityDashboardPage = lazy(() => import('@/pages/insights/DataQualityDashboardPage'));
-const NaicsBrowserPage = lazy(() => import('@/pages/reference/NaicsBrowserPage'));
 const NotFoundPage = lazy(() => import('@/pages/errors/NotFoundPage'));
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
@@ -126,6 +103,10 @@ export function AppRoutes() {
           </AuthenticatedLayout>
         }
       />
+
+      {/* ============================================================ */}
+      {/* Tier 1 — Destinations (flat pages, routes unchanged)         */}
+      {/* ============================================================ */}
       <Route
         path="/dashboard"
         element={
@@ -134,8 +115,6 @@ export function AppRoutes() {
           </AuthenticatedLayout>
         }
       />
-
-      {/* Search routes */}
       <Route
         path="/opportunities"
         element={
@@ -153,14 +132,6 @@ export function AppRoutes() {
         }
       />
       <Route
-        path="/opportunities/:noticeId"
-        element={
-          <AuthenticatedLayout>
-            <OpportunityDetailPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
         path="/opportunities/targets"
         element={
           <AuthenticatedLayout>
@@ -169,18 +140,18 @@ export function AppRoutes() {
         }
       />
       <Route
-        path="/awards"
+        path="/opportunities/:noticeId"
         element={
           <AuthenticatedLayout>
-            <AwardSearchPage />
+            <OpportunityDetailPage />
           </AuthenticatedLayout>
         }
       />
       <Route
-        path="/awards/expiring"
+        path="/awards"
         element={
           <AuthenticatedLayout>
-            <ExpiringContractsPage />
+            <AwardSearchPage />
           </AuthenticatedLayout>
         }
       />
@@ -208,44 +179,9 @@ export function AppRoutes() {
           </AuthenticatedLayout>
         }
       />
-      <Route
-        path="/subawards/teaming"
-        element={
-          <AuthenticatedLayout>
-            <TeamingPartnerPage />
-          </AuthenticatedLayout>
-        }
-      />
 
-      {/* Federal Hierarchy */}
-      <Route
-        path="/hierarchy"
-        element={
-          <AuthenticatedLayout>
-            <HierarchyBrowsePage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/hierarchy/:fhOrgId"
-        element={
-          <AuthenticatedLayout>
-            <OrganizationDetailPage />
-          </AuthenticatedLayout>
-        }
-      />
-
-      {/* NAICS Browser (Phase 129) */}
-      <Route
-        path="/reference/naics"
-        element={
-          <AuthenticatedLayout>
-            <NaicsBrowserPage />
-          </AuthenticatedLayout>
-        }
-      />
-
-      {/* Prospect pipeline */}
+      {/* Prospects destination + detail routes (Prospects stays Tier-1;
+          the Pipeline hub also exposes a Board tab — different views) */}
       <Route
         path="/prospects"
         element={
@@ -271,112 +207,34 @@ export function AppRoutes() {
         }
       />
 
-      {/* Pipeline Analytics */}
-      <Route
-        path="/pipeline/analytics"
-        element={
-          <AuthenticatedLayout>
-            <PipelineAnalyticsPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pipeline/calendar"
-        element={
-          <AuthenticatedLayout>
-            <PipelineCalendarPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pipeline/stale"
-        element={
-          <AuthenticatedLayout>
-            <StaleProspectsPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pipeline/forecast"
-        element={
-          <AuthenticatedLayout>
-            <RevenueForecastPage />
-          </AuthenticatedLayout>
-        }
-      />
+      {/* ============================================================ */}
+      {/* Tier 2 — Hubs (tabbed pages, ?tab=<slug> deep-links)         */}
+      {/* ============================================================ */}
+      {HUBS.map((hub) => (
+        <Route
+          key={hub.route}
+          path={hub.route}
+          element={
+            <AuthenticatedLayout>
+              <HubPage hub={hub} />
+            </AuthenticatedLayout>
+          }
+        />
+      ))}
 
-      {/* Pricing Intelligence */}
-      <Route
-        path="/pricing/rates"
-        element={
-          <AuthenticatedLayout>
-            <RateHeatmapPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pricing/price-to-win"
-        element={
-          <AuthenticatedLayout>
-            <PriceToWinPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pricing/scenarios"
-        element={
-          <AuthenticatedLayout>
-            <BidScenarioPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pricing/escalation"
-        element={
-          <AuthenticatedLayout>
-            <EscalationPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pricing/igce"
-        element={
-          <AuthenticatedLayout>
-            <IgcePage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pricing/sub-benchmarks"
-        element={
-          <AuthenticatedLayout>
-            <SubBenchmarkPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/pricing/sca-rates"
-        element={
-          <AuthenticatedLayout>
-            <ScaGeographicPage />
-          </AuthenticatedLayout>
-        }
-      />
+      {/* Old leaf routes → hub ?tab= redirects (keep bookmarks working) */}
+      {HUB_REDIRECTS.map(({ from, to }) => (
+        <Route key={from} path={from} element={<Navigate to={to} replace />} />
+      ))}
 
-      {/* Competitive Intelligence */}
+      {/* ============================================================ */}
+      {/* Detail / child routes that hub tabs link out to              */}
+      {/* ============================================================ */}
       <Route
-        path="/competitive-intel/recompetes"
+        path="/hierarchy/:fhOrgId"
         element={
           <AuthenticatedLayout>
-            <RecompeteCandidatesPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/competitive-intel/agency-patterns"
-        element={
-          <AuthenticatedLayout>
-            <AgencyPatternsPage />
+            <OrganizationDetailPage />
           </AuthenticatedLayout>
         }
       />
@@ -389,28 +247,10 @@ export function AppRoutes() {
         }
       />
       <Route
-        path="/competitive-intel/offices"
-        element={
-          <AuthenticatedLayout>
-            <ContractingOfficesPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
         path="/competitive-intel/offices/:officeCode"
         element={
           <AuthenticatedLayout>
             <OfficeDetailPage />
-          </AuthenticatedLayout>
-        }
-      />
-
-      {/* Teaming & Partnership Intelligence */}
-      <Route
-        path="/teaming/partners"
-        element={
-          <AuthenticatedLayout>
-            <PartnerSearchPage />
           </AuthenticatedLayout>
         }
       />
@@ -422,58 +262,18 @@ export function AppRoutes() {
           </AuthenticatedLayout>
         }
       />
-      <Route
-        path="/teaming/mentor-protege"
-        element={
-          <AuthenticatedLayout>
-            <MentorProtegePage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/teaming/gap-analysis"
-        element={
-          <AuthenticatedLayout>
-            <GapAnalysisPage />
-          </AuthenticatedLayout>
-        }
-      />
 
-      {/* Onboarding & Past Performance */}
+      {/* ============================================================ */}
+      {/* Tier 3 — Account (avatar menu targets)                       */}
+      {/* ============================================================ */}
       <Route
-        path="/onboarding/certification-alerts"
+        path="/saved-searches"
         element={
           <AuthenticatedLayout>
-            <CertificationAlertsPage />
+            <SavedSearchesPage />
           </AuthenticatedLayout>
         }
       />
-      <Route
-        path="/onboarding/size-standard"
-        element={
-          <AuthenticatedLayout>
-            <SizeStandardMonitorPage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/onboarding/past-performance"
-        element={
-          <AuthenticatedLayout>
-            <PastPerformanceRelevancePage />
-          </AuthenticatedLayout>
-        }
-      />
-      <Route
-        path="/onboarding/portfolio-gaps"
-        element={
-          <AuthenticatedLayout>
-            <PortfolioGapAnalysisPage />
-          </AuthenticatedLayout>
-        }
-      />
-
-      {/* Insights */}
       <Route
         path="/insights/data-quality"
         element={
@@ -484,18 +284,6 @@ export function AppRoutes() {
           </AuthenticatedLayout>
         }
       />
-
-      {/* Saved searches */}
-      <Route
-        path="/saved-searches"
-        element={
-          <AuthenticatedLayout>
-            <SavedSearchesPage />
-          </AuthenticatedLayout>
-        }
-      />
-
-      {/* Notifications */}
       <Route
         path="/notifications"
         element={
@@ -504,8 +292,6 @@ export function AppRoutes() {
           </AuthenticatedLayout>
         }
       />
-
-      {/* User & Org */}
       <Route
         path="/profile"
         element={
@@ -522,8 +308,6 @@ export function AppRoutes() {
           </AuthenticatedLayout>
         }
       />
-
-      {/* Admin */}
       <Route
         path="/admin"
         element={

@@ -21,8 +21,6 @@ import Button from '@mui/material/Button';
 import Brightness4 from '@mui/icons-material/Brightness4';
 import Brightness7 from '@mui/icons-material/Brightness7';
 import NotificationsOutlined from '@mui/icons-material/NotificationsOutlined';
-import PersonOutlined from '@mui/icons-material/PersonOutlined';
-import CorporateFareOutlined from '@mui/icons-material/CorporateFareOutlined';
 import LogoutOutlined from '@mui/icons-material/LogoutOutlined';
 import MenuIcon from '@mui/icons-material/Menu';
 import SearchOutlined from '@mui/icons-material/SearchOutlined';
@@ -34,6 +32,7 @@ import type { NotificationDto } from '@/types/api';
 import { formatRelative } from '@/utils/dateFormatters';
 import { Breadcrumb } from '@/components/layout/Breadcrumb';
 import { CommandPalette } from '@/components/layout/CommandPalette';
+import { getAccountItems } from '@/components/layout/navConfig';
 import { SIDEBAR_WIDTH_EXPANDED, SIDEBAR_WIDTH_COLLAPSED } from '@/components/layout/Sidebar';
 
 interface TopBarProps {
@@ -42,9 +41,13 @@ interface TopBarProps {
 }
 
 export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, isSystemAdmin } = useAuth();
   const { mode, toggleMode } = useThemeMode();
   const navigate = useNavigate();
+
+  // Tier 3 — Account links live here (moved off the sidebar). Admin-only items
+  // (Data Quality, Admin) are filtered out for non-system-admins.
+  const accountItems = getAccountItems(isSystemAdmin);
 
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const menuOpen = Boolean(anchorEl);
@@ -340,18 +343,25 @@ export function TopBar({ sidebarCollapsed, onMobileMenuToggle }: TopBarProps) {
             </Box>
           )}
           <Divider />
-          <MenuItem onClick={() => handleNavigate('/profile')}>
-            <ListItemIcon>
-              <PersonOutlined fontSize="small" />
-            </ListItemIcon>
-            Profile
-          </MenuItem>
-          <MenuItem onClick={() => handleNavigate('/organization')}>
-            <ListItemIcon>
-              <CorporateFareOutlined fontSize="small" />
-            </ListItemIcon>
-            Organization
-          </MenuItem>
+          <Typography
+            variant="overline"
+            sx={{
+              display: 'block',
+              px: 2,
+              pt: 0.5,
+              color: 'text.secondary',
+              fontSize: '0.68rem',
+              letterSpacing: '0.08em',
+            }}
+          >
+            Account
+          </Typography>
+          {accountItems.map((item) => (
+            <MenuItem key={item.route} onClick={() => handleNavigate(item.route)}>
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              {item.label}
+            </MenuItem>
+          ))}
           <Divider />
           <MenuItem onClick={handleLogout}>
             <ListItemIcon>

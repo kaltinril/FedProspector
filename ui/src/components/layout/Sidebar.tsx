@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
@@ -7,22 +6,16 @@ import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
-import Collapse from '@mui/material/Collapse';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ChevronLeft from '@mui/icons-material/ChevronLeft';
 import ChevronRight from '@mui/icons-material/ChevronRight';
-import ExpandMore from '@mui/icons-material/ExpandMore';
-import { useAuth } from '@/auth/useAuth';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { getNavSections, type NavItem, type NavSection } from '@/components/layout/navConfig';
+import { DESTINATIONS, HUB_NAV_ITEMS, type NavItem } from '@/components/layout/navConfig';
 
 export const SIDEBAR_WIDTH_EXPANDED = 240;
 export const SIDEBAR_WIDTH_COLLAPSED = 64;
-
-const SECTION_STATE_KEY = 'sidebar.sectionExpanded';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -31,57 +24,38 @@ interface SidebarProps {
   onMobileClose: () => void;
 }
 
-function isRouteActive(pathname: string, route: string): boolean {
+// All navigable rail routes; used to resolve which single item is active so
+// that prefix overlaps (e.g. /opportunities vs /opportunities/recommended)
+// highlight only the most specific match.
+const ALL_NAV_ROUTES = [...DESTINATIONS, ...HUB_NAV_ITEMS].map((i) => i.route);
+
+function routeMatches(pathname: string, route: string): boolean {
   return pathname === route || pathname.startsWith(route + '/');
+}
+
+/**
+ * Returns the longest nav route that matches the current pathname, or null.
+ * "Longest match wins" so /opportunities/recommended activates Recommended, not
+ * Opportunities, even though both prefixes match. Hub routes match by prefix so
+ * /pipeline?tab=board still highlights Pipeline.
+ */
+function resolveActiveRoute(pathname: string): string | null {
+  let best: string | null = null;
+  for (const route of ALL_NAV_ROUTES) {
+    if (routeMatches(pathname, route) && (best === null || route.length > best.length)) {
+      best = route;
+    }
+  }
+  return best;
 }
 
 export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: SidebarProps) {
   const location = useLocation();
-  const { isSystemAdmin } = useAuth();
-
-  // Per-user persisted collapse state for each section header, keyed by section
-  // title. Sections absent from the map default to expanded.
-  const [sectionExpanded, setSectionExpanded] = useLocalStorage<Record<string, boolean>>(
-    SECTION_STATE_KEY,
-    {},
-  );
-
   const sidebarWidth = collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
+  const activeRoute = resolveActiveRoute(location.pathname);
 
-  const sections = getNavSections(isSystemAdmin);
-
-  // Auto-expand the section that contains the current route so the active item
-  // is always visible after navigation / on load.
-  useEffect(() => {
-    const activeSection = sections.find((section) =>
-      section.items.some((item) => isRouteActive(location.pathname, item.route)),
-    );
-    if (activeSection) {
-      setSectionExpanded((prev) =>
-        prev[activeSection.title] === false
-          ? { ...prev, [activeSection.title]: true }
-          : prev,
-      );
-    }
-    // `sections` is derived synchronously from a stable module constant, so the
-    // pathname is the only meaningful dependency for recomputing the active section.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
-
-  function isSectionExpanded(title: string): boolean {
-    return sectionExpanded[title] !== false;
-  }
-
-  function toggleSection(title: string) {
-    setSectionExpanded((prev) => ({ ...prev, [title]: prev[title] === false }));
-  }
-
-  function isActive(route: string): boolean {
-    return isRouteActive(location.pathname, route);
-  }
-
-  function renderNavItem(item: NavItem) {
-    const active = isActive(item.route);
+  function renderNavItem(item: NavItem, opts: { hub?: boolean } = {}) {
+    const active = item.route === activeRoute;
 
     const button = (
       <ListItem key={item.route} disablePadding sx={{ display: 'block' }}>
@@ -111,14 +85,25 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
             {item.icon}
           </ListItemIcon>
           {!collapsed && (
-            <ListItemText
-              primary={item.label}
-              slotProps={{
-                primary: {
-                  sx: { fontSize: '0.875rem', fontWeight: active ? 600 : 400 },
-                }
-              }}
-            />
+            <>
+              <ListItemText
+                primary={item.label}
+                slotProps={{
+                  primary: {
+                    sx: { fontSize: '0.875rem', fontWeight: active ? 600 : 400 },
+                  },
+                }}
+              />
+              {opts.hub && (
+                <ChevronRight
+                  sx={{
+                    fontSize: 18,
+                    color: active ? 'inherit' : 'text.disabled',
+                    flexShrink: 0,
+                  }}
+                />
+              )}
+            </>
           )}
         </ListItemButton>
       </ListItem>
@@ -133,64 +118,6 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
     }
 
     return button;
-  }
-
-  function renderSection(section: NavSection, sIndex: number) {
-    // In icon-rail (collapsed) mode the section headers are hidden, so every
-    // group is shown — there is no header to toggle.
-    if (collapsed) {
-      return (
-        <Box key={section.title}>
-          {sIndex > 0 && <Divider sx={{ my: 1, mx: 2 }} />}
-          <List disablePadding>
-            {section.items.map(renderNavItem)}
-          </List>
-        </Box>
-      );
-    }
-
-    const expanded = isSectionExpanded(section.title);
-
-    return (
-      <Box key={section.title}>
-        {sIndex > 0 && <Divider sx={{ my: 1, mx: 2 }} />}
-        <ListItemButton
-          onClick={() => toggleSection(section.title)}
-          aria-expanded={expanded}
-          sx={{
-            px: 3,
-            pt: 1,
-            pb: 0.5,
-            minHeight: 0,
-            '&:hover': { bgcolor: 'action.hover' },
-          }}
-        >
-          <Typography
-            variant="overline"
-            sx={{
-              flexGrow: 1,
-              display: 'block',
-              color: 'text.secondary',
-              fontSize: '0.68rem',
-              letterSpacing: '0.08em',
-              lineHeight: 1.8,
-            }}
-          >
-            {section.title}
-          </Typography>
-          {expanded ? (
-            <ExpandMore sx={{ fontSize: 18, color: 'text.secondary' }} />
-          ) : (
-            <ChevronRight sx={{ fontSize: 18, color: 'text.secondary' }} />
-          )}
-        </ListItemButton>
-        <Collapse in={expanded} timeout="auto" unmountOnExit>
-          <List disablePadding>
-            {section.items.map(renderNavItem)}
-          </List>
-        </Collapse>
-      </Box>
-    );
   }
 
   const drawerContent = (
@@ -229,7 +156,33 @@ export function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: Side
 
       {/* Navigation */}
       <Box sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', pt: 1 }}>
-        {sections.map(renderSection)}
+        {/* Tier 1 — Destinations (flat, no section header) */}
+        <List disablePadding>
+          {DESTINATIONS.map((item) => renderNavItem(item))}
+        </List>
+
+        {/* Tier 2 — Hubs */}
+        <Divider sx={{ my: 1, mx: 2 }} />
+        {!collapsed && (
+          <Typography
+            variant="overline"
+            sx={{
+              display: 'block',
+              px: 3,
+              pt: 0.5,
+              pb: 0.5,
+              color: 'text.secondary',
+              fontSize: '0.68rem',
+              letterSpacing: '0.08em',
+              lineHeight: 1.8,
+            }}
+          >
+            Hubs
+          </Typography>
+        )}
+        <List disablePadding>
+          {HUB_NAV_ITEMS.map((item) => renderNavItem(item, { hub: true }))}
+        </List>
       </Box>
 
       {/* Collapse Toggle */}
