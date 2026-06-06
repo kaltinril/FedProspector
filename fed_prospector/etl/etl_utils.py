@@ -308,6 +308,67 @@ def refresh_usaspending_award_summary(conn):
     return total_count
 
 
+def refresh_partner_capability_match(conn):
+    """Refresh the partner_capability_match summary + partner_capability_naics child.
+
+    Materializes v_partner_capability_match (a 6-way LEFT JOIN + GROUP_CONCAT
+    aggregate that takes >90s) into a flat table so the Teaming Partner Search
+    and Gap Analysis tabs read pre-aggregated rows instead of scanning the view.
+
+    Also populates partner_capability_naics (one row per (uei_sam, naics_code))
+    from entity_naics for active entities so the NAICS filter becomes an indexed
+    join instead of a LIKE '%code%' substring match over the GROUP_CONCAT.
+
+    Idempotent: TRUNCATE + INSERT ... SELECT (bulk SQL, no Python row loops).
+    Both inserts run inside one transaction so the two tables stay consistent.
+    """
+    logger.info("Refreshing partner_capability_match...")
+    t0 = time.time()
+
+    cursor = conn.cursor()
+
+    # Summary table: straight copy of the view's output columns.  The view
+    # itself does the heavy aggregation; we pay that cost once here (nightly)
+    # instead of on every Partner Search / Gap Analysis request.
+    cursor.execute("TRUNCATE TABLE partner_capability_match")
+    cursor.execute("""
+        INSERT INTO partner_capability_match
+            (uei_sam, legal_business_name, state, naics_codes, psc_codes,
+             certifications, agencies_worked_with, performance_naics_codes,
+             contract_count, total_contract_value, computed_at)
+        SELECT
+            uei_sam, legal_business_name, state, naics_codes, psc_codes,
+            certifications, agencies_worked_with, performance_naics_codes,
+            contract_count, total_contract_value, NOW()
+        FROM v_partner_capability_match
+    """)
+    summary_count = cursor.rowcount
+
+    # NAICS child table: indexable (uei_sam, naics_code) pairs sourced from
+    # entity_naics for active entities — the same NAICS dimension the view's
+    # naics_codes column aggregates (GROUP_CONCAT DISTINCT en.naics_code where
+    # e.registration_status = 'A').
+    cursor.execute("TRUNCATE TABLE partner_capability_naics")
+    cursor.execute("""
+        INSERT INTO partner_capability_naics (uei_sam, naics_code)
+        SELECT DISTINCT en.uei_sam, en.naics_code
+        FROM entity_naics en
+        INNER JOIN entity e
+            ON e.uei_sam = en.uei_sam
+            AND e.registration_status = 'A'
+        WHERE en.naics_code IS NOT NULL
+    """)
+    naics_count = cursor.rowcount
+
+    conn.commit()
+
+    elapsed = time.time() - t0
+    logger.info(
+        "partner_capability_match refreshed: %d summary rows, %d naics rows in %.1fs",
+        summary_count, naics_count, elapsed)
+    return summary_count
+
+
 def resolve_fpds_fh_org_ids(conn):
     """Resolve NULL fh_org_id on fpds_contract after a load.
 

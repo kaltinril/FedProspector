@@ -54,6 +54,7 @@ Modules:
     cli/sca.py            load-sca
     cli/backfill.py       backfill-opportunity-intel, backfill-pocs
     cli/demand.py         process-requests  (registered under 'job' group)
+    cli/refresh.py        partner-capability (refresh pre-computed summary tables)
 """
 
 import sys
@@ -173,6 +174,12 @@ def report():
     pass
 
 
+@cli.group()
+def refresh():
+    """Refresh pre-computed summary tables from source views/tables."""
+    pass
+
+
 # ---------------------------------------------------------------------------
 # Imports
 # ---------------------------------------------------------------------------
@@ -219,6 +226,7 @@ from cli.normalize import normalize_labor_categories
 from cli.bls import load_bls
 from cli.sca import load_sca, update_sca_list
 from cli.agencies import normalize_agencies, unresolved_agencies, normalize_fh_orgs
+from cli.refresh import refresh_partner_capability
 
 
 # ---------------------------------------------------------------------------
@@ -384,6 +392,12 @@ health.add_command(ai_usage, name="ai-usage")
 # ---------------------------------------------------------------------------
 
 report.add_command(unresolved_agencies, name="unresolved-agencies")
+
+# ---------------------------------------------------------------------------
+# refresh group commands
+# ---------------------------------------------------------------------------
+
+refresh.add_command(refresh_partner_capability, name="partner-capability")
 
 
 if __name__ == "__main__":

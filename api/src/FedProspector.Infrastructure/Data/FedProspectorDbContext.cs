@@ -106,6 +106,11 @@ public class FedProspectorDbContext : DbContext
     public DbSet<UsaspendingAwardSummary> UsaspendingAwardSummaries { get; set; }
     public DbSet<UsaspendingTransaction> UsaspendingTransactions { get; set; }
 
+    // Phase 138: daily-refreshed materialization of v_partner_capability_match
+    // (Teaming Partner Search + Gap Analysis). Backed by tables, not the view.
+    public DbSet<PartnerCapabilityMatch> PartnerCapabilityMatchSummaries { get; set; }
+    public DbSet<PartnerCapabilityNaics> PartnerCapabilityNaicsRows { get; set; }
+
     // -----------------------------------------------------------------------
     // ETL Tables (5)
     // -----------------------------------------------------------------------
@@ -224,6 +229,12 @@ public class FedProspectorDbContext : DbContext
 
         modelBuilder.Entity<UsaspendingAwardSummary>()
             .HasKey(s => new { s.NaicsCode, s.AgencyCgac });
+
+        modelBuilder.Entity<PartnerCapabilityMatch>()
+            .HasKey(s => s.UeiSam);
+
+        modelBuilder.Entity<PartnerCapabilityNaics>()
+            .HasKey(n => new { n.UeiSam, n.NaicsCode });
 
         modelBuilder.Entity<FpdsContract>()
             .HasKey(e => new { e.ContractId, e.ModificationNumber });
