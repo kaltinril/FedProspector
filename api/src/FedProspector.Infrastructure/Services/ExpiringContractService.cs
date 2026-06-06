@@ -112,8 +112,13 @@ public class ExpiringContractService : IExpiringContractService
         }
 
         // 7. Execute both queries (no joins — entity lookup deferred to after pagination)
+        //    Both branches are pre-ordered by completion date and bounded to the
+        //    same ceiling (offset + limit + buffer) so the post-dedup page can be
+        //    filled without materializing every match. FPDS wins on dedup, so it
+        //    gets the same ceiling as the USA branch.
         var fpdsResults = await query
             .OrderBy(c => c.UltimateCompletionDate)
+            .Take(request.Offset + request.Limit + 50) // ceiling: only fetch what we might need
             .ToListAsync();
 
         var usaResults = await usaQuery

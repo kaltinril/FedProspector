@@ -1060,7 +1060,11 @@ public class PricingService : IPricingService
                         && a.BaseAndAllOptionsValue != null
                         && a.BaseAndAllOptionsValue > 0);
 
+        // Bound the pull: a common NAICS returns ~33K rows here. Cap at the most
+        // recent 500 comparable awards (same cap the Price-to-Win path uses).
         var values = await query
+            .OrderByDescending(a => a.StartDate)
+            .Take(500)
             .Select(a => a.BaseAndAllOptionsValue!.Value)
             .ToListAsync();
 

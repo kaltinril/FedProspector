@@ -21,10 +21,21 @@ public class TeamingService : ITeamingService
     public async Task<PagedResponse<PartnerSearchResultDto>> SearchPartnersAsync(
         string? naicsCode, string? state, string? certification, string? agency, int page, int pageSize)
     {
-        var query = _context.PartnerCapabilityMatches.AsNoTracking();
+        // Phase 138: read the daily-refreshed partner_capability_match summary
+        // (materialized v_partner_capability_match) instead of the >90s view.
+        // The summary is empty until the first `refresh partner-capability` runs;
+        // an empty table yields an empty result here (no crash).
+        var query = _context.PartnerCapabilityMatchSummaries.AsNoTracking();
 
+        // NAICS filter via the indexed partner_capability_naics join — a single
+        // (naics_code) lookup instead of a LIKE '%code%' over the GROUP_CONCAT.
         if (!string.IsNullOrWhiteSpace(naicsCode))
-            query = query.Where(p => p.NaicsCodes != null && p.NaicsCodes.Contains(naicsCode));
+        {
+            var naicsUeis = _context.PartnerCapabilityNaicsRows.AsNoTracking()
+                .Where(n => n.NaicsCode == naicsCode)
+                .Select(n => n.UeiSam);
+            query = query.Where(p => naicsUeis.Contains(p.UeiSam));
+        }
 
         if (!string.IsNullOrWhiteSpace(state))
             query = query.Where(p => p.State == state);
@@ -283,13 +294,21 @@ public class TeamingService : ITeamingService
             };
         }
 
-        // Find partners that have capabilities the org lacks
-        var query = _context.PartnerCapabilityMatches.AsNoTracking();
+        // Find partners that have capabilities the org lacks.
+        // Phase 138: read the daily-refreshed partner_capability_match summary
+        // (materialized v_partner_capability_match) instead of the >90s view.
+        // Empty until the first `refresh partner-capability` runs — that yields
+        // an empty GapFillingPartners list rather than a crash.
+        var query = _context.PartnerCapabilityMatchSummaries.AsNoTracking();
 
         if (!string.IsNullOrWhiteSpace(naicsCode))
         {
-            // Find partners who have this specific NAICS that the org may not
-            query = query.Where(p => p.NaicsCodes != null && p.NaicsCodes.Contains(naicsCode));
+            // Find partners who have this specific NAICS that the org may not,
+            // via the indexed partner_capability_naics join (no GROUP_CONCAT LIKE).
+            var naicsUeis = _context.PartnerCapabilityNaicsRows.AsNoTracking()
+                .Where(n => n.NaicsCode == naicsCode)
+                .Select(n => n.UeiSam);
+            query = query.Where(p => naicsUeis.Contains(p.UeiSam));
         }
 
         // Exclude the org's own entities

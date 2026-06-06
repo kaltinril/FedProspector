@@ -31,6 +31,7 @@ DAILY_SEQUENCE = [
     "cross_ref_identifiers",
     "intel_backfill",
     "sca_revisions",
+    "refresh_partner_capability",
 ]
 WEEKLY_SEQUENCE = [
     "entity_daily", "opportunities", "awards", "exclusions",
@@ -142,6 +143,11 @@ def _get_daily_steps():
             "name": "sca_revisions",
             "description": "Check SCA wage determinations for new revisions",
             "command": ["python", "main.py", "load", "sca"],
+        },
+        {
+            "name": "refresh_partner_capability",
+            "description": "Refresh teaming partner capability summary (materializes v_partner_capability_match)",
+            "command": ["python", "main.py", "refresh", "partner-capability"],
         },
     ]
 
@@ -483,7 +489,7 @@ def _run_batch(mode_name, sequence, key, skip, dry_run, continue_on_failure, for
 @click.option("--dry-run", is_flag=True, default=False,
               help="Show what would run without executing")
 def load_daily(key, skip, dry_run):
-    """Run the daily load sequence (16 steps).
+    """Run the daily load sequence (17 steps).
 
     Checks monthly entity load eligibility before daily steps.
     Always continues on failure — no step blocks the next.
@@ -505,6 +511,7 @@ def load_daily(key, skip, dry_run):
      14. cross_ref_identifiers Cross-reference identifiers
      15. intel_backfill       Backfill opportunity intel
      16. sca_revisions        Check SCA WD revisions
+     17. refresh_partner_capability  Refresh teaming partner capability summary
 
     Examples:
         python main.py job daily
