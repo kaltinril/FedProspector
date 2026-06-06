@@ -451,7 +451,12 @@ app.UseRateLimiter();
 // 11. Map controllers (/api/* and /health match here, before the SPA fallback)
 app.MapControllers();
 
-// 12. SPA fallback — any unmatched non-file route returns index.html so client-side
+// 12. API fallback — unmatched /api/* routes must return 404, not the SPA shell.
+// This more-specific pattern wins over the catch-all index.html fallback below, so a
+// mistyped/missing endpoint yields a real 404 instead of a misleading 200 text/html.
+app.MapFallback("/api/{**slug}", () => Results.NotFound()).AllowAnonymous();
+
+// 13. SPA fallback — any unmatched non-file route returns index.html so client-side
 // routing works. Must be anonymous so the login page loads without a token (the
 // default-deny FallbackPolicy would otherwise require auth).
 app.MapFallbackToFile("index.html").AllowAnonymous();
